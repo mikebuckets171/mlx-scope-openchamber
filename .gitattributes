@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.png binary
+panel/main.js linguist-generated=true
+service/main.js linguist-generated=true

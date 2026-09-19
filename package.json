@@ -1,0 +1,99 @@
+{
+  "name": "mlx-scope-openchamber",
+  "version": "1.0.0",
+  "description": "Lightweight oMLX monitoring for OpenChamber.",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikebuckets171/mlx-scope-openchamber.git"
+  },
+  "homepage": "https://github.com/mikebuckets171/mlx-scope-openchamber",
+  "bugs": {
+    "url": "https://github.com/mikebuckets171/mlx-scope-openchamber/issues"
+  },
+  "keywords": [
+    "openchamber",
+    "omlx",
+    "telemetry",
+    "inference",
+    "local-monitor"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "openchamber": {
+    "apiVersion": 1,
+    "engines": {
+      "openchamber": ">=1.24.2"
+    },
+    "contributes": {
+      "panel": {
+        "id": "mlx-scope",
+        "name": "MLX Scope",
+        "icon": "panel/scope-icon.svg",
+        "entry": "panel/index.html"
+      },
+      "actions": [
+        {
+          "id": "open-mlx-scope",
+          "label": "Open MLX Scope",
+          "icon": "panel/scope-icon.svg",
+          "where": "session"
+        }
+      ],
+      "service": {
+        "entry": "service/main.js",
+        "runtime": "host",
+        "permissions": {
+          "exec": [
+            "/usr/bin/vm_stat",
+            "/usr/sbin/sysctl"
+          ]
+        }
+      },
+      "page": true
+    }
+  },
+  "scripts": {
+    "build": "bun run build:panel && bun run build:service",
+    "build:panel": "openchamber-guest-bundle panel/main.ts panel/main.js",
+    "build:service": "bun build service/main.ts --target=node --format=esm --minify-whitespace --outfile=service/main.js",
+    "type-check": "tsc --noEmit",
+    "test": "bun test ./service ./src ./panel",
+    "preview": "bun run build:panel && bun tests/browser/server.ts",
+    "test:browser": "playwright test",
+    "verify:package": "bun scripts/verify-package.ts",
+    "check": "bun run type-check && bun run test && bun run build && bun run verify:package",
+    "check:all": "bun run check && bun run test:browser"
+  },
+  "dependencies": {
+    "@openchamber/sdk": "1.24.2",
+    "jsonc-parser": "3.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.0",
+    "@types/bun": "1.3.4",
+    "@types/node": "24.3.1",
+    "typescript": "5.9.3"
+  },
+  "files": [
+    "package.json",
+    "README.md",
+    "LICENSE",
+    "PRIVACY.md",
+    "SECURITY.md",
+    "THIRD_PARTY_NOTICES.md",
+    "CHANGELOG.md",
+    "panel/index.html",
+    "panel/main.js",
+    "panel/style.css",
+    "panel/scope-icon.svg",
+    "service/main.js",
+    "docs/CONFIGURATION.md",
+    "docs/METRICS.md",
+    "docs/ARCHITECTURE.md",
+    "docs/COMPATIBILITY.md"
+  ]
+}

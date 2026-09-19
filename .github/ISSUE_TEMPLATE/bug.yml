@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible problem.
+body:
+  - type: markdown
+    attributes:
+      value: Please omit credentials and private chat content. Use SECURITY.md for vulnerability reports.
+  - type: input
+    id: version
+    attributes:
+      label: MLX Scope version
+      placeholder: Version shown in the interface
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OpenChamber/oMLX/macOS versions and chip, where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Steps, expected behavior, and what actually happened.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Sanitized readings, error text, or a screenshot. Label sample data.

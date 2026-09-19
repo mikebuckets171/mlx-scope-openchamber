@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>MLX Scope · synthetic preview</title><style>html,body{margin:0;background:#10151b;font:11px -apple-system,sans-serif}aside{height:24px;display:grid;place-items:center;background:#203044;color:#c4d6e9}iframe{display:block;width:100%;height:calc(100vh - 24px);border:0}</style></head>
+<body><aside>Synthetic preview · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script>
+const frame = document.querySelector('iframe');
+const params = new URLSearchParams(location.search);
+let themeName = params.get('theme') || 'dark';
+let state = params.get('state') || 'decode';
+window.setPreviewState = value => { state = value; };
+window.previewCopied = '';
+window.previewWrites = 0;
+window.previewDraft = "Existing draft";
+window.previewComposed = null;
+window.previewUnexpectedSends = 0;
+let currentSession = params.has('chat') ? {id:'synthetic-chat',title:'Local coding session',busy:true,agent:'Build',model:'Qwen3.8-27B-4bit'} : null;
+const sessionItem = params.get('item') === 'session' ? {kind:'session', action:'open-mlx-scope', sessionId:'synthetic-session', sessionTitle:params.get('sessionTitle') || 'Synthetic session', directory:null} : null;
+let samples = 0;
+let previewEpoch = 1;
+window.setPreviewEpoch = value => { previewEpoch = value; };
+window.previewOverride = {};
+window.setPreviewOverride = value => { window.previewOverride = value; };
+window.previewRequests = 0;
+window.previewStatusChecks = 0;
+window.previewOpenedURL = '';
+window.previewHold = false;
+window.previewTransportError = '';
+function theme(name) {
+  const light = name === 'light' || name === 'sand';
+  const palette = name === 'violet' ? ['#191520','#221d2b','#dfc7ff','#9562c9','#ffffff']
+    : name === 'sand' ? ['#faf7f1','#ffffff','#79522a','#79522a','#ffffff']
+    : light ? ['#f7f9fb','#ffffff','#245a90','#2868a5','#ffffff']
+    : ['#10151b','#202c36','#98c8fa','#3b72ad','#ffffff'];
+  return {mode:light?'light':'dark',tokens:{
+    background:palette[0],elevated:palette[1],foreground:light?'#172a37':'#e9f0f5',
+    elevatedForeground:light?'#172a37':'#e9f0f5',muted:light?'#596977':'#9aa9b7',
+    subtle:light?'#687683':'#8595a5',border:light?'#ced7df':'#3b3a47',
+    hover:light?'#e8e4de':'#2c2736',active:light?'#e1ddd7':'#342e40',
+    selection:light?'#dfd4c4':'#433653',selectionForeground:light?'#172a37':'#e9f0f5',
+    focus:palette[2],mutedSurface:light?'#f0ece6':'#25222d',primary:palette[3],primaryText:palette[2],primaryForeground:palette[4],
+    success:light?'#197e68':'#7dd9bd',successText:light?'#197e68':'#7dd9bd',
+    warning:light?'#966113':'#dfb976',warningText:light?'#966113':'#dfb976',
+    error:light?'#b13a45':'#ee8992',errorText:light?'#b13a45':'#ee8992',
+    info:light?'#286cae':'#86b7ed',infoText:light?'#286cae':'#86b7ed',
+    font:'-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',mono:'ui-monospace, SFMono-Regular, Menlo, monospace',radius:'9px'
+  }};
+}
+window.previewTheme = theme(themeName);
+const post = (message) => frame.contentWindow.postMessage({channel:'openchamber.sdk',v:1,...message}, '*');
+const ready = () => post({type:'ready',payload:{theme:window.previewTheme,locale:'en-US',directory:null,session:currentSession,surface:params.get('surface') === 'page' ? 'page' : 'panel',connection:{connected:true,account:''},settings:{},item:sessionItem}});
+window.setPreviewTheme = value => { window.previewTheme = theme(value); ready(); };
+window.setPreviewSession = value => { currentSession=value; post({type:'session',payload:{session:value}}); };
+window.addEventListener('message', async (event) => {
+  if(event.source !== frame.contentWindow || event.data?.channel !== 'openchamber.sdk') return;
+  const m = event.data;
+if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
+  if(m.type === 'open-url') { window.previewOpenedURL=m.payload.url; post({type:'result',id:m.id,ok:true,payload:null}); return; }
+  if(m.type === 'service-status') {
+    window.previewStatusChecks += 1;
+    if(params.has('denied')) post({type:'result',id:m.id,ok:false,code:'NOT_GRANTED',error:'fixture detail not for display'});
+    else post({type:'result',id:m.id,ok:true,payload:{status:params.get('service') || 'ready'}}); return;
+  }
+  if(m.type === 'storage') {
+    if(params.get('storage') === 'slow' && m.payload.op === 'keys') await new Promise(resolve => setTimeout(resolve, 700));
+    const {op,key,value} = m.payload;
+    if(params.get('storage') === 'fail') { post({type:'result',id:m.id,ok:false,code:'HOST_REJECTED',error:'Fixture storage failure'}); return; }
+    const stored = key ? sessionStorage.getItem(key) : null;
+    if(op === 'delete') { sessionStorage.removeItem(key); window.previewWrites += 1; }
+    if(op === 'set') { sessionStorage.setItem(key, JSON.stringify(value)); window.previewWrites += 1; }
+    const payload = op === 'keys' ? {storage:true,op,keys:Object.keys(sessionStorage)} : op === 'get' ? {storage:true,op,found:stored !== null,...(stored === null ? {} : {value:JSON.parse(stored)})} : {storage:true,op};
+    post({type:'result',id:m.id,ok:true,payload}); return;
+  }
+  if(m.type === 'clipboard-write') {
+    if(params.get('clipboard') === 'fail') { post({type:'result',id:m.id,ok:false,code:'HOST_REJECTED',error:'Fixture clipboard failure'}); return; }
+    window.previewCopied = m.payload.text;
+    post({type:'result',id:m.id,ok:true,payload:null}); return;
+  }
+  if(m.type === 'compose') {
+    if(params.get('compose') === 'fail') { post({type:'result',id:m.id,ok:false,code:'HOST_REJECTED',error:'Fixture compose failure'}); return; }
+    window.previewComposed = m.payload;
+    window.previewDraft = m.payload.mode === "append" ? window.previewDraft + "\n\n" + m.payload.text : m.payload.text;
+    post({type:'result',id:m.id,ok:true,payload:null}); return;
+  }
+  if(m.type === 'prompt' || m.type === 'generate' || m.type === 'start-session') window.previewUnexpectedSends += 1;
+  if(m.type !== 'service-request') return;
+  window.previewRequests += 1;
+  samples += 1;
+  if (window.previewHold) return;
+  if (state === 'stalled' && samples > 2) return;
+  const phase = state === 'prefill-stale' || state === 'prefill-missing' || state === 'prefill-malformed' ? 'prefill' : state === 'stalled' ? 'decode' : state === 'reconnect' ? samples > 4 ? 'offline' : 'decode' : state;
+  const available = !['offline','auth'].includes(phase);
+  const payload = {
+    available, reason: available ? null : phase === 'auth' ? 'authentication_failed' : 'runtime_unreachable',
+    message: available ? null : phase === 'auth' ? 'The saved credential was rejected by oMLX.' : 'oMLX is not responding. Start the server, then refresh.',
+    prefillETASeconds: phase==='prefill' ? 17.75 : null,
+    residentModels:[{id:'Qwen3.8-27B-4bit',phase:phase==='notLoaded'?'idle':phase,activeRequests:1,queuedRequests:0,allocationGB:17.1,tokensPerSecond:24.6,prefillProgress:phase==='prefill'?.64:null,progressStale:state==='prefill-stale'},...(params.has('multi') ? [{id:'Qwen3.6-35B-A3B-4bit',phase:'prefill',activeRequests:1,queuedRequests:0,allocationGB:20.4,tokensPerSecond:280,prefillProgress:.23,progressStale:false}] : [])],residentModelCount:params.has('multi')?2:1,
+    runtime:'omlx',phase,sessionStatsState:params.get('stats') || 'fresh',
+    modelID:phase === 'notLoaded' ? null : params.get('long') ? 'publisher/a-very-long-model-name-with-a-large-context-window-and-quantization-details-27B-4bit' : 'Qwen3.8-27B-4bit',
+    liveDecodeTPS:phase === 'decode' ? 24.6 + Math.sin(samples / 3) * 1.4 : null,
+    livePrefillTPS:phase === 'prefill' && state !== 'prefill-stale' ? 184.5 : null, sessionAverageDecodeTPS:23.2, sessionAveragePrefillTPS:184.5,sessionCacheEfficiencyPercent:82.3,
+    promptTokens:['decode','prefill'].includes(phase)?52100:null,cachedTokens:['decode','prefill'].includes(phase)?43000:null,completionTokens:phase==='decode'?6482+samples*12:null,
+    prefillProgress:phase==='prefill' && state!=='prefill-missing'?.64:null,prefillProcessedTokens:phase==='prefill' ? state==='prefill-missing'?null:5824 :null,prefillTotalTokens:phase==='prefill' ? state==='prefill-missing'?null:state==='prefill-malformed'?0:9100:null,prefillProgressStale:state==='prefill-stale', elapsedSeconds:phase==='decode'?260+samples/2:null,activeRequests:['decode','prefill','processing'].includes(phase)?1:0,queuedRequests:phase==='queued'?2:0,contextWindow:131072,
+    memory:{activeGB:34.5,modelGB:17.1,cacheGB:3.2,peakGB:null},sessionBank:{hot:{entries:7,totalGB:3.2},cold:{entries:188,totalGB:22.4},lastMissReason:'closest_recent_store'},
+    memoryPressureLevel:1,memoryPressureSource:'oMLX process memory guard',lifetime:{requestsTotal:381,uptimeSeconds:51420},sampledAt:Date.now(),traceEpoch:previewEpoch,
+    system: params.get('system') === 'missing' ? null : {
+      platform: params.get('system') === 'linux' ? 'linux' : 'darwin',
+      cpuModel: 'Apple Silicon · synthetic fixture',logicalCores:18,
+      cpuPercent:28.4 + Math.sin(samples / 2) * 7,memoryUsedGB:36.1 * 1024 ** 3 / 1e9,memoryTotalGB:48 * 1024 ** 3 / 1e9,sampledAt:Math.floor(Date.now() / 2000) * 2000,
+      macOS: params.get('native') === 'missing' ? null : {wiredGB:4.5 * 1024 ** 3 / 1e9,compressedGB:2.8 * 1024 ** 3 / 1e9,swapUsedGB:1.1 * 1024 ** 3 / 1e9,
+      sampledAt:Math.floor(Date.now() / 10000) * 10000},
+    },
+  };
+  // Concurrent models retain individual readings but no single-request headline.
+  if (params.get('multi') === '1' && ['decode','prefill','processing'].includes(phase)) {
+    payload.phase = 'processing'; payload.activeRequests = 2;
+    payload.message = 'Concurrent requests or models · per-request values withheld';
+    for (const key of ['liveDecodeTPS','livePrefillTPS','promptTokens','cachedTokens','completionTokens','elapsedSeconds','prefillETASeconds','prefillProgress','prefillProcessedTokens','prefillTotalTokens']) payload[key] = null;
+  }
+  if (params.get('multi') === 'resident') {
+    Object.assign(payload.residentModels[1], {phase:'idle',activeRequests:0,tokensPerSecond:null,prefillProgress:null});
+  }
+  payload.residentModels[0].activeRequests = ['decode','prefill','processing'].includes(phase) ? 1 : 0;
+  if (phase === 'prefill') payload.residentModels[0].tokensPerSecond = state === 'prefill-stale' ? null : 184.5;
+  if (phase === 'notLoaded') { payload.residentModels = []; payload.residentModelCount = 0; }
+  if (state === 'dflash' || state === 'dflash-preparing') {
+    Object.assign(payload, {phase:state === 'dflash' ? 'decode' : 'processing',activeRequests:1,
+      modelID:'Qwen · DFlash preview',liveDecodeTPS:null,livePrefillTPS:null,
+      completionTokens:state === 'dflash' ? 256 + samples * 16 : null,elapsedSeconds:30 + samples / 2,
+      promptTokens:null,cachedTokens:null,prefillProgress:null,prefillProcessedTokens:null,prefillTotalTokens:null,prefillETASeconds:null,
+      message:state === 'dflash' ? 'Output arriving · request-average speed not reported' : 'Working · this engine does not report prefill percentage',
+      residentModels:[{id:'Qwen · DFlash preview',phase:state === 'dflash' ? 'decode' : 'processing',activeRequests:1,queuedRequests:0,allocationGB:17.1,tokensPerSecond:null,prefillProgress:null,progressStale:false}]});
+  }
+  Object.assign(payload, window.previewOverride);
+  post({type:'result',id:m.id,ok:true,payload:{status:200,body:JSON.stringify(payload)}});
+});
+
+// The released host's relay transport embeds package assets as data URLs in
+// srcdoc. Preserve the real panel CSP so this catches incompatible policies.
+async function loadRelayDocument() {
+  const entry = new URL('/panel/index.html', location.href);
+  const response = await fetch(entry);
+  if (!response.ok) throw new Error('Panel document did not load');
+  const document = new DOMParser().parseFromString(await response.text(), 'text/html');
+  const base = document.createElement('base');
+  base.href = 'https://extension.invalid/api/guests/mlx-scope/panel/index.html';
+  document.head.prepend(base);
+  for (const node of document.querySelectorAll('script[src], link[rel="stylesheet"][href]')) {
+    const attribute = node.tagName === 'SCRIPT' ? 'src' : 'href';
+    const url = new URL(node.getAttribute(attribute), entry);
+    if (url.origin !== location.origin || !url.pathname.startsWith('/panel/')) throw new Error('Fixture resource is outside the panel package');
+    const asset = await fetch(url);
+    if (!asset.ok) throw new Error('Panel resource did not load');
+    const bytes = new Uint8Array(await asset.arrayBuffer());
+    let binary = '';
+    for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+    const mime = asset.headers.get('Content-Type')?.split(';')[0] || 'application/octet-stream';
+    node.setAttribute(attribute, `data:${mime};base64,${btoa(binary)}`);
+  }
+  frame.srcdoc = '<!doctype html>\n' + document.documentElement.outerHTML;
+}
+if (params.get('transport') === 'relay') {
+  loadRelayDocument().catch(error => { window.previewTransportError = error.message; });
+} else frame.src = '/panel/index.html';
+</script></body></html>

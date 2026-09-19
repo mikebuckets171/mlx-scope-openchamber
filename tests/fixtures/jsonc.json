@@ -1,0 +1,62 @@
+[
+  {
+    "name": "plain",
+    "text": "{\"a\":1}",
+    "valid": true
+  },
+  {
+    "name": "comments",
+    "text": "{/* block */\"url\":\"http://127.0.0.1:8000/v1\", // line\n\"list\":[1,2,],}",
+    "valid": true
+  },
+  {
+    "name": "escaped quotes",
+    "text": "{\"s\":\"a\\\"//b\",\"t\":\"/* string */\",}",
+    "valid": true
+  },
+  {
+    "name": "unclosed comment",
+    "text": "{/*oops",
+    "valid": false
+  },
+  {
+    "name": "unclosed string",
+    "text": "{\"a\":\"b}",
+    "valid": false
+  },
+  {
+    "name": "missing value",
+    "text": "{\"a\":,}",
+    "valid": false
+  },
+  {
+    "name": "empty comma array",
+    "text": "{\"a\":[,]}",
+    "valid": false
+  },
+  {
+    "name": "repeated commas",
+    "text": "{\"a\":[1,,]}",
+    "valid": false
+  },
+  {
+    "name": "JSON5 keys",
+    "text": "{a:'b'}",
+    "valid": false
+  },
+  {
+    "name": "trailing garbage",
+    "text": "{}oops",
+    "valid": false
+  },
+  {
+    "name": "extra token",
+    "text": "{\"a\":1 2}",
+    "valid": false
+  },
+  {
+    "name": "wrong root",
+    "text": "[]",
+    "valid": false
+  }
+]

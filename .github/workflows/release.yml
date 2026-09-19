@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: mlx-scope-package
+          path: dist
+      - name: Verify release identity and notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          import { join } from 'node:path';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          assert.equal(pkg.name, 'mlx-scope-openchamber');
+          assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
+          assert.equal(process.env.RELEASE_TAG, `v${pkg.version}`);
+          const changelog = readFileSync('CHANGELOG.md', 'utf8');
+          const heading = `## ${pkg.version}\n`;
+          const position = changelog.indexOf(heading);
+          assert(position >= 0, 'Release needs a matching changelog entry.');
+          const notes = changelog.slice(position + heading.length).split('\n## ')[0].trim();
+          assert(notes.length > 0, 'Release notes must not be empty.');
+          const asset = `${pkg.name}-${pkg.version}.zip`;
+          const install = `Install **${asset}** in OpenChamber. GitHub source archives are not install packages. A SHA-256 file accompanies the ZIP.`;
+          writeFileSync(join(process.env.RUNNER_TEMP, 'release-notes.md'), `${notes}\n\n${install}\n`);
+          writeFileSync(process.env.GITHUB_ENV, `RELEASE_ASSET=${asset}\n`, { flag: 'a' });
+          JS
+      - name: Verify checksum
+        working-directory: dist
+        run: sha256sum --check "$RELEASE_ASSET.sha256"
+      - name: Publish verified package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: >-
+          gh release create "$RELEASE_TAG"
+          "dist/$RELEASE_ASSET" "dist/$RELEASE_ASSET.sha256"
+          --verify-tag --title "MLX Scope $RELEASE_TAG"
+          --notes-file "$RUNNER_TEMP/release-notes.md"

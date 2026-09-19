@@ -1,0 +1,1682 @@
+{
+  "source": "oMLX v0.6.4 (1d7826185c5b5b69b38b27cbe57d7597b7551fd7): admin activity, session cache and models/status. Synthetic values; no live benchmark.",
+  "cases": [
+    {
+      "name": "no model",
+      "activity": {
+        "active_models": {
+          "models": []
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "notLoaded",
+        "active": 0,
+        "queued": 0
+      }
+    },
+    {
+      "name": "resident idle",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 0,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "idle",
+        "active": 0,
+        "queued": 0
+      }
+    },
+    {
+      "name": "incomplete state is unknown",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model"
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "unknown",
+        "active": null,
+        "queued": null
+      }
+    },
+    {
+      "name": "loading",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 0,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [],
+              "is_loading": true,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "processing",
+        "active": 0,
+        "queued": 0
+      }
+    },
+    {
+      "name": "queued",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 0,
+              "waiting_requests": 2,
+              "generating": [],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [
+                {
+                  "request_id": "synthetic-b"
+                },
+                {
+                  "request_id": "synthetic-c"
+                }
+              ],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "queued",
+        "active": 0,
+        "queued": 2
+      }
+    },
+    {
+      "name": "prefill with request-matched cache",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [
+                {
+                  "request_id": "synthetic-a",
+                  "processed": 64,
+                  "total": 100,
+                  "speed": 200,
+                  "eta": 0.18,
+                  "elapsed": 0.32,
+                  "phase": "text"
+                }
+              ],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": {
+        "engines": {},
+        "active_models": {
+          "models": []
+        },
+        "avg_generation_tps": 22,
+        "avg_prefill_tps": 200,
+        "cache_efficiency": 60,
+        "runtime_cache": {
+          "hot_cache_size_bytes": 1024,
+          "cold_tier": {
+            "physical_bytes": 4096
+          },
+          "models": [
+            {
+              "id": "fixture-model",
+              "last_prefix_lookup": {
+                "request_id": "synthetic-a",
+                "prompt_tokens": 1000,
+                "reused_kv_tokens": 600
+              }
+            }
+          ]
+        }
+      },
+      "contextWindows": {
+        "fixture-model": 8192
+      },
+      "expected": {
+        "rate": 200,
+        "prompt": 1000,
+        "reused": 600,
+        "output": null,
+        "progress": 0.64,
+        "eta": 0.18,
+        "contextRemaining": 7192,
+        "inputReusedPercent": 60,
+        "phase": "prefill",
+        "active": 1,
+        "queued": 0
+      }
+    },
+    {
+      "name": "decode with request-matched cache",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [
+                {
+                  "request_id": "synthetic-a",
+                  "generated_tokens": 240,
+                  "elapsed_seconds": 10,
+                  "last_activity_age_seconds": 0.3,
+                  "tokens_per_second": 24,
+                  "prompt_tokens": 1000
+                }
+              ],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": {
+        "engines": {},
+        "active_models": {
+          "models": []
+        },
+        "avg_generation_tps": 22,
+        "avg_prefill_tps": 200,
+        "cache_efficiency": 60,
+        "runtime_cache": {
+          "hot_cache_size_bytes": 1024,
+          "cold_tier": {
+            "physical_bytes": 4096
+          },
+          "models": [
+            {
+              "id": "fixture-model",
+              "last_prefix_lookup": {
+                "request_id": "synthetic-a",
+                "prompt_tokens": 1000,
+                "reused_kv_tokens": 600
+              }
+            }
+          ]
+        }
+      },
+      "contextWindows": {
+        "fixture-model": 8192
+      },
+      "expected": {
+        "rate": 24,
+        "prompt": 1000,
+        "reused": 600,
+        "output": 240,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": 6952,
+        "inputReusedPercent": 60,
+        "phase": "decode",
+        "active": 1,
+        "queued": 0
+      }
+    },
+    {
+      "name": "cache from another request ignored",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [
+                {
+                  "request_id": "synthetic-b",
+                  "generated_tokens": 240,
+                  "elapsed_seconds": 10,
+                  "last_activity_age_seconds": 0.3,
+                  "tokens_per_second": 24,
+                  "prompt_tokens": 1000
+                }
+              ],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": {
+        "engines": {},
+        "active_models": {
+          "models": []
+        },
+        "avg_generation_tps": 22,
+        "avg_prefill_tps": 200,
+        "cache_efficiency": 60,
+        "runtime_cache": {
+          "hot_cache_size_bytes": 1024,
+          "cold_tier": {
+            "physical_bytes": 4096
+          },
+          "models": [
+            {
+              "id": "fixture-model",
+              "last_prefix_lookup": {
+                "request_id": "synthetic-a",
+                "prompt_tokens": 1000,
+                "reused_kv_tokens": 600
+              }
+            }
+          ]
+        }
+      },
+      "contextWindows": {},
+      "expected": {
+        "rate": 24,
+        "prompt": 1000,
+        "reused": null,
+        "output": 240,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "decode"
+      }
+    },
+    {
+      "name": "cache from another model ignored",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "other",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [
+                {
+                  "request_id": "synthetic-a",
+                  "generated_tokens": 240,
+                  "elapsed_seconds": 10,
+                  "last_activity_age_seconds": 0.3,
+                  "tokens_per_second": 24,
+                  "prompt_tokens": 1000
+                }
+              ],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": {
+        "engines": {},
+        "active_models": {
+          "models": []
+        },
+        "avg_generation_tps": 22,
+        "avg_prefill_tps": 200,
+        "cache_efficiency": 60,
+        "runtime_cache": {
+          "hot_cache_size_bytes": 1024,
+          "cold_tier": {
+            "physical_bytes": 4096
+          },
+          "models": [
+            {
+              "id": "fixture-model",
+              "last_prefix_lookup": {
+                "request_id": "synthetic-a",
+                "prompt_tokens": 1000,
+                "reused_kv_tokens": 600
+              }
+            }
+          ]
+        }
+      },
+      "contextWindows": {},
+      "expected": {
+        "rate": 24,
+        "prompt": 1000,
+        "reused": null,
+        "output": 240,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "decode"
+      }
+    },
+    {
+      "name": "stale output",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [
+                {
+                  "request_id": "synthetic-a",
+                  "generated_tokens": 240,
+                  "elapsed_seconds": 10,
+                  "last_activity_age_seconds": 6,
+                  "tokens_per_second": 24,
+                  "prompt_tokens": 1000
+                }
+              ],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": {
+        "engines": {},
+        "active_models": {
+          "models": []
+        },
+        "avg_generation_tps": 22,
+        "avg_prefill_tps": 200,
+        "cache_efficiency": 60,
+        "runtime_cache": {
+          "hot_cache_size_bytes": 1024,
+          "cold_tier": {
+            "physical_bytes": 4096
+          },
+          "models": [
+            {
+              "id": "fixture-model",
+              "last_prefix_lookup": {
+                "request_id": "synthetic-a",
+                "prompt_tokens": 1000,
+                "reused_kv_tokens": 600
+              }
+            }
+          ]
+        }
+      },
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": 1000,
+        "reused": 600,
+        "output": 240,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": 60,
+        "phase": "processing"
+      }
+    },
+    {
+      "name": "concurrent text models",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [
+                {
+                  "request_id": "synthetic-a",
+                  "generated_tokens": 240,
+                  "elapsed_seconds": 10,
+                  "last_activity_age_seconds": 0.3,
+                  "tokens_per_second": 24,
+                  "prompt_tokens": 1000
+                }
+              ],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            },
+            {
+              "id": "other",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [
+                {
+                  "request_id": "synthetic-a",
+                  "generated_tokens": 240,
+                  "elapsed_seconds": 10,
+                  "last_activity_age_seconds": 0.3,
+                  "tokens_per_second": 24,
+                  "prompt_tokens": 1000
+                }
+              ],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": {
+        "engines": {},
+        "active_models": {
+          "models": []
+        },
+        "avg_generation_tps": 22,
+        "avg_prefill_tps": 200,
+        "cache_efficiency": 60,
+        "runtime_cache": {
+          "hot_cache_size_bytes": 1024,
+          "cold_tier": {
+            "physical_bytes": 4096
+          },
+          "models": [
+            {
+              "id": "fixture-model",
+              "last_prefix_lookup": {
+                "request_id": "synthetic-a",
+                "prompt_tokens": 1000,
+                "reused_kv_tokens": 600
+              }
+            }
+          ]
+        }
+      },
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "processing",
+        "active": 2,
+        "queued": 0
+      }
+    },
+    {
+      "name": "concurrent nonstreaming model with missing count",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [
+                {
+                  "request_id": "synthetic-a",
+                  "generated_tokens": 240,
+                  "elapsed_seconds": 10,
+                  "last_activity_age_seconds": 0.3,
+                  "tokens_per_second": 24,
+                  "prompt_tokens": 1000
+                }
+              ],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            },
+            {
+              "id": "audio",
+              "activities": [
+                {
+                  "request_id": "synthetic-s",
+                  "kind": "transcribing"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "stats": {
+        "engines": {},
+        "active_models": {
+          "models": []
+        },
+        "avg_generation_tps": 22,
+        "avg_prefill_tps": 200,
+        "cache_efficiency": 60,
+        "runtime_cache": {
+          "hot_cache_size_bytes": 1024,
+          "cold_tier": {
+            "physical_bytes": 4096
+          },
+          "models": [
+            {
+              "id": "fixture-model",
+              "last_prefix_lookup": {
+                "request_id": "synthetic-a",
+                "prompt_tokens": 1000,
+                "reused_kv_tokens": 600
+              }
+            }
+          ]
+        }
+      },
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "processing",
+        "active": null,
+        "queued": null
+      }
+    },
+    {
+      "name": "same model nonstreaming overlap",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [
+                {
+                  "request_id": "synthetic-a",
+                  "generated_tokens": 240,
+                  "elapsed_seconds": 10,
+                  "last_activity_age_seconds": 0.3,
+                  "tokens_per_second": 24,
+                  "prompt_tokens": 1000
+                }
+              ],
+              "prefilling": [],
+              "activities": [
+                {
+                  "kind": "generate",
+                  "request_id": "synthetic-s"
+                }
+              ],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": {
+        "engines": {},
+        "active_models": {
+          "models": []
+        },
+        "avg_generation_tps": 22,
+        "avg_prefill_tps": 200,
+        "cache_efficiency": 60,
+        "runtime_cache": {
+          "hot_cache_size_bytes": 1024,
+          "cold_tier": {
+            "physical_bytes": 4096
+          },
+          "models": [
+            {
+              "id": "fixture-model",
+              "last_prefix_lookup": {
+                "request_id": "synthetic-a",
+                "prompt_tokens": 1000,
+                "reused_kv_tokens": 600
+              }
+            }
+          ]
+        }
+      },
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "processing",
+        "active": 1
+      }
+    },
+    {
+      "name": "nonstreaming operation",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "kind": "transcribing",
+                  "elapsed_seconds": 1
+                }
+              ],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "processing",
+        "active": 1
+      }
+    },
+    {
+      "name": "proven queue overlap",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 2,
+              "generating": [],
+              "prefilling": [
+                {
+                  "request_id": "synthetic-a",
+                  "processed": 64,
+                  "total": 100,
+                  "speed": 200,
+                  "eta": 0.18,
+                  "elapsed": 0.32,
+                  "phase": "text"
+                }
+              ],
+              "activities": [],
+              "waiting": [
+                {
+                  "request_id": "synthetic-a",
+                  "prompt_tokens": 2000
+                },
+                {
+                  "request_id": "synthetic-b"
+                }
+              ],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": 200,
+        "prompt": 2000,
+        "reused": null,
+        "output": null,
+        "progress": 0.64,
+        "eta": 0.18,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "prefill",
+        "queued": 1,
+        "active": 1
+      }
+    },
+    {
+      "name": "invalid counters",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [
+                {
+                  "request_id": "synthetic-a",
+                  "processed": 101,
+                  "total": 100,
+                  "speed": 200,
+                  "eta": 0.18,
+                  "elapsed": 0.32,
+                  "phase": "text"
+                }
+              ],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": 200,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "prefill"
+      }
+    },
+    {
+      "name": "fractional counters",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [
+                {
+                  "request_id": "synthetic-a",
+                  "processed": 0.5,
+                  "total": 100,
+                  "speed": 200,
+                  "eta": 0.18,
+                  "elapsed": 0.32,
+                  "phase": "text"
+                }
+              ],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": 200,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "prefill"
+      }
+    },
+    {
+      "name": "zero total",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [
+                {
+                  "request_id": "synthetic-a",
+                  "processed": 0,
+                  "total": 0,
+                  "speed": 200,
+                  "eta": 0.18,
+                  "elapsed": 0.32,
+                  "phase": "text"
+                }
+              ],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": 200,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "prefill"
+      }
+    },
+    {
+      "name": "complete",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [
+                {
+                  "request_id": "synthetic-a",
+                  "processed": 100,
+                  "total": 100,
+                  "speed": 200,
+                  "eta": 0.18,
+                  "elapsed": 0.32,
+                  "phase": "text"
+                }
+              ],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": 200,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": 1,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "prefill"
+      }
+    },
+    {
+      "name": "stale prefill",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [
+                {
+                  "request_id": "synthetic-a",
+                  "processed": 64,
+                  "total": 100,
+                  "speed": 200,
+                  "eta": 0.18,
+                  "elapsed": 0.32,
+                  "phase": "text",
+                  "progress_stale": true
+                }
+              ],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": 0.64,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "prefill"
+      }
+    },
+    {
+      "name": "zero speed",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [
+                {
+                  "request_id": "synthetic-a",
+                  "processed": 64,
+                  "total": 100,
+                  "speed": 0,
+                  "eta": 0.18,
+                  "elapsed": 0.32,
+                  "phase": "text"
+                }
+              ],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": 0,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": 0.64,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "prefill"
+      }
+    },
+    {
+      "name": "context overrun",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [
+                {
+                  "request_id": "synthetic-a",
+                  "generated_tokens": 240,
+                  "elapsed_seconds": 10,
+                  "last_activity_age_seconds": 0.3,
+                  "tokens_per_second": 24,
+                  "prompt_tokens": 1000
+                }
+              ],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {
+        "fixture-model": 1024
+      },
+      "expected": {
+        "rate": 24,
+        "prompt": 1000,
+        "reused": null,
+        "output": 240,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "decode"
+      }
+    },
+    {
+      "name": "incomplete counters have no context estimate",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [
+                {
+                  "request_id": "synthetic-a",
+                  "generated_tokens": 240,
+                  "elapsed_seconds": 10,
+                  "last_activity_age_seconds": 0.3,
+                  "tokens_per_second": 24
+                }
+              ],
+              "prefilling": [],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {
+        "fixture-model": 8192
+      },
+      "expected": {
+        "rate": 24,
+        "prompt": null,
+        "reused": null,
+        "output": 240,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "decode"
+      }
+    },
+    {
+      "name": "negative and boolean input",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-model",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [
+                {
+                  "request_id": "synthetic-a",
+                  "processed": false,
+                  "total": 100,
+                  "speed": true,
+                  "eta": 0.18,
+                  "elapsed": 0.32,
+                  "phase": "text",
+                  "prompt_tokens": true,
+                  "cached_tokens": -1
+                }
+              ],
+              "activities": [],
+              "waiting": [],
+              "is_loading": false,
+              "actual_size": 1073741824
+            }
+          ]
+        }
+      },
+      "stats": null,
+      "contextWindows": {},
+      "expected": {
+        "rate": null,
+        "prompt": null,
+        "reused": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "contextRemaining": null,
+        "inputReusedPercent": null,
+        "phase": "prefill"
+      }
+    },
+    {
+      "name": "invalid model list rejected",
+      "activity": {
+        "active_models": {
+          "models": [
+            true
+          ]
+        }
+      },
+      "invalid": true
+    },
+    {
+      "name": "DFlash primary before first token",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "request_id": "synthetic-dflash",
+                  "kind": "generate",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "last_activity_age_seconds": 0.1
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "processing",
+        "rate": null,
+        "output": null,
+        "progress": null,
+        "eta": null,
+        "prompt": null
+      }
+    },
+    {
+      "name": "DFlash primary accepted output",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "request_id": "synthetic-dflash",
+                  "kind": "generate",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "last_activity_age_seconds": 0.1,
+                  "token_count": 64
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "decode",
+        "rate": null,
+        "output": 64,
+        "progress": null,
+        "eta": null,
+        "reused": null,
+        "contextRemaining": null
+      }
+    },
+    {
+      "name": "DFlash primary stale output",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "request_id": "synthetic-dflash",
+                  "kind": "generate",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "last_activity_age_seconds": 6,
+                  "token_count": 64
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "processing",
+        "rate": null,
+        "output": 64,
+        "progress": null
+      }
+    },
+    {
+      "name": "DFlash missing output age",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "request_id": "synthetic-dflash",
+                  "kind": "generate",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "token_count": 64
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "processing",
+        "rate": null,
+        "output": 64
+      }
+    },
+    {
+      "name": "DFlash missing identity",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "kind": "generate",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "last_activity_age_seconds": 0.1,
+                  "token_count": 64
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "processing",
+        "rate": null,
+        "output": 64
+      }
+    },
+    {
+      "name": "DFlash invalid output fractional",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "request_id": "synthetic-dflash",
+                  "kind": "generate",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "last_activity_age_seconds": 0.1,
+                  "token_count": 3.5
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "processing",
+        "rate": null,
+        "output": null,
+        "progress": null
+      }
+    },
+    {
+      "name": "DFlash invalid output negative",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "request_id": "synthetic-dflash",
+                  "kind": "generate",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "last_activity_age_seconds": 0.1,
+                  "token_count": -1
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "processing",
+        "rate": null,
+        "output": null,
+        "progress": null
+      }
+    },
+    {
+      "name": "DFlash invalid output boolean",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "request_id": "synthetic-dflash",
+                  "kind": "generate",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "last_activity_age_seconds": 0.1,
+                  "token_count": true
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "processing",
+        "rate": null,
+        "output": null,
+        "progress": null
+      }
+    },
+    {
+      "name": "DFlash invalid output overflow",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "request_id": "synthetic-dflash",
+                  "kind": "generate",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "last_activity_age_seconds": 0.1,
+                  "token_count": 1e+20
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "processing",
+        "rate": null,
+        "output": null,
+        "progress": null
+      }
+    },
+    {
+      "name": "Other activity counter is not generated output",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "request_id": "synthetic-dflash",
+                  "kind": "embedding",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "last_activity_age_seconds": 0.1,
+                  "token_count": 64
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "processing",
+        "rate": null,
+        "output": null
+      }
+    },
+    {
+      "name": "DFlash and another activity stay separate",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 2,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [],
+              "activities": [
+                {
+                  "request_id": "synthetic-dflash",
+                  "kind": "generate",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "last_activity_age_seconds": 0.1,
+                  "token_count": 64
+                },
+                {
+                  "request_id": "synthetic-other",
+                  "kind": "generate",
+                  "detail": "generating",
+                  "elapsed_seconds": 15,
+                  "last_activity_age_seconds": 0.1,
+                  "token_count": 64
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "processing",
+        "rate": null,
+        "output": null
+      }
+    },
+    {
+      "name": "DFlash standard fallback prefill",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [],
+              "prefilling": [
+                {
+                  "request_id": "synthetic-fallback",
+                  "processed": 1000,
+                  "total": 4000,
+                  "speed": 250,
+                  "eta": 12
+                }
+              ],
+              "activities": [],
+              "dflash": {
+                "speculation": {
+                  "last": {
+                    "generation_tokens": 999,
+                    "acceptance_ratio": 0.7
+                  },
+                  "totals": {
+                    "generation_tokens": 9999
+                  }
+                },
+                "pairing_warning": null
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "prefill",
+        "rate": 250,
+        "output": null,
+        "progress": 0.25,
+        "eta": 12
+      }
+    },
+    {
+      "name": "DFlash standard fallback generation",
+      "activity": {
+        "active_models": {
+          "models": [
+            {
+              "id": "fixture-dflash",
+              "active_requests": 1,
+              "waiting_requests": 0,
+              "generating": [
+                {
+                  "request_id": "synthetic-fallback",
+                  "generated_tokens": 100,
+                  "elapsed_seconds": 4,
+                  "tokens_per_second": 25,
+                  "last_activity_age_seconds": 0.1
+                }
+              ],
+              "prefilling": [],
+              "activities": [],
+              "dflash": {
+                "speculation": {
+                  "last": {
+                    "generation_tokens": 999,
+                    "acceptance_ratio": 0.7
+                  },
+                  "totals": {
+                    "generation_tokens": 9999
+                  }
+                },
+                "pairing_warning": null
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "phase": "decode",
+        "rate": 25,
+        "output": 100,
+        "progress": null
+      }
+    }
+  ]
+}
