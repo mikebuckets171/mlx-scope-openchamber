@@ -1,5 +1,6 @@
 import type { TelemetrySnapshot } from '../src/telemetry.ts';
 import { cacheSplit, prefillEstimate, recentGenerationsReport, SessionInsights } from './insights.ts';
+import { runtimeNames } from '../src/runtime.ts';
 
 const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 const integer = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
@@ -19,6 +20,7 @@ export class InsightView {
   update(snapshot: TelemetrySnapshot): void {
     this.history.observe(snapshot);
     const current = snapshot.available ? snapshot : null;
+    const runtimeName = current?.runtime ? runtimeNames[current.runtime] : 'Runtime';
     const estimate = prefillEstimate(current);
     this.node('prefill-estimate').hidden = estimate === null;
     this.text('prefill-eta', estimate ?? '—');
@@ -39,12 +41,12 @@ export class InsightView {
     this.node('cache-lens').dataset.stale = String(!current);
     this.text('cache-request-state', split ? `${number.format(split.percent)}% of input reused` : 'Current request · reuse not reported');
     const warning = current?.memoryPressureLevel && current.memoryPressureLevel >= 2
-      ? 'oMLX memory guard elevated. This is the runtime’s guard, not macOS memory pressure.'
+      ? `${runtimeName} memory guard elevated. This is the runtime’s guard, not macOS memory pressure.`
       : current?.prefillProgressStale ? 'Prefill progress has not advanced. The stage estimate is withheld until fresh progress arrives.' : '';
     this.text('runtime-advisory', warning); this.node('runtime-advisory').hidden = !warning;
 
     const models = current?.residentModels ?? [];
-    this.node('resident-section').hidden = models.length === 0;
+    this.node('resident-section').hidden = models.length === 0 || current?.connection?.coverage === 'inventory';
     this.text('resident-count', current?.residentModelCount == null ? '' : `${current.residentModelCount} loaded`);
     this.text('resident-note', (current?.residentModelCount ?? 0) > models.length
       ? `Showing ${models.length} of ${current!.residentModelCount} reported models. Read-only; no model switching.`
@@ -68,6 +70,28 @@ export class InsightView {
       put(row.querySelector('.resident-reading span')!, progress ?? (model.tokensPerSecond !== null ? rate(model.tokensPerSecond)
         : `${model.activeRequests ?? '—'} active · ${model.queuedRequests ?? '—'} queued`));
       put(row.querySelector('.resident-reading span:last-child')!, `${size(model.allocationGB)} allocated`);
+    });
+    const catalog = current?.catalog ?? [];
+    this.node('catalog-section').hidden = !current || (current.connection?.coverage ?? 'requests') === 'requests'
+      || catalog.length === 0 && current.connection?.coverage === 'server';
+    this.text('catalog-title', current?.runtime === 'mlx-lm' ? 'Available models' : 'Model inventory');
+    this.text('catalog-count', `${catalog.length} reported`);
+    this.text('catalog-note', catalog.length
+      ? 'Catalog entries do not establish request activity. Context is the reported configured or maximum length.'
+      : 'No model inventory was reported. Host resource monitoring remains available.');
+    const catalogList = this.node('catalog-list');
+    while (catalogList.children.length > catalog.length) catalogList.lastElementChild!.remove();
+    catalog.forEach((model, index) => {
+      let row = catalogList.children[index] as HTMLElement | undefined;
+      if (!row) {
+        row = document.createElement('li'); row.className = 'catalog-row';
+        row.innerHTML = '<strong></strong><span class="catalog-state"></span><span class="catalog-format"></span><span class="catalog-context"></span>';
+        catalogList.append(row);
+      }
+      put(row.querySelector('strong')!, model.name);
+      put(row.querySelector('.catalog-state')!, model.loaded === null ? 'Load state not reported' : model.loaded ? 'Loaded' : 'Not loaded');
+      put(row.querySelector('.catalog-format')!, model.format?.toUpperCase() ?? 'Format not reported');
+      put(row.querySelector('.catalog-context')!, model.contextWindow === null ? 'Context not reported' : `${integer.format(model.contextWindow)} context`);
     });
     this.renderRecent();
   }

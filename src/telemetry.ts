@@ -1,3 +1,4 @@
+import { parseConnection, parseCatalog, runtimeValue, type Runtime, type ConnectionInfo, type CatalogModel } from './runtime.ts';
 import { parseSystemSnapshot, type SystemSnapshot } from './system.ts';
 
 export const TELEMETRY_PHASES = [
@@ -74,7 +75,9 @@ export const MAX_RESIDENT_MODELS = 12;
 
 type TelemetryFields = {
   message: string | null;
-  runtime: 'omlx' | null;
+  runtime: Runtime | null;
+  connection?: ConnectionInfo | null;
+  catalog?: CatalogModel[];
   modelID: string | null;
   phase: TelemetryPhase;
   sessionStatsState: TelemetryStatsState;
@@ -152,6 +155,14 @@ const text = (value: unknown): string | null => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
+const modelLabel = (value: unknown): string | null => {
+  const clean = text(value)?.replace(/[\u0000-\u001f\u007f]/g, '');
+  if (!clean) return null;
+  const label = /^(?:[\\/]|\.{1,2}[\\/]|~[\\/]|file:|[A-Za-z]:[\\/])/.test(clean)
+    ? clean.split(/[\\/]/).filter(Boolean).at(-1) : clean;
+  return label?.slice(0, 256) || null;
+};
+
 const firstNumber = (...values: unknown[]): number | null => {
   for (const value of values) {
     const number = nonnegative(value);
@@ -188,6 +199,8 @@ const normalizePhase = (value: unknown): TelemetryPhase => {
 const emptyFields = (sampledAt: number): TelemetryFields => ({
   message: null,
   runtime: null,
+  connection: null,
+  catalog: [],
   modelID: null,
   phase: 'unknown',
   sessionStatsState: 'unavailable',
@@ -572,7 +585,9 @@ export const normalizeOmlxTelemetry = (
     reason: null,
     message: flight.message,
     runtime: 'omlx',
-    modelID: modelID?.slice(0, 256) ?? null,
+    connection: null,
+    catalog: [],
+    modelID: modelLabel(modelID),
     phase: models.length === 0 ? 'notLoaded' : flight.phase === 'idle' && queuedRequests !== null && queuedRequests > 0 ? 'queued' : flight.phase,
     sessionStatsState,
     sessionAveragePrefillTPS: firstNumber(statsData.avg_prefill_tps),
@@ -602,11 +617,11 @@ export const normalizeOmlxTelemetry = (
     system: null,
     residentModelCount: models.length,
     residentModels: models.slice(0, MAX_RESIDENT_MODELS).flatMap(item => {
-      const id = text(item.id);
+      const id = modelLabel(item.id);
       if (id === null) return [];
       const state = normalizeFlights(item, {});
       const queue = normalizeWaiting([item], {});
-      return [{ id: id.slice(0, 256), phase: state.phase === 'idle' && (queue ?? 0) > 0 ? 'queued' : state.phase,
+      return [{ id, phase: state.phase === 'idle' && (queue ?? 0) > 0 ? 'queued' : state.phase,
         activeRequests: nonnegative(item.active_requests), queuedRequests: queue,
         allocationGB: item.is_loading === true && item.actual_size === 0 ? null : gb(item.actual_size), tokensPerSecond: state.liveDecodeTPS ?? state.livePrefillTPS,
         prefillProgress: state.prefillProgress, progressStale: state.prefillProgressStale }];
@@ -661,11 +676,11 @@ const normalizeLifetimeFromPanel = (value: unknown): TelemetryLifetime | null =>
 const parseResidentModels = (value: unknown): ResidentModel[] => {
   if (!Array.isArray(value)) return [];
   return value.slice(0, MAX_RESIDENT_MODELS).flatMap(entry => {
-    const item = asObject(entry), id = text(item?.id);
+    const item = asObject(entry), id = modelLabel(item?.id);
     if (!item || !id) return [];
     const phase = normalizePhase(item.phase), progressStale = item.progressStale === true;
     const active = tokenCount(item.activeRequests);
-    return [{ id: id.slice(0, 256), phase, activeRequests: active,
+    return [{ id, phase, activeRequests: active,
       queuedRequests: tokenCount(item.queuedRequests), allocationGB: nonnegative(item.allocationGB),
       tokensPerSecond: (active ?? 0) <= 1 && (phase === 'decode' || phase === 'prefill' && !progressStale) ? nonnegative(item.tokensPerSecond) : null,
       prefillProgress: phase === 'prefill' && (active ?? 0) <= 1 ? fraction(item.prefillProgress) : null, progressStale }];
@@ -681,7 +696,7 @@ export const parseTelemetrySnapshot = (value: unknown, observedAt?: number): Tel
     const safeReason = reason !== null && (TELEMETRY_REASONS as readonly string[]).includes(reason)
       ? reason as TelemetryReason
       : 'unparseable_snapshot';
-    return { ...unavailableTelemetry(safeReason, text(record?.message), sampledAt), system: parseSystemSnapshot(record?.system) };
+    return { ...unavailableTelemetry(safeReason, text(record?.message), sampledAt), system: parseSystemSnapshot(record?.system), connection: parseConnection(record?.connection), catalog: parseCatalog(record?.catalog) };
   }
   const statsState = text(record.sessionStatsState);
   const sessionStatsState = statsState !== null && (TELEMETRY_STATS_STATES as readonly string[]).includes(statsState)
@@ -700,8 +715,10 @@ export const parseTelemetrySnapshot = (value: unknown, observedAt?: number): Tel
     available: true,
     reason: null,
     message: text(record.message),
-    runtime: text(record.runtime) === 'omlx' ? 'omlx' : null,
-    modelID: text(record.modelID)?.slice(0, 256) ?? null,
+    runtime: runtimeValue(record.runtime),
+    connection: parseConnection(record.connection),
+    catalog: parseCatalog(record.catalog),
+    modelID: modelLabel(record.modelID),
     phase,
     sessionStatsState,
     sessionAveragePrefillTPS: nonnegative(record.sessionAveragePrefillTPS),

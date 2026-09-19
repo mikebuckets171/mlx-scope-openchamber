@@ -68,6 +68,22 @@ test('two views save concurrently without overwriting either acknowledged observ
   expect([...values.keys()].filter(key=>key.startsWith(SAVED_KEY))).toHaveLength(12);
   await a.clear(); expect(values.get('view.compact')).toBe(true);
 });
+test('same-time saves remain distinct when secure-context randomUUID is unavailable', async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(crypto, 'randomUUID');
+  Object.defineProperty(crypto, 'randomUUID', {value:undefined, configurable:true});
+  try {
+    const {host,values} = storage(), a = new SavedObservations(host), b = new SavedObservations(host);
+    const first = observation(), second = observation();
+    first.measurements.cpu = 11; second.measurements.cpu = 22;
+    await Promise.all([a.save(first), b.save(second)]);
+    const reloaded = new SavedObservations(host); await reloaded.load();
+    expect(values.size).toBe(2);
+    expect(reloaded.items.map(item => item.measurements.cpu).sort()).toEqual([11,22]);
+  } finally {
+    if (descriptor) Object.defineProperty(crypto, 'randomUUID', descriptor);
+    else Reflect.deleteProperty(crypto, 'randomUUID');
+  }
+});
 test('saved snapshot withholds native readings beyond the live display freshness boundary', () => {
   const snapshot = parseTelemetrySnapshot({available:true,runtime:'omlx',phase:'idle',sampledAt:100000,
     system:{platform:'darwin',sampledAt:100000,cpuPercent:12,macOS:{sampledAt:1000,swapUsedGB:2}}});

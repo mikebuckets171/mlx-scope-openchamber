@@ -30,19 +30,22 @@ export class PerformanceCapture {
   private previousRequests: number | null = null;
   private previousUptime: number | null = null;
   private requestCounterValid = false;
+  private resourcesOnly = false;
   constructor(private readonly clock: () => number = () => performance.now()) {}
   get recording(): boolean { return this.current?.status === 'recording'; }
 
   start(snapshot: TelemetrySnapshot, targetSeconds: 30 | 60): boolean {
-    if (this.recording || !snapshot.available || !snapshot.modelID || snapshot.activeRequests !== 1
-      || !['decode', 'prefill', 'processing'].includes(snapshot.phase)) return false;
+    const resourcesOnly = ['inventory', 'server'].includes(snapshot.connection?.coverage ?? '') && snapshot.system !== null;
+    if (this.recording || !snapshot.available || !resourcesOnly && (!snapshot.modelID || snapshot.activeRequests !== 1
+      || !['decode', 'prefill', 'processing'].includes(snapshot.phase))) return false;
+    this.resourcesOnly = resourcesOnly;
     this.started = this.lastClock = this.clock();
-    this.current = { model: snapshot.modelID, targetSeconds, startedAt: snapshot.sampledAt,
+    this.current = { model: resourcesOnly ? `resources:${snapshot.connection?.selected ?? snapshot.runtime}` : snapshot.modelID!, targetSeconds, startedAt: snapshot.sampledAt,
       lastAt: snapshot.sampledAt, seconds: 0, samples: 0, decodeSeconds: 0, decodeTokens: 0,
       peakProcessGB: null, processSamples: 0, meanCPU: null, peakCPU: null, cpuSamples: 0,
       meanMemoryGB: null, peakMemoryGB: null, memorySamples: 0,
       requestCountChange: null, startSwapGB: null, lastSwapGB: null,
-      status: 'recording', note: 'Observing this model. No extra inference is started.' };
+      status: 'recording', note: resourcesOnly ? 'Observing host resources. This runtime does not report passive output speed.' : 'Observing this model. No extra inference is started.' };
     this.previous = null;
     this.lastRuntimeAt = this.lastSystemAt = this.lastMacAt = null;
     this.initialRequests = this.previousRequests = this.previousUptime = null;
@@ -62,7 +65,8 @@ export class PerformanceCapture {
     // A late response cannot supply the unobserved end of the requested window.
     if (now - this.started > c.targetSeconds * 1000) { this.finish(); return; }
     if (!snapshot.available) { this.stop('Runtime unavailable'); return; }
-    if (snapshot.modelID !== c.model || (snapshot.activeRequests ?? 0) > 1) { this.stop('Model or workload changed'); return; }
+    if (this.resourcesOnly ? !['inventory', 'server'].includes(snapshot.connection?.coverage ?? '') || `resources:${snapshot.connection?.selected ?? snapshot.runtime}` !== c.model
+      : snapshot.modelID !== c.model || (snapshot.activeRequests ?? 0) > 1) { this.stop('Model, connection or workload changed'); return; }
     if (this.lastRuntimeAt !== null && snapshot.sampledAt < this.lastRuntimeAt) { this.stop('Observation clock changed'); return; }
     const systemFresh = this.observeSystem(snapshot, c);
     if (systemFresh) c.seconds = Math.max(c.seconds, (now - this.started) / 1000);
@@ -80,7 +84,7 @@ export class PerformanceCapture {
     }
     this.observeRequests(snapshot, c);
     const n = snapshot.completionTokens;
-    if (snapshot.phase === 'decode' && snapshot.activeRequests === 1 && count(n) && snapshot.traceEpoch !== null) {
+    if (!this.resourcesOnly && snapshot.phase === 'decode' && snapshot.activeRequests === 1 && count(n) && snapshot.traceEpoch !== null) {
       const p = this.previous;
       if (p && p.epoch === snapshot.traceEpoch && n >= p.tokens && snapshot.sampledAt > p.at) {
         const elapsed = (snapshot.sampledAt - p.at) / 1000;
@@ -177,7 +181,7 @@ export class PerformanceCapture {
         `Observed output: ${rate === null ? 'not enough data' : rate.toFixed(1) + ' tok/s'} across ${c.decodeSeconds.toFixed(1)}s; ${c.decodeTokens} observed token increments.`,
         `Sampled host CPU: mean ${percent(c.meanCPU)}, peak ${percent(c.peakCPU)} (${c.cpuSamples} samples).`,
         `Sampled non-free host RAM: mean ${memory(c.meanMemoryGB)}, peak ${memory(c.peakMemoryGB)} (${c.memorySamples} samples).`,
-        `Peak sampled oMLX footprint: ${memory(c.peakProcessGB)} (${c.processSamples} samples).`,
+        `Peak sampled runtime footprint: ${memory(c.peakProcessGB)} (${c.processSamples} samples).`,
         `Reported server request count change: ${c.requestCountChange === null ? 'not available for this window' : c.requestCountChange}.`);
     };
     if (this.current) print('Current capture', this.current);

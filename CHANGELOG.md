@@ -2,15 +2,19 @@
 
 ## 1.0.0
 
-First standalone MLX Scope release for OpenChamber.
+First standalone MLX Scope release for OpenChamber, shared as a one-time personal
+project. No future updates are planned; community forks and adaptations are
+welcome under the MIT license.
 
-- Live prefill progress, reported and observed output speed, model activity,
-  context headroom, input reuse, and host resources.
-- Bounded 30/60-second observation captures, pinned comparisons, and manually
-  saved summaries.
-- OpenChamber panel and full-page view, live theme/typography, session shortcut,
-  connection diagnostics, clipboard, and append-only draft sharing.
-- Primary DFlash output counters and standard fallback progress, with stale,
-  concurrent, missing, and ambiguous readings handled explicitly.
-- Self-contained installation ZIP, extracted-service verification, and browser
-  interaction coverage in Chromium and WebKit.
+- oMLX request telemetry, prominent prefill remaining and stage estimates,
+  context/reuse, host resources, and primary DFlash observed output.
+- vllm-mlx request/status observations, plus LM Studio and mlx-lm inventory views
+  with explicit limits on unavailable telemetry.
+- Existing local provider discovery, custom provider IDs, matched credentials,
+  connection selection, and actionable setup states.
+- Bounded 30/60-second observations, pinned comparisons, and manually saved
+  sanitized summaries; inventory connections can observe host resources.
+- OpenChamber panel/full-page view, live theme/typography, session shortcut,
+  service diagnostics, clipboard, and append-only draft sharing.
+- Self-contained install ZIP, extracted-service verification, synthetic runtime
+  contract tests, and Chromium/WebKit interaction coverage.

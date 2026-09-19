@@ -13,7 +13,7 @@ export const captureMarkup = `<section id="capture" class="capture-card" aria-la
       <tbody>
         <tr><th scope="row">Host CPU <small>mean / peak</small></th><td id="capture-cpu">—</td><td id="capture-reference-cpu" class="capture-reference-column" hidden>—</td></tr>
         <tr><th scope="row">Non-free RAM <small>mean / peak</small></th><td id="capture-host-memory">—</td><td id="capture-reference-host-memory" class="capture-reference-column" hidden>—</td></tr>
-        <tr><th scope="row">oMLX footprint <small>peak</small></th><td id="capture-memory">—</td><td id="capture-reference-memory" class="capture-reference-column" hidden>—</td></tr>
+        <tr><th scope="row">Runtime footprint <small>peak</small></th><td id="capture-memory">—</td><td id="capture-reference-memory" class="capture-reference-column" hidden>—</td></tr>
         <tr><th scope="row">Request count <small>reported change</small></th><td id="capture-requests">—</td><td id="capture-reference-requests" class="capture-reference-column" hidden>—</td></tr>
       </tbody>
     </table>
@@ -33,13 +33,13 @@ export class CaptureView {
     this.node('capture-start').addEventListener('click', () => {
       const length = (this.node('capture-length') as HTMLSelectElement).value === '60' ? 60 : 30;
       if (this.paused || !this.latest || !this.capture.start(this.latest, length)) {
-        this.status('Start a single-model request in oMLX, then record its observations.'); return;
+        this.status('Wait for a fresh runtime reading. Live telemetry captures need one active model; inventory connections capture host resources.'); return;
       }
       this.status('Recording observations only. No prompt or model setting was changed.'); this.render();
     });
     this.node('capture-stop').addEventListener('click', () => { this.capture.stop(); this.status('Capture stopped. Readings are retained as a partial observation.'); this.render(); });
     this.node('capture-pin').addEventListener('click', () => { if (this.capture.pin()) this.status('Reference pinned. Record another comparable workload to compare.'); this.render(); });
-    this.node('capture-clear').addEventListener('click', () => { this.capture.clear(); this.status('Capture and reference cleared. oMLX statistics were not changed.'); this.render(); });
+    this.node('capture-clear').addEventListener('click', () => { this.capture.clear(); this.status('Capture and reference cleared. Runtime statistics were not changed.'); this.render(); });
     this.node('capture-copy').addEventListener('click', async () => {
       const button = this.node('capture-copy') as HTMLButtonElement; button.disabled = true;
       try { await this.copied(this.capture.report(this.version)); this.status('Capture copied. No model names or chat content included.'); }
@@ -73,7 +73,7 @@ export class CaptureView {
       return mean === null && peak === null ? '—' : `${format(mean)} / ${format(peak)} ${unit}`;
     };
     this.text('capture-speed', r === null ? '—' : `${r.toFixed(1)} tok/s`);
-    this.text('capture-coverage', `${c.decodeSeconds.toFixed(1)}s of fresh output intervals`);
+    this.text('capture-coverage', c.model.startsWith('resources:') ? 'Output speed is not reported' : `${c.decodeSeconds.toFixed(1)}s of fresh output intervals`);
     this.text('capture-duration', `${c.seconds.toFixed(1)}s`);
     this.text('capture-samples', `${c.samples} runtime samples · ${c.targetSeconds}s requested`);
     this.text('capture-memory', memory(c.peakProcessGB));
@@ -93,6 +93,6 @@ export class CaptureView {
     }
     this.text('capture-reference', ref === null ? 'Pinned reference' : `Reference · ${ref.toFixed(1)} tok/s over ${b!.decodeSeconds.toFixed(1)}s`);
     const change = this.capture.comparison();
-    this.text('capture-change', change === null ? b?.model !== c.model ? 'Different model' : 'Collect another window' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}% observed`);
+    this.text('capture-change', change === null ? b?.model !== c.model ? 'Different observation' : c.model.startsWith('resources:') ? 'Resource observations' : 'Collect another window' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}% observed`);
   }
 }

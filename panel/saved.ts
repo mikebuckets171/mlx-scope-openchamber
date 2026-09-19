@@ -11,14 +11,14 @@ export const measurementLabels = {
   total: ['Prefill stage total', 'tokens'], stageEstimate: ['Reported stage estimate', 's'],
   active: ['Active requests', ''], queued: ['Queued requests', ''],
   cpu: ['Host CPU', '%'], memory: ['Non-free host RAM', 'GiB'],
-  footprint: ['oMLX process footprint', 'GiB'], swap: ['Swap used', 'GiB'],
+  footprint: ['Runtime process footprint', 'GiB'], swap: ['Swap used', 'GiB'],
   observedGeneration: ['Observed generation', 'tok/s'], generationSeconds: ['Generation observed', 's'],
   tokenIncrements: ['Observed output increments', 'tokens'], duration: ['Window observed', 's'],
   meanCPU: ['Mean sampled host CPU', '%'], meanMemory: ['Mean sampled non-free RAM', 'GiB'],
   peakMemory: ['Peak sampled non-free RAM', 'GiB'], cpuSamples: ['CPU samples', ''],
   memorySamples: ['RAM samples', ''], processSamples: ['Footprint samples', ''], requestCountChange: ['Reported completed-request change', ''],
   samples: ['Samples', ''], peakCPU: ['Peak sampled host CPU', '%'],
-  peakFootprint: ['Peak sampled oMLX footprint', 'GiB'],
+  peakFootprint: ['Peak sampled runtime footprint', 'GiB'],
 } as const;
 type Metric = keyof typeof measurementLabels;
 type Measurements = Partial<Record<Metric, number | null>>;
@@ -134,7 +134,9 @@ export class SavedObservations {
     if (!item) return Promise.reject(new Error('Invalid observation'));
     return this.enqueue(async () => {
       // Each save has its own key, so simultaneous views cannot overwrite each other.
-      const key = `${SAVED_KEY}${String(item.savedAt).padStart(16, '0')}.${crypto.randomUUID()}`;
+      // getRandomValues remains available when the host is served over plain HTTP.
+      const suffix = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+      const key = `${SAVED_KEY}${String(item.savedAt).padStart(16, '0')}.${suffix}`;
       await this.storage.set(key, item);
       const keys = (await this.storage.keys()).filter(key => key.startsWith(SAVED_KEY)).sort().reverse();
       for (const obsolete of keys.slice(SAVED_LIMIT)) await this.storage.delete(obsolete);

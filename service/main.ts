@@ -1,4 +1,4 @@
-import { OmlxClient } from './omlx-client.ts';
+import { RuntimeClient } from './runtime-client.ts';
 import { SystemSampler } from './system.ts';
 import { createScopeServer } from './server.ts';
 
@@ -8,10 +8,10 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535 || token.length === 0) 
   console.error('OpenChamber service port and token are required.');
   process.exit(1);
 }
-const client = new OmlxClient();
+const client = new RuntimeClient();
 const system = new SystemSampler();
 const server = createScopeServer(token, {
-  snapshot: () => client.snapshot(), system: () => system.sample(),
+  snapshot: selection => client.snapshot(selection), system: () => system.sample(),
 });
 server.on('error', (error: NodeJS.ErrnoException) => {
   console.error('MLX Scope could not start its local service.', error);

@@ -2,7 +2,8 @@ import { parse, type ParseError } from 'jsonc-parser/lib/esm/main.js';
 import { open } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { homedir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { runtimeValue, type Runtime } from '../src/runtime.ts';
 
 type JsonObject = { readonly [key: string]: unknown };
 
@@ -41,7 +42,7 @@ type ReadTextResult =
   | { kind: 'missing' }
   | { kind: 'unreadable' };
 
-type ConfigInput = {
+export type ConfigInput = {
   env?: NodeJS.ProcessEnv;
   home?: string;
   /** The string/null form remains accepted as a small test seam. */
@@ -120,34 +121,6 @@ export const pathsForHome = (home: string, env: NodeJS.ProcessEnv = {}): ConfigP
   };
 };
 
-/**
- * Keep the plugin's loopback-origin contract. The returned URL
- * is always an origin with a trailing slash; no configured path is retained.
- */
-export const parseLoopbackOrigin = (value: unknown, stripPath = false): URL | null => {
-  const candidate = nonempty(value);
-  if (candidate === null || !/^http:\/\/127\.0\.0\.1:[0-9]{1,5}(?:\/v1\/?)?\/?$/.test(candidate)) return null;
-  let url: URL;
-  try {
-    url = new URL(candidate);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.port === '0') return null;
-  if (url.username || url.password || url.search || url.hash) return null;
-  if (url.pathname !== '' && url.pathname !== '/' && (!stripPath || !['/v1', '/v1/'].includes(url.pathname))) return null;
-  url.pathname = '/';
-  url.search = '';
-  url.hash = '';
-  return url;
-};
-
-const providerOptions = (config: JsonObject | null): JsonObject | null => {
-  const providers = asObject(config?.provider);
-  const omlx = asObject(providers?.omlx);
-  return asObject(omlx?.options);
-};
-
 const statusOf = (documents: readonly Document[]): ConfigStatus => {
   if (documents.some((document) => document.status === 'malformed')) return 'malformed';
   if (documents.some((document) => document.status === 'unreadable')) return 'unreadable';
@@ -170,117 +143,157 @@ const merge = (base: JsonObject, overlay: JsonObject): JsonObject => {
   return result;
 };
 
-const selectedOmlxModel = (config: JsonObject | null, env: NodeJS.ProcessEnv): string | null => {
-  const configured = nonempty(env.MLX_SCOPE_MODEL);
-  const model = configured ?? nonempty(config?.model);
-  if (model === null) return null;
-  const [provider, ...rest] = model.split('/');
-  if (configured !== null) return provider === 'omlx' && rest.length > 0 ? rest.join('/') : configured;
-  return provider === 'omlx' && rest.length > 0 ? rest.join('/') : null;
+export type RuntimeConnectionConfig = {
+  id: string;
+  label: string;
+  runtime: Runtime | null;
+  config: OmlxConfig;
+};
+export type RuntimeConnections = { connections: RuntimeConnectionConfig[]; error: string | null; issue: ConfigIssue; configStatus?: ConfigStatus; authStatus?: ConfigStatus };
+
+/** Canonicalize localhost without DNS; credentials never leave numeric loopback. */
+export const parseLocalOrigin = (value: unknown): URL | null => {
+  const raw = nonempty(value);
+  if (!raw || !/^http:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):[0-9]{1,5}(?:\/v1\/?)?\/?$/.test(raw)) return null;
+  let url: URL;
+  try { url = new URL(raw.replace('://localhost:', '://127.0.0.1:')); } catch { return null; }
+  if (url.port === '0') return null;
+  url.pathname = '/';
+  return url;
 };
 
-const nativeEndpoint = (settings: JsonObject | null): string | null => {
-  const server = asObject(settings?.server);
-  const host = nonempty(server?.host) ?? '127.0.0.1';
-  const port = typeof server?.port === 'number' && Number.isInteger(server.port)
-    ? server.port
-    : null;
-  return port !== null && port >= 1 && port <= 65_535 ? `http://${host}:${port}` : null;
+const hintFor = (id: string, name: unknown): Runtime | null => {
+  const value = `${id} ${typeof name === 'string' ? name : ''}`.toLowerCase();
+  if (/vllm[\s_-]*mlx/.test(value)) return 'vllm-mlx';
+  if (/omlx/.test(value)) return 'omlx';
+  if (/lm[\s_-]*studio/.test(value)) return 'lmstudio';
+  return /mlx[\s_-]*lm/.test(value) ? 'mlx-lm' : null;
 };
+const safeLabel = (value: string): string => value.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 120);
+const issueText = (issue: ConfigIssue): string | null => ({
+  none: null,
+  missing_endpoint: 'No local runtime connection found. Add your runtime as a provider in OpenChamber; saved connections are discovered automatically.',
+  missing_credential: 'No saved API key. Key-free access works only when the runtime already permits it.',
+  malformed_config: 'An existing provider configuration is malformed. Correct it in OpenChamber, then return here.',
+  unreadable_config: 'An existing provider configuration or credential file could not be read.',
+  invalid_endpoint: 'The selected connection needs an HTTP loopback URL with an explicit port, such as http://localhost:8000/v1.',
+  unsupported_config: 'A configured credential or endpoint reference could not be resolved. Reconnect this provider in OpenChamber.',
+})[issue];
 
-/** Resolve the local OpenCode and oMLX configuration files used by the plugin. */
-export const resolveOmlxConfig = async ({ env = process.env, home = env.HOME ?? homedir(), readText = defaultReadText }: ConfigInput = {}): Promise<OmlxConfig> => {
-  const paths = pathsForHome(home, env);
-  const configOverride = nonempty(env.OPENCODE_CONFIG);
-  const unsupportedOverride = configOverride !== null && !isAbsolute(configOverride);
-  const configFiles = [
-    await readJson(paths.openCode, readText),
-    await readJson(paths.openCodeJSONC, readText),
-  ];
-  if (configOverride !== null && !unsupportedOverride) configFiles.push(await readJson(configOverride, readText));
-  const omlx = await readJson(paths.omlx, readText);
-  const auth = await readJson(paths.auth, readText);
-
-  const configProblem = configFiles.find((document) => document.status === 'unreadable' || document.status === 'malformed');
-  const mergedOpenCode = configProblem === undefined
-    ? configFiles.filter((document): document is Document & { status: 'ok'; value: JsonObject } => document.status === 'ok')
-      .reduce<JsonObject>((result, document) => merge(result, document.value), {})
-    : null;
-  const options = providerOptions(mergedOpenCode);
-  const providerHasBase = has(options, 'baseURL');
-  const providerBase = providerHasBase ? options?.baseURL : undefined;
-  const envBase = nonempty(env.MLX_SCOPE_BASE_URL);
-  const nativeCandidate = nativeEndpoint(omlx.value);
-  const nativeProblem = omlx.status === 'unreadable' || omlx.status === 'malformed' ? omlx.status : null;
-  const configStatus = statusOf(configFiles);
+export const resolveRuntimeConnections = async ({ env = process.env, home = env.HOME ?? homedir(), readText = defaultReadText }: ConfigInput = {}): Promise<RuntimeConnections> => {
+  const paths = pathsForHome(home, env), override = nonempty(env.OPENCODE_CONFIG);
+  const names = [join(dirname(paths.openCode), 'config.json'), paths.openCode, paths.openCodeJSONC];
+  if (override && isAbsolute(override)) names.push(override);
+  const documents = await Promise.all(names.map(async path => ({ path, document: await readJson(path, readText) })));
+  const inline = nonempty(env.OPENCODE_CONFIG_CONTENT);
+  if (inline) documents.push({ path: 'OPENCODE_CONFIG_CONTENT', document: inline.length > 1_000_000
+    ? { status: 'unreadable', value: null } : await readJson('OPENCODE_CONFIG_CONTENT', async () => inline) });
+  const native = await readJson(paths.omlx, readText);
+  let auth: Document;
+  const inlineAuth = nonempty(env.OPENCODE_AUTH_CONTENT);
+  if (inlineAuth) {
+    try {
+      const value = inlineAuth.length <= 1_000_000 ? asObject(JSON.parse(inlineAuth)) : null;
+      auth = { status: value ? 'ok' : 'malformed', value };
+    } catch { auth = { status: 'malformed', value: null }; }
+  } else auth = await readJson(paths.auth, readText);
+  const configStatus = statusOf(documents.map(item => item.document));
   const authStatus = statusOf([auth]);
-  const endpointSource: ConfigSource = envBase !== null ? 'environment' : providerHasBase ? 'opencode' : nativeCandidate !== null ? 'omlx' : null;
-  const sourceProblem: ConfigIssue = unsupportedOverride
-    ? 'unsupported_config'
-    : configProblem?.status === 'unreadable'
-      ? 'unreadable_config'
-      : configProblem?.status === 'malformed'
-        ? 'malformed_config'
-        : envBase !== null || providerHasBase
-          ? 'none'
-          : nativeProblem === 'unreadable'
-            ? 'unreadable_config'
-            : nativeProblem === 'malformed'
-              ? 'malformed_config'
-              : 'none';
-  const endpointCandidate = envBase ?? (typeof providerBase === 'string' ? providerBase : providerHasBase ? null : nativeCandidate);
-  const baseURL = sourceProblem !== 'none' && envBase === null
-    ? null
-    : parseLoopbackOrigin(endpointCandidate, envBase === null && providerHasBase && typeof providerBase === 'string');
-  const endpointIssue: ConfigIssue = sourceProblem !== 'none' && envBase === null
-    ? sourceProblem
-    : endpointCandidate === null
-      ? providerHasBase ? 'invalid_endpoint' : 'missing_endpoint'
-      : baseURL === null
-        ? 'invalid_endpoint'
-        : 'none';
+  const problem = documents.find(item => ['unreadable', 'malformed'].includes(item.document.status));
+  const envBase = nonempty(env.MLX_SCOPE_BASE_URL);
+  const fileIssue: ConfigIssue = override && !isAbsolute(override) ? 'unsupported_config'
+    : problem?.document.status === 'malformed' ? 'malformed_config' : problem ? 'unreadable_config' : 'none';
+  if (fileIssue !== 'none' && !envBase) return { connections: [], issue: fileIssue, error: issueText(fileIssue), configStatus, authStatus };
+  const merged = documents.filter(item => item.document.value).reduce<JsonObject>((result, item) => merge(result, item.document.value!), {});
+  const providers = asObject(merged.provider) ?? {};
+  const selected = nonempty(merged.model)?.split('/')[0] ?? null;
+  const nativeServer = asObject(native.value?.server);
+  const nativePort = nativeServer?.port;
+  const nativeHost = nonempty(nativeServer?.host) ?? '127.0.0.1';
+  const nativeOrigin = typeof nativePort === 'number' && Number.isInteger(nativePort)
+    ? parseLocalOrigin(`http://${nativeHost === '0.0.0.0' ? '127.0.0.1' : nativeHost === '::1' ? '[::1]' : nativeHost}:${nativePort}`) : null;
 
-  const envKey = nonempty(env.MLX_SCOPE_API_KEY);
-  const authProvider = asObject(asObject(auth.value)?.omlx);
-  const authKey = authProvider?.type === 'api' ? nonempty(authProvider.key) : null;
-  const credentialIssue: ConfigIssue = envKey !== null || authKey !== null
-    ? 'none'
-    : auth.status === 'unreadable'
-      ? 'unreadable_config'
-      : auth.status === 'malformed'
-        ? 'malformed_config'
-        : 'missing_credential';
-  const issue = endpointIssue !== 'none' ? endpointIssue : credentialIssue;
-  const error = issue === 'missing_endpoint'
-    ? 'No oMLX endpoint was found in OpenCode or oMLX configuration.'
-    : issue === 'invalid_endpoint'
-      ? 'The saved oMLX endpoint is not a numeric loopback HTTP origin.'
-      : issue === 'missing_credential'
-        ? 'No oMLX API credential was found in OpenCode auth.'
-        : issue === 'malformed_config'
-          ? 'A supported oMLX configuration file is malformed.'
-          : issue === 'unreadable_config'
-            ? 'A supported oMLX configuration file could not be read.'
-            : issue === 'unsupported_config'
-              ? 'OPENCODE_CONFIG must be an absolute path when supplied to the service.'
-              : null;
-
-  return {
-    baseURL,
-    apiKey: envKey ?? authKey,
-    preferredModel: selectedOmlxModel(mergedOpenCode, env),
-    error,
-    issue,
-    source: baseURL === null ? null : endpointSource,
-    configStatus,
-    authStatus,
+  const expand = async (value: unknown, sourcePath: string): Promise<string | null> => {
+    let result = nonempty(value);
+    if (!result || result.length > 16_384) return null;
+    let missing = false;
+    result = result.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}|\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, first, second) => {
+      const replacement = nonempty(env[first ?? second]);
+      if (replacement === null) missing = true;
+      return replacement ?? '';
+    });
+    if (missing || result.length > 16_384) return null;
+    const references = [...result.matchAll(/\{file:([^}]+)\}/g)];
+    if (references.length > 4) return null;
+    let expanded = '', offset = 0;
+    for (const reference of references) {
+      const name = reference[1]!;
+      if (sourcePath === 'OPENCODE_CONFIG_CONTENT' && !isAbsolute(name) && !name.startsWith('~/')) return null;
+      const filePath = name.startsWith('~/') ? join(home, name.slice(2)) : resolve(dirname(sourcePath), name);
+      const content = normalizeReadText(await readText(filePath));
+      if (content.kind !== 'ok') return null;
+      expanded += result.slice(offset, reference.index) + content.text.trim();
+      offset = reference.index! + reference[0].length;
+      if (expanded.length > 16_384) return null;
+    }
+    expanded += result.slice(offset);
+    return expanded.length > 16_384 || /\{(?:env|file):|\$\{/.test(expanded) ? null : nonempty(expanded);
   };
+  const sourceFor = (id: string, field: string): string => [...documents].reverse().find(item => has(asObject(asObject(asObject(item.document.value?.provider)?.[id])?.options), field))?.path ?? paths.openCode;
+  const connections: RuntimeConnectionConfig[] = [];
+  const add = async (id: string, provider: JsonObject, source: ConfigSource, rawBase: unknown, runtime: Runtime | null): Promise<void> => {
+    const options = asObject(provider.options), base = await expand(rawBase, sourceFor(id, 'baseURL'));
+    const baseURL = parseLocalOrigin(base);
+    const rawKey = source === 'environment' ? env.MLX_SCOPE_API_KEY : options?.apiKey;
+    const keyDefined = source === 'environment' ? env.MLX_SCOPE_API_KEY !== undefined : has(options, 'apiKey');
+    const configuredKey = await expand(rawKey, sourceFor(id, 'apiKey'));
+    const saved = asObject(auth.value?.[id]);
+    const savedKey = source !== 'environment' && saved?.type === 'api' ? nonempty(saved.key) : null;
+    const envNames = Array.isArray(provider.env) ? provider.env.slice(0, 4) : [];
+    const providerEnvKey = envNames.flatMap(name => typeof name === 'string' && nonempty(env[name]) ? [nonempty(env[name])!] : [])[0] ?? null;
+    const nativeKey = runtime !== 'lmstudio' && runtime !== 'mlx-lm' && runtime !== 'vllm-mlx' && baseURL !== null && nativeOrigin?.origin === baseURL.origin ? nonempty(asObject(native.value?.auth)?.api_key) : null;
+    const apiKey = configuredKey ?? savedKey ?? providerEnvKey ?? nativeKey;
+    const keyInvalid = apiKey !== null && (apiKey.length > 8192 || /[\r\n\u0000]/.test(apiKey));
+    const explicitUnresolved = keyDefined && (typeof rawKey !== 'string' || configuredKey === null);
+    const issue: ConfigIssue = !baseURL ? base === null && nonempty(rawBase) ? 'unsupported_config' : 'invalid_endpoint'
+      : explicitUnresolved || keyInvalid ? 'unsupported_config'
+      : apiKey !== null ? 'none' : authStatus === 'malformed' ? 'malformed_config' : authStatus === 'unreadable' ? 'unreadable_config' : 'missing_credential';
+    const model = nonempty(env.MLX_SCOPE_MODEL) ?? nonempty(merged.model);
+    const preferredModel = model?.startsWith(`${id}/`) ? model.slice(id.length + 1) : source === 'environment' ? model : null;
+    connections.push({ id: safeLabel(id), label: safeLabel(nonempty(provider.name) ?? (source === 'omlx' ? 'oMLX' : id)), runtime: runtime ?? (baseURL && baseURL.origin === nativeOrigin?.origin ? 'omlx' : null),
+      config: { baseURL, apiKey: keyInvalid || explicitUnresolved ? null : apiKey, preferredModel, issue, error: issueText(issue), source, configStatus, authStatus } });
+  };
+
+  if (envBase) {
+    await add('omlx', {}, 'environment', envBase, runtimeValue(env.MLX_SCOPE_RUNTIME) ?? 'omlx');
+  } else {
+    const entries = Object.entries(providers).sort(([a], [b]) => Number(b === selected) - Number(a === selected) || Number(b === 'omlx') - Number(a === 'omlx'));
+    for (const [id, raw] of entries.slice(0, 64)) {
+      if (connections.length >= 8) break;
+      if (!id || id.length > 120 || /[\u0000-\u001f\u007f]/.test(id)) continue;
+      const provider = asObject(raw), options = asObject(provider?.options);
+      if (!provider || !has(options, 'baseURL')) continue;
+      const base = await expand(options?.baseURL, sourceFor(id, 'baseURL'));
+      const hint = hintFor(id, provider.name);
+      // Only configured local targets and explicitly named runtime failures enter the chooser.
+      if (!parseLocalOrigin(base) && hint === null) continue;
+      await add(id, provider, 'opencode', options?.baseURL, hint);
+    }
+    if (!connections.some(item => item.runtime === 'omlx') && connections.length < 8) {
+      const server = asObject(native.value?.server), port = server?.port;
+      if (typeof port === 'number' && Number.isInteger(port) && port > 0 && port <= 65535) {
+        const host = nonempty(server?.host) ?? '127.0.0.1';
+        await add('omlx', {}, 'omlx', `http://${host === '0.0.0.0' ? '127.0.0.1' : host === '::1' ? '[::1]' : host}:${port}`, 'omlx');
+      }
+    }
+  }
+  const issue: ConfigIssue = connections.length ? 'none' : native.status === 'malformed' ? 'malformed_config' : native.status === 'unreadable' ? 'unreadable_config' : 'missing_endpoint';
+  return { connections, issue, error: issueText(issue), configStatus, authStatus };
 };
 
-export const __test__ = {
-  asObject,
-  nativeEndpoint,
-  providerOptions,
-  selectedOmlxModel,
-  nonempty,
+/** The oMLX client also supports direct use without the multi-runtime router. */
+export const resolveOmlxConfig = async (input: ConfigInput = {}): Promise<OmlxConfig> => {
+  const result = await resolveRuntimeConnections(input);
+  const selected = result.connections.find(item => item.runtime === 'omlx') ?? result.connections[0];
+  return selected?.config ?? { baseURL: null, apiKey: null, preferredModel: null, error: result.error, issue: result.issue, source: null, configStatus: result.configStatus ?? 'missing', authStatus: result.authStatus ?? 'missing' };
 };

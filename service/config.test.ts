@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'bun:test';
-import { parseLoopbackOrigin, pathsForHome, resolveOmlxConfig } from './config.ts';
+import { parseLocalOrigin, pathsForHome, resolveOmlxConfig } from './config.ts';
 
 describe('MLX Scope service configuration', () => {
-  it('accepts only numeric loopback HTTP origins', () => {
-    expect(parseLoopbackOrigin('http://127.0.0.1:8123')?.toString()).toBe('http://127.0.0.1:8123/');
-    expect(parseLoopbackOrigin('https://127.0.0.1:8123')).toBeNull();
-    expect(parseLoopbackOrigin('http://localhost:8123')).toBeNull();
-    expect(parseLoopbackOrigin('http://127.0.0.1:8123?x=1')).toBeNull();
-    expect(parseLoopbackOrigin('http://127.0.0.1:8123/path', true)).toBeNull();
-    expect(parseLoopbackOrigin('http://user:pass@127.0.0.1:8123')).toBeNull();
-    expect(parseLoopbackOrigin('http://127.0.0.1')).toBeNull();
+  it('accepts loopback HTTP origins with explicit ports', () => {
+    expect(parseLocalOrigin('http://127.0.0.1:8123')?.toString()).toBe('http://127.0.0.1:8123/');
+    expect(parseLocalOrigin('https://127.0.0.1:8123')).toBeNull();
+    expect(parseLocalOrigin('http://localhost:8123')?.hostname).toBe('127.0.0.1');
+    expect(parseLocalOrigin('http://127.0.0.1:8123?x=1')).toBeNull();
+    expect(parseLocalOrigin('http://127.0.0.1:8123/path')).toBeNull();
+    expect(parseLocalOrigin('http://user:pass@127.0.0.1:8123')).toBeNull();
+    expect(parseLocalOrigin('http://127.0.0.1')).toBeNull();
   });
 
   it('strips a provider /v1 path from the configured endpoint', () => {
-    expect(parseLoopbackOrigin('http://127.0.0.1:8123/v1', true)?.toString()).toBe('http://127.0.0.1:8123/');
-    expect(parseLoopbackOrigin('http://127.0.0.1:8123/v1')).toBeNull();
+    expect(parseLocalOrigin('http://127.0.0.1:8123/v1')?.toString()).toBe('http://127.0.0.1:8123/');
+    expect(parseLocalOrigin('http://[::1]:8123/v1')?.origin).toBe('http://[::1]:8123');
   });
 
   it('reads the existing OpenCode provider and auth files without exposing the key', async () => {
@@ -107,7 +107,7 @@ describe('MLX Scope service configuration', () => {
       home,
       readText: async (path) => files.get(path) ?? null,
     });
-    expect(config).toMatchObject({ baseURL: null, apiKey: 'private-key', issue: 'malformed_config', configStatus: 'malformed' });
+    expect(config).toMatchObject({ baseURL: null, apiKey: null, issue: 'malformed_config', configStatus: 'malformed' });
   });
 
   it('distinguishes unreadable and malformed supported files', async () => {
@@ -132,11 +132,11 @@ it('uses explicit environment paths and ignores relative XDG roots', () => {
 
 it('rejects shorthand IPs, encoded authorities and zero ports before URL normalization', () => {
   for (const address of ['127.1','2130706433','0x7f000001','0177.0.0.1','127.0.0.1.','%31%32%37.0.0.1']) {
-    expect(parseLoopbackOrigin(`http://${address}:8000/v1`, true)).toBeNull();
+    expect(parseLocalOrigin(`http://${address}:8000/v1`)).toBeNull();
   }
-  expect(parseLoopbackOrigin('http://127.0.0.1:0')).toBeNull();
-  expect(parseLoopbackOrigin('http://127.0.0.1:8000\\v1', true)).toBeNull();
-  expect(parseLoopbackOrigin('http://127.0.0.1:8000/v1/../', true)).toBeNull();
+  expect(parseLocalOrigin('http://127.0.0.1:0')).toBeNull();
+  expect(parseLocalOrigin('http://127.0.0.1:8000\\v1')).toBeNull();
+  expect(parseLocalOrigin('http://127.0.0.1:8000/v1/../')).toBeNull();
 });
 
 it('bounds real configuration reads without silently falling back', async () => {
@@ -162,8 +162,8 @@ it('bounds real configuration reads without silently falling back', async () => 
 });
 
 it('explicit HTTP default port remains a valid loopback endpoint', () => {
-  expect(parseLoopbackOrigin('http://127.0.0.1:80')?.origin).toBe('http://127.0.0.1');
-  expect(parseLoopbackOrigin('http://127.0.0.1:0')).toBeNull();
+  expect(parseLocalOrigin('http://127.0.0.1:80')?.origin).toBe('http://127.0.0.1');
+  expect(parseLocalOrigin('http://127.0.0.1:0')).toBeNull();
 });
 
 

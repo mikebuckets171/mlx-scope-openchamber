@@ -212,3 +212,24 @@ test('the latest pre-click sample cannot contribute a rate interval to the obser
   expect(c.current?.decodeSeconds).toBe(0.5);
   expect(c.current!.decodeSeconds).toBeLessThanOrEqual(c.current!.seconds);
 });
+
+test('inventory and registry observations capture host resources without output or model attribution', () => {
+  for (const coverage of ['inventory', 'server'] as const) {
+    let now = 0;
+    const c = new PerformanceCapture(() => now);
+    const sample = (ms: number): AvailableTelemetry => ({ ...frame(ms), runtime: 'lmstudio', phase: 'unknown', modelID: null,
+      activeRequests: null, completionTokens: null, memory: null,
+      connection: { selected: 'local', label: 'Local', runtime: 'lmstudio', choices: [], diagnostic: 'ready', coverage } });
+    expect(c.start(sample(0), 30)).toBe(true);
+    for (now = 2000; now <= 30_000; now += 2000) c.observe(sample(now));
+    expect(c.current?.status).toBe('finished');
+    expect(c.current?.meanCPU).toBe(12);
+    expect(c.current?.cpuSamples).toBe(16);
+    expect(c.current?.peakProcessGB).toBeNull();
+    expect(capturedRate(c.current)).toBeNull();
+    expect(c.pin()).toBe(true);
+    now = 40_000; expect(c.start(sample(now), 30)).toBe(true);
+    now += 2000; const switched = sample(now); switched.connection!.selected = 'other'; c.observe(switched);
+    expect(c.current?.status).toBe('interrupted');
+  }
+});

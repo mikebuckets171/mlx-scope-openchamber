@@ -44,3 +44,14 @@ test('runtime response survives rejected host diagnostics', async () => {
   expect(body.reason).toBe(runtime.reason);
   expect(body.system).toBeNull();
 });
+
+test('selection is scoped to each read and invalid query values never reach collectors', async () => {
+  const selections: unknown[] = [];
+  const request = await launch({ ...defaults, snapshot: async selection => { selections.push(selection); return runtime; } });
+  expect((await request('/snapshot?provider=my-local&runtime=mlx-lm')).status).toBe(200);
+  expect((await request('/snapshot?provider=other&runtime=lmstudio')).status).toBe(200);
+  expect((await request('/snapshot?runtime=unknown')).status).toBe(400);
+  expect((await request('/snapshot?provider=bad%0Aname')).status).toBe(400);
+  expect((await request(`/snapshot?provider=${'x'.repeat(121)}`)).status).toBe(400);
+  expect(selections).toEqual([{ provider: 'my-local', runtime: 'mlx-lm' }, { provider: 'other', runtime: 'lmstudio' }]);
+});

@@ -15,7 +15,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: OpenChamber/oMLX/macOS versions and chip, where relevant.
+      description: OpenChamber, runtime, and OS versions; chip where relevant.
     validations:
       required: true
   - type: textarea

@@ -1,9 +1,10 @@
 import http from 'node:http';
 import { unavailableTelemetry, type TelemetrySnapshot } from '../src/telemetry.ts';
 import type { SystemSnapshot } from '../src/system.ts';
+import { runtimeValue, type RuntimeSelection } from '../src/runtime.ts';
 
 type Sources = {
-  snapshot: () => Promise<TelemetrySnapshot>;
+  snapshot: (selection?: RuntimeSelection) => Promise<TelemetrySnapshot>;
   system: () => Promise<SystemSnapshot>;
 };
 const json = (response: http.ServerResponse, status: number, body: unknown): void => {
@@ -21,8 +22,14 @@ export const createScopeServer = (token: string, sources: Sources): http.Server 
       if (request.method !== 'GET') { json(response, 405, { error: 'method_not_allowed' }); return; }
       if (url.pathname === '/health') { json(response, 200, { status: 'healthy' }); return; }
       if (url.pathname === '/snapshot') {
+        const provider = url.searchParams.get('provider');
+        const requestedRuntime = url.searchParams.get('runtime');
+        if (provider !== null && (provider.length > 120 || /[\u0000-\u001f\u007f]/.test(provider)) || requestedRuntime !== null && runtimeValue(requestedRuntime) === null) {
+          json(response, 400, { error: 'invalid_connection' }); return;
+        }
+        const selection = provider || requestedRuntime ? { provider: provider ?? '', runtime: runtimeValue(requestedRuntime) } : undefined;
         const [runtime, system] = await Promise.allSettled([
-          Promise.resolve().then(sources.snapshot), Promise.resolve().then(sources.system),
+          Promise.resolve().then(() => sources.snapshot(selection)), Promise.resolve().then(sources.system),
         ]);
         json(response, 200, {
           ...(runtime.status === 'fulfilled' ? runtime.value : unavailableTelemetry('runtime_unreachable', 'Local inference telemetry is unavailable.')),

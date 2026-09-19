@@ -1,7 +1,7 @@
 {
   "name": "mlx-scope-openchamber",
   "version": "1.0.0",
-  "description": "Lightweight oMLX monitoring for OpenChamber.",
+  "description": "Lightweight local model monitoring for OpenChamber.",
   "private": true,
   "license": "MIT",
   "repository": {
@@ -14,10 +14,13 @@
   },
   "keywords": [
     "openchamber",
+    "mlx",
     "omlx",
-    "telemetry",
-    "inference",
-    "local-monitor"
+    "lmstudio",
+    "mlx-lm",
+    "vllm-mlx",
+    "apple-silicon",
+    "telemetry"
   ],
   "type": "module",
   "engines": {

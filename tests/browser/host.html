@@ -23,6 +23,9 @@ window.previewStatusChecks = 0;
 window.previewOpenedURL = '';
 window.previewHold = false;
 window.previewTransportError = '';
+window.previewQueries = [];
+window.previewDelay = false;
+window.previewDeferred = [];
 function theme(name) {
   const light = name === 'light' || name === 'sand';
   const palette = name === 'violet' ? ['#191520','#221d2b','#dfc7ff','#9562c9','#ffffff']
@@ -81,6 +84,8 @@ if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
   }
   if(m.type === 'prompt' || m.type === 'generate' || m.type === 'start-session') window.previewUnexpectedSends += 1;
   if(m.type !== 'service-request') return;
+  const selection = m.payload.query || {};
+  window.previewQueries.push(selection);
   window.previewRequests += 1;
   samples += 1;
   if (window.previewHold) return;
@@ -129,7 +134,35 @@ if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
       residentModels:[{id:'Qwen · DFlash preview',phase:state === 'dflash' ? 'decode' : 'processing',activeRequests:1,queuedRequests:0,allocationGB:17.1,tokensPerSecond:null,prefillProgress:null,progressStale:false}]});
   }
   Object.assign(payload, window.previewOverride);
-  post({type:'result',id:m.id,ok:true,payload:{status:200,body:JSON.stringify(payload)}});
+  if (params.has('connections')) {
+    const choices = [{id:'omlx',label:'Local oMLX',runtime:'omlx'}, {id:'studio',label:'LM Studio local',runtime:'lmstudio'},
+      {id:'mlx',label:'mlx-lm local',runtime:'mlx-lm'}, {id:'vllm',label:'vllm-mlx local',runtime:'vllm-mlx'}, {id:'custom',label:'Custom local',runtime:null}];
+    const selected = selection.provider || window.previewAutoProvider || 'omlx';
+    const choice = choices.find(item => item.id === selected);
+    const runtime = selection.runtime || choice?.runtime || null;
+    payload.connection = {selected,label:choice?.label || selected,runtime,choices,generation:window.previewGeneration || '00000000-0000-4000-8000-000000000001',diagnostic:'ready',coverage:runtime==='omlx'?'requests':runtime==='vllm-mlx'?'server':'inventory'};
+    if (runtime === 'vllm-mlx' && params.get('vllm') === 'live') {
+      payload.runtime=runtime;
+      payload.connection.coverage='requests';
+    } else if (runtime && runtime !== 'omlx') {
+      Object.assign(payload,{available:true,reason:null,message:null,runtime,phase:'unknown',modelID:null,activeRequests:null,queuedRequests:null,
+        liveDecodeTPS:null,livePrefillTPS:null,prefillProgress:null,prefillProcessedTokens:null,prefillTotalTokens:null,prefillETASeconds:null,
+        promptTokens:null,cachedTokens:null,completionTokens:null,elapsedSeconds:null,traceEpoch:null,contextWindow:null,memory:null,sessionBank:null,
+        memoryPressureLevel:null,sessionStatsState:'unavailable',sessionAverageDecodeTPS:null,sessionAveragePrefillTPS:null,sessionCacheEfficiencyPercent:null,
+        lifetime:null,residentModels:runtime==='lmstudio'?[{id:'Local model instance',phase:'unknown',activeRequests:null,queuedRequests:null,allocationGB:null,tokensPerSecond:null,prefillProgress:null,progressStale:false}]:[],residentModelCount:runtime==='lmstudio'?1:null,
+        catalog:runtime==='lmstudio'?[{name:'Local model',format:'mlx',loaded:true,contextWindow:32768},{name:'Available GGUF model',format:'gguf',loaded:false,contextWindow:8192}]
+          :runtime==='mlx-lm'?[{name:'Configured MLX model',format:'mlx',loaded:null,contextWindow:null}]:[]});
+    }
+    if (!runtime || params.get('setup') === 'missing') {
+      Object.assign(payload,{available:false,reason:'configuration_missing',message:runtime?'No local OpenCode connection was found. Add a local provider, then refresh.':'Select a runtime for this custom connection.'});
+      payload.connection.diagnostic = runtime ? 'missing' : 'unsupported';
+      payload.connection.coverage = null;
+      if(params.get('setup') === 'missing')payload.connection.choices=[];
+    }
+  }
+  const reply = {type:'result',id:m.id,ok:true,payload:{status:200,body:JSON.stringify(payload)}};
+  if (window.previewDelay) window.previewDeferred.push(() => post(reply));
+  else post(reply);
 });
 
 // The released host's relay transport embeds package assets as data URLs in

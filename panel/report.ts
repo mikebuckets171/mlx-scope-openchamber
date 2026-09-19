@@ -6,7 +6,7 @@ import { prefillReading } from './progress.ts';
 /** Copy only an allowlist of measurements. No raw messages, names, paths, keys or IDs. */
 export const measurementReport = (snapshot: TelemetrySnapshot, system: SystemSnapshot | null, paused: boolean | 'refreshing', version: string, now = Date.now()): string => {
   const scalar = (value: number | null | undefined, unit = '') => value == null || !Number.isFinite(value) ? 'not reported' : `${Number(value.toFixed(2))}${unit}`;
-  const lines = [`MLX Scope ${version} — OpenChamber extension`, 'Scope: oMLX server / whole host, not a selected chat',
+  const lines = [`MLX Scope ${version} — OpenChamber extension`, 'Scope: runtime server / whole host, not a selected chat',
     `State: ${paused === 'refreshing' ? 'refreshing — held observations' : paused ? 'paused — held observations' : snapshot.available ? snapshot.phase : 'unavailable'}`,
     `Sample age: ${scalar(Math.max(0, (now - snapshot.sampledAt) / 1000), ' seconds')}`];
   if (!snapshot.available) lines.push(`Connection: ${snapshot.reason}`);
@@ -16,7 +16,7 @@ export const measurementReport = (snapshot: TelemetrySnapshot, system: SystemSna
     const progress = prefillReading(snapshot);
     if (progress) {
       lines.push(`Prefill: ${progress.remaining}${progress.stale || paused ? ' (last reading)' : ''} — current stage only`);
-      if (!paused && !progress.stale && snapshot.prefillETASeconds !== null) lines.push(`Prefill stage estimate: ${scalar(snapshot.prefillETASeconds, ' seconds')} (oMLX estimate, not a completion deadline)`);
+      if (!paused && !progress.stale && snapshot.prefillETASeconds !== null) lines.push(`Prefill stage estimate: ${scalar(snapshot.prefillETASeconds, ' seconds')} (reported stage estimate, not a completion deadline)`);
       if (progress.counts) lines.push(`Prefill tokens: ${progress.counts.done} / ${progress.counts.total}; ${progress.counts.remaining} remaining`);
     }
     lines.push(`Generation (request average): ${scalar(snapshot.liveDecodeTPS, ' tok/s')}`,

@@ -1,31 +1,43 @@
 # MLX Scope
 
-Lightweight oMLX monitoring for OpenChamber.
+Lightweight local model monitoring for OpenChamber.
 
-Prefill remaining, generation speed, context reuse, model activity, and Mac
-resources beside your conversation. oMLX already has a monitoring dashboard;
-MLX Scope keeps the useful readings in the OpenChamber workflow.
+Keep useful runtime readings beside your conversation. MLX Scope observes oMLX,
+vllm-mlx, LM Studio, and mlx-lm through their supported APIs. Each view reflects
+what that server actually reports.
 
-- **Live:** prominent prefill progress and reported stage estimates, generation
-  speed, recent observed output, context headroom, and host resources.
+| Runtime | Available readings |
+| --- | --- |
+| **oMLX** | Prefill remaining and stage estimate, generation and recent output speed, context/reuse, model activity, cache and process readings |
+| **vllm-mlx** | Reported request activity, queue, output and speed; prefill and reuse where the engine exposes usable data |
+| **LM Studio** | Available and loaded models, model format, loaded-instance context limits |
+| **mlx-lm** | Server availability and available model catalogue; model residency is not reported |
+
+All four include host CPU, memory, and macOS wired/compressed/swap readings when
+available. OpenAI-compatible inference does not imply equivalent monitoring.
+See [Compatibility](docs/COMPATIBILITY.md) for the exact limits.
+
+oMLX already has a monitoring dashboard. MLX Scope keeps the useful readings in
+the OpenChamber workflow, in a narrow panel or a full-page view that follows the
+host's colors and typography.
+
+- **Live:** current readings, prominent prefill when reported, and host resources.
 - **Compare:** observe 30 or 60 seconds, pin a reference, and compare another
-  capture. No prompts are sent and no inference settings are changed.
+  capture. Inventory-only connections capture host resources.
 - **Saved:** keep the 12 newest manually saved observations in OpenChamber storage.
   Saved reports omit model names, request identifiers, paths, and chat content.
 
-Use the narrow conversation panel or open the full-page view from OpenChamber’s
-Extension pages menu. Both follow the host’s colors and typography. Sharing stays
-in the **Share** menu: copy a sanitized report or append it to the current draft.
-Nothing is sent automatically.
+The secondary **Share** menu copies a sanitized report or appends it to the current
+draft. Nothing is sent automatically.
 
 ## Install
 
-Requires **OpenChamber 1.24.2 or newer**, using its desktop or web client. oMLX
-must run on the same computer as the OpenChamber server. Mac resource readings
-require macOS; extensions are not available in the mobile or VS Code clients.
+Requires **OpenChamber 1.24.2 or newer**, using its desktop or web client. The
+runtime must run on the same computer as the OpenChamber server. Mac resource
+readings require macOS; extensions are not available in the mobile or VS Code clients.
 
 1. Open **Settings → Extensions** in OpenChamber.
-2. Add this repository and review the extension’s local-service permissions:
+2. Add this repository and review the extension's local-service permissions:
 
    ```text
    https://github.com/mikebuckets171/mlx-scope-openchamber
@@ -33,37 +45,49 @@ require macOS; extensions are not available in the mobile or VS Code clients.
 
 Alternatively, install **mlx-scope-openchamber-1.0.0.zip** from
 [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest).
-Use the named install package, not GitHub’s generated source archives. The ZIP
+Use the named install package, not GitHub's generated source archives. The ZIP
 includes built JavaScript; installing it does not require a build toolchain.
 
-MLX Scope discovers the existing local oMLX connection. If it cannot connect,
-open **Connection help** in the monitor or read [Configuration](docs/CONFIGURATION.md).
+MLX Scope discovers existing local OpenCode provider connections, including custom
+provider names. Keep **Automatic**, or use **Change** beside the connection status to select a
+connection and runtime. Endpoints and credentials stay in the existing provider
+configuration; MLX Scope never edits them. See [Configuration](docs/CONFIGURATION.md)
+if no connection appears.
+
+Open the conversation panel from **Open MLX Scope** in the session menu, or use
+OpenChamber's **Extension pages** menu for the full-page view.
 
 ## What the readings mean
 
 Telemetry is **server-wide**, not attributed to the selected conversation.
 Missing values stay unavailable. Held or stale readings are labelled.
 
-DFlash primary output uses fresh, reported output-token counters to calculate
-clearly labelled **recent output** speed. Before output arrives, it shows
-processing without inventing prefill progress. Standard fallback prefill keeps
-its normal counters and estimate. See [Compatibility](docs/COMPATIBILITY.md).
+oMLX primary DFlash output uses fresh token counters to calculate clearly labelled
+**recent output** speed. Before output arrives, it shows processing without
+inventing prefill progress. Standard fallback prefill keeps its normal counters
+and estimate.
 
 Captures are observations, not controlled benchmarks or proof that a request
-finished successfully. Different prompts, cache states, and competing workloads
-can change a comparison. [Metric definitions](docs/METRICS.md) explain the limits.
+finished successfully. Prompts, cache states, and competing workloads can change
+a comparison. [Metric definitions](docs/METRICS.md) explain the limits.
 
 ## Lightweight and read-only
 
-Vanilla TypeScript, the official OpenChamber SDK, and a host-managed local
-service. No UI framework, chart library, inference requests, or separate daemon.
-One sampling pipeline feeds the views; hidden and paused views stop requesting
-observations. Histories, captures, responses, and storage are bounded.
+Vanilla TypeScript, the official OpenChamber SDK, and a host-managed local service.
+No UI framework, chart library, inference requests, or separate daemon. One
+sampling pipeline per selected connection feeds the views; hidden and paused views
+stop requesting observations. Histories, captures, responses, and storage are bounded.
 
 The approved service runs under the OpenChamber user account and reads local
-configuration, oMLX telemetry, and fixed macOS diagnostic commands. Read-only
-behavior is a code boundary, not an operating-system sandbox. There is no
-analytics service. See [Privacy](PRIVACY.md) and [Security](SECURITY.md).
+configuration, runtime APIs, and fixed macOS diagnostic commands. Read-only behavior
+is a code boundary, not an operating-system sandbox. There is no analytics service.
+See [Privacy](PRIVACY.md) and [Security](SECURITY.md).
+
+## Project status
+
+MLX Scope is a one-time release of a personal project, with no planned maintenance
+or future updates and no ongoing support commitment. The MIT license lets the
+community fork, adapt, and carry it forward.
 
 ## Development
 
@@ -74,10 +98,12 @@ bun run check:all
 ```
 
 Checks include an extracted-package startup under Node without `node_modules`
-and interaction tests in Chromium and WebKit. Synthetic fixtures do not replace
-live installation testing. See [Contributing](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/CONTRIBUTING.md)
+and interaction tests in Chromium and WebKit. Runtime adapters use synthetic
+contract fixtures. LM Studio, mlx-lm, and vllm-mlx have not been exercised live
+for this release. See [Contributing](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/CONTRIBUTING.md)
 and [Architecture](docs/ARCHITECTURE.md) for builds and sampling limits.
 
 [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-Independent community project; not affiliated with OpenChamber, oMLX, or Apple.
+Independent community project; not affiliated with the runtime projects,
+OpenChamber, or Apple.

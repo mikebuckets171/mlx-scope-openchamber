@@ -1,18 +1,18 @@
 # Metric reference
 
 Missing, unsupported, or contradictory measurements display `—`. Unknown is not
-zero. Runtime measurements describe the whole oMLX server, not a selected chat.
+zero. Runtime measurements describe the selected server, not a selected chat.
 Memory is displayed in **GiB** (1,024³ bytes).
 
 | Reading | Meaning |
 | --- | --- |
-| Generation speed | oMLX’s reported request-average speed for one identifiable request |
+| Generation speed | Reported per-request speed from oMLX or vllm-mlx, only for identifiable, fresh work |
 | Recent output | Observed output-token increments divided by sampled wall time; not a runtime request average |
-| Prefill remaining | `(total − processed) / total` for the reported stage |
+| Prefill remaining | Reported current-stage work remaining; oMLX counts or a supported vllm-mlx fraction |
 | Reported estimate | oMLX’s estimate for the current prefill stage, not time until an answer |
 | Input reused | Request-matched cached tokens divided by reported prompt tokens |
 | Context headroom | Reported model limit minus prompt and output tokens; not OpenCode’s compaction threshold |
-| Active / queued | Server-wide counts, accounting for proven queue overlap |
+| Active / queued | Reported server counts; oMLX queue overlap is removed only when proven |
 | CPU | Change in non-idle host CPU time across all logical cores between observations |
 | Non-free RAM | Physical memory minus OS-reported free memory; includes reclaimable pages |
 | Wired / compressed | Physical pages reported by `vm_stat`, using its reported page size |
@@ -26,7 +26,23 @@ Non-free RAM is not Activity Monitor’s **Memory Used**. Compressed memory mean
 physical pages occupied by the compressor, not the logical uncompressed size.
 No GPU, fan, thermal, or private memory-pressure measurements are inferred.
 
-## Prefill
+## Runtime coverage
+
+LM Studio reports model inventory and loaded-instance context limits. mlx-lm
+reports available model files without residency. These views retain host resources
+while leaving live request metrics unavailable. A model file's size is not process
+RAM, and a configured context limit is not remaining context.
+
+vllm-mlx per-request speed is withheld until output counters advance and again
+when they stop advancing for five seconds. Its top-level speed is omitted because
+backend meanings differ. Only batched MLLM prefill fractions strictly between zero
+and one are usable. A held fraction waits for observed advancement after a
+monitoring gap; there are no processed-token counts or stage estimates. LLM
+output-limit progress never becomes prefill. Reuse requires the text batched engine,
+a recognized cache classification, and valid request-matched counts. Metal allocator
+values never become a process footprint. See [Compatibility](COMPATIBILITY.md).
+
+## oMLX prefill
 
 Processed and total counters belong to the current runtime stage. Cached prefix
 reuse is separate and is not subtracted from the total a second time. Staged or
@@ -47,7 +63,7 @@ ambiguous stages have no estimate. There is no synthetic countdown.
 The reviewed [oMLX prefill tracker](https://github.com/jundot/omlx/blob/14194fe74bab38b89c144bd89656fbedca641d14/omlx/prefill_progress.py)
 supplies these counters and estimates.
 
-## Recent output and DFlash
+## Recent output and oMLX DFlash
 
 Recent output uses at most ten seconds of observed output counters, requiring
 three samples spanning at least two seconds. It resets on request/model changes,
@@ -69,7 +85,7 @@ Prompt plus output is subtracted from the reported model context limit. During
 prefill, output is zero for this calculation. Reused tokens still occupy context
 and are not subtracted again. Missing or inconsistent counts suppress headroom.
 This is neither a reserved output/reasoning budget nor an allocation guarantee.
-A request profile may override the physical model’s context limit; activity does
+An oMLX request profile may override the physical model’s context limit; activity does
 not reveal enough profile identity to reconstruct that exact request budget.
 
 Reuse requires a cache lookup matching the same request. Unreused input does not
@@ -101,14 +117,17 @@ Recent generations retain eight last-seen observations in view memory. A request
 that disappears may have completed, been cancelled, or become unobservable.
 Rows therefore say **No longer observed** or **Monitoring gap**. Their output
 and speed are last-seen values, not guaranteed final totals. Clearing this history
-does not reset oMLX statistics.
+does not reset runtime statistics.
 
 ## Compare and Saved
 
 A 30/60-second capture consumes existing snapshots and never starts inference.
-It begins with one identifiable model. The capture closes at its target window
+A request capture begins with one identifiable active model. Inventory-only
+connections capture host resources without a generation rate or request-count
+change. The capture closes at its target window
 and retains the duration actually observed; a late response does not fill an
 unobserved ending or add time beyond that window.
+Changing connections clears working histories, captures, and pinned references.
 Manual stop, pause, hidden view, lost connection, concurrency, changed model,
 clock reversal, or a gap over 12 seconds leaves a labelled partial observation.
 
@@ -120,7 +139,8 @@ rate. Reported request averages are not mixed into this calculation.
 Resource means use distinct host CPU and memory samples, without time weighting
 or counting cached repeats again. Process footprint is a sampled peak. None of
 these values establishes a lifetime peak, exclusive request usage, or GPU memory.
-Reported request-count changes are server-wide; missing/stale totals, counter
+Reported request-count changes are server-wide and follow the runtime counter’s
+meaning, not a guarantee of successful completions. Missing/stale totals, counter
 resets, or a server restart make that change unavailable for the window.
 
 A pinned reference is held alongside the current capture. Percentage comparison

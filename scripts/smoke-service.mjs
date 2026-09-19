@@ -53,7 +53,7 @@ async function stop(state) {
 }
 
 function assertHostReadings(snapshot) {
-  assert(snapshot.system && typeof snapshot.system === 'object', 'Host readings must survive unavailable oMLX.');
+  assert(snapshot.system && typeof snapshot.system === 'object', 'Host readings must survive an unavailable runtime.');
   if (process.platform !== 'darwin') return;
   const readings = snapshot.system.macOS;
   assert(readings, 'The packaged Node service must return native Mac readings.');
@@ -111,7 +111,11 @@ try {
   const snapshot = await response.json();
   assert.equal(snapshot.available, false);
   assert.equal(snapshot.reason, 'runtime_unreachable');
-  assert.equal(snapshot.message, 'The oMLX runtime did not answer.', 'JSONC must parse the configured endpoint before attempting health identification.');
+  assert.equal(snapshot.connection?.selected, 'omlx', 'JSONC must select the configured provider.');
+  assert.equal(snapshot.connection?.runtime, 'omlx');
+  assert.equal(snapshot.connection?.diagnostic, 'offline');
+  assert.equal(typeof snapshot.message, 'string');
+  assert(snapshot.message.trim(), 'An unavailable connection needs an explanation.');
   assertHostReadings(snapshot);
 
   // A real bind failure must exit and retain its actionable cause in stderr.
@@ -127,21 +131,63 @@ try {
   // Exercise real HTTP collection through the extracted, minified Node bundle.
   let flight = { request_id: 'private-smoke-request', processed: 64, total: 100, speed: 184, eta: 0.2 };
   let primary = false;
-  mockRuntime = createHTTPServer((request, response) => {
+  let runtimeKind = 'omlx';
+  let outputTokens = 10;
+  const runtimeCalls = [];
+  const authFailures = [];
+  const runtimeKey = 'isolated-smoke-key';
+  mockRuntime = createHTTPServer(async (request, response) => {
     const path = new URL(request.url, 'http://127.0.0.1').pathname;
+    runtimeCalls.push({ runtime: runtimeKind, path, method: request.method });
+    const rejectAuth = (reason) => {
+      authFailures.push(reason); response.writeHead(401); response.end('{}');
+    };
     let body;
-    if (path === '/health') body = { status: 'healthy', engine_pool: { model_count: 1 } };
-    else if (path === '/admin/api/login') {
+    if (path === '/health') {
+      if (request.headers.authorization || request.headers.cookie) { rejectAuth('Health must be anonymous.'); return; }
+      body = runtimeKind === 'mlx-lm' ? { status: 'ok' } : runtimeKind === 'vllm-mlx'
+        ? { status: 'healthy', model_loaded: true, model_name: 'fixture', available_models: ['fixture'], engine_type: 'batched', model_type: 'llm' }
+        : { status: 'healthy', engine_pool: { model_count: 1 } };
+    } else if (runtimeKind === 'lmstudio' && path === '/api/v1/models') {
+      if (request.headers.authorization !== 'Bearer studio-smoke-key') { rejectAuth('LM Studio must use its configured key.'); return; }
+      body = { models: [{ key: '/private/models/studio-fixture', type: 'llm', format: 'mlx', max_context_length: 32768,
+        loaded_instances: [{ id: 'studio-instance', config: { context_length: 8192 } }] }] };
+    } else if (runtimeKind === 'mlx-lm' && path === '/v1/models') {
+      if (request.headers.authorization || request.headers.cookie) { rejectAuth('Key-free mlx-lm must not borrow another provider key.'); return; }
+      body = { object: 'list', data: [{ id: '/private/models/downloaded-fixture', object: 'model' }] };
+    } else if (runtimeKind === 'vllm-mlx' && path === '/v1/status') {
+      if (request.headers.authorization !== 'Bearer vllm-smoke-key') { rejectAuth('vllm-mlx must use its configured key.'); return; }
+      body = { status: 'running', model: 'fixture', num_running: 1, num_waiting: 0, requests: [{
+        request_id: 'private-vllm-request', status: 'running', phase: 'generation', prompt_tokens: 100,
+        completion_tokens: outputTokens, tokens_per_second: 40, cached_tokens: 50, cache_hit_type: 'prefix',
+      }] };
+    } else if (runtimeKind === 'omlx' && path === '/admin/api/login') {
+      if (request.method !== 'POST') { rejectAuth('oMLX login must use POST.'); return; }
+      let bytes = 0;
+      const chunks = [];
+      for await (const chunk of request) {
+        bytes += chunk.length;
+        if (bytes > 4096) { rejectAuth('Login body exceeded its fixture bound.'); return; }
+        chunks.push(chunk);
+      }
+      let login;
+      try { login = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { rejectAuth('Login needs JSON.'); return; }
+      if (login.api_key !== runtimeKey || login.remember !== false) { rejectAuth('The saved provider key must reach oMLX login.'); return; }
       response.setHeader('Set-Cookie', 'omlx_admin_session=smoke; HttpOnly'); body = {};
-    } else if (path === '/v1/models/status') body = { models: [] };
-    else if (path === '/admin/api/activity' || path === '/admin/api/stats') {
+    } else if (runtimeKind === 'omlx' && path === '/v1/models/status') {
+      if (request.headers.authorization !== `Bearer ${runtimeKey}`) { rejectAuth('Model metadata must use the configured key.'); return; }
+      body = { models: [] };
+    } else if (runtimeKind === 'omlx' && (path === '/admin/api/activity' || path === '/admin/api/stats')) {
+      if (request.headers.cookie !== 'omlx_admin_session=smoke') { rejectAuth('Monitoring requires the authenticated oMLX session.'); return; }
       body = { engines: {}, active_models: { models: [{ id: 'fixture', active_requests: 1, prefilling: primary ? [] : [flight], activities: primary ? [flight] : [] }] } };
     } else { response.writeHead(404); response.end(); return; }
+    if (path !== '/admin/api/login' && request.method !== 'GET') { response.writeHead(405); response.end(); return; }
     response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(body));
   });
   await new Promise((resolveListen, reject) => { mockRuntime.once('error', reject); mockRuntime.listen(0, '127.0.0.1', resolveListen); });
-  await writeFile(join(config, 'opencode.jsonc'), `// packaged JSONC fixture\n{"provider":{"omlx":{"options":{"baseURL":"http://127.0.0.1:${mockRuntime.address().port}/v1",},},},}`);
-  const activeService = start(port, { MLX_SCOPE_API_KEY: 'isolated-smoke-key' });
+  const runtimeBase = `http://127.0.0.1:${mockRuntime.address().port}/v1`;
+  await writeFile(join(config, 'opencode.jsonc'), `// packaged JSONC fixture\n{"provider":{"omlx":{"options":{"baseURL":"${runtimeBase}","apiKey":"${runtimeKey}",},},},}`);
+  const activeService = start(port);
   let ready = false;
   const nextDeadline = performance.now() + 5000;
   while (performance.now() < nextDeadline && !activeService.closed) {
@@ -185,12 +231,74 @@ try {
   assert.equal(fallback.phase, 'prefill');
   assert.equal(fallback.prefillProgress, 0.25);
   assert.notEqual(fallback.traceEpoch, dflash.traceEpoch);
+  assert.deepEqual(authFailures, []);
+  assert.equal(runtimeCalls.filter(call => call.path === '/admin/api/login').length, 1, 'The package must authenticate once and reuse its session.');
+  for (const path of ['/health', '/v1/models/status', '/admin/api/activity', '/admin/api/stats']) {
+    assert(runtimeCalls.some(call => call.path === path), `The package did not exercise ${path}.`);
+  }
   await stop(activeService);
+
+  // Use only isolated HTTP fixtures; this checks that every adapter ships in the ZIP.
+  await writeFile(join(config, 'opencode.jsonc'), JSON.stringify({ provider: {
+    studio: { name: 'LM Studio', options: { baseURL: runtimeBase, apiKey: 'studio-smoke-key' } },
+    'mlx-lm': { options: { baseURL: runtimeBase } },
+    'vllm-mlx': { options: { baseURL: runtimeBase, apiKey: 'vllm-smoke-key' } },
+  } }));
+  const multiService = start(port);
+  ready = false;
+  const multiDeadline = performance.now() + 5000;
+  while (performance.now() < multiDeadline && !multiService.closed) {
+    try { ready = (await get('/health')).status === 200; if (ready) break; } catch {}
+    await delay(50);
+  }
+  assert(ready, `Packaged multi-runtime service did not become ready: ${multiService.log}`);
+  runtimeKind = 'lmstudio';
+  const studio = await (await get('/snapshot?provider=studio')).json();
+  assert.equal(studio.available, true);
+  assert.equal(studio.runtime, 'lmstudio');
+  assert.equal(studio.connection?.coverage, 'inventory');
+  assert.equal(studio.catalog[0].name, 'studio-fixture');
+  assert.equal(studio.catalog[0].contextWindow, 8192);
+  assert.equal(studio.residentModelCount, 1);
+  assert.equal(studio.activeRequests, null);
+  assert.equal(studio.liveDecodeTPS, null);
+  runtimeKind = 'mlx-lm';
+  const mlx = await (await get('/snapshot?provider=mlx-lm')).json();
+  assert.equal(mlx.available, true);
+  assert.equal(mlx.runtime, 'mlx-lm');
+  assert.equal(mlx.catalog[0].name, 'downloaded-fixture');
+  assert.equal(mlx.catalog[0].loaded, null, 'A downloaded model is not a resident model.');
+  assert.equal(mlx.activeRequests, null);
+  assert.equal(mlx.prefillProgress, null);
+  runtimeKind = 'vllm-mlx';
+  const pending = await (await get('/snapshot?provider=vllm-mlx')).json();
+  assert.equal(pending.available, true);
+  assert.equal(pending.runtime, 'vllm-mlx');
+  assert.equal(pending.liveDecodeTPS, null, 'The first output counter does not prove fresh generation.');
+  outputTokens = 20;
+  await delay(550);
+  const vllm = await (await get('/snapshot?provider=vllm-mlx')).json();
+  assert.equal(vllm.phase, 'decode');
+  assert.equal(vllm.liveDecodeTPS, 40);
+  assert.equal(vllm.completionTokens, 20);
+  assert.equal(vllm.cachedTokens, 50);
+  assert.equal(vllm.prefillProgress, null);
+  assert.equal(vllm.connection?.coverage, 'requests');
+  assert.deepEqual(authFailures, []);
+  for (const result of [studio, mlx, pending, vllm]) {
+    const encoded = JSON.stringify(result);
+    for (const forbidden of ['/private/', 'private-vllm-request', 'studio-smoke-key', 'vllm-smoke-key']) {
+      assert(!encoded.includes(forbidden), 'Private fixture data crossed the service boundary.');
+    }
+  }
+  assert(runtimeCalls.filter(call => call.runtime !== 'omlx').every(call => call.method === 'GET'));
+  await stop(multiService);
   if (process.platform === 'darwin') {
     console.log('PASS: packaged Node service returned real macOS wired, compressed, and swap readings.');
   }
   console.log('PASS: packaged DFlash output and fallback transition use reported counters without inventing speed or prefill.');
   console.log('PASS: packaged prefill counters and invalid-progress rejection verified against loopback fixture.');
+  console.log('PASS: packaged LM Studio, mlx-lm, and vllm-mlx adapters preserve credentials, telemetry boundaries, and output freshness with synthetic fixtures.');
   console.log('PASS: packaged Node service starts without node_modules; /health, /snapshot, JSONC, authentication, startup errors, and shutdown verified.');
 } finally {
   await Promise.all(children.map(stop));
