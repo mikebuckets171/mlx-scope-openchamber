@@ -22,6 +22,11 @@ Memory is displayed in **GiB** (1,024³ bytes).
 | RAM / SSD cache | Reported server cache sizes, kept separate from model allocation |
 | Runtime memory guard | oMLX guard state, not macOS memory pressure |
 
+When reported, the Live view surfaces runtime process footprint and model
+allocation beside whole-host memory. These are server-wide readings, can overlap,
+and must not be added together or attributed to a chat. The process footprint is
+unavailable when oMLX's memory guard does not provide an unambiguous value.
+
 Non-free RAM is not Activity Monitor’s **Memory Used**. Compressed memory means
 physical pages occupied by the compressor, not the logical uncompressed size.
 No GPU, fan, thermal, or private memory-pressure measurements are inferred.

@@ -45,6 +45,7 @@ test('catalog availability never invents residency or request activity', async (
   await expect(frame.locator('#catalog-title')).toHaveText('Available models');
   await expect(frame.locator('#catalog-list')).toContainText('Load state not reported');
   await expect(frame.locator('#catalog-list')).toContainText('Context not reported');
+  await expect(frame.locator('#runtime-memory')).toBeHidden();
   await expect(frame.locator('#resident-section')).toBeHidden();
   await expect(frame.locator('.metrics')).toBeHidden();
   await choose(page,'vllm');

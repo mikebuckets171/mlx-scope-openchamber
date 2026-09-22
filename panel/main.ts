@@ -89,6 +89,11 @@ root.innerHTML = `
     </div>
     <p class="machine-explanation">Whole host, not the inference runtime alone. Non-free RAM includes reclaimable pages; it is not Activity Monitor’s Memory Used.</p>
   </section>
+  <section id="runtime-memory" class="insight-section runtime-memory" aria-labelledby="runtime-memory-title" hidden>
+    <div class="section-heading"><h2 id="runtime-memory-title">Runtime memory</h2><span id="runtime-memory-source">Server-wide</span></div>
+    <div class="runtime-memory-values"><div><span id="process-label">Runtime process footprint</span><strong id="process-memory">—</strong></div><div><span>Model allocation</span><strong id="model-memory">—</strong></div></div>
+    <p class="insight-note">Reported totals can overlap; they are not per-chat memory.</p>
+  </section>
   <section id="cache-lens" class="insight-section" aria-labelledby="cache-title">
     <div class="section-heading"><h2 id="cache-title">Cache &amp; input</h2><span>Current request</span></div>
     <p id="cache-request-state" class="insight-note">Waiting for cache readings</p>
@@ -104,10 +109,7 @@ root.innerHTML = `
   </section>
   <p id="runtime-advisory" class="runtime-advisory" role="status" hidden></p>
   <section id="session-stats" class="session" aria-labelledby="session-title"><div class="section-heading"><h2 id="session-title">Server session</h2><span id="uptime">Since start / reset</span></div><div class="session-values"><div><span>Decode average</span><strong id="average-decode">—</strong></div><div><span>Prefill average</span><strong id="average-prefill">—</strong></div><div><span>Cache efficiency</span><strong id="average-cache">—</strong></div></div><p id="session-stats-state" class="native-note">Completed requests across all models</p></section>
-  <details class="details" id="runtime-details"><summary>Runtime details<span aria-hidden="true">+</span></summary><dl>
-    <div><dt id="process-label">Runtime process footprint</dt><dd id="process-memory">—</dd></div>
-    <div><dt>Model allocation</dt><dd id="model-memory">—</dd></div>
-    <div><dt>Prefix cache · RAM</dt><dd id="cache-memory">—</dd></div>
+  <details class="details" id="runtime-details"><summary>More runtime details<span aria-hidden="true">+</span></summary><dl>
     <div><dt>Prefix cache · SSD</dt><dd id="ssd-cache">—</dd></div>
     <div><dt>Runtime memory guard</dt><dd id="pressure">—</dd></div>
     <div><dt>Output tokens</dt><dd id="output">—</dd></div>
@@ -299,7 +301,11 @@ const update = (snapshot: TelemetrySnapshot): void => {
   text('session-stats-state', statsState === 'fresh' ? 'Completed requests across all models' : statsState === 'stale' ? 'Last available totals · not live' : 'Session statistics unavailable');
   const uptime = display?.lifetime?.uptimeSeconds;
   text('uptime', uptime == null ? 'Since start / reset' : `${Math.floor(uptime / 3600)}h ${Math.floor(uptime % 3600 / 60)}m · since start`);
-  text('process-memory', gb(display?.memory?.activeGB)); text('model-memory', gb(display?.memory?.modelGB)); text('cache-memory', gb(display?.memory?.cacheGB)); text('ssd-cache', gb(display?.sessionBank?.cold?.totalGB));
+  text('process-memory', gb(display?.memory?.activeGB)); text('model-memory', gb(display?.memory?.modelGB)); text('ssd-cache', gb(display?.sessionBank?.cold?.totalGB));
+  const hasRuntimeMemory = display?.memory?.activeGB != null || display?.memory?.modelGB != null;
+  hidden('runtime-memory', !hasRuntimeMemory);
+  node('runtime-memory').dataset.stale = String(stale);
+  text('runtime-memory-source', stale ? 'Last reading · not live' : `${runtimeName} · server-wide`);
   text('pressure', display?.memoryPressureLevel == null ? 'Not reported' : ['Not reported', 'Normal', 'Elevated', 'Critical'][Math.min(3, display.memoryPressureLevel)] ?? 'Not reported');
   text('output', count(current?.completionTokens)); text('elapsed', current?.elapsedSeconds == null ? '—' : `${number.format(current.elapsedSeconds)}s`); text('cache-lookup', display?.sessionBank?.lastMissReason?.replaceAll('_', ' ') ?? 'Not reported');
   text('freshness', display ? age(display.sampledAt) : 'No sample yet');
@@ -347,6 +353,10 @@ const poller = new Poller(async () => {
 });
 
 const clearFreshness = (): void => { if (freshnessTimer !== null) clearTimeout(freshnessTimer); freshnessTimer = null; };
+const holdRuntimeMemory = (label: string): void => {
+  text('runtime-memory-source', label);
+  node('runtime-memory').dataset.stale = 'true';
+};
 const armFreshness = (): void => {
   clearFreshness();
   if (disposed || userPaused || document.hidden || activeView === 'saved') return;
@@ -361,10 +371,12 @@ const syncMonitoring = (): void => {
   poller.setPaused(userPaused || document.hidden || activeView === 'saved');
   if (userPaused || document.hidden || activeView === 'saved') {
     interrupted = true; awaitingFresh = true;
+    holdRuntimeMemory(userPaused ? 'Frozen reading' : 'Last reading · not live');
     clearFreshness(); resources.break(); signal.break(); insightView.suspend(); captureView.suspend();
   } else {
     if (interrupted) {
       interrupted = false;
+      holdRuntimeMemory('Last reading · refreshing');
       text('rate', '—'); text('unit', 'Waiting for a fresh reading');
       text('phase', 'Refreshing'); text('connection', 'Resuming monitoring');
       shell.dataset.stale = 'true';

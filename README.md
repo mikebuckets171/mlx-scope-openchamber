@@ -14,6 +14,7 @@ what that server actually reports.
 | **mlx-lm** | Server availability and available model catalogue; model residency is not reported |
 
 All four include host CPU, memory, and macOS wired/compressed/swap readings when
+available. oMLX-reported process and model memory is shown separately when
 available. OpenAI-compatible inference does not imply equivalent monitoring.
 See [Compatibility](docs/COMPATIBILITY.md) for the exact limits.
 
@@ -21,7 +22,8 @@ oMLX already has a monitoring dashboard. MLX Scope keeps the useful readings in
 the OpenChamber workflow, in a narrow panel or a full-page view that follows the
 host's colors and typography.
 
-- **Live:** current readings, prominent prefill when reported, and host resources.
+- **Live:** current readings, prominent prefill when reported, and host and runtime
+  memory with their separate scopes made clear.
 - **Compare:** observe 30 or 60 seconds, pin a reference, and compare another
   capture. Inventory-only connections capture host resources.
 - **Saved:** keep the 12 newest manually saved observations in OpenChamber storage.
@@ -43,7 +45,7 @@ readings require macOS; extensions are not available in the mobile or VS Code cl
    https://github.com/mikebuckets171/mlx-scope-openchamber
    ```
 
-Alternatively, install **mlx-scope-openchamber-1.0.0.zip** from
+Alternatively, install the latest named `mlx-scope-openchamber-*.zip` from
 [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest).
 Use the named install package, not GitHub's generated source archives. The ZIP
 includes built JavaScript; installing it does not require a build toolchain.

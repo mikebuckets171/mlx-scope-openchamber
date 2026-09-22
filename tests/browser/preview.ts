@@ -25,6 +25,10 @@ test('relay srcdoc transport renders packaged assets, updates theme and pauses p
   await expect(frame.locator('#connection')).toHaveText('oMLX connected');
   await expect(frame.locator('#prefill-remaining')).toHaveText('36% remaining');
   await expect(frame.locator('#prefill-counts')).toContainText('5,824 / 9,100');
+  await expect(frame.locator('#runtime-memory')).toBeVisible();
+  await expect(frame.locator('#runtime-memory-source')).toHaveText('oMLX · server-wide');
+  await expect(frame.locator('#process-memory')).toHaveText('32.1 GiB');
+  await expect(frame.locator('#model-memory')).toHaveText('15.9 GiB');
   await expect(frame.locator('.masthead')).toHaveCSS('display', 'flex');
   await expect(frame.locator('html')).toHaveCSS('background-color', 'rgb(16, 21, 27)');
   await page.evaluate(() => (window as any).setPreviewTheme('light'));
@@ -32,6 +36,7 @@ test('relay srcdoc transport renders packaged assets, updates theme and pauses p
   await expect(frame.locator('#prefill-remaining')).toHaveText('36% remaining');
   await frame.locator('#pause').click();
   await expect(frame.locator('#prefill-state')).toHaveText('Paused · last reading');
+  await expect(frame.locator('#runtime-memory-source')).toHaveText('Frozen reading');
   const before = await requests(page);
   await page.waitForTimeout(1_200);
   expect(await requests(page)).toBe(before);
@@ -46,6 +51,7 @@ test('responsive layouts preserve metrics in both themes', async ({ page }, info
     await page.setViewportSize({ width, height: width < 900 ? 1200 : 860 });
     const frame = await openPanel(page, `theme=${theme}&surface=${width >= 900 ? 'page' : 'panel'}&long=1`);
     await expect(frame.locator('#connection')).toHaveText('oMLX connected');
+    await expect(frame.locator('#runtime-memory')).toBeVisible();
     await expect(frame.locator('#ram')).toContainText('48 GiB');
     await expect(frame.locator('#swap')).toHaveText('1.1 GiB');
     const overflow = await frame.locator('main').evaluate(() => document.documentElement.scrollWidth > innerWidth);
@@ -285,6 +291,7 @@ test('prefill stage estimate accompanies remaining percent and disappears on pau
   const frame = await openPanel(page, 'state=prefill');
   await expect(frame.locator('#prefill-eta')).toHaveText('~20s');
   await expect(frame.locator('#prefill-remaining')).toHaveText('36% remaining');
+  await expect(frame.locator('#runtime-memory-source')).toHaveText('oMLX · server-wide');
   await frame.locator('#compact').click(); await expect(frame.locator('#prefill-estimate')).toBeVisible();
   await frame.locator('#pause').click(); await expect(frame.locator('#prefill-estimate')).toBeHidden();
   await frame.locator('#pause').click();
@@ -611,6 +618,7 @@ test('returning to a hidden panel with a pending request never presents old spee
   });
   await expect(frame.locator('#rate')).toHaveText('—');
   await expect(frame.locator('#prefill-state')).toHaveText('Refreshing · last reading');
+  await expect(frame.locator('#runtime-memory-source')).toHaveText('Last reading · refreshing');
   await expect(frame.locator('#prefill-estimate')).toBeHidden();
   await expect(frame.locator('#capture-start')).toBeDisabled();
   await frame.locator('#compact').click();

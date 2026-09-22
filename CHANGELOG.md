@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0
+
+- Make reported runtime process footprint and model allocation visible in Live,
+  separate from whole-host memory, with stale status and server-wide scope clear.
+- Reuse the existing snapshot and polling cadence; no new service calls or
+  runtime monitoring loop.
+
 ## 1.0.0
 
 First standalone MLX Scope release for OpenChamber, shared as a one-time personal
