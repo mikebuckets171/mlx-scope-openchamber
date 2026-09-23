@@ -22,9 +22,22 @@ import { snapshotObservation, captureObservation } from './saved.ts';
 import { WorkspaceTabs, type Workspace } from './workspace.ts';
 import { version } from '../package.json';
 
-const host = connectHost();
 const root = document.querySelector<HTMLElement>('#root');
 if (!root) throw new Error('MLX Scope is missing its root element.');
+const startupFallback = root.querySelector<HTMLElement>('#startup-fallback');
+const startupStatus = startupFallback?.querySelector<HTMLElement>('[role="status"]');
+if (!startupFallback || !startupStatus) throw new Error('MLX Scope is missing its startup fallback.');
+let mounted = false;
+let startupFailed = false;
+const showStartupFailure = (): void => {
+  if (mounted) return;
+  startupFailed = true;
+  startupStatus.textContent = 'The extension interface could not start. Reload MLX Scope from OpenChamber’s Settings → Extensions.';
+  if (startupFallback.parentElement !== root || root.childElementCount > 1) root.replaceChildren(startupFallback);
+};
+window.addEventListener('error', () => showStartupFailure(), true);
+window.addEventListener('unhandledrejection', () => showStartupFailure());
+const host = connectHost();
 
 // This static shell is mounted once. Polls patch text/geometry, never controls.
 root.innerHTML = `
@@ -131,6 +144,7 @@ root.innerHTML = `
   <details class="connection-help" id="connection-help"><summary>Connection help<span aria-hidden="true">+</span></summary><p id="connection-result" role="status">Check whether OpenChamber has started the extension service. This does not change your configuration.</p><div class="insight-actions"><button id="check-connection" type="button">Check extension service</button><button id="connection-guide" type="button">Setup guide</button></div></details>
   <footer><span>MLX Scope <span id="scope-version"></span></span><span id="freshness">Waiting for first sample</span></footer>
 </main>`;
+root.prepend(startupFallback);
 
 const nodes = new Map<string, HTMLElement>();
 root.querySelectorAll<HTMLElement>('[id]').forEach((node) => nodes.set(node.id, node));
@@ -140,6 +154,7 @@ const hidden = (id: string, value: boolean): void => { node(id).hidden = value; 
 const meter = (id: string, value: number | null): void => { node(id).style.width = `${value === null ? 0 : Math.min(100, Math.max(0, value))}%`; };
 const button = node('refresh') as HTMLButtonElement;
 const shell = root.querySelector<HTMLElement>('.scope')!;
+shell.hidden = true;
 let signal = new SignalHistory();
 let resources = new ResourceHistory();
 const inspector = new ChartInspector(node('history-inspector'), node('history-reading'));
@@ -157,7 +172,6 @@ let freshnessTimer: ReturnType<typeof setTimeout> | null = null;
 let latest: TelemetrySnapshot = unavailableTelemetry('runtime_unreachable');
 let last: AvailableTelemetry | null = null;
 let failures = 0;
-let mounted = false;
 let disposed = false;
 let monitorGeneration = 0;
 let manualRefresh = false;
@@ -500,11 +514,13 @@ button.addEventListener('click', () => {
   void poller.refresh();
 });
 const readyDeadline = setTimeout(() => {
-  if (mounted || disposed) return;
+  if (mounted || disposed || startupFailed) return;
   text('connection', 'Waiting for OpenChamber');
   text('activity', 'Open this monitor from the extension panel in OpenChamber.');
   text('notice', 'If it is already open there, reload the extension in Settings → Extensions.');
   hidden('notice', false);
+  startupFallback.remove();
+  shell.hidden = false;
 }, 6_000);
 host.onReady((ready) => {
   clearTimeout(readyDeadline);
@@ -512,12 +528,14 @@ host.onReady((ready) => {
   document.documentElement.style.colorScheme = ready.theme.mode;
   shell.dataset.surface = ready.surface;
   if (mounted) return;
-  mounted = true;
-  button.disabled = userPaused;
   void preferences.load(applyPreference);
   void connections.load();
   syncMonitoring();
+  button.disabled = userPaused;
   poller.start();
+  mounted = true;
+  startupFallback.remove();
+  shell.hidden = false;
 });
 document.addEventListener('visibilitychange', syncMonitoring);
 window.addEventListener('pagehide', (event) => {

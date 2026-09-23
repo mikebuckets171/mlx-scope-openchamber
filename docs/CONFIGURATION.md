@@ -26,12 +26,13 @@ custom names; they do not have to be `omlx` or another runtime's name.
 
 | Source | Use |
 | --- | --- |
-| `~/.config/opencode/config.json` | Legacy provider configuration |
-| `~/.config/opencode/opencode.json` | Provider URLs, options, and global selected model |
-| `~/.config/opencode/opencode.jsonc` | JSONC overlay |
+| `${XDG_CONFIG_HOME:-~/.config}/opencode/config.json` | Legacy compatibility input; OpenCode 2 no longer reads this filename |
+| `${XDG_CONFIG_HOME:-~/.config}/opencode/opencode.json` | OpenCode 1 `provider` entries or OpenCode 2 `providers` entries, plus the global selected model |
+| `${XDG_CONFIG_HOME:-~/.config}/opencode/opencode.jsonc` | JSONC overlay in either provider format |
+| Absolute `OPENCODE_CONFIG_DIR/opencode.json(c)` | Alternate OpenCode 2 global config root, when available to the extension service; the default global root and its legacy `config.json` are not read in this mode |
 | Absolute `OPENCODE_CONFIG` | Explicit configuration overlay, when available to the service |
 | `OPENCODE_CONFIG_CONTENT` | Final inline configuration overlay, when available to the service |
-| `~/.local/share/opencode/auth.json` | Saved API keys, matched to the same provider ID; `OPENCODE_AUTH_CONTENT` takes precedence when present |
+| `~/.local/share/opencode/auth.json` | Legacy saved API keys for OpenCode 1-shaped providers, matched by provider ID; not used for native OpenCode 2 entries. `OPENCODE_AUTH_CONTENT` takes precedence when present. |
 | `~/.omlx/settings.json` | oMLX server host/port fallback and matching native credential |
 
 Configuration merges in table order through `OPENCODE_CONFIG_CONTENT`. Comments and
@@ -39,7 +40,13 @@ trailing commas are supported. Each file read is limited to 1 MB; non-files,
 oversized files, and files that change while read are rejected. An unreadable or
 malformed provider configuration is reported rather than silently ignored.
 At most 64 provider entries are inspected and eight connections retained.
-Project-level configuration is not resolved.
+
+OpenCode 2's native provider shape is `providers.<id>.settings.baseURL` and
+`providers.<id>.settings.apiKey`; OpenCode 1 uses
+`provider.<id>.options.baseURL` and `provider.<id>.options.apiKey`. When both
+forms define the same provider ID, the native OpenCode 2 entry takes precedence.
+Project-level configuration is not resolved, so providers defined only in a
+project's `opencode.json(c)` are not discovered.
 
 Endpoints must be HTTP on `127.0.0.1`, `localhost`, or `[::1]`, with an explicit
 port and either no path or `/v1`, for example `http://localhost:1234/v1`.
@@ -52,8 +59,10 @@ native server settings.
 
 For each configured provider, the service uses the first available source:
 
-1. `provider.<id>.options.apiKey`.
-2. The same provider ID's `type: "api"` entry in OpenCode's auth file.
+1. `provider.<id>.options.apiKey` or
+   `providers.<id>.settings.apiKey`.
+2. For a legacy provider entry, the same provider ID's `type: "api"` entry in
+   OpenCode's legacy auth file.
 3. A populated environment variable named in that provider's `env` list.
 4. oMLX's native `auth.api_key`, only when the configured endpoint exactly matches
    the native oMLX origin.
@@ -68,8 +77,18 @@ than falling back to a stale saved key. An unresolved explicit reference is repo
 it does not silently select another credential.
 
 Environment references work only for variables available to the extension
-service. OpenChamber does not forward arbitrary shell variables to installed
-services. Use an existing saved provider credential when a variable is unavailable.
+service. OpenChamber 2 does not forward arbitrary host secrets or shell variables
+to installed extension services, so `OPENCODE_CONFIG_DIR` and `XDG_CONFIG_HOME`
+may not be available even when they are set for the OpenChamber host process.
+
+OpenCode 2 imports connected credentials into its private database and may leave
+the old `auth.json` file behind. MLX Scope does not inspect that database. It
+ignores the legacy file for native OpenCode 2 `providers` entries to avoid using
+an imported, potentially stale key. For legacy-shaped entries, the old file
+fallback remains for compatibility and may not reflect the credential currently
+active in OpenCode 2. If the service cannot resolve a supported key source, the
+connection reports that a credential is unavailable; it does not guess or read
+private credential storage.
 
 Missing keys work only when the runtime already allows key-free access. A supplied
 key that is rejected is never retried without authentication. Keys are used only
@@ -109,6 +128,9 @@ An explicitly launched service can use `MLX_SCOPE_BASE_URL`, `MLX_SCOPE_API_KEY`
 `MLX_SCOPE_MODEL`, and `MLX_SCOPE_RUNTIME`. The runtime value is `omlx`, `lmstudio`,
 `mlx-lm`, or `vllm-mlx`; the default is `omlx`. `OPENCODE_CONFIG` must be absolute.
 Absolute `XDG_CONFIG_HOME` and `XDG_DATA_HOME` select alternate roots; relative
-values are ignored. An explicit base URL uses only its explicit key or an
+values are ignored. An absolute `OPENCODE_CONFIG_DIR` selects the OpenCode 2
+global config directory when the service receives it; a relative value is
+reported as unsupported rather than silently falling back to the default root.
+An explicit base URL uses only its explicit key or an
 origin-matched native oMLX key; it never borrows a named provider's credential.
 These are isolated development inputs, not extension settings.

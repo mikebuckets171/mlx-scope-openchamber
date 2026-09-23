@@ -101,8 +101,9 @@ bun run check:all
 
 Checks include an extracted-package startup under Node without `node_modules`
 and interaction tests in Chromium and WebKit. Runtime adapters use synthetic
-contract fixtures. LM Studio, mlx-lm, and vllm-mlx have not been exercised live
-for this release. See [Contributing](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/CONTRIBUTING.md)
+contract fixtures. The 1.1.1 startup and OpenCode 2 configuration updates do
+not extend runtime qualification recorded for 1.1.0; LM Studio, mlx-lm, and
+vllm-mlx were not exercised live for that release. See [Contributing](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/CONTRIBUTING.md)
 and [Architecture](docs/ARCHITECTURE.md) for builds and sampling limits.
 
 [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
