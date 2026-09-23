@@ -13,6 +13,9 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; }
+.scope-startup { max-width: 880px; min-height: 100%; margin: auto; padding: 25px 24px 16px; color: var(--oc-fg, #ecf2f7); font: 12px/1.6 var(--oc-font, -apple-system, BlinkMacSystemFont, sans-serif); }
+.scope-startup h1 { margin: 0; font-size: 17px; font-weight: 670; letter-spacing: -.65px; }
+.scope-startup p { max-width: 52ch; margin: 14px 0 0; color: var(--oc-muted, #9aa9b7); }
 button, summary { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 [hidden] { display: none !important; }
 button:focus-visible, summary:focus-visible, [role="slider"]:focus-visible { outline: 2px solid var(--scope-accent); outline-offset: 4px; }

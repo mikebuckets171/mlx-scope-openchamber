@@ -5,6 +5,7 @@
 | Project | Reference | Coverage |
 | --- | --- | --- |
 | OpenChamber | [1.24.2](https://github.com/openchamber/openchamber/releases/tag/v1.24.2) | Published and installed SDK, services, themes, storage, draft composition, extension surfaces |
+| OpenChamber | [2.0.0](https://github.com/openchamber/openchamber/releases/tag/v2.0.0) | OpenCode 2 host; installed v1.1.0 extension displayed both panel and Extension Pages surfaces; v2 SDK retains manifest API 1 and wire v1 |
 | oMLX stable | [0.6.4](https://github.com/jundot/omlx/tree/1d7826185c5b5b69b38b27cbe57d7597b7551fd7) | Request activity, statistics, cache lookup, authentication, model context |
 | oMLX prerelease | [0.7.0.dev4](https://github.com/jundot/omlx/tree/14194fe74bab38b89c144bd89656fbedca641d14) | Loading, DFlash/Lightning/MTP, and distributed telemetry boundaries |
 | vllm-mlx | [0.5.0](https://github.com/waybarrios/vllm-mlx/tree/b064502055a68aaf94c6c58f9c0d749e0bd4f8cb) | Status, engine metadata, canonical request records, model registry |
@@ -12,14 +13,23 @@
 | mlx-lm | [0.31.3](https://github.com/ml-explore/mlx-lm/tree/ed1fca4cef15a824c5f1702c80f70b4cffc8e4dd) | Server availability and available model catalogue |
 
 The extension pins SDK 1.24.2 and declares OpenChamber 1.24.2 as its minimum.
-Desktop and web clients expose the required extension surfaces; mobile and
-VS Code clients do not. Runtime and Mac resource readings belong to the
-OpenChamber server's computer.
+OpenChamber 2.0.0 retains manifest API 1 and wire v1; its new browser-providing
+and live-surface service roles are optional and unused by MLX Scope. The v2
+release also fixes clean shutdown of extension services. No SDK upgrade is
+needed for Scope's panel, Extension Pages, host service, themes, storage, or
+compose integration. Desktop and web clients expose the required extension
+surfaces; mobile and VS Code clients do not. Runtime and Mac resource readings
+belong to the OpenChamber server's computer.
 
 Adapters are checked against official documentation/source and synthetic fixtures.
-**LM Studio, mlx-lm, and vllm-mlx were not run live for this release.** This is not
-telemetry parity across runtimes or a claim that every engine/model/version was
-exercised. Missing or unsupported fields remain unavailable.
+MLX Scope 1.1.0 was opened in the installed OpenChamber 2.0.0 host: both the
+panel and Extension Pages surfaces rendered and showed live local oMLX/host
+readings. This establishes host-surface compatibility for the existing package,
+not qualification of the new 1.1.1 artifact or of every runtime. **LM Studio,
+mlx-lm, and vllm-mlx were not run live for v1.1.0.** The v1.1.1 package still
+requires exact-artifact host qualification before release. This is not telemetry
+parity across runtimes or a claim that every engine/model/version was exercised.
+Missing or unsupported fields remain unavailable.
 
 ## oMLX
 
@@ -100,3 +110,10 @@ or a Turn Stats contribution hook. It does not map server-wide runtime requests
 to completed chat turns. MLX Scope leaves Turn Stats alone and does not scrape
 host DOM or private conversation data. It observes configured local connections;
 it does not manage models, cache, inference, or credentials.
+
+OpenChamber 2 runs OpenCode 2 and reads its native local provider definitions
+from `providers.<id>.settings`; MLX Scope now recognizes those alongside the v1
+`provider.<id>.options` form. OpenCode 2's connected credentials are stored in
+private database storage. Scope does not inspect that database and cannot
+promise access to credentials available only through `/connect`. Project-only
+provider definitions remain outside Scope's discovery boundary.

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.1
+
+- Show an accessible startup fallback if the extension UI bundle cannot load,
+  or fails during bootstrap, with a clear instruction to reload the extension in
+  OpenChamber.
+- Discover local providers in OpenCode 2's `providers.*.settings` format while
+  retaining OpenCode 1 configuration support. Honor an absolute
+  `OPENCODE_CONFIG_DIR` when it is available to the host service, and do not
+  use stale imported `auth.json` keys for native OpenCode 2 provider entries.
+- Keep the existing runtime polling, APIs, permissions, and saved data unchanged.
+
 ## 1.1.0
 
 - Make reported runtime process footprint and model allocation visible in Live,

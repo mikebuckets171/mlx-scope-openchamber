@@ -4,10 +4,41 @@ const requests = (page: Page) => page.evaluate(() => (window as unknown as { pre
 const openPanel = async (page: Page, query = '') => {
   await page.goto(`/?${query}`);
   const frame = page.frameLocator('iframe');
+  await expect(frame.locator('#startup-fallback')).toHaveCount(0);
   await frame.locator('#hardware').waitFor({ state: 'attached' });
   await expect.poll(() => requests(page)).toBeGreaterThan(0);
   return frame;
 };
+
+test('packaged entry gives a useful accessible state when its bundle cannot load', async ({ page }) => {
+  await page.route('**/panel/main.js', route => route.abort());
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/panel/index.html');
+
+  await expect(page.getByRole('heading', { name: 'MLX Scope' })).toBeVisible();
+  await expect(page.locator('#startup-fallback [role="status"]')).toHaveText(
+    'Starting MLX Scope. If this message remains visible, the extension interface could not start. Reload MLX Scope from OpenChamber’s Settings → Extensions.',
+  );
+  await expect(page.locator('#startup-fallback')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+});
+
+test('a synchronous bootstrap failure restores the accessible startup fallback', async ({ page }) => {
+  await page.clock.install();
+  await page.route('**/panel/main.js', async route => {
+    const response = await route.fetch();
+    await route.fulfill({ response, body: `${await response.text()}\nthrow new Error('bootstrap fixture failure');` });
+  });
+  await page.goto('/panel/index.html');
+
+  await expect(page.getByRole('heading', { name: 'MLX Scope' })).toBeVisible();
+  await expect(page.locator('#startup-fallback [role="status"]')).toHaveText(
+    'The extension interface could not start. Reload MLX Scope from OpenChamber’s Settings → Extensions.',
+  );
+  await page.clock.fastForward(6_100);
+  await expect(page.locator('#startup-fallback')).toBeVisible();
+  await expect(page.locator('.scope')).toBeHidden();
+});
 
 test('relay srcdoc transport renders packaged assets, updates theme and pauses polling', async ({ page }) => {
   const errors: string[] = [];
@@ -635,8 +666,12 @@ test('an unopened host shows setup guidance rather than an endless loading claim
   await page.clock.install();
   await page.goto('/?nohost=1');
   const frame=page.frameLocator('iframe');
+  await expect(frame.locator('#startup-fallback')).toBeVisible();
+  await expect(frame.locator('.scope')).toBeHidden();
   await expect(frame.locator('#refresh')).toBeDisabled();
   await page.clock.fastForward(6_100);
+  await expect(frame.locator('#startup-fallback')).toHaveCount(0);
+  await expect(frame.locator('.scope')).toBeVisible();
   await expect(frame.locator('#connection')).toHaveText('Waiting for OpenChamber');
   await expect(frame.locator('#activity')).toContainText('extension panel');
   expect(await requests(page)).toBe(0);

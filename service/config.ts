@@ -37,6 +37,8 @@ export type ConfigPaths = {
   auth: string;
 };
 
+type ProviderLayout = 'legacy' | 'v2' | 'none';
+
 type ReadTextResult =
   | { kind: 'ok'; text: string }
   | { kind: 'missing' }
@@ -109,10 +111,15 @@ const defaultReadText = async (path: string): Promise<ReadTextResult> => {
 
 export const pathsForHome = (home: string, env: NodeJS.ProcessEnv = {}): ConfigPaths => {
   const configRoot = nonempty(env.XDG_CONFIG_HOME);
+  const openCodeConfigDir = nonempty(env.OPENCODE_CONFIG_DIR);
   const dataRoot = nonempty(env.XDG_DATA_HOME);
   const configHome = configRoot && isAbsolute(configRoot) ? configRoot : join(home, '.config');
   const dataHome = dataRoot && isAbsolute(dataRoot) ? dataRoot : join(home, '.local', 'share');
-  const openCodeHome = join(configHome, 'opencode');
+  // OpenCode 2 uses this as its global config directory when supplied. Do not
+  // append another `opencode` component to the explicit directory.
+  const openCodeHome = openCodeConfigDir && isAbsolute(openCodeConfigDir)
+    ? openCodeConfigDir
+    : join(configHome, 'opencode');
   return {
     openCode: join(openCodeHome, 'opencode.json'),
     openCodeJSONC: join(openCodeHome, 'opencode.jsonc'),
@@ -182,7 +189,15 @@ const issueText = (issue: ConfigIssue): string | null => ({
 
 export const resolveRuntimeConnections = async ({ env = process.env, home = env.HOME ?? homedir(), readText = defaultReadText }: ConfigInput = {}): Promise<RuntimeConnections> => {
   const paths = pathsForHome(home, env), override = nonempty(env.OPENCODE_CONFIG);
-  const names = [join(dirname(paths.openCode), 'config.json'), paths.openCode, paths.openCodeJSONC];
+  const customConfigDir = nonempty(env.OPENCODE_CONFIG_DIR);
+  const invalidConfigDir = customConfigDir !== null && !isAbsolute(customConfigDir);
+  const names = invalidConfigDir ? [] : [
+    // The v1-era config.json is kept only for the default compatibility path;
+    // OpenCode 2's explicit config directory uses opencode.json/jsonc.
+    ...(!customConfigDir ? [join(dirname(paths.openCode), 'config.json')] : []),
+    paths.openCode,
+    paths.openCodeJSONC,
+  ];
   if (override && isAbsolute(override)) names.push(override);
   const documents = await Promise.all(names.map(async path => ({ path, document: await readJson(path, readText) })));
   const inline = nonempty(env.OPENCODE_CONFIG_CONTENT);
@@ -201,11 +216,23 @@ export const resolveRuntimeConnections = async ({ env = process.env, home = env.
   const authStatus = statusOf([auth]);
   const problem = documents.find(item => ['unreadable', 'malformed'].includes(item.document.status));
   const envBase = nonempty(env.MLX_SCOPE_BASE_URL);
-  const fileIssue: ConfigIssue = override && !isAbsolute(override) ? 'unsupported_config'
+  const fileIssue: ConfigIssue = invalidConfigDir || (override && !isAbsolute(override)) ? 'unsupported_config'
     : problem?.document.status === 'malformed' ? 'malformed_config' : problem ? 'unreadable_config' : 'none';
   if (fileIssue !== 'none' && !envBase) return { connections: [], issue: fileIssue, error: issueText(fileIssue), configStatus, authStatus };
   const merged = documents.filter(item => item.document.value).reduce<JsonObject>((result, item) => merge(result, item.document.value!), {});
-  const providers = asObject(merged.provider) ?? {};
+  const legacyProviders = asObject(merged.provider) ?? {};
+  const v2Providers = asObject(merged.providers) ?? {};
+  // OpenCode 2's canonical `providers` entries win over same-ID legacy
+  // `provider` entries. Keep legacy-only entries working during migration.
+  const providers = new Map<string, { provider: JsonObject; layout: ProviderLayout }>();
+  for (const [id, raw] of Object.entries(legacyProviders)) {
+    const provider = asObject(raw);
+    if (provider) providers.set(id, { provider, layout: 'legacy' });
+  }
+  for (const [id, raw] of Object.entries(v2Providers)) {
+    const provider = asObject(raw);
+    if (provider) providers.set(id, { provider, layout: 'v2' });
+  }
   const selected = nonempty(merged.model)?.split('/')[0] ?? null;
   const nativeServer = asObject(native.value?.server);
   const nativePort = nativeServer?.port;
@@ -239,25 +266,40 @@ export const resolveRuntimeConnections = async ({ env = process.env, home = env.
     expanded += result.slice(offset);
     return expanded.length > 16_384 || /\{(?:env|file):|\$\{/.test(expanded) ? null : nonempty(expanded);
   };
-  const sourceFor = (id: string, field: string): string => [...documents].reverse().find(item => has(asObject(asObject(asObject(item.document.value?.provider)?.[id])?.options), field))?.path ?? paths.openCode;
+  const sourceFor = (id: string, layout: ProviderLayout, field: string): string => {
+    if (layout === 'none') return paths.openCode;
+    return [...documents].reverse().find(item => {
+      const root = layout === 'v2' ? item.document.value?.providers : item.document.value?.provider;
+      const provider = asObject(asObject(root)?.[id]);
+      const values = layout === 'v2' ? asObject(provider?.settings) : asObject(provider?.options);
+      return has(values, field);
+    })?.path ?? paths.openCode;
+  };
   const connections: RuntimeConnectionConfig[] = [];
-  const add = async (id: string, provider: JsonObject, source: ConfigSource, rawBase: unknown, runtime: Runtime | null): Promise<void> => {
-    const options = asObject(provider.options), base = await expand(rawBase, sourceFor(id, 'baseURL'));
+  const add = async (id: string, provider: JsonObject, source: ConfigSource, layout: ProviderLayout, rawBase: unknown, runtime: Runtime | null): Promise<void> => {
+    const values = layout === 'v2' ? asObject(provider.settings) : asObject(provider.options);
+    const base = await expand(rawBase, sourceFor(id, layout, 'baseURL'));
     const baseURL = parseLocalOrigin(base);
-    const rawKey = source === 'environment' ? env.MLX_SCOPE_API_KEY : options?.apiKey;
-    const keyDefined = source === 'environment' ? env.MLX_SCOPE_API_KEY !== undefined : has(options, 'apiKey');
-    const configuredKey = await expand(rawKey, sourceFor(id, 'apiKey'));
+    const rawKey = source === 'environment' ? env.MLX_SCOPE_API_KEY : values?.apiKey;
+    const keyDefined = source === 'environment' ? env.MLX_SCOPE_API_KEY !== undefined : has(values, 'apiKey');
+    const configuredKey = await expand(rawKey, sourceFor(id, layout, 'apiKey'));
     const saved = asObject(auth.value?.[id]);
-    const savedKey = source !== 'environment' && saved?.type === 'api' ? nonempty(saved.key) : null;
+    // OpenCode 2 stores connected credentials in its private database and
+    // leaves the imported auth.json behind. Do not treat that legacy file as
+    // current auth for a native v2 provider entry.
+    const savedKey = source !== 'environment' && layout !== 'v2' && saved?.type === 'api' ? nonempty(saved.key) : null;
     const envNames = Array.isArray(provider.env) ? provider.env.slice(0, 4) : [];
     const providerEnvKey = envNames.flatMap(name => typeof name === 'string' && nonempty(env[name]) ? [nonempty(env[name])!] : [])[0] ?? null;
     const nativeKey = runtime !== 'lmstudio' && runtime !== 'mlx-lm' && runtime !== 'vllm-mlx' && baseURL !== null && nativeOrigin?.origin === baseURL.origin ? nonempty(asObject(native.value?.auth)?.api_key) : null;
     const apiKey = configuredKey ?? savedKey ?? providerEnvKey ?? nativeKey;
     const keyInvalid = apiKey !== null && (apiKey.length > 8192 || /[\r\n\u0000]/.test(apiKey));
     const explicitUnresolved = keyDefined && (typeof rawKey !== 'string' || configuredKey === null);
+    const missingCredentialIssue: ConfigIssue = source === 'opencode' && layout === 'legacy'
+      ? authStatus === 'malformed' ? 'malformed_config' : authStatus === 'unreadable' ? 'unreadable_config' : 'missing_credential'
+      : 'missing_credential';
     const issue: ConfigIssue = !baseURL ? base === null && nonempty(rawBase) ? 'unsupported_config' : 'invalid_endpoint'
       : explicitUnresolved || keyInvalid ? 'unsupported_config'
-      : apiKey !== null ? 'none' : authStatus === 'malformed' ? 'malformed_config' : authStatus === 'unreadable' ? 'unreadable_config' : 'missing_credential';
+      : apiKey !== null ? 'none' : missingCredentialIssue;
     const model = nonempty(env.MLX_SCOPE_MODEL) ?? nonempty(merged.model);
     const preferredModel = model?.startsWith(`${id}/`) ? model.slice(id.length + 1) : source === 'environment' ? model : null;
     connections.push({ id: safeLabel(id), label: safeLabel(nonempty(provider.name) ?? (source === 'omlx' ? 'oMLX' : id)), runtime: runtime ?? (baseURL && baseURL.origin === nativeOrigin?.origin ? 'omlx' : null),
@@ -265,25 +307,26 @@ export const resolveRuntimeConnections = async ({ env = process.env, home = env.
   };
 
   if (envBase) {
-    await add('omlx', {}, 'environment', envBase, runtimeValue(env.MLX_SCOPE_RUNTIME) ?? 'omlx');
+    await add('omlx', {}, 'environment', 'none', envBase, runtimeValue(env.MLX_SCOPE_RUNTIME) ?? 'omlx');
   } else {
-    const entries = Object.entries(providers).sort(([a], [b]) => Number(b === selected) - Number(a === selected) || Number(b === 'omlx') - Number(a === 'omlx'));
-    for (const [id, raw] of entries.slice(0, 64)) {
+    const entries = [...providers].sort(([a], [b]) => Number(b === selected) - Number(a === selected) || Number(b === 'omlx') - Number(a === 'omlx'));
+    for (const [id, entry] of entries.slice(0, 64)) {
       if (connections.length >= 8) break;
       if (!id || id.length > 120 || /[\u0000-\u001f\u007f]/.test(id)) continue;
-      const provider = asObject(raw), options = asObject(provider?.options);
-      if (!provider || !has(options, 'baseURL')) continue;
-      const base = await expand(options?.baseURL, sourceFor(id, 'baseURL'));
+      const { provider, layout } = entry;
+      const values = layout === 'v2' ? asObject(provider.settings) : asObject(provider.options);
+      if (!has(values, 'baseURL')) continue;
+      const base = await expand(values?.baseURL, sourceFor(id, layout, 'baseURL'));
       const hint = hintFor(id, provider.name);
       // Only configured local targets and explicitly named runtime failures enter the chooser.
       if (!parseLocalOrigin(base) && hint === null) continue;
-      await add(id, provider, 'opencode', options?.baseURL, hint);
+      await add(id, provider, 'opencode', layout, values?.baseURL, hint);
     }
     if (!connections.some(item => item.runtime === 'omlx') && connections.length < 8) {
       const server = asObject(native.value?.server), port = server?.port;
       if (typeof port === 'number' && Number.isInteger(port) && port > 0 && port <= 65535) {
         const host = nonempty(server?.host) ?? '127.0.0.1';
-        await add('omlx', {}, 'omlx', `http://${host === '0.0.0.0' ? '127.0.0.1' : host === '::1' ? '[::1]' : host}:${port}`, 'omlx');
+        await add('omlx', {}, 'omlx', 'none', `http://${host === '0.0.0.0' ? '127.0.0.1' : host === '::1' ? '[::1]' : host}:${port}`, 'omlx');
       }
     }
   }

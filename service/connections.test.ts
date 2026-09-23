@@ -20,6 +20,117 @@ test('discovers arbitrary local provider names, prioritizes the selected provide
   expect(JSON.stringify(result)).not.toContain('cloud-only-fixture');
 });
 
+test('discovers OpenCode 2 providers and reads local endpoints and explicit keys from settings', async () => {
+  const result = await resolve({ model: 'local-mlx/model-a', providers: {
+    'local-mlx': { name: 'Local vLLM-MLX', env: ['LOCAL_MLX_KEY'], settings: {
+      baseURL: 'http://localhost:8000/v1', apiKey: '{env:V2_LOCAL_KEY}',
+    } },
+    lmstudio: { name: 'LM Studio', settings: { baseURL: 'http://127.0.0.1:1234/v1' } },
+    cloud: { settings: { baseURL: 'https://api.example.test/v1', apiKey: 'cloud-only-fixture' } },
+  } }, {}, {}, { V2_LOCAL_KEY: 'v2-fixture-key' });
+
+  expect(result.connections.map(item => item.id)).toEqual(['local-mlx', 'lmstudio']);
+  expect(result.connections[0]).toMatchObject({ runtime: 'vllm-mlx', config: {
+    baseURL: new URL('http://127.0.0.1:8000/'), apiKey: 'v2-fixture-key', preferredModel: 'model-a',
+  } });
+  expect(result.connections[1]).toMatchObject({ runtime: 'lmstudio', config: { apiKey: null } });
+  expect(JSON.stringify(result)).not.toContain('cloud-only-fixture');
+});
+
+test('native OpenCode 2 provider shape wins over a same-ID legacy provider', async () => {
+  const result = await resolve({ model: 'engine/model-a', provider: {
+    engine: { name: 'vllm-mlx', options: { baseURL: 'http://localhost:8000/v1' } },
+  }, providers: {
+    engine: { name: 'LM Studio', settings: { baseURL: 'http://localhost:1234/v1' } },
+  } });
+
+  expect(result.connections).toHaveLength(1);
+  expect(result.connections[0]).toMatchObject({ id: 'engine', label: 'LM Studio', runtime: 'lmstudio' });
+  expect(result.connections[0]?.config.baseURL?.port).toBe('1234');
+});
+
+test('OpenCode 2 file references resolve relative to the file defining settings.apiKey', async () => {
+  const custom = `${home}/project/custom.jsonc`;
+  const result = await resolve({}, {}, {
+    [custom]: '{ "providers": { "engine": { "name": "oMLX", "settings": { "baseURL": "{env:V2_LOCAL_URL}", "apiKey": "{file:token.txt}" } } } }',
+    [`${home}/project/token.txt`]: '  v2-project-fixture-key\n',
+  }, { OPENCODE_CONFIG: custom, V2_LOCAL_URL: 'http://localhost:9876/v1' });
+
+  expect(result.connections[0]).toMatchObject({ runtime: 'omlx', config: { apiKey: 'v2-project-fixture-key', issue: 'none' } });
+  expect(result.connections[0]?.config.baseURL?.port).toBe('9876');
+});
+
+test('native OpenCode 2 providers do not use stale imported auth.json credentials', async () => {
+  const result = await resolve({ providers: {
+    omlx: { name: 'oMLX', settings: { baseURL: 'http://localhost:8000/v1' } },
+  } }, { omlx: { type: 'api', key: 'stale-v1-fixture-key' } });
+
+  expect(result.connections[0]).toMatchObject({ config: { apiKey: null, issue: 'missing_credential' } });
+  expect(JSON.stringify(result)).not.toContain('stale-v1-fixture-key');
+});
+
+test('OpenCode 2 config directory is the sole global provider root when available', async () => {
+  const customDir = `${home}/isolated-opencode`;
+  const customPaths = pathsForHome(home, { OPENCODE_CONFIG_DIR: customDir });
+  const files: Record<string, string> = {
+    [paths.openCode]: JSON.stringify({ providers: {
+      inactive: { name: 'oMLX', settings: { baseURL: 'http://localhost:8001/v1' } },
+    } }),
+    [`${customDir}/config.json`]: JSON.stringify({ provider: {
+      legacy: { name: 'oMLX', options: { baseURL: 'http://localhost:8002/v1' } },
+    } }),
+    [customPaths.openCode]: JSON.stringify({ providers: {
+      active: { name: 'vllm-mlx', settings: { baseURL: 'http://localhost:8003/v1' } },
+    } }),
+    [customPaths.openCodeJSONC]: '{ "providers": { "active": { "settings": { "apiKey": "{file:token.txt}" } } } }',
+    [`${customDir}/token.txt`]: 'custom-dir-fixture-key',
+    [paths.auth]: '{}',
+  };
+  const result = await resolveRuntimeConnections({
+    home,
+    env: { OPENCODE_CONFIG_DIR: customDir },
+    readText: async path => files[path] ?? null,
+  });
+
+  expect(customPaths.openCode).toBe(`${customDir}/opencode.json`);
+  expect(result.connections.map(item => item.id)).toEqual(['active']);
+  expect(result.connections[0]).toMatchObject({ runtime: 'vllm-mlx', config: {
+    baseURL: new URL('http://127.0.0.1:8003/'), apiKey: 'custom-dir-fixture-key', issue: 'none',
+  } });
+});
+
+test('relative OpenCode 2 config directory fails visibly instead of reading the default root', async () => {
+  const result = await resolve({ provider: {
+    active: { name: 'oMLX', options: { baseURL: 'http://localhost:8000/v1' } },
+  } }, {}, {}, { OPENCODE_CONFIG_DIR: 'relative-config' });
+
+  expect(result).toMatchObject({ connections: [], issue: 'unsupported_config' });
+});
+
+test('unrelated auth file failures do not mislabel OpenCode 2 or explicit environment credentials', async () => {
+  for (const authFailure of [
+    { kind: 'ok' as const, text: '{ malformed' },
+    { kind: 'unreadable' as const },
+  ]) {
+    const v2 = await resolveRuntimeConnections({
+      home,
+      env: {},
+      readText: async path => path === paths.openCode
+        ? JSON.stringify({ providers: { omlx: { settings: { baseURL: 'http://localhost:8000/v1' } } } })
+        : path === paths.auth ? authFailure : null,
+    });
+    expect(v2.connections[0]?.config).toMatchObject({ issue: 'missing_credential', apiKey: null });
+    expect(v2.authStatus).toBe(authFailure.kind === 'ok' ? 'malformed' : 'unreadable');
+
+    const explicit = await resolveRuntimeConnections({
+      home,
+      env: { MLX_SCOPE_BASE_URL: 'http://localhost:8000/v1', MLX_SCOPE_RUNTIME: 'omlx' },
+      readText: async path => path === paths.auth ? authFailure : null,
+    });
+    expect(explicit.connections[0]?.config).toMatchObject({ issue: 'missing_credential', apiKey: null });
+  }
+});
+
 test('keeps credentials tied to provider identity with explicit key precedence', async () => {
   const provider = Object.fromEntries(['a', 'b', 'c'].map((id, index) => [id, {
     env: ['LOCAL_ENGINE_KEY'], options: { baseURL: `http://127.0.0.1:${8000 + index}/v1`, ...(id === 'a' ? { apiKey: '{env:EXPLICIT_KEY}' } : {}) },
