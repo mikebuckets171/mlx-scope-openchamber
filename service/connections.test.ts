@@ -114,6 +114,7 @@ test('unrelated auth file failures do not mislabel OpenCode 2 or explicit enviro
   ]) {
     const v2 = await resolveRuntimeConnections({
       home,
+      env: {},
       readText: async path => path === paths.openCode
         ? JSON.stringify({ providers: { omlx: { settings: { baseURL: 'http://localhost:8000/v1' } } } })
         : path === paths.auth ? authFailure : null,
