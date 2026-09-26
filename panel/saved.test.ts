@@ -58,6 +58,17 @@ test('held prefill omits the stage estimate and preserves missing telemetry', ()
   expect(saved.measurements.cpu).toBeNull(); expect(saved.measurements.processed).toBeNull();
 });
 
+test('manually saved Splash values stay numeric, aggregate-scoped, and free of model identity', () => {
+  const snapshot = parseTelemetrySnapshot({ available:true, runtime:'splash', phase:'unknown', modelID:'private/model',
+    sampledAt:1000, serverStats:{ready:true,aggregateDecodeTokensPerSecond:47.2,completedRequests:17,
+      failedRequests:1,metalCurrentGB:12.5,metalPeakGB:13} });
+  const saved = snapshotObservation(snapshot,false,null,2000);
+  expect(saved.measurements).toMatchObject({splashDecode:47.2,splashCompleted:17,splashFailed:1,
+    splashMetalCurrent:12.5 * 1e9 / 1024 ** 3,splashMetalPeak:13 * 1e9 / 1024 ** 3});
+  expect(observationReport(saved)).toContain('Splash decode is aggregate across concurrent work');
+  expect(JSON.stringify(sanitizeObservation(saved))).not.toContain('private/model');
+});
+
 test('two views save concurrently without overwriting either acknowledged observation', async () => {
   const {host,values} = storage(); values.set('view.compact',true);
   const a=new SavedObservations(host), b=new SavedObservations(host);

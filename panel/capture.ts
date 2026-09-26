@@ -45,7 +45,10 @@ export class PerformanceCapture {
       peakProcessGB: null, processSamples: 0, meanCPU: null, peakCPU: null, cpuSamples: 0,
       meanMemoryGB: null, peakMemoryGB: null, memorySamples: 0,
       requestCountChange: null, startSwapGB: null, lastSwapGB: null,
-      status: 'recording', note: resourcesOnly ? 'Observing host resources. This runtime does not report passive output speed.' : 'Observing this model. No extra inference is started.' };
+      status: 'recording', note: resourcesOnly ? snapshot.runtime === 'splash'
+        ? 'Observing host resources. Splash exposes aggregate decode throughput, not per-request output speed.'
+        : 'Observing host resources. This runtime does not report passive output speed.'
+        : 'Observing this model. No extra inference is started.' };
     this.previous = null;
     this.lastRuntimeAt = this.lastSystemAt = this.lastMacAt = null;
     this.initialRequests = this.previousRequests = this.previousUptime = null;

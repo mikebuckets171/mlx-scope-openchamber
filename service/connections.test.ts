@@ -37,6 +37,14 @@ test('discovers OpenCode 2 providers and reads local endpoints and explicit keys
   expect(JSON.stringify(result)).not.toContain('cloud-only-fixture');
 });
 
+test('identifies Splash from its exact provider name while leaving unrelated IDs automatic', async () => {
+  const result = await resolve({ providers: {
+    splash: { name: 'Inco AI Splash', settings: { baseURL: 'http://127.0.0.1:8000/v1' } },
+    'splash-proxy': { name: 'Local compatibility proxy', settings: { baseURL: 'http://127.0.0.1:8001/v1' } },
+  } });
+  expect(result.connections.map(item => item.runtime)).toEqual(['splash', null]);
+});
+
 test('native OpenCode 2 provider shape wins over a same-ID legacy provider', async () => {
   const result = await resolve({ model: 'engine/model-a', provider: {
     engine: { name: 'vllm-mlx', options: { baseURL: 'http://localhost:8000/v1' } },

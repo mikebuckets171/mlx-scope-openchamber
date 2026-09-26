@@ -25,3 +25,18 @@ test('a reconnecting view reports held data without saying the user paused it', 
   expect(report).not.toContain('State: paused');
   expect(report).not.toContain('Prefill stage estimate:');
 });
+
+test('Splash report identifies aggregate scope and keeps Metal allocation distinct from process memory', () => {
+  const reading = parseTelemetrySnapshot({ available: true, runtime: 'splash', phase: 'unknown',
+    modelID: 'incoai/private-model', message: 'raw private path', sampledAt: 1000,
+    serverStats: { ready: true, aggregateDecodeTokensPerSecond: 47.2, completedRequests: 17,
+      failedRequests: 1, metalCurrentGB: 12.5, metalPeakGB: 13 },
+  });
+  const report = measurementReport(reading, null, false, '1.2.0', 2000);
+  expect(report).toContain('Splash aggregate decode throughput: 47.2 tok/s (not per-request speed)');
+  expect(report).toContain('Splash completed requests: 17');
+  expect(report).toContain('Splash Metal allocation · current: 11.64 GiB');
+  expect(report).toContain('not process RSS or model-only memory');
+  expect(report).not.toContain('private-model');
+  expect(report).not.toContain('raw private path');
+});

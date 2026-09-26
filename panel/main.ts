@@ -61,6 +61,7 @@ root.innerHTML = `
   <section id="instrument" class="instrument" aria-label="Inference activity">
     <div class="model-line"><span id="activity-label" class="eyebrow">MODEL ACTIVITY</span><span id="phase" class="phase">Connecting</span></div>
     <h2 id="model" translate="no">Your local model</h2>
+    <p id="splash-model-detail" class="splash-model-detail" hidden></p>
     <p id="coverage-note" class="coverage-note" hidden></p>
     <section id="catalog-section" class="catalog-section" aria-labelledby="catalog-title" hidden><div class="section-heading"><h3 id="catalog-title">Model inventory</h3><span id="catalog-count"></span></div><ul id="catalog-list" class="catalog-list"></ul><p id="catalog-note" class="insight-note"></p></section>
     <section id="prefill-progress" class="prefill-progress" aria-label="Prefill progress" hidden>
@@ -104,8 +105,8 @@ root.innerHTML = `
   </section>
   <section id="runtime-memory" class="insight-section runtime-memory" aria-labelledby="runtime-memory-title" hidden>
     <div class="section-heading"><h2 id="runtime-memory-title">Runtime memory</h2><span id="runtime-memory-source">Server-wide</span></div>
-    <div class="runtime-memory-values"><div><span id="process-label">Runtime process footprint</span><strong id="process-memory">—</strong></div><div><span>Model allocation</span><strong id="model-memory">—</strong></div></div>
-    <p class="insight-note">Reported totals can overlap; they are not per-chat memory.</p>
+    <div class="runtime-memory-values"><div><span id="process-label">Runtime process footprint</span><strong id="process-memory">—</strong></div><div><span id="model-label">Model allocation</span><strong id="model-memory">—</strong></div></div>
+    <p id="runtime-memory-note" class="insight-note">Reported totals can overlap; they are not per-chat memory.</p>
   </section>
   <section id="cache-lens" class="insight-section" aria-labelledby="cache-title">
     <div class="section-heading"><h2 id="cache-title">Cache &amp; input</h2><span>Current request</span></div>
@@ -121,7 +122,7 @@ root.innerHTML = `
     <ul id="resident-list" class="resident-list"></ul><p id="resident-note" class="insight-note"></p>
   </section>
   <p id="runtime-advisory" class="runtime-advisory" role="status" hidden></p>
-  <section id="session-stats" class="session" aria-labelledby="session-title"><div class="section-heading"><h2 id="session-title">Server session</h2><span id="uptime">Since start / reset</span></div><div class="session-values"><div><span>Decode average</span><strong id="average-decode">—</strong></div><div><span>Prefill average</span><strong id="average-prefill">—</strong></div><div><span>Cache efficiency</span><strong id="average-cache">—</strong></div></div><p id="session-stats-state" class="native-note">Completed requests across all models</p></section>
+  <section id="session-stats" class="session" aria-labelledby="session-title"><div class="section-heading"><h2 id="session-title">Server session</h2><span id="uptime">Since start / reset</span></div><div class="session-values"><div><span id="stats-label-one">Decode average</span><strong id="average-decode">—</strong></div><div><span id="stats-label-two">Prefill average</span><strong id="average-prefill">—</strong></div><div><span id="stats-label-three">Cache efficiency</span><strong id="average-cache">—</strong></div></div><p id="session-stats-state" class="native-note">Completed requests across all models</p></section>
   <details class="details" id="runtime-details"><summary>More runtime details<span aria-hidden="true">+</span></summary><dl>
     <div><dt>Prefix cache · SSD</dt><dd id="ssd-cache">—</dd></div>
     <div><dt>Runtime memory guard</dt><dd id="pressure">—</dd></div>
@@ -266,6 +267,7 @@ const update = (snapshot: TelemetrySnapshot): void => {
   const runtimeName = runtime ? runtimeNames[runtime] : 'Local runtime';
   const coverage = current ? snapshot.connection?.coverage ?? (runtime === 'omlx' ? 'requests' : 'server') : last?.connection?.coverage ?? 'requests';
   shell.dataset.coverage = coverage;
+  shell.dataset.runtime = runtime ?? '';
   text('activity-label', coverage === 'requests' ? 'MODEL ACTIVITY' : 'LOCAL RUNTIME');
   node('instrument').setAttribute('aria-label', coverage === 'requests' ? 'Inference activity' : 'Runtime inventory and coverage');
   shell.dataset.empty = String(stale && last === null);
@@ -273,10 +275,17 @@ const update = (snapshot: TelemetrySnapshot): void => {
   hidden('connection-diagnosis', !stale);
   text('connection-message', stale ? snapshot.message ?? 'Choose an existing local OpenCode connection, then refresh. Connection help can check the extension service.' : '');
   hidden('coverage-note', !current || coverage === 'requests');
-  text('coverage-note', coverage === 'inventory'
-    ? `${runtimeName} exposes model inventory here, but not live request progress or generation speed.${runtime === 'lmstudio' ? ' Loaded does not mean idle.' : ''}`
-    : `${runtimeName} is reachable. Live request progress and generation speed are not exposed by its monitoring API.`);
-  text('process-label', `${runtimeName} process footprint`);
+  text('coverage-note', runtime === 'splash'
+    ? 'Prefill, cache reuse, input-context use, and process memory are unavailable from Splash’s passive status.'
+    : coverage === 'inventory'
+      ? `${runtimeName} exposes model inventory here, but not live request progress or generation speed.${runtime === 'lmstudio' ? ' Loaded does not mean idle.' : ''}`
+      : `${runtimeName} is reachable. Live request progress and generation speed are not exposed by its monitoring API.`);
+  text('process-label', runtime === 'splash' ? 'Current Metal allocation' : `${runtimeName} process footprint`);
+  text('model-label', runtime === 'splash' ? 'Peak Metal allocation' : 'Model allocation');
+  text('runtime-memory-title', runtime === 'splash' ? 'Metal allocator' : 'Runtime memory');
+  text('runtime-memory-note', runtime === 'splash'
+    ? 'Splash reports current and peak Metal allocations. These are not process RSS or model-only memory.'
+    : 'Reported totals can overlap; they are not per-chat memory.');
   text('estimate-source', `${runtimeName} estimate · may change`);
   insightView.update(snapshot);
   const observedRate = current?.phase === 'decode' && current.liveDecodeTPS === null ? insightView.history.speed : null;
@@ -284,13 +293,24 @@ const update = (snapshot: TelemetrySnapshot): void => {
   hidden('recent-speed', current?.phase !== 'decode' || current.liveDecodeTPS === null && observedRate !== null);
   shell.dataset.phase = phase;
   shell.dataset.stale = String(stale);
-  text('connection', current ? `${runtimeName} connected${coverage !== 'requests' ? ' · limited telemetry' : current.phase === 'notLoaded' ? ' · no model loaded' : ''}` : snapshot.reason === 'authentication_failed' ? 'Authentication required' : `Waiting for ${runtimeName}`);
-  text('phase', current && coverage !== 'requests' ? 'Connected' : phases[phase]);
-  text('model', current && coverage !== 'requests' ? runtimeName : display?.modelID?.split('/').at(-1) ?? 'Your local model');
+  text('connection', current ? `${runtimeName}${runtime === 'splash' && current.serverStats?.ready === false ? ' reachable · not ready' : ' connected'}${coverage !== 'requests' ? ' · limited telemetry' : current.phase === 'notLoaded' ? ' · no model loaded' : ''}` : snapshot.reason === 'authentication_failed' ? 'Authentication required' : `Waiting for ${runtimeName}`);
+  text('phase', current && coverage !== 'requests' ? runtime === 'splash' ? current.serverStats?.ready === false ? 'Not ready' : 'Ready' : 'Connected' : phases[phase]);
+  text('model', runtime === 'splash' ? display?.modelID?.split('/').at(-1) ?? 'Splash server'
+    : current && coverage !== 'requests' ? runtimeName : display?.modelID?.split('/').at(-1) ?? 'Your local model');
   node('model').title = display?.modelID ?? `Observing ${runtimeName} on the OpenChamber host.`;
-  text('rate', liveRate !== null ? rateNumber.format(liveRate) : phase === 'idle' ? 'Ready' : phase === 'notLoaded' ? 'Standby' : '—');
-  node('rate').classList.toggle('is-word', liveRate === null);
-  text('unit', liveRate !== null ? observedRate ? 'tokens / second · recent output' : phase === 'prefill' ? 'prefill tokens / second' : 'tokens / second · request average' : phase === 'idle' ? 'Waiting for your next request' : phase === 'notLoaded' ? `Load a model in ${runtimeName}` : 'No fresh throughput');
+  hidden('splash-model-detail', runtime !== 'splash');
+  text('splash-model-detail', runtime === 'splash'
+    ? `${display?.modelID == null ? 'Model identity unavailable' : stale ? 'Last reported model' : current?.serverStats?.ready === false ? 'Configured model · residency unconfirmed' : 'Reported model'} · ${display?.contextWindow == null ? 'maximum context unavailable' : `${display.contextWindow.toLocaleString()} maximum context tokens`}`
+    : '');
+  const splashRate = runtime === 'splash' && current?.serverStats?.ready === true
+    ? current.serverStats.aggregateDecodeTokensPerSecond : null;
+  text('rate', runtime === 'splash' ? splashRate === null ? '—' : rateNumber.format(splashRate)
+    : liveRate !== null ? rateNumber.format(liveRate) : phase === 'idle' ? 'Ready' : phase === 'notLoaded' ? 'Standby' : '—');
+  node('rate').classList.toggle('is-word', runtime === 'splash' ? splashRate === null : liveRate === null);
+  text('unit', runtime === 'splash' ? stale ? 'Last aggregate reading · not live'
+    : current?.serverStats?.ready === false ? 'Decode unavailable while Splash is not ready'
+      : splashRate === null ? 'Aggregate decode unavailable' : 'tok/s · aggregate server decode'
+    : liveRate !== null ? observedRate ? 'tokens / second · recent output' : phase === 'prefill' ? 'prefill tokens / second' : 'tokens / second · request average' : phase === 'idle' ? 'Waiting for your next request' : phase === 'notLoaded' ? `Load a model in ${runtimeName}` : 'No fresh throughput');
   text('activity', stale ? snapshot.message ?? `Start ${runtimeName} on this host, then refresh.` : current.message ?? (phase === 'idle' ? 'Model loaded. Ready for your next request.' : phase === 'notLoaded' ? `${runtimeName} is running. Load a model to begin.` : `${count(current.activeRequests)} active · ${current.queuedRequests === null ? 'queue not reported' : current.queuedRequests ? `${current.queuedRequests} queued` : 'queue clear'}`));
   text('notice', stale && last ? `${age(last.sampledAt)}. Retained details are not live.` : '');
   hidden('notice', !stale || last === null);
@@ -309,14 +329,26 @@ const update = (snapshot: TelemetrySnapshot): void => {
   text('reuse', percent(reusedPercent)); text('reuse-detail', current?.cachedTokens == null ? 'Not reported' : `${count(current.cachedTokens)} tokens`);
   meter('context-bar', contextPercent); meter('reuse-bar', reusedPercent);
   text('requests', count(current?.activeRequests)); text('queue', current ? current.queuedRequests === null ? 'Queue not reported' : current.queuedRequests ? `${current.queuedRequests} queued` : 'Queue clear' : 'No live reading');
-  text('average-decode', rate(display?.sessionAverageDecodeTPS)); text('average-prefill', rate(display?.sessionAveragePrefillTPS)); text('average-cache', percent(display?.sessionCacheEfficiencyPercent));
+  text('session-title', runtime === 'splash' ? 'Splash server statistics' : 'Server session');
+  text('stats-label-one', runtime === 'splash' ? 'Aggregate decode' : 'Decode average');
+  text('stats-label-two', runtime === 'splash' ? 'Completed requests' : 'Prefill average');
+  text('stats-label-three', runtime === 'splash' ? 'Failed requests' : 'Cache efficiency');
+  text('average-decode', rate(runtime === 'splash' ? display?.serverStats?.aggregateDecodeTokensPerSecond ?? null : display?.sessionAverageDecodeTPS));
+  text('average-prefill', runtime === 'splash' ? count(display?.serverStats?.completedRequests) : rate(display?.sessionAveragePrefillTPS));
+  text('average-cache', runtime === 'splash' ? count(display?.serverStats?.failedRequests) : percent(display?.sessionCacheEfficiencyPercent));
   const statsState = stale ? 'stale' : current?.sessionStatsState ?? 'unavailable';
-  node('session-stats').dataset.stale = String(statsState !== 'fresh');
-  text('session-stats-state', statsState === 'fresh' ? 'Completed requests across all models' : statsState === 'stale' ? 'Last available totals · not live' : 'Session statistics unavailable');
+  node('session-stats').dataset.stale = String(runtime === 'splash' ? stale : statsState !== 'fresh');
+  text('session-stats-state', runtime === 'splash'
+    ? stale ? 'Last reading · not live; counters reset when the engine restarts.' : 'Server-wide counters since engine start. Decode throughput combines concurrent work.'
+    : statsState === 'fresh' ? 'Completed requests across all models' : statsState === 'stale' ? 'Last available totals · not live' : 'Session statistics unavailable');
   const uptime = display?.lifetime?.uptimeSeconds;
-  text('uptime', uptime == null ? 'Since start / reset' : `${Math.floor(uptime / 3600)}h ${Math.floor(uptime % 3600 / 60)}m · since start`);
-  text('process-memory', gb(display?.memory?.activeGB)); text('model-memory', gb(display?.memory?.modelGB)); text('ssd-cache', gb(display?.sessionBank?.cold?.totalGB));
-  const hasRuntimeMemory = display?.memory?.activeGB != null || display?.memory?.modelGB != null;
+  text('uptime', runtime === 'splash' ? 'Since engine start' : uptime == null ? 'Since start / reset' : `${Math.floor(uptime / 3600)}h ${Math.floor(uptime % 3600 / 60)}m · since start`);
+  text('process-memory', gb(runtime === 'splash' ? display?.serverStats?.metalCurrentGB : display?.memory?.activeGB));
+  text('model-memory', gb(runtime === 'splash' ? display?.serverStats?.metalPeakGB : display?.memory?.modelGB));
+  text('ssd-cache', gb(display?.sessionBank?.cold?.totalGB));
+  const hasRuntimeMemory = runtime === 'splash'
+    ? display?.serverStats?.metalCurrentGB != null || display?.serverStats?.metalPeakGB != null
+    : display?.memory?.activeGB != null || display?.memory?.modelGB != null;
   hidden('runtime-memory', !hasRuntimeMemory);
   node('runtime-memory').dataset.stale = String(stale);
   text('runtime-memory-source', stale ? 'Last reading · not live' : `${runtimeName} · server-wide`);
@@ -371,6 +403,11 @@ const holdRuntimeMemory = (label: string): void => {
   text('runtime-memory-source', label);
   node('runtime-memory').dataset.stale = 'true';
 };
+const holdSplashStatistics = (label: string): void => {
+  if ((last?.runtime ?? latest.runtime) !== 'splash') return;
+  node('session-stats').dataset.stale = 'true';
+  text('session-stats-state', label);
+};
 const armFreshness = (): void => {
   clearFreshness();
   if (disposed || userPaused || document.hidden || activeView === 'saved') return;
@@ -386,11 +423,14 @@ const syncMonitoring = (): void => {
   if (userPaused || document.hidden || activeView === 'saved') {
     interrupted = true; awaitingFresh = true;
     holdRuntimeMemory(userPaused ? 'Frozen reading' : 'Last reading · not live');
+    holdSplashStatistics(userPaused ? 'Frozen reading · counters reset on engine restart; decode is aggregate.'
+      : 'Last reading · not live; counters reset when the engine restarts.');
     clearFreshness(); resources.break(); signal.break(); insightView.suspend(); captureView.suspend();
   } else {
     if (interrupted) {
       interrupted = false;
       holdRuntimeMemory('Last reading · refreshing');
+      holdSplashStatistics('Last reading · refreshing');
       text('rate', '—'); text('unit', 'Waiting for a fresh reading');
       text('phase', 'Refreshing'); text('connection', 'Resuming monitoring');
       shell.dataset.stale = 'true';

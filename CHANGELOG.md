@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.1
+
+- Bring Splash model identity, readiness, aggregate decode, and completed/failed
+  counters into the first-glance Live view. Keep unavailable request metrics and
+  not-ready states explicit.
+
+## 1.2.0
+
+- Add Inco AI Splash using its documented passive `/status` endpoint. Show its
+  declared model/context, server-wide completed and failed request counters,
+  aggregate decode throughput, and current/peak Metal allocations where reported.
+- Keep Splash aggregate throughput separate from request speed, Metal allocation
+  separate from process memory, and unavailable request activity, prefill, cache
+  reuse, and active-context readings explicit.
+- Reuse the shared connection sampler at a 2-second minimum cadence. Splash uses
+  only its single `/status` endpoint; no other endpoint, permission, dependency,
+  inference, control, or background polling loop is added.
+
 ## 1.1.1
 
 - Show an accessible startup fallback if the extension UI bundle cannot load,

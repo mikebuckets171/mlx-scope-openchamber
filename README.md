@@ -3,8 +3,8 @@
 Lightweight local model monitoring for OpenChamber.
 
 Keep useful runtime readings beside your conversation. MLX Scope observes oMLX,
-vllm-mlx, LM Studio, and mlx-lm through their supported APIs. Each view reflects
-what that server actually reports.
+vllm-mlx, LM Studio, mlx-lm, and Inco AI Splash through their supported passive
+APIs. Each view reflects what that server actually reports.
 
 | Runtime | Available readings |
 | --- | --- |
@@ -12,10 +12,13 @@ what that server actually reports.
 | **vllm-mlx** | Reported request activity, queue, output and speed; prefill and reuse where the engine exposes usable data |
 | **LM Studio** | Available and loaded models, model format, loaded-instance context limits |
 | **mlx-lm** | Server availability and available model catalogue; model residency is not reported |
+| **Inco AI Splash** | Loaded model and declared context limit, server-wide request counters, aggregate decode throughput, and current/peak Metal allocations |
 
-All four include host CPU, memory, and macOS wired/compressed/swap readings when
+All five include host CPU, memory, and macOS wired/compressed/swap readings when
 available. oMLX-reported process and model memory is shown separately when
-available. OpenAI-compatible inference does not imply equivalent monitoring.
+available. Splash throughput is aggregate across server work; its Metal allocator
+values are not process RSS or model-only memory. OpenAI-compatible inference does
+not imply equivalent monitoring.
 See [Compatibility](docs/COMPATIBILITY.md) for the exact limits.
 
 oMLX already has a monitoring dashboard. MLX Scope keeps the useful readings in
@@ -87,9 +90,9 @@ See [Privacy](PRIVACY.md) and [Security](SECURITY.md).
 
 ## Project status
 
-MLX Scope is a one-time release of a personal project, with no planned maintenance
-or future updates and no ongoing support commitment. The MIT license lets the
-community fork, adapt, and carry it forward.
+MLX Scope is a focused community-maintained project. Runtime compatibility depends
+on supported upstream interfaces and maintainer availability. The MIT license
+allows the community to fork and adapt it.
 
 ## Development
 
@@ -101,9 +104,9 @@ bun run check:all
 
 Checks include an extracted-package startup under Node without `node_modules`
 and interaction tests in Chromium and WebKit. Runtime adapters use synthetic
-contract fixtures. The 1.1.1 startup and OpenCode 2 configuration updates do
-not extend runtime qualification recorded for 1.1.0; LM Studio, mlx-lm, and
-vllm-mlx were not exercised live for that release. See [Contributing](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/CONTRIBUTING.md)
+contract fixtures. Splash support follows its pinned 1.0.2 passive status
+contract; runtime versions are compatibility anchors, not minimum requirements.
+See [Contributing](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/CONTRIBUTING.md)
 and [Architecture](docs/ARCHITECTURE.md) for builds and sampling limits.
 
 [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
