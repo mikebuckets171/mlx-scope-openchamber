@@ -7,6 +7,7 @@ import { OmlxClient, isOmlxHealth } from './omlx-client.ts';
 import { LMStudioClient } from './lmstudio.ts';
 import { MlxLmClient } from './mlx-lm.ts';
 import { VllmMlxClient } from './vllm-mlx.ts';
+import { SplashClient } from './splash.ts';
 import type { RuntimeRead } from './adapter.ts';
 
 type Adapter = { snapshot(deadline?: number): Promise<TelemetrySnapshot> };
@@ -83,7 +84,7 @@ export class RuntimeClient {
       this.slots.set(key, slot);
     }
     const current = slot;
-    const cadence = current.runtime === 'lmstudio' ? 5000 : current.runtime === 'mlx-lm' ? 2000 : 450;
+    const cadence = current.runtime === 'lmstudio' ? 5000 : current.runtime === 'mlx-lm' || current.runtime === 'splash' ? 2000 : 450;
     if (!current.inFlight && !(current.snapshot && (this.monotonic() - current.sampledAt < cadence || this.monotonic() < current.retryAt))) {
       current.deadline = this.monotonic() + this.budget;
       current.inFlight = this.collect(current, choice).catch(error => {
@@ -106,8 +107,9 @@ export class RuntimeClient {
         : `${runtime ? runtimeNames[runtime] : 'This runtime'} rejected the saved API key. Reconnect this provider in OpenChamber${runtime === 'omlx' ? ' using the main oMLX key; inference subkeys cannot read monitoring' : ''}.`
       : snapshot.message;
     return { ...snapshot, message: authMessage, connection: { ...info, runtime, generation: current.generation,
-      diagnostic: snapshot.available ? 'ready' : snapshot.reason === 'authentication_failed' ? 'authentication' : snapshot.reason === 'unsupported_contract' ? 'unsupported' : 'offline',
-      coverage: runtime === 'vllm-mlx' && snapshot.available && snapshot.phase === 'unknown' && snapshot.activeRequests === null ? 'server'
+      diagnostic: snapshot.available ? runtime === 'splash' && snapshot.serverStats?.ready === false ? 'offline' : 'ready'
+        : snapshot.reason === 'authentication_failed' ? 'authentication' : snapshot.reason === 'unsupported_contract' ? 'unsupported' : 'offline',
+      coverage: runtime === 'splash' || runtime === 'vllm-mlx' && snapshot.available && snapshot.phase === 'unknown' && snapshot.activeRequests === null ? 'server'
         : runtime === 'omlx' || runtime === 'vllm-mlx' ? 'requests' : runtime ? 'inventory' : null } };
   }
 
@@ -146,6 +148,7 @@ export class RuntimeClient {
       slot.client = slot.runtime === 'omlx' ? new OmlxClient({ fetchImpl: this.fetchImpl, readConfig: async () => choice.config, now: this.now, monotonicNow: this.monotonic, requestTimeoutMs: this.timeout, collectionDeadlineMs: this.budget })
         : slot.runtime === 'lmstudio' ? new LMStudioClient(reader, this.now)
         : slot.runtime === 'mlx-lm' ? new MlxLmClient(reader, this.now)
+        : slot.runtime === 'splash' ? new SplashClient(reader, this.now)
         : new VllmMlxClient(reader, this.now);
     }
     return slot.client.snapshot(slot.deadline);

@@ -61,6 +61,16 @@ export type TelemetryLifetime = {
   uptimeSeconds: number | null;
 };
 
+/** Passive Splash status values with their upstream server-wide scopes retained. */
+export type TelemetryServerStats = {
+  ready: boolean | null;
+  aggregateDecodeTokensPerSecond: number | null;
+  completedRequests: number | null;
+  failedRequests: number | null;
+  metalCurrentGB: number | null;
+  metalPeakGB: number | null;
+};
+
 export type ResidentModel = {
   id: string;
   phase: TelemetryPhase;
@@ -101,6 +111,7 @@ type TelemetryFields = {
   memory: TelemetryMemory | null;
   sessionBank: TelemetrySessionBank | null;
   lifetime: TelemetryLifetime | null;
+  serverStats: TelemetryServerStats | null;
   memoryPressureLevel: number | null;
   memoryPressureSource: string | null;
   sampledAt: number;
@@ -224,6 +235,7 @@ const emptyFields = (sampledAt: number): TelemetryFields => ({
   memory: null,
   sessionBank: null,
   lifetime: null,
+  serverStats: null,
   memoryPressureLevel: null,
   memoryPressureSource: null,
   sampledAt,
@@ -610,6 +622,7 @@ export const normalizeOmlxTelemetry = (
     memory,
     sessionBank,
     lifetime: sessionStatsState === 'unavailable' && !statsAreUsable ? null : normalizeLifetime(statsData),
+    serverStats: null,
     memoryPressureLevel: pressureLevel,
     memoryPressureSource: pressureLevel === null ? null : 'oMLX process memory guard (not macOS pressure)',
     sampledAt,
@@ -670,6 +683,19 @@ const normalizeLifetimeFromPanel = (value: unknown): TelemetryLifetime | null =>
     completionTokensTotal: nonnegative(lifetime.completionTokensTotal),
     cachedTokensTotal: nonnegative(lifetime.cachedTokensTotal),
     uptimeSeconds: nonnegative(lifetime.uptimeSeconds),
+  };
+};
+
+const normalizeServerStatsFromPanel = (value: unknown): TelemetryServerStats | null => {
+  const item = asObject(value);
+  if (!item) return null;
+  return {
+    ready: typeof item.ready === 'boolean' ? item.ready : null,
+    aggregateDecodeTokensPerSecond: nonnegative(item.aggregateDecodeTokensPerSecond),
+    completedRequests: tokenCount(item.completedRequests),
+    failedRequests: tokenCount(item.failedRequests),
+    metalCurrentGB: nonnegative(item.metalCurrentGB),
+    metalPeakGB: nonnegative(item.metalPeakGB),
   };
 };
 
@@ -742,6 +768,7 @@ export const parseTelemetrySnapshot = (value: unknown, observedAt?: number): Tel
     memory: normalizeMemoryFromPanel(record.memory),
     sessionBank: normalizeSessionBankFromPanel(record.sessionBank),
     lifetime: normalizeLifetimeFromPanel(record.lifetime),
+    serverStats: normalizeServerStatsFromPanel(record.serverStats),
     memoryPressureLevel: nonnegative(record.memoryPressureLevel) === null
       ? null
       : Math.min(3, Math.trunc(nonnegative(record.memoryPressureLevel)!)),

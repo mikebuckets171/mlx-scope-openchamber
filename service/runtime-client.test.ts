@@ -116,6 +116,31 @@ test('detects a vllm-mlx registry without a loaded engine and exposes limited co
     connection: { diagnostic: 'ready', coverage: 'server' }, catalog: [{ name: 'fixture', loaded: false }] });
 });
 
+test('Splash uses one authenticated status read, server coverage, and the 2 second cadence', async () => {
+  let now = 1000;
+  const calls: Array<{ path: string; authorization: string | null }> = [];
+  const client = new RuntimeClient({ now: () => now,
+    readConfig: async () => configuration(connection('splash', 'splash', 8000, 'splash-fixture-key')),
+    fetchImpl: async (url, init) => {
+      calls.push({ path: new URL(String(url)).pathname, authorization: new Headers(init?.headers).get('authorization') });
+      return json({ ready: true, instance: { model: 'incoai/Qwen3.8-27B-Splash' },
+        requests: { completed: 17, failed: 0 }, metrics: { decode_tokens_per_second: 47.2 } });
+    },
+  });
+
+  const first = await client.snapshot();
+  expect(first).toMatchObject({ available: true, runtime: 'splash', liveDecodeTPS: null,
+    connection: { runtime: 'splash', coverage: 'server', diagnostic: 'ready' } });
+  now += 1999; await client.snapshot();
+  expect(calls).toHaveLength(1);
+  now += 1; await client.snapshot();
+  expect(calls).toEqual([
+    { path: '/status', authorization: 'Bearer splash-fixture-key' },
+    { path: '/status', authorization: 'Bearer splash-fixture-key' },
+  ]);
+  expect(JSON.stringify(first)).not.toContain('splash-fixture-key');
+});
+
 test('redirects stop discovery before credentials or fallback requests', async () => {
   let requests = 0;
   const client = new RuntimeClient({ readConfig: async () => configuration(connection('local', null, 8000, 'fixture-key')), fetchImpl: async (_url, init) => {

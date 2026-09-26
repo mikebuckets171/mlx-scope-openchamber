@@ -10,6 +10,11 @@ export const measurementLabels = {
   prefillRemaining: ['Prefill remaining', '%'], processed: ['Prefill processed', 'tokens'],
   total: ['Prefill stage total', 'tokens'], stageEstimate: ['Reported stage estimate', 's'],
   active: ['Active requests', ''], queued: ['Queued requests', ''],
+  splashDecode: ['Splash aggregate decode throughput', 'tok/s'],
+  splashCompleted: ['Splash completed requests since engine start', ''],
+  splashFailed: ['Splash failed requests since engine start', ''],
+  splashMetalCurrent: ['Splash Metal allocation · current', 'GiB'],
+  splashMetalPeak: ['Splash Metal allocation · peak', 'GiB'],
   cpu: ['Host CPU', '%'], memory: ['Non-free host RAM', 'GiB'],
   footprint: ['Runtime process footprint', 'GiB'], swap: ['Swap used', 'GiB'],
   observedGeneration: ['Observed generation', 'tok/s'], generationSeconds: ['Generation observed', 's'],
@@ -68,6 +73,13 @@ export const snapshotObservation = (snapshot: TelemetrySnapshot, held: boolean, 
       active: current?.activeRequests ?? null, queued: current?.queuedRequests ?? null,
       cpu: snapshot.system?.cpuPercent ?? null, memory: gib(snapshot.system?.memoryUsedGB),
       footprint: gib(current?.memory?.activeGB), swap: gib(nativeFresh ? native.swapUsedGB : null),
+      ...(current?.runtime === 'splash' && current.serverStats ? {
+        splashDecode: current.serverStats.aggregateDecodeTokensPerSecond,
+        splashCompleted: current.serverStats.completedRequests,
+        splashFailed: current.serverStats.failedRequests,
+        splashMetalCurrent: gib(current.serverStats.metalCurrentGB),
+        splashMetalPeak: gib(current.serverStats.metalPeakGB),
+      } : {}),
     } };
 };
 
@@ -91,6 +103,9 @@ export const observationReport = (item: Observation): string => {
   const lines = [`MLX Scope — ${observationTitle(item).toLowerCase()}`, `Saved: ${new Date(item.savedAt).toISOString()}`,
     `Observed: ${new Date(item.sampledAt).toISOString()} · ${item.state}${item.kind === 'snapshot' ? ` · ${item.phase}` : ''}`,
     'Server-wide observations, not selected-chat attribution or a controlled benchmark. Differences do not establish causality.'];
+  if (Object.hasOwn(item.measurements, 'splashDecode') || Object.hasOwn(item.measurements, 'splashCompleted')) {
+    lines.push('Splash decode is aggregate across concurrent work; request counters reset when the engine restarts. Metal values are not process RSS or model-only memory.');
+  }
   const print = (values: Measurements) => {
     for (const key of Object.keys(measurementLabels) as Metric[]) {
       if (!Object.hasOwn(values, key)) continue;

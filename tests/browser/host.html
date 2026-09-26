@@ -136,22 +136,26 @@ if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
   Object.assign(payload, window.previewOverride);
   if (params.has('connections')) {
     const choices = [{id:'omlx',label:'Local oMLX',runtime:'omlx'}, {id:'studio',label:'LM Studio local',runtime:'lmstudio'},
-      {id:'mlx',label:'mlx-lm local',runtime:'mlx-lm'}, {id:'vllm',label:'vllm-mlx local',runtime:'vllm-mlx'}, {id:'custom',label:'Custom local',runtime:null}];
+      {id:'mlx',label:'mlx-lm local',runtime:'mlx-lm'}, {id:'vllm',label:'vllm-mlx local',runtime:'vllm-mlx'},
+      {id:'splash',label:'Inco AI Splash',runtime:'splash'}, {id:'custom',label:'Custom local',runtime:null}];
     const selected = selection.provider || window.previewAutoProvider || 'omlx';
     const choice = choices.find(item => item.id === selected);
     const runtime = selection.runtime || choice?.runtime || null;
-    payload.connection = {selected,label:choice?.label || selected,runtime,choices,generation:window.previewGeneration || '00000000-0000-4000-8000-000000000001',diagnostic:'ready',coverage:runtime==='omlx'?'requests':runtime==='vllm-mlx'?'server':'inventory'};
+    payload.connection = {selected,label:choice?.label || selected,runtime,choices,generation:window.previewGeneration || '00000000-0000-4000-8000-000000000001',diagnostic:'ready',coverage:runtime==='omlx'?'requests':runtime==='vllm-mlx'||runtime==='splash'?'server':'inventory'};
     if (runtime === 'vllm-mlx' && params.get('vllm') === 'live') {
       payload.runtime=runtime;
       payload.connection.coverage='requests';
     } else if (runtime && runtime !== 'omlx') {
-      Object.assign(payload,{available:true,reason:null,message:null,runtime,phase:'unknown',modelID:null,activeRequests:null,queuedRequests:null,
+      Object.assign(payload,{available:true,reason:null,message:null,runtime,phase:'unknown',modelID:runtime==='splash'?'incoai/Qwen3.8-27B-Splash':null,activeRequests:null,queuedRequests:null,
         liveDecodeTPS:null,livePrefillTPS:null,prefillProgress:null,prefillProcessedTokens:null,prefillTotalTokens:null,prefillETASeconds:null,
-        promptTokens:null,cachedTokens:null,completionTokens:null,elapsedSeconds:null,traceEpoch:null,contextWindow:null,memory:null,sessionBank:null,
+        promptTokens:null,cachedTokens:null,completionTokens:null,elapsedSeconds:null,traceEpoch:null,contextWindow:runtime==='splash'?262144:null,memory:null,sessionBank:null,
         memoryPressureLevel:null,sessionStatsState:'unavailable',sessionAverageDecodeTPS:null,sessionAveragePrefillTPS:null,sessionCacheEfficiencyPercent:null,
         lifetime:null,residentModels:runtime==='lmstudio'?[{id:'Local model instance',phase:'unknown',activeRequests:null,queuedRequests:null,allocationGB:null,tokensPerSecond:null,prefillProgress:null,progressStale:false}]:[],residentModelCount:runtime==='lmstudio'?1:null,
         catalog:runtime==='lmstudio'?[{name:'Local model',format:'mlx',loaded:true,contextWindow:32768},{name:'Available GGUF model',format:'gguf',loaded:false,contextWindow:8192}]
-          :runtime==='mlx-lm'?[{name:'Configured MLX model',format:'mlx',loaded:null,contextWindow:null}]:[]});
+          :runtime==='mlx-lm'?[{name:'Configured MLX model',format:'mlx',loaded:null,contextWindow:null}]
+          :runtime==='splash'?[{name:'incoai/Qwen3.8-27B-Splash',format:null,loaded:true,contextWindow:262144}]:[],
+        message:runtime==='splash'?(params.get('splashReady')==='0'?'Splash is reachable, but its runtime reports that it is not ready.':'Splash is ready. Decode throughput and request counters are server-wide; per-request activity is unavailable.'):null,
+        serverStats:runtime==='splash'?{ready:params.get('splashReady')!=='0',aggregateDecodeTokensPerSecond:47.2,completedRequests:17,failedRequests:1,metalCurrentGB:12.5,metalPeakGB:13}:null});
     }
     if (!runtime || params.get('setup') === 'missing') {
       Object.assign(payload,{available:false,reason:'configuration_missing',message:runtime?'No local OpenCode connection was found. Add a local provider, then refresh.':'Select a runtime for this custom connection.'});

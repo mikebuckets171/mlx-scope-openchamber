@@ -24,6 +24,16 @@ export const measurementReport = (snapshot: TelemetrySnapshot, system: SystemSna
       `Prompt tokens: ${scalar(snapshot.promptTokens)}`, `Cached tokens: ${scalar(snapshot.cachedTokens)}`,
       `Output tokens: ${scalar(snapshot.completionTokens)}`, `Elapsed: ${scalar(snapshot.elapsedSeconds, ' seconds')}`,
       `Active requests: ${scalar(snapshot.activeRequests)}`, `Queued requests: ${scalar(snapshot.queuedRequests)}`);
+    if (snapshot.runtime === 'splash' && snapshot.serverStats) {
+      const stats = snapshot.serverStats;
+      lines.push('Splash /status values: server-wide; request counters are since engine start and reset on restart.',
+        `Splash ready: ${stats.ready === null ? 'not reported' : stats.ready ? 'yes' : 'no'}`,
+        `Splash aggregate decode throughput: ${scalar(stats.aggregateDecodeTokensPerSecond, ' tok/s')} (not per-request speed)`,
+        `Splash completed requests: ${scalar(stats.completedRequests)}`,
+        `Splash failed requests: ${scalar(stats.failedRequests)}`,
+        `Splash Metal allocation · current: ${scalar(stats.metalCurrentGB == null ? null : stats.metalCurrentGB * 1e9 / 1024 ** 3, ' GiB')}`,
+        `Splash Metal allocation · peak: ${scalar(stats.metalPeakGB == null ? null : stats.metalPeakGB * 1e9 / 1024 ** 3, ' GiB')} (not process RSS or model-only memory)`);
+    }
   }
   if (system) {
     lines.push(`Host sample age: ${scalar(Math.max(0, (now - system.sampledAt) / 1000), ' seconds')}`,

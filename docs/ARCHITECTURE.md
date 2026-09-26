@@ -13,7 +13,8 @@ OpenChamber panel → SDK serviceRequest → connection router → runtime adapt
 `service/config.ts` resolves existing local provider connections and credentials.
 `service/runtime-client.ts` selects an adapter and shares in-flight reads, caches,
 and backoff for the same selection. Adapters observe oMLX, vllm-mlx, LM Studio,
-or mlx-lm through bounded HTTP reads. They do not initiate inference or manage models.
+mlx-lm, or Splash through bounded HTTP reads. They do not initiate inference or
+manage models.
 
 `src/telemetry.ts` and `src/runtime.ts` define the allowlisted display contracts.
 Credentials, raw API responses, and runtime request IDs stay service-side.
@@ -32,6 +33,7 @@ The host sampler is shared across connections.
 | --- | --- |
 | Active oMLX / vllm-mlx observations | One request at a time per selected connection; 500 ms between completed panel polls |
 | Idle observations / mlx-lm health | 2 seconds between polls |
+| Splash status | 2 seconds between polls; one `/status` request |
 | LM Studio inventory | Shared 5-second cache |
 | mlx-lm model catalogue | At most once per minute; this endpoint scans the model cache |
 | vllm-mlx engine metadata | At most once per minute, or after a model change |
@@ -90,6 +92,16 @@ release assets; source, fixtures, and development tools are not installed.
 The 2 MiB uncompressed package ceiling catches accidental dependencies or artifacts.
 It is not a performance target. Review actual bytes and measured overhead when
 changing dependencies or retained data.
+
+## Splash status contract
+
+The adapter reads only the documented `/status` endpoint at a 2-second minimum
+cadence. It preserves request counters as raw server-wide values since engine
+start, labels decode throughput aggregate, and keeps current/peak Metal allocation
+separate from process RSS and model allocation. Request activity, queue, prefill,
+cache reuse, active-context use, and process memory remain unavailable. Runtime
+instance IDs, PID, host, port, and raw response fields never enter the panel
+contract.
 
 ## Measuring overhead
 

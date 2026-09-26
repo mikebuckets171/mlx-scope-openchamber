@@ -55,6 +55,72 @@ test('catalog availability never invents residency or request activity', async (
   await expect(frame.locator('#machine')).toBeVisible();
 });
 
+test('Splash aggregate stats stay separate from request readings, process memory, and saved identity', async ({page}) => {
+  await page.setViewportSize({width:320,height:900});
+  const frame=await open(page);
+  await choose(page,'splash');
+  await expect(frame.locator('#connection')).toHaveText('Inco AI Splash connected · limited telemetry');
+  await expect(frame.locator('#phase')).toHaveText('Ready');
+  await expect(frame.locator('#model')).toHaveText('Qwen3.8-27B-Splash');
+  await expect(frame.locator('#splash-model-detail')).toHaveText('Reported model · 262,144 maximum context tokens');
+  await expect(frame.locator('#rate')).toHaveText('47.2');
+  await expect(frame.locator('#unit')).toHaveText('tok/s · aggregate server decode');
+  await expect(frame.locator('.readout')).toBeVisible();
+  await expect(frame.locator('.signal')).toBeHidden();
+  await expect(frame.locator('.metrics')).toBeHidden();
+  await expect(frame.locator('#coverage-note')).toContainText('unavailable from Splash’s passive status');
+  await expect(frame.locator('#session-stats')).toBeVisible();
+  await expect(frame.locator('#session-title')).toHaveText('Splash server statistics');
+  await expect(frame.locator('#session-stats')).toBeInViewport();
+  await expect(frame.locator('#stats-label-one')).toHaveText('Aggregate decode');
+  await expect(frame.locator('#average-decode')).toHaveText('47.2 tok/s');
+  await expect(frame.locator('#average-prefill')).toHaveText('17');
+  await expect(frame.locator('#average-cache')).toHaveText('1');
+  await expect(frame.locator('#session-stats-state')).toContainText('combines concurrent work');
+  await expect(frame.locator('#runtime-memory')).toBeVisible();
+  await expect(frame.locator('#runtime-memory-title')).toHaveText('Metal allocator');
+  await expect(frame.locator('#process-label')).toHaveText('Current Metal allocation');
+  await expect(frame.locator('#process-memory')).toHaveText('11.6 GiB');
+  await expect(frame.locator('#model-label')).toHaveText('Peak Metal allocation');
+  await expect(frame.locator('#model-memory')).toHaveText('12.1 GiB');
+  await expect(frame.locator('#runtime-memory-note')).toContainText('not process RSS');
+  await expect(frame.locator('#catalog-section')).toBeHidden();
+  await expect(frame.locator('#cache-lens')).toBeHidden();
+  expect(await frame.locator('main').evaluate(el=>document.documentElement.scrollWidth > innerWidth)).toBe(false);
+
+  await frame.locator('#pause').click();
+  await expect(frame.locator('#unit')).toHaveText('Frozen observation');
+  await expect(frame.locator('#session-stats')).toHaveAttribute('data-stale','true');
+  await expect(frame.locator('#session-stats-state')).toContainText('Frozen reading');
+  await expect(frame.locator('#runtime-memory-source')).toHaveText('Frozen reading');
+  await frame.locator('#pause').click();
+
+  await frame.getByRole('button',{name:'Share',exact:true}).click();
+  await frame.getByRole('menuitem',{name:'Copy stats',exact:true}).click();
+  await expect(frame.locator('#action-status')).toContainText('Stats copied');
+  const shared=await page.evaluate(()=>(window as any).previewCopied as string);
+  expect(shared).toContain('Splash aggregate decode throughput: 47.2 tok/s (not per-request speed)');
+  expect(shared).toContain('Splash Metal allocation · current');
+  expect(shared).not.toContain('Qwen3.8-27B-Splash');
+
+  await frame.locator('#save-snapshot').click();
+  await expect(frame.locator('#action-status')).toContainText('Observation saved');
+  await frame.getByRole('tab',{name:'Saved',exact:true}).click();
+  await expect(frame.locator('#saved-list')).toContainText('Splash aggregate decode throughput');
+  await expect(frame.locator('#saved-list')).toContainText('Splash Metal allocation · peak');
+  await expect(frame.locator('#saved-list')).not.toContainText('Qwen3.8-27B-Splash');
+  expect(await page.evaluate(()=>(window as any).previewUnexpectedSends)).toBe(0);
+});
+
+test('Splash not-ready state does not show a decode rate or claim model residency', async ({page}) => {
+  const frame=await open(page,'splashReady=0');
+  await choose(page,'splash');
+  await expect(frame.locator('#phase')).toHaveText('Not ready');
+  await expect(frame.locator('#rate')).toHaveText('—');
+  await expect(frame.locator('#unit')).toHaveText('Decode unavailable while Splash is not ready');
+  await expect(frame.locator('#splash-model-detail')).toContainText('residency unconfirmed');
+});
+
 test('connection setup supports keyboard dismissal and an explicit runtime for custom providers', async ({page}) => {
   const frame = await open(page);
   const change = frame.getByRole('button',{name:'Change connection',exact:true});

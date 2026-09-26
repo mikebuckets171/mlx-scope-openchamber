@@ -1,7 +1,7 @@
-export const RUNTIMES = ['omlx', 'lmstudio', 'mlx-lm', 'vllm-mlx'] as const;
+export const RUNTIMES = ['omlx', 'lmstudio', 'mlx-lm', 'vllm-mlx', 'splash'] as const;
 export type Runtime = typeof RUNTIMES[number];
 export const runtimeNames: Record<Runtime, string> = {
-  omlx: 'oMLX', lmstudio: 'LM Studio', 'mlx-lm': 'mlx-lm', 'vllm-mlx': 'vllm-mlx',
+  omlx: 'oMLX', lmstudio: 'LM Studio', 'mlx-lm': 'mlx-lm', 'vllm-mlx': 'vllm-mlx', splash: 'Inco AI Splash',
 };
 export type RuntimeSelection = { provider: string; runtime: Runtime | null };
 export type ConnectionChoice = { id: string; label: string; runtime: Runtime | null };

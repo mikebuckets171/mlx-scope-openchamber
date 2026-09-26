@@ -9,7 +9,12 @@
     <style>html, body, #root { min-height: 100%; margin: 0; }</style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main id="startup-fallback" class="scope-startup" aria-labelledby="startup-title">
+        <h1 id="startup-title">MLX Scope</h1>
+        <p role="status">Starting MLX Scope. If this message remains visible, the extension interface could not start. Reload MLX Scope from OpenChamber’s Settings → Extensions.</p>
+      </main>
+    </div>
     <script src="main.js"></script>
   </body>
 </html>
