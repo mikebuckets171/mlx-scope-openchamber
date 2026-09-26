@@ -74,7 +74,7 @@ export class InsightView {
       put(row.querySelector('.resident-reading span:last-child')!, `${size(model.allocationGB)} allocated`);
     });
     const catalog = current?.catalog ?? [];
-    this.node('catalog-section').hidden = !current || (current.connection?.coverage ?? 'requests') === 'requests'
+    this.node('catalog-section').hidden = !current || current.runtime === 'splash' || (current.connection?.coverage ?? 'requests') === 'requests'
       || catalog.length === 0 && current.connection?.coverage === 'server';
     this.text('catalog-title', current?.runtime === 'mlx-lm' ? 'Available models'
       : current?.runtime === 'splash' ? 'Splash model' : 'Model inventory');

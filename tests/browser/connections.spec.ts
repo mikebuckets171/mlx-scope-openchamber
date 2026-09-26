@@ -60,11 +60,18 @@ test('Splash aggregate stats stay separate from request readings, process memory
   const frame=await open(page);
   await choose(page,'splash');
   await expect(frame.locator('#connection')).toHaveText('Inco AI Splash connected · limited telemetry');
-  await expect(frame.locator('#phase')).toHaveText('Connected');
-  await expect(frame.locator('#rate')).toHaveText('—');
-  await expect(frame.locator('#coverage-note')).toContainText('server-wide decode throughput');
+  await expect(frame.locator('#phase')).toHaveText('Ready');
+  await expect(frame.locator('#model')).toHaveText('Qwen3.8-27B-Splash');
+  await expect(frame.locator('#splash-model-detail')).toHaveText('Reported model · 262,144 maximum context tokens');
+  await expect(frame.locator('#rate')).toHaveText('47.2');
+  await expect(frame.locator('#unit')).toHaveText('tok/s · aggregate server decode');
+  await expect(frame.locator('.readout')).toBeVisible();
+  await expect(frame.locator('.signal')).toBeHidden();
+  await expect(frame.locator('.metrics')).toBeHidden();
+  await expect(frame.locator('#coverage-note')).toContainText('unavailable from Splash’s passive status');
   await expect(frame.locator('#session-stats')).toBeVisible();
   await expect(frame.locator('#session-title')).toHaveText('Splash server statistics');
+  await expect(frame.locator('#session-stats')).toBeInViewport();
   await expect(frame.locator('#stats-label-one')).toHaveText('Aggregate decode');
   await expect(frame.locator('#average-decode')).toHaveText('47.2 tok/s');
   await expect(frame.locator('#average-prefill')).toHaveText('17');
@@ -77,12 +84,12 @@ test('Splash aggregate stats stay separate from request readings, process memory
   await expect(frame.locator('#model-label')).toHaveText('Peak Metal allocation');
   await expect(frame.locator('#model-memory')).toHaveText('12.1 GiB');
   await expect(frame.locator('#runtime-memory-note')).toContainText('not process RSS');
-  await expect(frame.locator('#catalog-title')).toHaveText('Splash model');
-  await expect(frame.locator('#catalog-list')).toContainText('262,144 context');
+  await expect(frame.locator('#catalog-section')).toBeHidden();
   await expect(frame.locator('#cache-lens')).toBeHidden();
   expect(await frame.locator('main').evaluate(el=>document.documentElement.scrollWidth > innerWidth)).toBe(false);
 
   await frame.locator('#pause').click();
+  await expect(frame.locator('#unit')).toHaveText('Frozen observation');
   await expect(frame.locator('#session-stats')).toHaveAttribute('data-stale','true');
   await expect(frame.locator('#session-stats-state')).toContainText('Frozen reading');
   await expect(frame.locator('#runtime-memory-source')).toHaveText('Frozen reading');
@@ -103,6 +110,15 @@ test('Splash aggregate stats stay separate from request readings, process memory
   await expect(frame.locator('#saved-list')).toContainText('Splash Metal allocation · peak');
   await expect(frame.locator('#saved-list')).not.toContainText('Qwen3.8-27B-Splash');
   expect(await page.evaluate(()=>(window as any).previewUnexpectedSends)).toBe(0);
+});
+
+test('Splash not-ready state does not show a decode rate or claim model residency', async ({page}) => {
+  const frame=await open(page,'splashReady=0');
+  await choose(page,'splash');
+  await expect(frame.locator('#phase')).toHaveText('Not ready');
+  await expect(frame.locator('#rate')).toHaveText('—');
+  await expect(frame.locator('#unit')).toHaveText('Decode unavailable while Splash is not ready');
+  await expect(frame.locator('#splash-model-detail')).toContainText('residency unconfirmed');
 });
 
 test('connection setup supports keyboard dismissal and an explicit runtime for custom providers', async ({page}) => {

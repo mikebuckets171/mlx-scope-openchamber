@@ -11,6 +11,8 @@
 - Reuse the shared connection sampler at a 2-second minimum cadence. Splash uses
   only its single `/status` endpoint; no other endpoint, permission, dependency,
   inference, control, or background polling loop is added.
+- Put Splash's reported model, aggregate decode rate, and completed/failed
+  counters at the top of Live; label not-ready and unavailable readings clearly.
 
 ## 1.1.1
 

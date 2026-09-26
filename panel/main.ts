@@ -61,6 +61,7 @@ root.innerHTML = `
   <section id="instrument" class="instrument" aria-label="Inference activity">
     <div class="model-line"><span id="activity-label" class="eyebrow">MODEL ACTIVITY</span><span id="phase" class="phase">Connecting</span></div>
     <h2 id="model" translate="no">Your local model</h2>
+    <p id="splash-model-detail" class="splash-model-detail" hidden></p>
     <p id="coverage-note" class="coverage-note" hidden></p>
     <section id="catalog-section" class="catalog-section" aria-labelledby="catalog-title" hidden><div class="section-heading"><h3 id="catalog-title">Model inventory</h3><span id="catalog-count"></span></div><ul id="catalog-list" class="catalog-list"></ul><p id="catalog-note" class="insight-note"></p></section>
     <section id="prefill-progress" class="prefill-progress" aria-label="Prefill progress" hidden>
@@ -275,7 +276,7 @@ const update = (snapshot: TelemetrySnapshot): void => {
   text('connection-message', stale ? snapshot.message ?? 'Choose an existing local OpenCode connection, then refresh. Connection help can check the extension service.' : '');
   hidden('coverage-note', !current || coverage === 'requests');
   text('coverage-note', runtime === 'splash'
-    ? 'Splash reports server-wide decode throughput and Metal allocations. Per-request activity, prefill, cache reuse, input-context use, and process memory are unavailable.'
+    ? 'Prefill, cache reuse, input-context use, and process memory are unavailable from Splash’s passive status.'
     : coverage === 'inventory'
       ? `${runtimeName} exposes model inventory here, but not live request progress or generation speed.${runtime === 'lmstudio' ? ' Loaded does not mean idle.' : ''}`
       : `${runtimeName} is reachable. Live request progress and generation speed are not exposed by its monitoring API.`);
@@ -293,12 +294,23 @@ const update = (snapshot: TelemetrySnapshot): void => {
   shell.dataset.phase = phase;
   shell.dataset.stale = String(stale);
   text('connection', current ? `${runtimeName}${runtime === 'splash' && current.serverStats?.ready === false ? ' reachable · not ready' : ' connected'}${coverage !== 'requests' ? ' · limited telemetry' : current.phase === 'notLoaded' ? ' · no model loaded' : ''}` : snapshot.reason === 'authentication_failed' ? 'Authentication required' : `Waiting for ${runtimeName}`);
-  text('phase', current && coverage !== 'requests' ? runtime === 'splash' && current.serverStats?.ready === false ? 'Not ready' : 'Connected' : phases[phase]);
-  text('model', current && coverage !== 'requests' ? runtimeName : display?.modelID?.split('/').at(-1) ?? 'Your local model');
+  text('phase', current && coverage !== 'requests' ? runtime === 'splash' ? current.serverStats?.ready === false ? 'Not ready' : 'Ready' : 'Connected' : phases[phase]);
+  text('model', runtime === 'splash' ? display?.modelID?.split('/').at(-1) ?? 'Splash server'
+    : current && coverage !== 'requests' ? runtimeName : display?.modelID?.split('/').at(-1) ?? 'Your local model');
   node('model').title = display?.modelID ?? `Observing ${runtimeName} on the OpenChamber host.`;
-  text('rate', liveRate !== null ? rateNumber.format(liveRate) : phase === 'idle' ? 'Ready' : phase === 'notLoaded' ? 'Standby' : '—');
-  node('rate').classList.toggle('is-word', liveRate === null);
-  text('unit', liveRate !== null ? observedRate ? 'tokens / second · recent output' : phase === 'prefill' ? 'prefill tokens / second' : 'tokens / second · request average' : phase === 'idle' ? 'Waiting for your next request' : phase === 'notLoaded' ? `Load a model in ${runtimeName}` : 'No fresh throughput');
+  hidden('splash-model-detail', runtime !== 'splash');
+  text('splash-model-detail', runtime === 'splash'
+    ? `${display?.modelID == null ? 'Model identity unavailable' : stale ? 'Last reported model' : current?.serverStats?.ready === false ? 'Configured model · residency unconfirmed' : 'Reported model'} · ${display?.contextWindow == null ? 'maximum context unavailable' : `${display.contextWindow.toLocaleString()} maximum context tokens`}`
+    : '');
+  const splashRate = runtime === 'splash' && current?.serverStats?.ready === true
+    ? current.serverStats.aggregateDecodeTokensPerSecond : null;
+  text('rate', runtime === 'splash' ? splashRate === null ? '—' : rateNumber.format(splashRate)
+    : liveRate !== null ? rateNumber.format(liveRate) : phase === 'idle' ? 'Ready' : phase === 'notLoaded' ? 'Standby' : '—');
+  node('rate').classList.toggle('is-word', runtime === 'splash' ? splashRate === null : liveRate === null);
+  text('unit', runtime === 'splash' ? stale ? 'Last aggregate reading · not live'
+    : current?.serverStats?.ready === false ? 'Decode unavailable while Splash is not ready'
+      : splashRate === null ? 'Aggregate decode unavailable' : 'tok/s · aggregate server decode'
+    : liveRate !== null ? observedRate ? 'tokens / second · recent output' : phase === 'prefill' ? 'prefill tokens / second' : 'tokens / second · request average' : phase === 'idle' ? 'Waiting for your next request' : phase === 'notLoaded' ? `Load a model in ${runtimeName}` : 'No fresh throughput');
   text('activity', stale ? snapshot.message ?? `Start ${runtimeName} on this host, then refresh.` : current.message ?? (phase === 'idle' ? 'Model loaded. Ready for your next request.' : phase === 'notLoaded' ? `${runtimeName} is running. Load a model to begin.` : `${count(current.activeRequests)} active · ${current.queuedRequests === null ? 'queue not reported' : current.queuedRequests ? `${current.queuedRequests} queued` : 'queue clear'}`));
   text('notice', stale && last ? `${age(last.sampledAt)}. Retained details are not live.` : '');
   hidden('notice', !stale || last === null);
