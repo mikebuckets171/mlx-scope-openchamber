@@ -20,6 +20,9 @@ Memory is displayed in **GiB** (1,024³ bytes).
 | oMLX process footprint | Process memory reported by oMLX’s enabled memory guard |
 | Model allocation | Reported model allocation, separate from process footprint |
 | RAM / SSD cache | Reported server cache sizes, kept separate from model allocation |
+| Splash decode throughput | Aggregate server rate; not attributable to one request |
+| Splash completed / failed | Native counters since engine start; reset on engine restart |
+| Splash Metal allocation | Current and peak Metal allocator values; not process RSS or model-only memory |
 | Runtime memory guard | oMLX guard state, not macOS memory pressure |
 
 When reported, the Live view surfaces runtime process footprint and model
@@ -46,6 +49,18 @@ monitoring gap; there are no processed-token counts or stage estimates. LLM
 output-limit progress never becomes prefill. Reuse requires the text batched engine,
 a recognized cache classification, and valid request-matched counts. Metal allocator
 values never become a process footprint. See [Compatibility](COMPATIBILITY.md).
+
+## Inco AI Splash
+
+Splash's documented `GET /status` response provides readiness, the declared
+maximum context, native completed/failed counters, aggregate decode throughput,
+and Metal allocator values. Scope reads it once every two seconds through the
+existing shared request pipeline. The request counters are server-wide since
+engine start and may reset after restart. Decode throughput combines concurrent
+work, so it is not shown as request speed or charted as a selected inference.
+Metal allocation is displayed separately from process RSS and model-only memory.
+Splash does not expose supported passive request activity, queue, prefill,
+request context use, or cache reuse through this endpoint.
 
 ## oMLX prefill
 

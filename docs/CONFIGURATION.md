@@ -15,9 +15,9 @@ Use **Change** beside the connection status when you want another configured ser
 runtime, then select **Use connection**. This changes only what MLX Scope observes.
 It saves the provider ID and runtime choice, never an endpoint or API key.
 
-A connected inventory view is working: LM Studio and mlx-lm do not expose the
-same passive request telemetry as oMLX. Read [Compatibility](COMPATIBILITY.md)
-before troubleshooting an unavailable metric.
+A connected limited-telemetry view is working: LM Studio, mlx-lm, and Splash do
+not expose the same passive request telemetry as oMLX. Read
+[Compatibility](COMPATIBILITY.md) before troubleshooting an unavailable metric.
 
 ## Discovery
 
@@ -126,7 +126,7 @@ auth files, or raw server responses into a public issue.
 
 An explicitly launched service can use `MLX_SCOPE_BASE_URL`, `MLX_SCOPE_API_KEY`,
 `MLX_SCOPE_MODEL`, and `MLX_SCOPE_RUNTIME`. The runtime value is `omlx`, `lmstudio`,
-`mlx-lm`, or `vllm-mlx`; the default is `omlx`. `OPENCODE_CONFIG` must be absolute.
+`mlx-lm`, `vllm-mlx`, or `splash`; the default is `omlx`. `OPENCODE_CONFIG` must be absolute.
 Absolute `XDG_CONFIG_HOME` and `XDG_DATA_HOME` select alternate roots; relative
 values are ignored. An absolute `OPENCODE_CONFIG_DIR` selects the OpenCode 2
 global config directory when the service receives it; a relative value is

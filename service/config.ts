@@ -171,6 +171,8 @@ export const parseLocalOrigin = (value: unknown): URL | null => {
 
 const hintFor = (id: string, name: unknown): Runtime | null => {
   const value = `${id} ${typeof name === 'string' ? name : ''}`.toLowerCase();
+  const providerName = typeof name === 'string' ? name.trim() : '';
+  if (id.trim().toLowerCase() === 'splash' || /^(?:(?:inco[\s_-]*ai)[\s_-]*)?splash$/i.test(providerName)) return 'splash';
   if (/vllm[\s_-]*mlx/.test(value)) return 'vllm-mlx';
   if (/omlx/.test(value)) return 'omlx';
   if (/lm[\s_-]*studio/.test(value)) return 'lmstudio';

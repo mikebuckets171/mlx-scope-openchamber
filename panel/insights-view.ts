@@ -37,7 +37,9 @@ export class InsightView {
     const statsFresh = current?.sessionStatsState === 'fresh';
     this.text('cache-ram-size', size(current?.sessionBank?.hot?.totalGB));
     this.text('cache-ssd-size', size(current?.sessionBank?.cold?.totalGB));
-    this.text('cache-bank-state', statsFresh ? 'Server cache · categories can overlap' : 'Cache totals not live');
+    this.text('cache-bank-state', current?.sessionBank
+      ? statsFresh ? 'Server cache · categories can overlap' : 'Last cache totals · not live'
+      : current ? 'Cache totals not reported by this runtime.' : 'Cache totals not live');
     this.node('cache-lens').dataset.stale = String(!current);
     this.text('cache-request-state', split ? `${number.format(split.percent)}% of input reused` : 'Current request · reuse not reported');
     const warning = current?.memoryPressureLevel && current.memoryPressureLevel >= 2
@@ -74,10 +76,14 @@ export class InsightView {
     const catalog = current?.catalog ?? [];
     this.node('catalog-section').hidden = !current || (current.connection?.coverage ?? 'requests') === 'requests'
       || catalog.length === 0 && current.connection?.coverage === 'server';
-    this.text('catalog-title', current?.runtime === 'mlx-lm' ? 'Available models' : 'Model inventory');
+    this.text('catalog-title', current?.runtime === 'mlx-lm' ? 'Available models'
+      : current?.runtime === 'splash' ? 'Splash model' : 'Model inventory');
     this.text('catalog-count', `${catalog.length} reported`);
     this.text('catalog-note', catalog.length
-      ? 'Catalog entries do not establish request activity. Context is the reported configured or maximum length.'
+      ? current?.runtime === 'splash' ? current.serverStats?.ready === false
+        ? 'Splash reports its configured model identity, but readiness is false; model residency is not confirmed.'
+        : 'Splash reports this model and its declared maximum context; context is not current request use.'
+        : 'Catalog entries do not establish request activity. Context is the reported configured or maximum length.'
       : 'No model inventory was reported. Host resource monitoring remains available.');
     const catalogList = this.node('catalog-list');
     while (catalogList.children.length > catalog.length) catalogList.lastElementChild!.remove();

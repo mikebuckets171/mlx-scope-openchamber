@@ -11,6 +11,7 @@
 | vllm-mlx | [0.5.0](https://github.com/waybarrios/vllm-mlx/tree/b064502055a68aaf94c6c58f9c0d749e0bd4f8cb) | Status, engine metadata, canonical request records, model registry |
 | LM Studio | [0.4.25](https://lmstudio.ai/changelog/lmstudio/lmstudio-v0.4.25) and [REST model API](https://lmstudio.ai/docs/developer/rest/list) | v1 model inventory; v0 fallback for older hosts |
 | mlx-lm | [0.31.3](https://github.com/ml-explore/mlx-lm/tree/ed1fca4cef15a824c5f1702c80f70b4cffc8e4dd) | Server availability and available model catalogue |
+| Inco AI Splash | [1.0.2 development contract](https://github.com/incoai/splash/blob/1.0.2/DEVELOPMENT.md) | Passive `/status`: readiness, model/context, server counters, aggregate decode rate, Metal allocation |
 
 The extension pins SDK 1.24.2 and declares OpenChamber 1.24.2 as its minimum.
 OpenChamber 2.0.0 retains manifest API 1 and wire v1; its new browser-providing
@@ -97,6 +98,22 @@ Request progress, output speed, context headroom, cache, and residency stay unav
 The generic health/catalogue responses are not a reliable runtime fingerprint.
 Use a recognizable provider name or choose **mlx-lm** in the connection setup.
 The catalogue is cached for a minute because reading it scans the model cache.
+
+## Inco AI Splash
+
+The [1.0.2 server contract](https://github.com/incoai/splash/blob/1.0.2/DEVELOPMENT.md)
+documents `/status` as a passive status response. MLX Scope reads that endpoint
+alone. The adapter displays the reported active model and declared maximum
+context, the native completed/failed request counters since engine start,
+aggregate `decode_tokens_per_second`, and current/peak Metal allocator values.
+Counters can reset when the engine restarts. Aggregate decode throughput combines
+server work and is never attributed to an individual request.
+
+Readiness does not establish inference activity. `/status` does not provide
+supported per-request progress, queue, prefill, active-context use, cache reuse,
+or process RSS, and the adapter leaves those values unavailable. Metal allocation
+is not process memory or model-only allocation. Instance IDs, PID, host/port, and
+other raw status fields are not sent to the panel or retained in Saved observations.
 
 ## OpenChamber boundaries
 

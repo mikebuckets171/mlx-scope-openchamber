@@ -398,7 +398,8 @@ button, summary { transition:color 120ms ease, background-color 120ms ease, bord
 .catalog-state, .catalog-context { text-align:right; }
 .catalog-format, .catalog-context { font-size:10px; }
 .scope[data-coverage="inventory"] :is(.readout,.activity,.metrics,.signal,#cache-lens,#session-stats,#runtime-details,#recent-speed,#request-output,#recent-generations),
-.scope[data-coverage="server"] :is(.readout,.activity,.metrics,.signal,#cache-lens,#session-stats,#runtime-details,#recent-speed,#request-output,#recent-generations),
+.scope[data-coverage="server"] :is(.readout,.activity,.metrics,.signal,#cache-lens,#runtime-details,#recent-speed,#request-output,#recent-generations),
+.scope[data-coverage="server"]:not([data-runtime="splash"]) #session-stats,
 .scope[data-empty="true"] :is(#cache-lens,#session-stats,#runtime-details,#resident-section,#runtime-advisory) { display:none!important; }
 .scope[data-empty="true"] .workspace { display:block; }
 .scope[data-empty="true"] .side-stack { border:0; padding:0; max-width:620px; }
