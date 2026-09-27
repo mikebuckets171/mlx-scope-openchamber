@@ -3,22 +3,27 @@
 Lightweight local model monitoring for OpenChamber.
 
 Keep useful runtime readings beside your conversation. MLX Scope observes oMLX,
-vllm-mlx, LM Studio, mlx-lm, and Inco AI Splash through their supported passive
-APIs. Each view reflects what that server actually reports.
+Splash in Bionic, LM Studio, vllm-mlx, mlx-lm, and standalone Splash through their
+supported passive APIs. Each view shows only what that server actually reports;
+readings a runtime doesn't provide are left out rather than listed as unavailable.
 
 | Runtime | Available readings |
 | --- | --- |
 | **oMLX** | Prefill remaining and stage estimate, generation and recent output speed, context/reuse, model activity, cache and process readings |
+| **Splash via Bionic** *(recommended for Splash)* | Shown as "Splash via Bionic". Your Splash models with a Splash badge and which one is loaded; live prompt reading and generating; exact tok/s, first-token time, context use and input reuse for each finished response |
+| **LM Studio** | Available and loaded models, format, and context limits; with the `lms` CLI installed, the same live request state and exact per-response figures as Bionic |
 | **vllm-mlx** | Reported request activity, queue, output and speed; prefill and reuse where the engine exposes usable data |
-| **LM Studio** | Available and loaded models, model format, loaded-instance context limits; with the `lms` CLI installed, live request state (prompt progress, generating, elapsed) and exact per-response tok/s, time to first token, and token counts, including Splash in LM Studio Bionic |
-| **mlx-lm** | Server availability and available model catalogue; model residency is not reported |
-| **Inco AI Splash** | Loaded model and declared context limit, server-wide request counters, aggregate decode throughput, and current/peak Metal allocations |
+| **mlx-lm** | Server availability and available model catalogue |
+| **Splash (standalone `splash serve`)** | Loaded model and context, idle/generating state with in-flight requests, server decode speed across all requests, completed/failed counters, and GPU (Metal) memory now/peak |
 
-All five include host CPU, memory, and macOS wired/compressed/swap readings when
-available. oMLX-reported process and model memory is shown separately when
-available. Splash throughput is aggregate across server work; its Metal allocator
-values are not process RSS or model-only memory. OpenAI-compatible inference does
-not imply equivalent monitoring.
+All runtimes include host CPU, memory, and macOS wired/compressed/swap readings
+when available. OpenAI-compatible inference does not imply equivalent monitoring.
+
+### Using Splash in Bionic
+
+1. Keep Bionic's Local Model API on (for example `http://127.0.0.1:1234/v1`) and add it as a provider in OpenChamber or OpenCode.
+2. Make sure Bionic's `lms` command-line tool is installed (`~/.lmstudio/bin/lms`) for live request activity.
+3. Open MLX Scope and leave the connection on **Automatic**. It shows "Splash via Bionic". Don't choose the standalone Splash runtime; that is only for `splash serve`.
 See [Compatibility](docs/COMPATIBILITY.md) for the exact limits.
 
 oMLX already has a monitoring dashboard. MLX Scope keeps the useful readings in

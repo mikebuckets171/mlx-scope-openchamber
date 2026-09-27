@@ -73,7 +73,7 @@ export class CaptureView {
       return mean === null && peak === null ? '—' : `${format(mean)} / ${format(peak)} ${unit}`;
     };
     this.text('capture-speed', r === null ? '—' : `${r.toFixed(1)} tok/s`);
-    this.text('capture-coverage', c.model.startsWith('resources:') ? 'Output speed is not reported' : `${c.decodeSeconds.toFixed(1)}s of fresh output intervals`);
+    this.text('capture-coverage', c.model.startsWith('resources:') ? 'Per-request output speed needs live token counts' : `${c.decodeSeconds.toFixed(1)}s of fresh output intervals`);
     this.text('capture-duration', `${c.seconds.toFixed(1)}s`);
     this.text('capture-samples', `${c.samples} runtime samples · ${c.targetSeconds}s requested`);
     this.text('capture-memory', memory(c.peakProcessGB));

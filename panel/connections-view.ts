@@ -14,6 +14,15 @@ export const connectionsMarkup = `<section id="connection-setup" class="connecti
   <p class="insight-note">Credentials stay in the local service. Configure endpoints and keys in OpenCode; MLX Scope does not edit them.</p>
 </section>`;
 
+/** Omit the runtime suffix when the label already names it, and never tag a Bionic provider as "LM Studio". */
+export const choiceLabel = (choice: { label: string; runtime: ConnectionInfo['runtime'] }): string => {
+  if (!choice.runtime) return choice.label;
+  const name = runtimeNames[choice.runtime];
+  const label = choice.label.toLowerCase();
+  const redundant = label.includes(name.toLowerCase().replace(/ \(.*\)$/, '')) || choice.runtime === 'lmstudio' && label.includes('bionic');
+  return redundant ? choice.label : `${choice.label} · ${name}`;
+};
+
 const selectionValue = (value: unknown): RuntimeSelection | null => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
@@ -80,7 +89,7 @@ export class ConnectionsView {
       this.paintChoices();
     }
     this.node('connection-choice-note').textContent = info.choices.length
-      ? 'Automatic detection uses the configured runtime when it can be identified. Select a runtime if detection is unavailable.'
+      ? 'Automatic detection recognises oMLX, Bionic and LM Studio (including Splash models), standalone Splash, mlx-lm, and vllm-mlx. Using Splash in Bionic? Keep Automatic.'
       : 'No local connection was found. Add a local provider in OpenCode, then refresh MLX Scope. The setup guide lists supported configuration.';
   }
   private paintChoices(): void {
@@ -89,7 +98,7 @@ export class ConnectionsView {
     if (selected && !entries.some(choice => choice.id === selected)) entries.push({id:selected,label:`${selected} · not currently found`,runtime:null});
     this.provider.replaceChildren(...entries.map(choice => {
       const option = document.createElement('option'); option.value = choice.id;
-      option.textContent = `${choice.label}${choice.runtime ? ` · ${runtimeNames[choice.runtime]}` : ''}`;
+      option.textContent = choiceLabel(choice);
       return option;
     }));
     this.provider.value = selected;

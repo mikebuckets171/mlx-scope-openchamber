@@ -45,6 +45,16 @@ test('identifies Splash from its exact provider name while leaving unrelated IDs
   expect(result.connections.map(item => item.runtime)).toEqual(['splash', null]);
 });
 
+test('Splash-named providers hosted by Bionic or LM Studio use the LM Studio-compatible path', async () => {
+  const result = await resolve({ providers: {
+    lmstudio: { name: 'Splash (Bionic)', settings: { baseURL: 'http://127.0.0.1:1234/v1' } },
+    bionic: { name: 'Qwen Splash', settings: { baseURL: 'http://127.0.0.1:1235/v1' } },
+    'splash-local': { name: 'Splash local', settings: { baseURL: 'http://127.0.0.1:8000/v1' } },
+  } });
+  expect(Object.fromEntries(result.connections.map(item => [item.id, item.runtime])))
+    .toEqual({ lmstudio: 'lmstudio', bionic: 'lmstudio', 'splash-local': 'splash' });
+});
+
 test('native OpenCode 2 provider shape wins over a same-ID legacy provider', async () => {
   const result = await resolve({ model: 'engine/model-a', provider: {
     engine: { name: 'vllm-mlx', options: { baseURL: 'http://localhost:8000/v1' } },

@@ -16,7 +16,7 @@ import { contextBudget } from './context.ts';
 import { ChartInspector } from './chart-inspector.ts';
 import { ConnectionHelp } from './connection-help.ts';
 import { ConnectionsView, connectionsMarkup } from './connections-view.ts';
-import { runtimeNames } from '../src/runtime.ts';
+import { connectionName } from '../src/runtime.ts';
 import { SavedView, savedMarkup } from './saved-view.ts';
 import { snapshotObservation, captureObservation } from './saved.ts';
 import { WorkspaceTabs, type Workspace } from './workspace.ts';
@@ -109,7 +109,7 @@ root.innerHTML = `
     <p id="runtime-memory-note" class="insight-note">Reported totals can overlap; they are not per-chat memory.</p>
   </section>
   <section id="cache-lens" class="insight-section" aria-labelledby="cache-title">
-    <div class="section-heading"><h2 id="cache-title">Cache &amp; input</h2><span>Current request</span></div>
+    <div class="section-heading"><h2 id="cache-title">Cache &amp; input</h2><span id="cache-scope">Current request</span></div>
     <p id="cache-request-state" class="insight-note">Waiting for cache readings</p>
     <div class="cache-input-values"><div><span>Reused tokens</span><strong id="cache-reuse-count">—</strong></div><div><span>Not reused</span><strong id="cache-new-count">—</strong></div></div>
     <div id="cache-input-bar" class="cache-input-bar" role="img" aria-label="Input cache reuse"><span id="cache-reused-fill"></span></div>
@@ -265,27 +265,29 @@ const update = (snapshot: TelemetrySnapshot): void => {
   const display = current ?? last;
   const stale = current === null;
   const runtime = snapshot.runtime ?? snapshot.connection?.runtime ?? connections.selection.runtime ?? last?.runtime;
-  const runtimeName = runtime ? runtimeNames[runtime] : 'Local runtime';
+  const connectionInfo = snapshot.connection ?? last?.connection ?? null;
+  const runtimeName = connectionName(runtime, connectionInfo);
+  const splashEngine = connectionInfo?.engine === 'splash';
   const coverage = current ? snapshot.connection?.coverage ?? (runtime === 'omlx' ? 'requests' : 'server') : last?.connection?.coverage ?? 'requests';
   shell.dataset.coverage = coverage;
   shell.dataset.runtime = runtime ?? '';
+  shell.dataset.engine = splashEngine ? 'splash' : '';
   text('activity-label', coverage === 'requests' ? 'MODEL ACTIVITY' : 'LOCAL RUNTIME');
   node('instrument').setAttribute('aria-label', coverage === 'requests' ? 'Inference activity' : 'Runtime inventory and coverage');
   shell.dataset.empty = String(stale && last === null);
   hidden('instrument', stale && last === null);
   hidden('connection-diagnosis', !stale);
   text('connection-message', stale ? snapshot.message ?? 'Choose an existing local OpenCode connection, then refresh. Connection help can check the extension service.' : '');
-  hidden('coverage-note', !current || coverage === 'requests');
-  text('coverage-note', runtime === 'splash'
-    ? 'Prefill, cache reuse, input-context use, and process memory are unavailable from Splash’s passive status.'
-    : coverage === 'inventory'
-      ? `${runtimeName} exposes model inventory here, but not live request progress or generation speed.${runtime === 'lmstudio' ? ' Loaded does not mean idle.' : ''}`
-      : `${runtimeName} is reachable. Live request progress and generation speed are not exposed by its monitoring API.`);
-  text('process-label', runtime === 'splash' ? 'Current Metal allocation' : `${runtimeName} process footprint`);
-  text('model-label', runtime === 'splash' ? 'Peak Metal allocation' : 'Model allocation');
-  text('runtime-memory-title', runtime === 'splash' ? 'Metal allocator' : 'Runtime memory');
+  // One quiet line for runtimes that list models but do not stream request activity; Splash says nothing here.
+  hidden('coverage-note', !current || coverage === 'requests' || runtime === 'splash');
+  text('coverage-note', coverage === 'inventory'
+    ? `${runtimeName} lists its models here. Live request activity appears when its local log stream is available.`
+    : `${runtimeName} is reachable. It does not report live request progress.`);
+  text('process-label', runtime === 'splash' ? 'Now' : `${runtimeName} process footprint`);
+  text('model-label', runtime === 'splash' ? 'Peak' : 'Model allocation');
+  text('runtime-memory-title', runtime === 'splash' ? 'GPU memory (Metal)' : 'Runtime memory');
   text('runtime-memory-note', runtime === 'splash'
-    ? 'Splash reports current and peak Metal allocations. These are not process RSS or model-only memory.'
+    ? 'As reported by Splash. Not the same as process memory.'
     : 'Reported totals can overlap; they are not per-chat memory.');
   text('estimate-source', `${runtimeName} estimate · may change`);
   insightView.update(snapshot);
@@ -294,31 +296,32 @@ const update = (snapshot: TelemetrySnapshot): void => {
   hidden('recent-speed', current?.phase !== 'decode' || current.liveDecodeTPS === null && observedRate !== null);
   shell.dataset.phase = phase;
   shell.dataset.stale = String(stale);
-  text('connection', current ? `${runtimeName}${runtime === 'splash' && current.serverStats?.ready === false ? ' reachable · not ready' : ' connected'}${coverage !== 'requests' ? ' · limited telemetry' : current.phase === 'notLoaded' ? ' · no model loaded' : ''}` : snapshot.reason === 'authentication_failed' ? 'Authentication required' : `Waiting for ${runtimeName}`);
-  text('phase', current && coverage !== 'requests' ? runtime === 'splash' ? current.serverStats?.ready === false ? 'Not ready' : 'Ready' : 'Connected' : phases[phase]);
+  const splashLoading = runtime === 'splash' && display?.serverStats?.ready === false;
+  text('connection', current ? `${runtimeName}${splashLoading ? ' · loading model' : ' connected'}${current.phase === 'notLoaded' ? ' · no model loaded' : ''}` : snapshot.reason === 'authentication_failed' ? 'Authentication required' : `Waiting for ${runtimeName}`);
+  text('phase', current && runtime === 'splash' ? splashLoading ? 'Loading' : current.phase === 'processing' ? 'Generating' : current.phase === 'idle' ? 'Idle' : 'Ready'
+    : current && coverage !== 'requests' ? 'Connected' : phases[phase]);
   text('model', runtime === 'splash' ? display?.modelID?.split('/').at(-1) ?? 'Splash server'
     : current && coverage !== 'requests' ? runtimeName : display?.modelID?.split('/').at(-1) ?? 'Your local model');
   node('model').title = display?.modelID ?? `Observing ${runtimeName} on the OpenChamber host.`;
-  hidden('splash-model-detail', runtime !== 'splash');
-  text('splash-model-detail', runtime === 'splash'
-    ? `${display?.modelID == null ? 'Model identity unavailable' : stale ? 'Last reported model' : current?.serverStats?.ready === false ? 'Configured model · residency unconfirmed' : 'Reported model'} · ${display?.contextWindow == null ? 'maximum context unavailable' : `${display.contextWindow.toLocaleString()} maximum context tokens`}`
-    : '');
-  const splashRate = runtime === 'splash' && current?.serverStats?.ready === true
-    ? current.serverStats.aggregateDecodeTokensPerSecond : null;
+  const splashDetail = runtime === 'splash' && display?.contextWindow != null ? `${display.contextWindow.toLocaleString()}-token context` : '';
+  hidden('splash-model-detail', !splashDetail);
+  text('splash-model-detail', splashDetail);
+  const splashRate = runtime === 'splash' && display?.serverStats?.ready === true
+    ? display.serverStats.aggregateDecodeTokensPerSecond : null;
   const logActivity = runtime === 'lmstudio' && coverage === 'requests' && current !== null;
   const lastRequest = logActivity ? current.lastRequest ?? null : null;
   const lastRate = lastRequest?.tokensPerSecond ?? null;
   const logRate = logActivity && liveRate === null && phase !== 'decode' && phase !== 'prefill' ? lastRate : null;
-  text('rate', runtime === 'splash' ? splashRate === null ? '—' : rateNumber.format(splashRate)
+  text('rate', runtime === 'splash' ? splashLoading ? 'Loading' : splashRate !== null ? rateNumber.format(splashRate) : stale ? '—' : 'Ready'
     : liveRate !== null ? rateNumber.format(liveRate) : logRate !== null ? rateNumber.format(logRate)
       : logActivity && phase === 'decode' ? 'Generating' : logActivity && phase === 'prefill' ? 'Reading'
         : phase === 'idle' ? 'Ready' : phase === 'notLoaded' ? 'Standby' : '—');
   node('rate').classList.toggle('is-word', runtime === 'splash' ? splashRate === null : liveRate === null && logRate === null);
-  text('unit', runtime === 'splash' ? stale ? 'Last aggregate reading · not live'
-    : current?.serverStats?.ready === false ? 'Decode unavailable while Splash is not ready'
-      : splashRate === null ? 'Aggregate decode unavailable' : 'tok/s · aggregate server decode'
+  text('unit', runtime === 'splash' ? splashLoading ? 'Splash is loading the model'
+    : stale ? splashRate !== null ? 'tok/s · last reading, not live' : 'Waiting for Splash'
+      : splashRate === null ? 'Speed appears after the first request' : 'tok/s · server decode, all requests'
     : liveRate !== null ? observedRate ? 'tokens / second · recent output' : phase === 'prefill' ? 'prefill tokens / second' : 'tokens / second · request average'
-      : logActivity && phase === 'decode' ? `Exact speed arrives when this response finishes${lastRate !== null ? ` · last ${rateNumber.format(lastRate)} tok/s` : ''}`
+      : logActivity && phase === 'decode' ? `Exact speed when it finishes${lastRate !== null ? ` · last ${rateNumber.format(lastRate)} tok/s` : ''}`
         : logActivity && phase === 'prefill' ? 'Reading the prompt'
           : logRate !== null ? `tok/s · last response (exact)${lastRequest ? ` · ${finishedAgo(lastRequest.finishedAt)}` : ''}`
             : phase === 'idle' ? 'Waiting for your next request' : phase === 'notLoaded' ? `Load a model in ${runtimeName}` : 'No fresh throughput');
@@ -334,16 +337,34 @@ const update = (snapshot: TelemetrySnapshot): void => {
   hidden('context-headroom', budget === null);
   text('context-remaining', budget ? `${count(budget.remaining)} tokens to model limit` : '—');
   text('context-accounted', budget ? `${percent(budget.percent)} accounted · prompt + output` : 'Not reported');
-  const contextPercent = ratio(current?.promptTokens, current?.contextWindow);
-  const reusedPercent = ratio(current?.cachedTokens, current?.promptTokens);
-  text('context', percent(contextPercent)); text('context-detail', current?.promptTokens == null ? 'Not reported' : `${count(current.promptTokens)} / ${count(current.contextWindow)}`);
-  text('reuse', percent(reusedPercent)); text('reuse-detail', current?.cachedTokens == null ? 'Not reported' : `${count(current.cachedTokens)} tokens`);
+  // Runtimes without live token counts fall back to the last finished response's exact figures.
+  const tokenSource = current?.promptTokens != null ? { prompt: current.promptTokens, cached: current.cachedTokens, basis: '' }
+    : lastRequest?.promptTokens != null ? { prompt: lastRequest.promptTokens, cached: lastRequest.cachedTokens, basis: ' · last response' } : null;
+  const modelContext = current?.contextWindow ?? current?.catalog?.find(model => model.loaded && model.name === display?.modelID)?.contextWindow
+    ?? current?.catalog?.find(model => model.loaded)?.contextWindow ?? null;
+  const contextPercent = ratio(tokenSource?.prompt, modelContext);
+  const reusedPercent = ratio(tokenSource?.cached, tokenSource?.prompt);
+  node('context').parentElement!.hidden = contextPercent === null && !(current?.promptTokens == null && coverage === 'requests' && runtime === 'omlx');
+  node('reuse').parentElement!.hidden = reusedPercent === null && !(current?.cachedTokens == null && coverage === 'requests' && runtime === 'omlx');
+  text('context', percent(contextPercent)); text('context-detail', tokenSource === null ? 'Not reported' : `${count(tokenSource.prompt)} / ${count(modelContext)}${tokenSource.basis}`);
+  text('reuse', percent(reusedPercent)); text('reuse-detail', tokenSource?.cached == null ? 'Not reported' : `${count(tokenSource.cached)} tokens${tokenSource.basis}`);
   meter('context-bar', contextPercent); meter('reuse-bar', reusedPercent);
-  text('requests', count(current?.activeRequests)); text('queue', current ? current.queuedRequests === null ? 'Queue not reported' : current.queuedRequests ? `${current.queuedRequests} queued` : 'Queue clear' : 'No live reading');
-  text('session-title', runtime === 'splash' ? 'Splash server statistics' : 'Server session');
-  text('stats-label-one', runtime === 'splash' ? 'Aggregate decode' : 'Decode average');
-  text('stats-label-two', runtime === 'splash' ? 'Completed requests' : logActivity ? 'Last first token' : 'Prefill average');
-  text('stats-label-three', runtime === 'splash' ? 'Failed requests' : 'Cache efficiency');
+  text('requests', count(current?.activeRequests)); text('queue', current ? current.queuedRequests === null ? current.activeRequests ? 'running now' : 'none running' : current.queuedRequests ? `${current.queuedRequests} queued` : 'Queue clear' : 'No live reading');
+  text('session-title', runtime === 'splash' ? 'Requests' : logActivity ? 'Finished responses' : 'Server session');
+  text('stats-label-one', runtime === 'splash' ? 'Server decode' : 'Decode average');
+  text('stats-label-two', runtime === 'splash' ? 'Completed' : logActivity ? 'Last first token' : 'Prefill average');
+  text('stats-label-three', runtime === 'splash' ? 'Failed' : logActivity ? 'Input reused' : 'Cache efficiency');
+  node('average-cache').dataset.warn = String(runtime === 'splash' && (display?.serverStats?.failedRequests ?? 0) > 0);
+  // Without live token counts there is nothing to chart, so hide the empty chart.
+  const liveCounts = current?.liveDecodeTPS != null || current?.livePrefillTPS != null || current?.completionTokens != null;
+  hidden('signal', logActivity && !liveCounts);
+  if (logActivity && !liveCounts) hidden('recent-speed', true);
+  // The heading and phase already say "Generating" on this model; only concurrent-request notes add information.
+  hidden('activity', logActivity && phase === 'decode' && (current?.activeRequests ?? 0) <= 1 || splashLoading);
+  if (splashEngine && runtime === 'lmstudio' && phase === 'notLoaded') {
+    text('model', 'No model loaded');
+    text('activity', 'Load a Splash model in Bionic to start. Activity appears here as soon as it serves a request.');
+  }
   text('average-decode', rate(runtime === 'splash' ? display?.serverStats?.aggregateDecodeTokensPerSecond ?? null : display?.sessionAverageDecodeTPS));
   text('average-prefill', runtime === 'splash' ? count(display?.serverStats?.completedRequests)
     : logActivity ? lastRequest?.ttftSeconds == null ? '—' : `${number.format(lastRequest.ttftSeconds)}s` : rate(display?.sessionAveragePrefillTPS));
@@ -351,10 +372,12 @@ const update = (snapshot: TelemetrySnapshot): void => {
   const statsState = stale ? 'stale' : current?.sessionStatsState ?? 'unavailable';
   node('session-stats').dataset.stale = String(runtime === 'splash' ? stale : statsState !== 'fresh');
   text('session-stats-state', runtime === 'splash'
-    ? stale ? 'Last reading · not live; counters reset when the engine restarts.' : 'Server-wide counters since engine start. Decode throughput combines concurrent work.'
-    : statsState === 'fresh' ? logActivity ? 'Exact figures from LM Studio for responses finished since MLX Scope started watching' : 'Completed requests across all models' : statsState === 'stale' ? 'Last available totals · not live' : 'Session statistics unavailable');
+    ? stale ? 'Last reading · not live' : 'Server decode is shared across all requests.'
+    : statsState === 'fresh' ? logActivity ? 'Exact figures for responses that finished while MLX Scope was open' : 'Completed requests across all models' : statsState === 'stale' ? 'Last available totals · not live' : logActivity ? 'Figures appear after the first response finishes' : 'Session statistics unavailable');
   const uptime = display?.lifetime?.uptimeSeconds;
-  text('uptime', runtime === 'splash' ? 'Since engine start' : uptime == null ? 'Since start / reset' : `${Math.floor(uptime / 3600)}h ${Math.floor(uptime % 3600 / 60)}m · since start`);
+  text('uptime', runtime === 'splash' ? 'Since Splash started' : logActivity ? 'This session' : uptime == null ? 'Since start / reset' : `${Math.floor(uptime / 3600)}h ${Math.floor(uptime % 3600 / 60)}m · since start`);
+  // "More runtime details" only lists oMLX-style internals; hide it when none are reported.
+  hidden('runtime-details', display?.sessionBank == null && display?.memoryPressureLevel == null && current?.completionTokens == null);
   text('process-memory', gb(runtime === 'splash' ? display?.serverStats?.metalCurrentGB : display?.memory?.activeGB));
   text('model-memory', gb(runtime === 'splash' ? display?.serverStats?.metalPeakGB : display?.memory?.modelGB));
   text('ssd-cache', gb(display?.sessionBank?.cold?.totalGB));
@@ -435,8 +458,7 @@ const syncMonitoring = (): void => {
   if (userPaused || document.hidden || activeView === 'saved') {
     interrupted = true; awaitingFresh = true;
     holdRuntimeMemory(userPaused ? 'Frozen reading' : 'Last reading · not live');
-    holdSplashStatistics(userPaused ? 'Frozen reading · counters reset on engine restart; decode is aggregate.'
-      : 'Last reading · not live; counters reset when the engine restarts.');
+    holdSplashStatistics(userPaused ? 'Paused · last reading' : 'Last reading · not live');
     clearFreshness(); resources.break(); signal.break(); insightView.suspend(); captureView.suspend();
   } else {
     if (interrupted) {

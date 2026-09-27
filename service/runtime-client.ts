@@ -113,8 +113,11 @@ export class RuntimeClient {
       ? choice.config.apiKey === null ? `${runtime ? runtimeNames[runtime] : 'This runtime'} needs an API key. Connect this provider in OpenChamber, then return here.`
         : `${runtime ? runtimeNames[runtime] : 'This runtime'} rejected the saved API key. Reconnect this provider in OpenChamber${runtime === 'omlx' ? ' using the main oMLX key; inference subkeys cannot read monitoring' : ''}.`
       : snapshot.message;
-    return { ...snapshot, message: authMessage, connection: { ...info, runtime, generation: current.generation,
-      diagnostic: snapshot.available ? runtime === 'splash' && snapshot.serverStats?.ready === false ? 'offline' : 'ready'
+    const splashModels = runtime === 'lmstudio' && (snapshot.catalog ?? []).some(model => model.format === 'splash');
+    const engine = runtime === 'splash' || splashModels ? 'splash' as const : null;
+    const host = runtime === 'lmstudio' && (splashModels || /bionic/i.test(`${choice.id} ${choice.label}`)) ? 'bionic' as const : null;
+    return { ...snapshot, message: authMessage, connection: { ...info, runtime, generation: current.generation, engine, host,
+      diagnostic: snapshot.available ? 'ready'
         : snapshot.reason === 'authentication_failed' ? 'authentication' : snapshot.reason === 'unsupported_contract' ? 'unsupported' : 'offline',
       coverage: runtime === 'splash' || runtime === 'vllm-mlx' && snapshot.available && snapshot.phase === 'unknown' && snapshot.activeRequests === null ? 'server'
         : runtime === 'omlx' || runtime === 'vllm-mlx' || runtime === 'lmstudio' && snapshot.available && snapshot.phase !== 'unknown' ? 'requests'
@@ -142,6 +145,12 @@ export class RuntimeClient {
           const models = await read('/api/v1/models');
           if (Array.isArray(models.body?.models)) slot.runtime = 'lmstudio';
         } catch (error) { if (!(error instanceof HttpFailure) || error.status !== 404) throw error; }
+      }
+      if (!slot.runtime) {
+        try {
+          const status = await read('/status');
+          if (typeof status.body?.ready === 'boolean') slot.runtime = 'splash';
+        } catch (error) { if (!(error instanceof HttpFailure) || ![404, 405].includes(error.status ?? 0)) throw error; }
       }
       if (!slot.runtime) {
         const response = await read('/v1/models');

@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.4.0
+
+- Splash in Bionic is now named and shown as "Splash via Bionic" instead of
+  "LM Studio". Splash-format models from Bionic's API are recognised, badged
+  "Splash", and listed with the loaded model first. Leave the connection on
+  Automatic; no extra setup is needed.
+- Stop showing what a runtime doesn't report. The "Not reported" metric cells,
+  empty cache and chart panels, "— queued · — allocated" rows, and "limited
+  telemetry" labels are gone; unreported readings are left out of the Live view,
+  Copy stats, and Saved observations.
+- Bionic and LM Studio views now show context use and input reuse from the last
+  finished response's exact token counts.
+- Standalone Splash (`splash serve`) shows Idle, Generating with in-flight
+  requests, or Loading instead of a fixed "Ready"/"Not ready", and is detected
+  automatically from its `/status` endpoint. A loading server is no longer
+  reported as offline. Compare now records its GPU (Metal) memory and finished
+  requests.
+- Provider names that mention Bionic or LM Studio stay on that path even when
+  they also mention Splash; other Splash-named providers use the standalone
+  adapter.
+
 ## 1.3.0
 
 - Add live LM Studio and LM Studio Bionic activity, including Splash models

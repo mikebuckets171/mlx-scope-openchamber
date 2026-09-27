@@ -28,7 +28,11 @@ export class InsightView {
     this.node('recent-speed').hidden = current?.phase !== 'decode';
     this.text('window-speed', speed ? rate(speed.tokensPerSecond) : 'Gathering samples…');
     this.text('window-span', speed ? `Observed over ${number.format(speed.seconds)}s` : 'Recent speed · needs 2s of observations');
-    const split = cacheSplit(current);
+    const lastResponse = current?.promptTokens == null && current?.lastRequest?.promptTokens != null && current.lastRequest.cachedTokens != null
+      ? current.lastRequest : null;
+    const split = cacheSplit(current) ?? (lastResponse ? cacheSplit({ ...current!, promptTokens: lastResponse.promptTokens, cachedTokens: lastResponse.cachedTokens }) : null);
+    // Hide the whole panel for runtimes that report neither request reuse nor cache totals.
+    this.node('cache-lens').hidden = current !== null && split === null && !current.sessionBank;
     this.text('cache-reuse-count', split ? integer.format(split.reused) : '—');
     this.text('cache-new-count', split ? integer.format(split.fresh) : '—');
     this.node('cache-reused-fill').style.width = `${split?.percent ?? 0}%`;
@@ -41,7 +45,9 @@ export class InsightView {
       ? statsFresh ? 'Server cache · categories can overlap' : 'Last cache totals · not live'
       : current ? 'Cache totals not reported by this runtime.' : 'Cache totals not live');
     this.node('cache-lens').dataset.stale = String(!current);
-    this.text('cache-request-state', split ? `${number.format(split.percent)}% of input reused` : 'Current request · reuse not reported');
+    this.text('cache-request-state', split ? `${number.format(split.percent)}% of input reused${lastResponse ? ' · last response' : ''}` : 'Waiting for the next request');
+    this.text('cache-scope', lastResponse ? 'Last response' : 'Current request');
+    this.node('cache-lens').querySelectorAll<HTMLElement>('.cache-tier-values, #cache-bank-state').forEach(element => { element.hidden = current !== null && !current.sessionBank; });
     const warning = current?.memoryPressureLevel && current.memoryPressureLevel >= 2
       ? `${runtimeName} memory guard elevated. This is the runtime’s guard, not macOS memory pressure.`
       : current?.prefillProgressStale ? 'Prefill progress has not advanced. The stage estimate is withheld until fresh progress arrives.' : '';
@@ -70,21 +76,20 @@ export class InsightView {
       const progress = model.phase === 'prefill' && model.prefillProgress !== null
         ? `${model.prefillProgress < 1 && model.prefillProgress > .99 ? '<1' : Math.max(0, 100 - Math.floor(model.prefillProgress * 100 + Number.EPSILON * 100))}% left${model.progressStale ? ' · last reading' : ''}` : null;
       put(row.querySelector('.resident-reading span')!, progress ?? (model.tokensPerSecond !== null ? rate(model.tokensPerSecond)
-        : `${model.activeRequests ?? '—'} active · ${model.queuedRequests ?? '—'} queued`));
-      put(row.querySelector('.resident-reading span:last-child')!, `${size(model.allocationGB)} allocated`);
+        : [model.activeRequests === null ? null : `${model.activeRequests} active`, model.queuedRequests === null ? null : `${model.queuedRequests} queued`].filter(Boolean).join(' · ')));
+      put(row.querySelector('.resident-reading span:last-child')!, model.allocationGB === null ? '' : `${size(model.allocationGB)} allocated`);
     });
-    const catalog = current?.catalog ?? [];
-    this.node('catalog-section').hidden = !current || current.runtime === 'splash' || (current.connection?.coverage ?? 'requests') === 'requests'
-      || catalog.length === 0 && current.connection?.coverage === 'server';
-    this.text('catalog-title', current?.runtime === 'mlx-lm' ? 'Available models'
-      : current?.runtime === 'splash' ? 'Splash model' : 'Model inventory');
-    this.text('catalog-count', `${catalog.length} reported`);
-    this.text('catalog-note', catalog.length
-      ? current?.runtime === 'splash' ? current.serverStats?.ready === false
-        ? 'Splash reports its configured model identity, but readiness is false; model residency is not confirmed.'
-        : 'Splash reports this model and its declared maximum context; context is not current request use.'
-        : 'Catalog entries do not establish request activity. Context is the reported configured or maximum length.'
-      : 'No model inventory was reported. Host resource monitoring remains available.');
+    const splashHost = current?.runtime === 'lmstudio' && current.connection?.engine === 'splash';
+    // Loaded first, then Splash-format models, then everything else; order is otherwise preserved.
+    const rank = (model: { loaded: boolean | null; format: string | null }) => model.loaded ? 0 : model.format === 'splash' ? 1 : 2;
+    const catalog = splashHost ? [...current.catalog ?? []].sort((a, b) => rank(a) - rank(b)) : current?.catalog ?? [];
+    this.node('catalog-section').hidden = !current || current.runtime === 'splash' || catalog.length === 0
+      || (current.connection?.coverage ?? 'requests') === 'requests' && !splashHost;
+    const splashCount = catalog.filter(model => model.format === 'splash').length;
+    this.text('catalog-title', current?.runtime === 'mlx-lm' ? 'Available models' : splashHost ? 'Splash models' : 'Model inventory');
+    this.text('catalog-count', splashHost ? `${splashCount} Splash · ${catalog.filter(model => model.loaded).length} loaded` : `${catalog.length} reported`);
+    this.text('catalog-note', splashHost ? 'Load or switch models in Bionic. MLX Scope only watches.'
+      : 'Listed models are not necessarily in use. Context is the configured or maximum length.');
     const catalogList = this.node('catalog-list');
     while (catalogList.children.length > catalog.length) catalogList.lastElementChild!.remove();
     catalog.forEach((model, index) => {
@@ -95,9 +100,12 @@ export class InsightView {
         catalogList.append(row);
       }
       put(row.querySelector('strong')!, model.name);
-      put(row.querySelector('.catalog-state')!, model.loaded === null ? 'Load state not reported' : model.loaded ? 'Loaded' : 'Not loaded');
-      put(row.querySelector('.catalog-format')!, model.format?.toUpperCase() ?? 'Format not reported');
-      put(row.querySelector('.catalog-context')!, model.contextWindow === null ? 'Context not reported' : `${integer.format(model.contextWindow)} context`);
+      row.dataset.loaded = String(model.loaded === true);
+      put(row.querySelector('.catalog-state')!, model.loaded === null ? '' : model.loaded ? 'Loaded' : 'Not loaded');
+      const badge = row.querySelector<HTMLElement>('.catalog-format')!;
+      badge.dataset.format = model.format ?? '';
+      put(badge, model.format === 'splash' ? 'Splash' : model.format?.toUpperCase() ?? '');
+      put(row.querySelector('.catalog-context')!, model.contextWindow === null ? '' : `${integer.format(model.contextWindow)} context`);
     });
     this.renderRecent();
   }

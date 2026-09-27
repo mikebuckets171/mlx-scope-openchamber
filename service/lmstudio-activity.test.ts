@@ -18,7 +18,7 @@ const LINES = {
 
 test('parses the redacted LM Studio server log without reading content', () => {
   expect(parseLMStudioServerLine(LINES.received)).toBeNull();
-  expect(parseLMStudioServerLine(LINES.streaming)).toBeNull();
+  expect(parseLMStudioServerLine(LINES.streaming)).toEqual({ kind: 'streaming', model: 'qwen3.8-27b-splash' });
   expect(parseLMStudioServerLine(LINES.inventory)).toBeNull();
   expect(parseLMStudioServerLine(LINES.running)).toEqual({ kind: 'request', model: 'qwen3.8-27b-splash' });
   expect(parseLMStudioServerLine(LINES.progress42)).toEqual({ kind: 'prefill', model: 'qwen3.8-27b-splash', progress: 0.425 });
@@ -28,6 +28,42 @@ test('parses the redacted LM Studio server log without reading content', () => {
   expect(parseLMStudioServerLine(LINES.finished)).toEqual({ kind: 'finished', model: 'qwen3.8-27b-splash' });
   expect(parseLMStudioServerLine('[2026-09-27 00:54:42][ERROR][qwen3.8-27b-splash] Generation failed')).toEqual({ kind: 'failed', model: 'qwen3.8-27b-splash' });
   expect(parseLMStudioServerLine('not a log line')).toBeNull();
+});
+
+// Captured from Bionic 1.1.6 for a non-streaming /v1/chat/completions request (redaction on).
+const NON_STREAMING = [
+  '[2026-09-27 14:00:42][INFO][local/qwen3.8-27b-splash-levels] Running chat completion on conversation with 1 messages.',
+  '[2026-09-27 14:00:48][INFO][local/qwen3.8-27b-splash-levels] Prompt processing progress: 18.9%',
+  '[2026-09-27 14:01:42][INFO][LM STUDIO SERVER] Client disconnected. Stopping generation... (If the model is busy processing the prompt, it will finish first.)',
+  '[2026-09-27 14:01:42][INFO][local/qwen3.8-27b-splash-levels] Model generated tool calls: [Sensitive]',
+  '[2026-09-27 14:01:42][INFO][local/qwen3.8-27b-splash-levels] Generated prediction: [Sensitive]',
+];
+
+test('non-streaming requests end at "Generated prediction" instead of staying in prefill', () => {
+  const tracker = new LMStudioActivityTracker(() => 1_000);
+  for (const line of NON_STREAMING) { const event = parseLMStudioServerLine(line); if (event) tracker.apply(event); }
+  expect(tracker.view()).toMatchObject({ active: null, activeRequests: 0 });
+});
+
+test('a prediction line never ends a streamed request early', () => {
+  const tracker = new LMStudioActivityTracker(() => 1_000);
+  const feed = (line: string) => { const event = parseLMStudioServerLine(line); if (event) tracker.apply(event); };
+  // Two overlapping requests on one model: the first streams, the second does not.
+  feed(LINES.running); feed(LINES.streaming); feed(LINES.running);
+  feed('[2026-09-27 00:54:31][INFO][qwen3.8-27b-splash] Generated prediction: [Sensitive]');
+  expect(tracker.view().activeRequests).toBe(1);
+  // A second prediction line cannot remove the still-streaming request.
+  feed('[2026-09-27 00:54:32][INFO][qwen3.8-27b-splash] Generated prediction: [Sensitive]');
+  expect(tracker.view().activeRequests).toBe(1);
+  feed(LINES.finished);
+  expect(tracker.view()).toMatchObject({ active: null, activeRequests: 0 });
+});
+
+test('keeps publisher-scoped model tags intact so they match Bionic inventory keys', () => {
+  expect(parseLMStudioServerLine('[2026-09-27 09:12:00][INFO][local/qwen3.8-27b-splash-levels] Running chat completion on conversation with 2 messages.'))
+    .toEqual({ kind: 'request', model: 'local/qwen3.8-27b-splash-levels' });
+  expect(parseLMStudioServerLine('[2026-09-27 09:12:01][INFO][local/qwen3.8-27b-splash-levels] Prompt processing progress: 12.0%'))
+    .toEqual({ kind: 'prefill', model: 'local/qwen3.8-27b-splash-levels', progress: 0.12 });
 });
 
 test('tracks a request from prompt reading to generation to exact completion figures', () => {

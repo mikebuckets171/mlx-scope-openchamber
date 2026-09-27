@@ -50,27 +50,33 @@ export class SplashClient {
     const catalog: CatalogModel[] = modelID ? [{
       name: modelID,
       loaded: status.ready === true ? true : null,
-      format: null,
+      format: 'splash',
       contextWindow: maximumContext,
     }] : [];
+    const submitted = count(requests?.submitted), completed = count(requests?.completed);
+    const failed = count(requests?.failed), cancelled = count(requests?.cancelled) ?? 0;
+    const inFlight = submitted === null || completed === null || failed === null ? null
+      : Math.max(0, submitted - completed - failed - cancelled);
+    const phase = !status.ready ? 'unknown' : inFlight === null ? 'unknown' : inFlight > 0 ? 'processing' : 'idle';
 
     return {
       ...unavailableTelemetry('unsupported_contract', null, sampledAt),
       available: true,
       reason: null,
       runtime: 'splash',
-      phase: 'unknown',
+      phase,
       modelID,
       contextWindow: maximumContext,
+      activeRequests: status.ready ? inFlight : null,
       catalog,
-      message: status.ready
-        ? 'Splash is ready. Decode throughput and request counters are server-wide; per-request activity is unavailable.'
-        : 'Splash is reachable, but its runtime reports that it is not ready.',
+      message: !status.ready ? `Loading ${modelID?.split('/').at(-1) ?? 'the model'}…`
+        : inFlight === null ? 'Ready.'
+        : inFlight > 0 ? `Generating · ${inFlight} ${inFlight === 1 ? 'request' : 'requests'} in flight.` : 'Idle · ready for your next request.',
       serverStats: {
         ready: status.ready,
         aggregateDecodeTokensPerSecond: number(metrics?.decode_tokens_per_second),
-        completedRequests: count(requests?.completed),
-        failedRequests: count(requests?.failed),
+        completedRequests: completed,
+        failedRequests: failed,
         metalCurrentGB: currentBytes,
         metalPeakGB: peakBytes,
       },

@@ -19,15 +19,26 @@ test('Splash reads one passive status endpoint and preserves server-wide scope',
 
   expect(paths).toEqual(['/status']);
   expect(snapshot).toMatchObject({
-    available: true, runtime: 'splash', phase: 'unknown', modelID: 'incoai/Qwen3.8-27B-Splash',
-    contextWindow: 262_144, activeRequests: null, queuedRequests: null, liveDecodeTPS: null,
+    available: true, runtime: 'splash', phase: 'idle', modelID: 'incoai/Qwen3.8-27B-Splash',
+    contextWindow: 262_144, activeRequests: 0, queuedRequests: null, liveDecodeTPS: null,
     memory: null, sessionBank: null, lifetime: null, sessionStatsState: 'unavailable',
     serverStats: { ready: true, aggregateDecodeTokensPerSecond: 47.2, completedRequests: 17,
       failedRequests: 0, metalCurrentGB: 12.5, metalPeakGB: 13 },
-    catalog: [{ name: 'incoai/Qwen3.8-27B-Splash', loaded: true, format: null, contextWindow: 262_144 }],
+    catalog: [{ name: 'incoai/Qwen3.8-27B-Splash', loaded: true, format: 'splash', contextWindow: 262_144 }],
   });
+  expect(snapshot.message).toBe('Idle · ready for your next request.');
   expect(JSON.stringify(snapshot)).not.toContain('private-instance-id');
   expect(JSON.stringify(snapshot)).not.toContain('127.0.0.1');
+});
+
+test('Splash derives in-flight requests from its lifetime counters', async () => {
+  const busy = { ...fixture(), requests: { submitted: 21, completed: 17, cancelled: 1, failed: 1 } };
+  const snapshot = await new SplashClient(async () => busy, () => 1234).snapshot();
+  expect(snapshot).toMatchObject({ phase: 'processing', activeRequests: 2 });
+  expect(snapshot.message).toBe('Generating · 2 requests in flight.');
+
+  const partial = { ...fixture(), requests: { completed: 17 } };
+  expect(await new SplashClient(async () => partial, () => 1234).snapshot()).toMatchObject({ phase: 'unknown', activeRequests: null });
 });
 
 test('Splash not-ready status does not claim model residency or request activity', async () => {
@@ -42,7 +53,7 @@ test('Splash not-ready status does not claim model residency or request activity
     serverStats: { ready: false, completedRequests: 10, failedRequests: null,
       aggregateDecodeTokensPerSecond: null, metalCurrentGB: 0.000000014, metalPeakGB: null },
   });
-  expect(snapshot.message).toContain('not ready');
+  expect(snapshot.message).toBe('Loading example…');
   expect(JSON.stringify(snapshot)).not.toContain('/private/models');
 });
 

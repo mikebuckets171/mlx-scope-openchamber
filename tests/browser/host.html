@@ -137,7 +137,7 @@ if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
   if (params.has('connections')) {
     const choices = [{id:'omlx',label:'Local oMLX',runtime:'omlx'}, {id:'studio',label:'LM Studio local',runtime:'lmstudio'},
       {id:'mlx',label:'mlx-lm local',runtime:'mlx-lm'}, {id:'vllm',label:'vllm-mlx local',runtime:'vllm-mlx'},
-      {id:'splash',label:'Inco AI Splash',runtime:'splash'}, {id:'custom',label:'Custom local',runtime:null}];
+      {id:'splash',label:'Inco AI Splash',runtime:'splash'}, {id:'bionic',label:'Splash (Bionic)',runtime:'lmstudio'}, {id:'custom',label:'Custom local',runtime:null}];
     const selected = selection.provider || window.previewAutoProvider || 'omlx';
     const choice = choices.find(item => item.id === selected);
     const runtime = selection.runtime || choice?.runtime || null;
@@ -146,16 +146,43 @@ if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
       payload.runtime=runtime;
       payload.connection.coverage='requests';
     } else if (runtime && runtime !== 'omlx') {
-      Object.assign(payload,{available:true,reason:null,message:null,runtime,phase:'unknown',modelID:runtime==='splash'?'incoai/Qwen3.8-27B-Splash':null,activeRequests:null,queuedRequests:null,
+      const splashReady = params.get('splashReady') !== '0';
+      Object.assign(payload,{available:true,reason:null,message:null,runtime,phase:runtime==='splash'&&splashReady?'idle':'unknown',modelID:runtime==='splash'?'incoai/Qwen3.8-27B-Splash':null,activeRequests:runtime==='splash'&&splashReady?0:null,queuedRequests:null,
         liveDecodeTPS:null,livePrefillTPS:null,prefillProgress:null,prefillProcessedTokens:null,prefillTotalTokens:null,prefillETASeconds:null,
         promptTokens:null,cachedTokens:null,completionTokens:null,elapsedSeconds:null,traceEpoch:null,contextWindow:runtime==='splash'?262144:null,memory:null,sessionBank:null,
         memoryPressureLevel:null,sessionStatsState:'unavailable',sessionAverageDecodeTPS:null,sessionAveragePrefillTPS:null,sessionCacheEfficiencyPercent:null,
         lifetime:null,residentModels:runtime==='lmstudio'?[{id:'Local model instance',phase:'unknown',activeRequests:null,queuedRequests:null,allocationGB:null,tokensPerSecond:null,prefillProgress:null,progressStale:false}]:[],residentModelCount:runtime==='lmstudio'?1:null,
         catalog:runtime==='lmstudio'?[{name:'Local model',format:'mlx',loaded:true,contextWindow:32768},{name:'Available GGUF model',format:'gguf',loaded:false,contextWindow:8192}]
           :runtime==='mlx-lm'?[{name:'Configured MLX model',format:'mlx',loaded:null,contextWindow:null}]
-          :runtime==='splash'?[{name:'incoai/Qwen3.8-27B-Splash',format:null,loaded:true,contextWindow:262144}]:[],
-        message:runtime==='splash'?(params.get('splashReady')==='0'?'Splash is reachable, but its runtime reports that it is not ready.':'Splash is ready. Decode throughput and request counters are server-wide; per-request activity is unavailable.'):null,
-        serverStats:runtime==='splash'?{ready:params.get('splashReady')!=='0',aggregateDecodeTokensPerSecond:47.2,completedRequests:17,failedRequests:1,metalCurrentGB:12.5,metalPeakGB:13}:null});
+          :runtime==='splash'?[{name:'incoai/Qwen3.8-27B-Splash',format:'splash',loaded:splashReady?true:null,contextWindow:262144}]:[],
+        message:runtime==='splash'?(splashReady?'Idle · ready for your next request.':'Loading Qwen3.8-27B-Splash…'):null,
+        serverStats:runtime==='splash'?{ready:splashReady,aggregateDecodeTokensPerSecond:47.2,completedRequests:17,failedRequests:1,metalCurrentGB:12.5,metalPeakGB:13}:null});
+      if (runtime === 'splash') payload.connection.engine = 'splash';
+    }
+    if (selected === 'bionic' && runtime === 'lmstudio') {
+      // Shape of a Bionic 1.1.6 inventory plus lms log-stream activity, with Splash-format models.
+      const bionic = params.get('bionic') || 'decode';
+      const model = 'local/qwen3.8-27b-splash-levels';
+      const busy = bionic === 'decode' || bionic === 'prefill';
+      Object.assign(payload, {
+        phase: bionic === 'none' ? 'notLoaded' : busy ? bionic : 'idle', modelID: bionic === 'none' ? null : model,
+        activeRequests: busy ? 1 : 0, prefillProgress: bionic === 'prefill' ? .42 : null, elapsedSeconds: busy ? 6.4 : null,
+        message: bionic === 'prefill' ? 'Reading the prompt on qwen3.8-27b-splash-levels · 42%.' : bionic === 'decode' ? 'Generating on qwen3.8-27b-splash-levels.'
+          : bionic === 'none' ? 'No model loaded.' : 'Last response: 38.6 tok/s · 1,092 output tokens · first token 0.5s.',
+        sessionStatsState: 'fresh', sessionAverageDecodeTPS: 37.9, sessionCacheEfficiencyPercent: 61.2,
+        lastRequest: {model, tokensPerSecond: 38.6, ttftSeconds: 0.5, promptTokens: 18_400, cachedTokens: 11_260, outputTokens: 1092, finishedAt: Date.now() - 42_000},
+        residentModels: bionic === 'none' ? [] : [{id:model,phase:busy?bionic:'idle',activeRequests:busy?1:0,queuedRequests:null,allocationGB:null,tokensPerSecond:null,prefillProgress:bionic==='prefill'?.42:null,progressStale:false}],
+        residentModelCount: bionic === 'none' ? 0 : 1,
+        catalog: [
+          {name:model,format:'splash',loaded:bionic!=='none',contextWindow:262144},
+          {name:'local/qwen3.8-27b-splash-abliterated-levels',format:'splash',loaded:false,contextWindow:262144},
+          {name:'qwen3.8-27b-splash',format:'splash',loaded:false,contextWindow:262144},
+          {name:'qwen3.6-35b-a3b-splash',format:'splash',loaded:false,contextWindow:262144},
+          {name:'qwen3.6-35b-a3b-heretic-splash',format:'splash',loaded:false,contextWindow:262144},
+          {name:'text-embedding-nomic-embed-text-v1.5',format:'gguf',loaded:false,contextWindow:2048},
+        ],
+      });
+      Object.assign(payload.connection, {coverage:'requests', engine:'splash', host:'bionic'});
     }
     if (!runtime || params.get('setup') === 'missing') {
       Object.assign(payload,{available:false,reason:'configuration_missing',message:runtime?'No local OpenCode connection was found. Add a local provider, then refresh.':'Select a runtime for this custom connection.'});

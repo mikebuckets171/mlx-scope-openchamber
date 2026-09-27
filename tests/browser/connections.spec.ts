@@ -18,7 +18,7 @@ test('configured runtime selection is stored without credentials and survives re
   const frame = await open(page);
   await expect(frame.locator('#prefill-remaining')).toHaveText('36% remaining');
   await choose(page,'studio');
-  await expect(frame.locator('#connection')).toHaveText('LM Studio connected · limited telemetry');
+  await expect(frame.locator('#connection')).toHaveText('LM Studio connected');
   await expect(frame.locator('#catalog-list')).toContainText('Loaded');
   await expect(frame.locator('#catalog-list')).toContainText('32,768 context');
   await expect(frame.locator('#catalog-list')).toContainText('GGUF');
@@ -32,7 +32,7 @@ test('configured runtime selection is stored without credentials and survives re
   expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('connection.selection')!))).toEqual({provider:'studio',runtime:null});
   expect(await page.evaluate(()=>(window as any).previewQueries.at(-1))).toEqual({provider:'studio'});
   await page.reload();
-  await expect(frame.locator('#connection')).toHaveText('LM Studio connected · limited telemetry');
+  await expect(frame.locator('#connection')).toHaveText('LM Studio connected');
   await choose(page,'omlx');
   await expect(frame.locator('#prefill-remaining')).toHaveText('36% remaining');
   await expect(frame.locator('#prefill-progress')).toBeVisible();
@@ -41,17 +41,18 @@ test('configured runtime selection is stored without credentials and survives re
 test('catalog availability never invents residency or request activity', async ({page}) => {
   const frame = await open(page);
   await choose(page,'mlx');
-  await expect(frame.locator('#connection')).toHaveText('mlx-lm connected · limited telemetry');
+  await expect(frame.locator('#connection')).toHaveText('mlx-lm connected');
   await expect(frame.locator('#catalog-title')).toHaveText('Available models');
-  await expect(frame.locator('#catalog-list')).toContainText('Load state not reported');
-  await expect(frame.locator('#catalog-list')).toContainText('Context not reported');
+  // Unknown residency stays blank rather than claiming Loaded or printing "not reported" filler.
+  await expect(frame.locator('#catalog-list .catalog-state')).toHaveText('');
+  await expect(frame.locator('#catalog-list')).not.toContainText('not reported');
   await expect(frame.locator('#runtime-memory')).toBeHidden();
   await expect(frame.locator('#resident-section')).toBeHidden();
   await expect(frame.locator('.metrics')).toBeHidden();
   await choose(page,'vllm');
-  await expect(frame.locator('#connection')).toHaveText('vllm-mlx connected · limited telemetry');
+  await expect(frame.locator('#connection')).toHaveText('vllm-mlx connected');
   await expect(frame.locator('#catalog-section')).toBeHidden();
-  await expect(frame.locator('#coverage-note')).toContainText('Live request progress');
+  await expect(frame.locator('#coverage-note')).toContainText('live request progress');
   await expect(frame.locator('#machine')).toBeVisible();
 });
 
@@ -59,31 +60,31 @@ test('Splash aggregate stats stay separate from request readings, process memory
   await page.setViewportSize({width:320,height:900});
   const frame=await open(page);
   await choose(page,'splash');
-  await expect(frame.locator('#connection')).toHaveText('Inco AI Splash connected · limited telemetry');
-  await expect(frame.locator('#phase')).toHaveText('Ready');
+  await expect(frame.locator('#connection')).toHaveText('Splash (standalone) connected');
+  await expect(frame.locator('#phase')).toHaveText('Idle');
   await expect(frame.locator('#model')).toHaveText('Qwen3.8-27B-Splash');
-  await expect(frame.locator('#splash-model-detail')).toHaveText('Reported model · 262,144 maximum context tokens');
+  await expect(frame.locator('#splash-model-detail')).toHaveText('262,144-token context');
   await expect(frame.locator('#rate')).toHaveText('47.2');
-  await expect(frame.locator('#unit')).toHaveText('tok/s · aggregate server decode');
+  await expect(frame.locator('#unit')).toHaveText('tok/s · server decode, all requests');
+  await expect(frame.locator('#activity')).toHaveText('Idle · ready for your next request.');
   await expect(frame.locator('.readout')).toBeVisible();
   await expect(frame.locator('.signal')).toBeHidden();
   await expect(frame.locator('.metrics')).toBeHidden();
-  await expect(frame.locator('#coverage-note')).toContainText('unavailable from Splash’s passive status');
+  await expect(frame.locator('#coverage-note')).toBeHidden();
+  await expect(frame.locator('#view-live')).not.toContainText(/unavailable|not reported|not ready|limited telemetry/i, {useInnerText:true});
   await expect(frame.locator('#session-stats')).toBeVisible();
-  await expect(frame.locator('#session-title')).toHaveText('Splash server statistics');
+  await expect(frame.locator('#session-title')).toHaveText('Requests');
   await expect(frame.locator('#session-stats')).toBeInViewport();
-  await expect(frame.locator('#stats-label-one')).toHaveText('Aggregate decode');
-  await expect(frame.locator('#average-decode')).toHaveText('47.2 tok/s');
   await expect(frame.locator('#average-prefill')).toHaveText('17');
   await expect(frame.locator('#average-cache')).toHaveText('1');
-  await expect(frame.locator('#session-stats-state')).toContainText('combines concurrent work');
+  await expect(frame.locator('#average-cache')).toHaveAttribute('data-warn','true');
+  await expect(frame.locator('#session-stats-state')).toHaveText('Server decode is shared across all requests.');
   await expect(frame.locator('#runtime-memory')).toBeVisible();
-  await expect(frame.locator('#runtime-memory-title')).toHaveText('Metal allocator');
-  await expect(frame.locator('#process-label')).toHaveText('Current Metal allocation');
+  await expect(frame.locator('#runtime-memory-title')).toHaveText('GPU memory (Metal)');
+  await expect(frame.locator('#process-label')).toHaveText('Now');
   await expect(frame.locator('#process-memory')).toHaveText('11.6 GiB');
-  await expect(frame.locator('#model-label')).toHaveText('Peak Metal allocation');
+  await expect(frame.locator('#model-label')).toHaveText('Peak');
   await expect(frame.locator('#model-memory')).toHaveText('12.1 GiB');
-  await expect(frame.locator('#runtime-memory-note')).toContainText('not process RSS');
   await expect(frame.locator('#catalog-section')).toBeHidden();
   await expect(frame.locator('#cache-lens')).toBeHidden();
   expect(await frame.locator('main').evaluate(el=>document.documentElement.scrollWidth > innerWidth)).toBe(false);
@@ -91,7 +92,7 @@ test('Splash aggregate stats stay separate from request readings, process memory
   await frame.locator('#pause').click();
   await expect(frame.locator('#unit')).toHaveText('Frozen observation');
   await expect(frame.locator('#session-stats')).toHaveAttribute('data-stale','true');
-  await expect(frame.locator('#session-stats-state')).toContainText('Frozen reading');
+  await expect(frame.locator('#session-stats-state')).toHaveText('Paused · last reading');
   await expect(frame.locator('#runtime-memory-source')).toHaveText('Frozen reading');
   await frame.locator('#pause').click();
 
@@ -99,26 +100,71 @@ test('Splash aggregate stats stay separate from request readings, process memory
   await frame.getByRole('menuitem',{name:'Copy stats',exact:true}).click();
   await expect(frame.locator('#action-status')).toContainText('Stats copied');
   const shared=await page.evaluate(()=>(window as any).previewCopied as string);
-  expect(shared).toContain('Splash aggregate decode throughput: 47.2 tok/s (not per-request speed)');
-  expect(shared).toContain('Splash Metal allocation · current');
+  expect(shared).toContain('Splash server decode (all requests): 47.2 tok/s');
+  expect(shared).toContain('Splash GPU memory (Metal) · now');
+  expect(shared).not.toContain('not reported');
   expect(shared).not.toContain('Qwen3.8-27B-Splash');
 
   await frame.locator('#save-snapshot').click();
   await expect(frame.locator('#action-status')).toContainText('Observation saved');
   await frame.getByRole('tab',{name:'Saved',exact:true}).click();
-  await expect(frame.locator('#saved-list')).toContainText('Splash aggregate decode throughput');
-  await expect(frame.locator('#saved-list')).toContainText('Splash Metal allocation · peak');
+  await expect(frame.locator('#saved-list')).toContainText('Splash server decode (all requests)');
+  await expect(frame.locator('#saved-list')).toContainText('Splash GPU memory (Metal) · peak');
   await expect(frame.locator('#saved-list')).not.toContainText('Qwen3.8-27B-Splash');
   expect(await page.evaluate(()=>(window as any).previewUnexpectedSends)).toBe(0);
 });
 
-test('Splash not-ready state does not show a decode rate or claim model residency', async ({page}) => {
+test('a loading Splash server says so once and shows no decode rate', async ({page}) => {
   const frame=await open(page,'splashReady=0');
   await choose(page,'splash');
-  await expect(frame.locator('#phase')).toHaveText('Not ready');
-  await expect(frame.locator('#rate')).toHaveText('—');
-  await expect(frame.locator('#unit')).toHaveText('Decode unavailable while Splash is not ready');
-  await expect(frame.locator('#splash-model-detail')).toContainText('residency unconfirmed');
+  await expect(frame.locator('#connection')).toHaveText('Splash (standalone) · loading model');
+  await expect(frame.locator('#phase')).toHaveText('Loading');
+  await expect(frame.locator('#rate')).toHaveText('Loading');
+  await expect(frame.locator('#unit')).toHaveText('Splash is loading the model');
+  await expect(frame.locator('#activity')).toBeHidden();
+  await expect(frame.locator('#view-live')).not.toContainText(/unavailable|not ready|residency/i, {useInnerText:true});
+});
+
+test('Splash in Bionic is named, lists its Splash models, and shows only reported readings', async ({page}) => {
+  const frame=await open(page,'bionic=decode');
+  await choose(page,'bionic');
+  await expect(frame.locator('#connection')).toHaveText('Splash via Bionic connected');
+  await expect(frame.locator('#phase')).toHaveText('Generating');
+  await expect(frame.locator('#model')).toHaveText('qwen3.8-27b-splash-levels');
+  await expect(frame.locator('#rate')).toHaveText('Generating');
+  await expect(frame.locator('#unit')).toHaveText('Exact speed when it finishes · last 38.6 tok/s');
+  await expect(frame.locator('#activity')).toBeHidden();
+  await expect(frame.locator('.signal')).toBeHidden();
+  await expect(frame.locator('#recent-speed')).toBeHidden();
+  await expect(frame.locator('#context')).toHaveText('7%');
+  await expect(frame.locator('#context-detail')).toHaveText('18.4K / 262.1K · last response');
+  await expect(frame.locator('#reuse')).toHaveText('61%');
+  await expect(frame.locator('#queue')).toHaveText('running now');
+  await expect(frame.locator('#catalog-title')).toHaveText('Splash models');
+  await expect(frame.locator('#catalog-count')).toHaveText('5 Splash · 1 loaded');
+  await expect(frame.locator('#catalog-list .catalog-row').first()).toContainText('local/qwen3.8-27b-splash-levels');
+  await expect(frame.locator('#catalog-list .catalog-row').first()).toContainText('Loaded');
+  await expect(frame.locator('#catalog-list .catalog-format[data-format="splash"]')).toHaveCount(5);
+  await expect(frame.locator('#cache-scope')).toHaveText('Last response');
+  await expect(frame.locator('#cache-request-state')).toHaveText('61.2% of input reused · last response');
+  await expect(frame.locator('#runtime-details')).toBeHidden();
+  await expect(frame.locator('#resident-list')).not.toContainText('—');
+  await expect(frame.locator('#view-live')).not.toContainText(/unavailable|not reported|limited telemetry|LM Studio/i, {useInnerText:true});
+
+  await frame.getByRole('button',{name:'Change connection',exact:true}).click();
+  await expect(frame.getByLabel('Connection',{exact:true}).locator('option[value="bionic"]')).toHaveText('Splash (Bionic)');
+  await expect(frame.getByLabel('Connection',{exact:true}).locator('option[value="splash"]')).toHaveText('Inco AI Splash');
+  await expect(frame.locator('#connection-choice-note')).toContainText('Using Splash in Bionic? Keep Automatic.');
+});
+
+test('Splash in Bionic with no model loaded says what to do next', async ({page}) => {
+  const frame=await open(page,'bionic=none');
+  await choose(page,'bionic');
+  await expect(frame.locator('#connection')).toHaveText('Splash via Bionic connected · no model loaded');
+  await expect(frame.locator('#model')).toHaveText('No model loaded');
+  await expect(frame.locator('#activity')).toContainText('Load a Splash model in Bionic to start.');
+  await expect(frame.locator('#catalog-count')).toHaveText('5 Splash · 0 loaded');
+  await expect(frame.locator('#view-live')).not.toContainText(/unavailable|not reported/i, {useInnerText:true});
 });
 
 test('connection setup supports keyboard dismissal and an explicit runtime for custom providers', async ({page}) => {
@@ -131,14 +177,14 @@ test('connection setup supports keyboard dismissal and an explicit runtime for c
   await expect(frame.locator('#connection-setup')).toBeHidden();
   await expect(change).toBeFocused();
   await choose(page,'custom','lmstudio');
-  await expect(frame.locator('#connection')).toHaveText('LM Studio connected · limited telemetry');
+  await expect(frame.locator('#connection')).toHaveText('LM Studio connected');
   expect(await page.evaluate(()=>(window as any).previewQueries.at(-1))).toEqual({provider:'custom',runtime:'lmstudio'});
 });
 
 test('storage failure keeps the selected connection usable and first-run failure keeps host readings', async ({page}) => {
   let frame = await open(page,'storage=fail');
   await choose(page,'studio');
-  await expect(frame.locator('#connection')).toHaveText('LM Studio connected · limited telemetry');
+  await expect(frame.locator('#connection')).toHaveText('LM Studio connected');
   await expect(frame.locator('#action-status')).toContainText('could not save the preference');
   frame = await open(page,'setup=missing');
   await expect(frame.locator('#connection-diagnosis')).toBeVisible();
@@ -165,13 +211,13 @@ test('switching during pause or Saved preserves suspension and discards old obse
   await page.waitForTimeout(700);
   expect(await page.evaluate(()=>(window as any).previewRequests)).toBe(before);
   await frame.locator('#pause').click();
-  await expect(frame.locator('#connection')).toHaveText('LM Studio connected · limited telemetry');
+  await expect(frame.locator('#connection')).toHaveText('LM Studio connected');
   await frame.getByRole('tab',{name:'Saved',exact:true}).click();
   const saved=await page.evaluate(()=>(window as any).previewRequests);
   await choose(page,'mlx'); await page.waitForTimeout(700);
   expect(await page.evaluate(()=>(window as any).previewRequests)).toBe(saved);
   await frame.getByRole('tab',{name:'Live',exact:true}).click();
-  await expect(frame.locator('#connection')).toHaveText('mlx-lm connected · limited telemetry');
+  await expect(frame.locator('#connection')).toHaveText('mlx-lm connected');
 });
 
 test('a late response from the previous connection cannot repaint its readings', async ({page}) => {
@@ -181,7 +227,7 @@ test('a late response from the previous connection cannot repaint its readings',
   await expect.poll(()=>page.evaluate(()=>(window as any).previewDeferred.length)).toBe(1);
   await choose(page,'studio');
   await page.evaluate(()=>{(window as any).previewDelay=false;(window as any).previewDeferred.splice(0).forEach((reply:()=>void)=>reply());});
-  await expect(frame.locator('#connection')).toHaveText('LM Studio connected · limited telemetry');
+  await expect(frame.locator('#connection')).toHaveText('LM Studio connected');
   await expect(frame.locator('#prefill-progress')).toBeHidden();
   await expect(frame.locator('#recent-count')).toHaveText('0 / 8');
 });

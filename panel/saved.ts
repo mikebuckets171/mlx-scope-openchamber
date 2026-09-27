@@ -10,11 +10,11 @@ export const measurementLabels = {
   prefillRemaining: ['Prefill remaining', '%'], processed: ['Prefill processed', 'tokens'],
   total: ['Prefill stage total', 'tokens'], stageEstimate: ['Reported stage estimate', 's'],
   active: ['Active requests', ''], queued: ['Queued requests', ''],
-  splashDecode: ['Splash aggregate decode throughput', 'tok/s'],
-  splashCompleted: ['Splash completed requests since engine start', ''],
-  splashFailed: ['Splash failed requests since engine start', ''],
-  splashMetalCurrent: ['Splash Metal allocation · current', 'GiB'],
-  splashMetalPeak: ['Splash Metal allocation · peak', 'GiB'],
+  splashDecode: ['Splash server decode (all requests)', 'tok/s'],
+  splashCompleted: ['Splash completed requests since start', ''],
+  splashFailed: ['Splash failed requests since start', ''],
+  splashMetalCurrent: ['Splash GPU memory (Metal) · now', 'GiB'],
+  splashMetalPeak: ['Splash GPU memory (Metal) · peak', 'GiB'],
   cpu: ['Host CPU', '%'], memory: ['Non-free host RAM', 'GiB'],
   footprint: ['Runtime process footprint', 'GiB'], swap: ['Swap used', 'GiB'],
   observedGeneration: ['Observed generation', 'tok/s'], generationSeconds: ['Generation observed', 's'],
@@ -104,12 +104,13 @@ export const observationReport = (item: Observation): string => {
     `Observed: ${new Date(item.sampledAt).toISOString()} · ${item.state}${item.kind === 'snapshot' ? ` · ${item.phase}` : ''}`,
     'Server-wide observations, not selected-chat attribution or a controlled benchmark. Differences do not establish causality.'];
   if (Object.hasOwn(item.measurements, 'splashDecode') || Object.hasOwn(item.measurements, 'splashCompleted')) {
-    lines.push('Splash decode is aggregate across concurrent work; request counters reset when the engine restarts. Metal values are not process RSS or model-only memory.');
+    lines.push('Splash server decode is shared across all requests; its counters restart with Splash.');
   }
   const print = (values: Measurements) => {
     for (const key of Object.keys(measurementLabels) as Metric[]) {
       if (!Object.hasOwn(values, key)) continue;
       const value = values[key];
+      if (value == null) continue;
       const [label, unit] = measurementLabels[key];
       const rendered = value == null ? 'not reported' : key === 'prefillRemaining' && value > 0 && value < 1 ? '<1' : Number(value.toFixed(2)).toLocaleString('en-US');
       lines.push(`${label}: ${rendered}${value == null || !unit ? '' : ` ${unit}`}`);

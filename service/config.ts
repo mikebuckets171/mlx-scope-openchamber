@@ -172,10 +172,10 @@ export const parseLocalOrigin = (value: unknown): URL | null => {
 const hintFor = (id: string, name: unknown): Runtime | null => {
   const value = `${id} ${typeof name === 'string' ? name : ''}`.toLowerCase();
   const providerName = typeof name === 'string' ? name.trim() : '';
-  if (id.trim().toLowerCase() === 'splash' || /^(?:(?:inco[\s_-]*ai)[\s_-]*)?splash$/i.test(providerName)) return 'splash';
+  if (/bionic|lm[\s_-]*studio/.test(value)) return 'lmstudio';
+  if (id.trim().toLowerCase() === 'splash' || /splash/i.test(providerName)) return 'splash';
   if (/vllm[\s_-]*mlx/.test(value)) return 'vllm-mlx';
   if (/omlx/.test(value)) return 'omlx';
-  if (/lm[\s_-]*studio/.test(value)) return 'lmstudio';
   return /mlx[\s_-]*lm/.test(value) ? 'mlx-lm' : null;
 };
 const safeLabel = (value: string): string => value.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 120);

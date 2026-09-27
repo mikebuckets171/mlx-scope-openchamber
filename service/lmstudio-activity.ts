@@ -10,7 +10,10 @@ export type LMStudioLogEvent =
   | { kind: 'prefill'; model: string; progress: number }
   | { kind: 'done'; promptTokens: number | null; cachedTokens: number | null; outputTokens: number | null;
       ttftSeconds: number | null; tokensPerSecond: number | null }
+  | { kind: 'streaming'; model: string }
   | { kind: 'finished'; model: string }
+  /** Non-streaming completions end with "Generated prediction" instead of "Finished streaming response". */
+  | { kind: 'prediction'; model: string }
   | { kind: 'failed'; model: string | null };
 
 export type LMStudioLastRequest = {
@@ -77,12 +80,14 @@ export function parseLMStudioServerLine(content: string): LMStudioLogEvent | nul
       tokensPerSecond: decimal(/([\d.,]+)\s*tok\/s/i.exec(rest)?.[1]),
     };
   }
+  if (/^Streaming response\b/i.test(rest)) return model ? { kind: 'streaming', model } : null;
   if (/^Finished (?:streaming response|generating|prediction)/i.test(rest)) return model ? { kind: 'finished', model } : null;
+  if (/^Generated prediction\b/i.test(rest)) return model ? { kind: 'prediction', model } : null;
   if (level === 'ERROR' && model) return { kind: 'failed', model };
   return null;
 }
 
-type Active = { model: string; phase: 'prefill' | 'decode'; progress: number | null; startedAt: number; lastEventAt: number; requests: number };
+type Active = { model: string; phase: 'prefill' | 'decode'; progress: number | null; startedAt: number; lastEventAt: number; requests: number; streamed: number };
 const ABANDONED_MS = 30 * 60_000;
 
 /** Pure state machine over parsed log events; clocks are injected for tests. */
@@ -104,8 +109,21 @@ export class LMStudioActivityTracker {
       case 'request': {
         const entry = this.active.get(event.model);
         if (entry) { entry.requests += 1; entry.lastEventAt = at; entry.phase = 'prefill'; entry.progress = 0; }
-        else this.active.set(event.model, { model: event.model, phase: 'prefill', progress: 0, startedAt: at, lastEventAt: at, requests: 1 });
+        else this.active.set(event.model, { model: event.model, phase: 'prefill', progress: 0, startedAt: at, lastEventAt: at, requests: 1, streamed: 0 });
         this.recentModel = event.model;
+        return;
+      }
+      case 'streaming': {
+        const entry = this.active.get(event.model);
+        if (entry && entry.streamed < entry.requests) { entry.streamed += 1; entry.lastEventAt = at; }
+        return;
+      }
+      case 'prediction': {
+        // Only a request that never announced streaming ends here; streamed ones end at "Finished streaming response".
+        const entry = this.active.get(event.model);
+        if (!entry || entry.requests <= entry.streamed) return;
+        entry.requests -= 1;
+        if (entry.requests <= 0) this.active.delete(entry.model);
         return;
       }
       case 'prefill': {
@@ -140,6 +158,8 @@ export class LMStudioActivityTracker {
         const entry = model ? this.active.get(model) : undefined;
         if (!entry) return;
         entry.requests -= 1;
+        if (event.kind === 'finished' && entry.streamed > 0) entry.streamed -= 1;
+        entry.streamed = Math.min(entry.streamed, entry.requests);
         if (entry.requests <= 0) this.active.delete(entry.model);
         return;
       }

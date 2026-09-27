@@ -1,7 +1,7 @@
 export const RUNTIMES = ['omlx', 'lmstudio', 'mlx-lm', 'vllm-mlx', 'splash'] as const;
 export type Runtime = typeof RUNTIMES[number];
 export const runtimeNames: Record<Runtime, string> = {
-  omlx: 'oMLX', lmstudio: 'LM Studio', 'mlx-lm': 'mlx-lm', 'vllm-mlx': 'vllm-mlx', splash: 'Inco AI Splash',
+  omlx: 'oMLX', lmstudio: 'LM Studio', 'mlx-lm': 'mlx-lm', 'vllm-mlx': 'vllm-mlx', splash: 'Splash (standalone)',
 };
 export type RuntimeSelection = { provider: string; runtime: Runtime | null };
 export type ConnectionChoice = { id: string; label: string; runtime: Runtime | null };
@@ -14,14 +14,27 @@ export type ConnectionInfo = {
   choices: ConnectionChoice[];
   diagnostic: ConnectionDiagnostic;
   coverage: 'requests' | 'inventory' | 'server' | null;
+  /** Set when an LM Studio-compatible host serves Splash-format models (Bionic's Splash runtime pack). */
+  engine?: 'splash' | null;
+  host?: 'bionic' | null;
 };
+export type ModelFormat = 'mlx' | 'gguf' | 'splash';
 export type CatalogModel = {
   name: string;
   loaded: boolean | null;
-  format: 'mlx' | 'gguf' | null;
+  format: ModelFormat | null;
   contextWindow: number | null;
 };
+export const modelFormat = (value: unknown): ModelFormat | null => value === 'mlx' || value === 'gguf' || value === 'splash' ? value : null;
 export const runtimeValue = (value: unknown): Runtime | null => RUNTIMES.includes(value as Runtime) ? value as Runtime : null;
+/** User-facing name for what is actually being monitored, e.g. "Splash via Bionic" rather than "LM Studio". */
+export const connectionName = (runtime: Runtime | null | undefined, connection?: Pick<ConnectionInfo, 'engine' | 'host'> | null): string => {
+  if (runtime === 'lmstudio') {
+    if (connection?.engine === 'splash') return connection.host === 'bionic' ? 'Splash via Bionic' : 'Splash via LM Studio';
+    if (connection?.host === 'bionic') return 'Bionic';
+  }
+  return runtime ? runtimeNames[runtime] : 'Local runtime';
+};
 const obj = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const label = (value: unknown, max = 120): string | null => typeof value === 'string' && value.trim() ? value.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, max) : null;
 export const parseConnection = (value: unknown): ConnectionInfo | null => {
@@ -37,12 +50,14 @@ export const parseConnection = (value: unknown): ConnectionInfo | null => {
     }),
     diagnostic: diagnostics.includes(item.diagnostic as ConnectionDiagnostic) ? item.diagnostic as ConnectionDiagnostic : 'unsupported',
     coverage: ['requests', 'inventory', 'server'].includes(String(item.coverage)) ? item.coverage as ConnectionInfo['coverage'] : null,
+    engine: item.engine === 'splash' ? 'splash' : null,
+    host: item.host === 'bionic' ? 'bionic' : null,
   };
 };
 export const parseCatalog = (value: unknown): CatalogModel[] => (Array.isArray(value) ? value : []).slice(0, 12).flatMap(raw => {
   const item = obj(raw), name = label(item?.name, 160);
   if (!name) return [];
   return [{ name, loaded: typeof item?.loaded === 'boolean' ? item.loaded : null,
-    format: item?.format === 'mlx' || item?.format === 'gguf' ? item.format : null,
+    format: modelFormat(item?.format),
     contextWindow: typeof item?.contextWindow === 'number' && Number.isSafeInteger(item.contextWindow) && item.contextWindow > 0 ? item.contextWindow : null }];
 });
