@@ -202,3 +202,13 @@ describe('MLX Scope telemetry contract', () => {
     expect(normalizeOmlxTelemetry(source, { active_models: { ...active, models } })).toMatchObject({ activeRequests: 2, queuedRequests: 4 });
   });
 });
+
+it('panel parser keeps a valid lastRequest and drops a malformed one', () => {
+  const base = { available: true, phase: 'idle', sampledAt: 1 };
+  const kept = parseTelemetrySnapshot({ ...base, lastRequest: { model: 'qwen3.8-27b-splash', tokensPerSecond: 92.9, ttftSeconds: 0.5,
+    promptTokens: 26, cachedTokens: 0, outputTokens: 1092, finishedAt: 10 } });
+  expect(kept.lastRequest).toEqual({ model: 'qwen3.8-27b-splash', tokensPerSecond: 92.9, ttftSeconds: 0.5, promptTokens: 26,
+    cachedTokens: 0, outputTokens: 1092, finishedAt: 10 });
+  expect(parseTelemetrySnapshot({ ...base, lastRequest: { tokensPerSecond: -1 } }).lastRequest).toBeNull();
+  expect(parseTelemetrySnapshot({ ...base, lastRequest: { tokensPerSecond: 'fast', finishedAt: 2 } }).lastRequest).toMatchObject({ tokensPerSecond: null });
+});

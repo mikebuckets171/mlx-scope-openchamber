@@ -84,8 +84,20 @@ fallback (0.3.6+). Authentication failures and malformed responses do not trigge
 that fallback. Model-level v0 context limits are not current request budgets.
 
 Passive REST reads do not expose live speed, prefill, reuse, queue, or process RAM.
-Statistics inside inference responses and experimental conversation-log streams
-are not used. The view shows inventory and host resources. With authentication
+When the `lms` CLI is installed (`~/.lmstudio/bin/lms`), Scope also follows
+`lms log stream -s server --json` while it is open (verified with LM Studio Bionic
+1.1.6 and its Splash runtime 0.0.5). From that redacted server log it reads:
+
+- `Running chat completion` with the model tag: a request started.
+- `Prompt processing progress: N%`: prompt-reading progress; 100% means generating.
+- `Done · input N · cached N · output N · TTFT Ns · N tok/s`: the exact completion figures.
+- `Finished streaming response`: the request ended.
+
+LM Studio does not report a running token count during generation, so the view
+shows generating with elapsed time and the previous response's exact speed until the
+current one finishes. Session decode average and cache reuse cover responses finished
+since Scope started watching. Statistics inside inference responses are not used.
+Without `lms`, the view shows inventory and host resources only. With authentication
 enabled, use an existing [LM Studio API token](https://lmstudio.ai/docs/developer/core/authentication).
 
 ## mlx-lm

@@ -187,6 +187,7 @@ const rate = (value: number | null | undefined): string => value == null ? '—'
 const gb = (value: number | null | undefined): string => value == null ? '—' : `${number.format(toGiB(value))} GiB`;
 const ratio = (a: number | null | undefined, b: number | null | undefined): number | null => a == null || b == null || b <= 0 ? null : a / b * 100;
 const percent = (value: number | null | undefined): string => value == null ? '—' : `${Math.round(value)}%`;
+const finishedAgo = (at: number): string => { const seconds = Math.max(0, Math.floor((Date.now() - at) / 1000)); return seconds < 3 ? 'just finished' : seconds < 60 ? `finished ${seconds}s ago` : `finished ${Math.floor(seconds / 60)}m ago`; };
 const age = (at: number): string => { const seconds = Math.max(0, Math.floor((Date.now() - at) / 1000)); return seconds < 3 ? 'Updated now' : seconds < 60 ? `Updated ${seconds}s ago` : `Updated ${Math.floor(seconds / 60)}m ago`; };
 const phases: Record<TelemetryPhase, string> = { connecting: 'Connecting', reconnecting: 'Reconnecting', offline: 'Offline', notLoaded: 'No model', idle: 'Ready', queued: 'Queued', prefill: 'Reading context', decode: 'Generating', processing: 'Processing', unknown: 'Unavailable' };
 
@@ -304,13 +305,23 @@ const update = (snapshot: TelemetrySnapshot): void => {
     : '');
   const splashRate = runtime === 'splash' && current?.serverStats?.ready === true
     ? current.serverStats.aggregateDecodeTokensPerSecond : null;
+  const logActivity = runtime === 'lmstudio' && coverage === 'requests' && current !== null;
+  const lastRequest = logActivity ? current.lastRequest ?? null : null;
+  const lastRate = lastRequest?.tokensPerSecond ?? null;
+  const logRate = logActivity && liveRate === null && phase !== 'decode' && phase !== 'prefill' ? lastRate : null;
   text('rate', runtime === 'splash' ? splashRate === null ? '—' : rateNumber.format(splashRate)
-    : liveRate !== null ? rateNumber.format(liveRate) : phase === 'idle' ? 'Ready' : phase === 'notLoaded' ? 'Standby' : '—');
-  node('rate').classList.toggle('is-word', runtime === 'splash' ? splashRate === null : liveRate === null);
+    : liveRate !== null ? rateNumber.format(liveRate) : logRate !== null ? rateNumber.format(logRate)
+      : logActivity && phase === 'decode' ? 'Generating' : logActivity && phase === 'prefill' ? 'Reading'
+        : phase === 'idle' ? 'Ready' : phase === 'notLoaded' ? 'Standby' : '—');
+  node('rate').classList.toggle('is-word', runtime === 'splash' ? splashRate === null : liveRate === null && logRate === null);
   text('unit', runtime === 'splash' ? stale ? 'Last aggregate reading · not live'
     : current?.serverStats?.ready === false ? 'Decode unavailable while Splash is not ready'
       : splashRate === null ? 'Aggregate decode unavailable' : 'tok/s · aggregate server decode'
-    : liveRate !== null ? observedRate ? 'tokens / second · recent output' : phase === 'prefill' ? 'prefill tokens / second' : 'tokens / second · request average' : phase === 'idle' ? 'Waiting for your next request' : phase === 'notLoaded' ? `Load a model in ${runtimeName}` : 'No fresh throughput');
+    : liveRate !== null ? observedRate ? 'tokens / second · recent output' : phase === 'prefill' ? 'prefill tokens / second' : 'tokens / second · request average'
+      : logActivity && phase === 'decode' ? `Exact speed arrives when this response finishes${lastRate !== null ? ` · last ${rateNumber.format(lastRate)} tok/s` : ''}`
+        : logActivity && phase === 'prefill' ? 'Reading the prompt'
+          : logRate !== null ? `tok/s · last response (exact)${lastRequest ? ` · ${finishedAgo(lastRequest.finishedAt)}` : ''}`
+            : phase === 'idle' ? 'Waiting for your next request' : phase === 'notLoaded' ? `Load a model in ${runtimeName}` : 'No fresh throughput');
   text('activity', stale ? snapshot.message ?? `Start ${runtimeName} on this host, then refresh.` : current.message ?? (phase === 'idle' ? 'Model loaded. Ready for your next request.' : phase === 'notLoaded' ? `${runtimeName} is running. Load a model to begin.` : `${count(current.activeRequests)} active · ${current.queuedRequests === null ? 'queue not reported' : current.queuedRequests ? `${current.queuedRequests} queued` : 'queue clear'}`));
   text('notice', stale && last ? `${age(last.sampledAt)}. Retained details are not live.` : '');
   hidden('notice', !stale || last === null);
@@ -331,16 +342,17 @@ const update = (snapshot: TelemetrySnapshot): void => {
   text('requests', count(current?.activeRequests)); text('queue', current ? current.queuedRequests === null ? 'Queue not reported' : current.queuedRequests ? `${current.queuedRequests} queued` : 'Queue clear' : 'No live reading');
   text('session-title', runtime === 'splash' ? 'Splash server statistics' : 'Server session');
   text('stats-label-one', runtime === 'splash' ? 'Aggregate decode' : 'Decode average');
-  text('stats-label-two', runtime === 'splash' ? 'Completed requests' : 'Prefill average');
+  text('stats-label-two', runtime === 'splash' ? 'Completed requests' : logActivity ? 'Last first token' : 'Prefill average');
   text('stats-label-three', runtime === 'splash' ? 'Failed requests' : 'Cache efficiency');
   text('average-decode', rate(runtime === 'splash' ? display?.serverStats?.aggregateDecodeTokensPerSecond ?? null : display?.sessionAverageDecodeTPS));
-  text('average-prefill', runtime === 'splash' ? count(display?.serverStats?.completedRequests) : rate(display?.sessionAveragePrefillTPS));
+  text('average-prefill', runtime === 'splash' ? count(display?.serverStats?.completedRequests)
+    : logActivity ? lastRequest?.ttftSeconds == null ? '—' : `${number.format(lastRequest.ttftSeconds)}s` : rate(display?.sessionAveragePrefillTPS));
   text('average-cache', runtime === 'splash' ? count(display?.serverStats?.failedRequests) : percent(display?.sessionCacheEfficiencyPercent));
   const statsState = stale ? 'stale' : current?.sessionStatsState ?? 'unavailable';
   node('session-stats').dataset.stale = String(runtime === 'splash' ? stale : statsState !== 'fresh');
   text('session-stats-state', runtime === 'splash'
     ? stale ? 'Last reading · not live; counters reset when the engine restarts.' : 'Server-wide counters since engine start. Decode throughput combines concurrent work.'
-    : statsState === 'fresh' ? 'Completed requests across all models' : statsState === 'stale' ? 'Last available totals · not live' : 'Session statistics unavailable');
+    : statsState === 'fresh' ? logActivity ? 'Exact figures from LM Studio for responses finished since MLX Scope started watching' : 'Completed requests across all models' : statsState === 'stale' ? 'Last available totals · not live' : 'Session statistics unavailable');
   const uptime = display?.lifetime?.uptimeSeconds;
   text('uptime', runtime === 'splash' ? 'Since engine start' : uptime == null ? 'Since start / reset' : `${Math.floor(uptime / 3600)}h ${Math.floor(uptime % 3600 / 60)}m · since start`);
   text('process-memory', gb(runtime === 'splash' ? display?.serverStats?.metalCurrentGB : display?.memory?.activeGB));

@@ -10,7 +10,7 @@ APIs. Each view reflects what that server actually reports.
 | --- | --- |
 | **oMLX** | Prefill remaining and stage estimate, generation and recent output speed, context/reuse, model activity, cache and process readings |
 | **vllm-mlx** | Reported request activity, queue, output and speed; prefill and reuse where the engine exposes usable data |
-| **LM Studio** | Available and loaded models, model format, loaded-instance context limits |
+| **LM Studio** | Available and loaded models, model format, loaded-instance context limits; with the `lms` CLI installed, live request state (prompt progress, generating, elapsed) and exact per-response tok/s, time to first token, and token counts, including Splash in LM Studio Bionic |
 | **mlx-lm** | Server availability and available model catalogue; model residency is not reported |
 | **Inco AI Splash** | Loaded model and declared context limit, server-wide request counters, aggregate decode throughput, and current/peak Metal allocations |
 

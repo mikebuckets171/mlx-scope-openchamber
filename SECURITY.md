@@ -28,10 +28,13 @@ source and install releases you trust.
   supplied key is never retried without authentication.
 - Configuration and referenced-file reads, response bodies, subprocess output,
   timeouts, histories, connections, and storage are bounded. Native diagnostics
-  use two fixed commands without a shell.
+  use two fixed commands without a shell. LM Studio activity uses one fixed
+  `lms log stream -s server --json` command without a shell, started only on demand.
 - API responses are normalized into an allowlist before reaching the panel.
   oMLX admin responses can contain sensitive fields; raw responses are never shared.
-  Runtime conversation logs and inference response streams are not observed.
+  Inference response streams are not observed. LM Studio's server log is read only
+  for request lifecycle lines; any other line, including request bodies if LM Studio
+  redaction is disabled, is discarded.
 - Sharing requires a user action and can append to a draft, but cannot send it.
 
 MLX Scope does not manage models, clear caches, run inference, create credentials,

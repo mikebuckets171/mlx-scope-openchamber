@@ -71,6 +71,17 @@ export type TelemetryServerStats = {
   metalPeakGB: number | null;
 };
 
+/** Exact figures for the most recently finished request, as reported by the runtime at completion. */
+export type TelemetryLastRequest = {
+  model: string | null;
+  tokensPerSecond: number | null;
+  ttftSeconds: number | null;
+  promptTokens: number | null;
+  cachedTokens: number | null;
+  outputTokens: number | null;
+  finishedAt: number;
+};
+
 export type ResidentModel = {
   id: string;
   phase: TelemetryPhase;
@@ -112,6 +123,7 @@ type TelemetryFields = {
   sessionBank: TelemetrySessionBank | null;
   lifetime: TelemetryLifetime | null;
   serverStats: TelemetryServerStats | null;
+  lastRequest?: TelemetryLastRequest | null;
   memoryPressureLevel: number | null;
   memoryPressureSource: string | null;
   sampledAt: number;
@@ -236,6 +248,7 @@ const emptyFields = (sampledAt: number): TelemetryFields => ({
   sessionBank: null,
   lifetime: null,
   serverStats: null,
+  lastRequest: null,
   memoryPressureLevel: null,
   memoryPressureSource: null,
   sampledAt,
@@ -623,6 +636,7 @@ export const normalizeOmlxTelemetry = (
     sessionBank,
     lifetime: sessionStatsState === 'unavailable' && !statsAreUsable ? null : normalizeLifetime(statsData),
     serverStats: null,
+    lastRequest: null,
     memoryPressureLevel: pressureLevel,
     memoryPressureSource: pressureLevel === null ? null : 'oMLX process memory guard (not macOS pressure)',
     sampledAt,
@@ -699,6 +713,21 @@ const normalizeServerStatsFromPanel = (value: unknown): TelemetryServerStats | n
   };
 };
 
+const normalizeLastRequestFromPanel = (value: unknown): TelemetryLastRequest | null => {
+  const item = asObject(value);
+  const finishedAt = nonnegative(item?.finishedAt);
+  if (!item || finishedAt === null) return null;
+  return {
+    model: modelLabel(item.model),
+    tokensPerSecond: nonnegative(item.tokensPerSecond),
+    ttftSeconds: nonnegative(item.ttftSeconds),
+    promptTokens: tokenCount(item.promptTokens),
+    cachedTokens: tokenCount(item.cachedTokens),
+    outputTokens: tokenCount(item.outputTokens),
+    finishedAt,
+  };
+};
+
 const parseResidentModels = (value: unknown): ResidentModel[] => {
   if (!Array.isArray(value)) return [];
   return value.slice(0, MAX_RESIDENT_MODELS).flatMap(entry => {
@@ -769,6 +798,7 @@ export const parseTelemetrySnapshot = (value: unknown, observedAt?: number): Tel
     sessionBank: normalizeSessionBankFromPanel(record.sessionBank),
     lifetime: normalizeLifetimeFromPanel(record.lifetime),
     serverStats: normalizeServerStatsFromPanel(record.serverStats),
+    lastRequest: normalizeLastRequestFromPanel(record.lastRequest),
     memoryPressureLevel: nonnegative(record.memoryPressureLevel) === null
       ? null
       : Math.min(3, Math.trunc(nonnegative(record.memoryPressureLevel)!)),
