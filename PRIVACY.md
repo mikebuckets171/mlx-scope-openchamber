@@ -12,7 +12,14 @@ and environment variables. Credentials and raw API responses stay service-side.
 The panel receives allowlisted measurements, bounded model labels, and connection
 choices. It does not receive prompts, completions, credentials, or raw request
 identifiers. Absolute model paths are reduced to names before display.
-Neither component rewrites configuration files or reads runtime conversation logs.
+Neither component rewrites configuration files or reads conversation content.
+For LM Studio, the service follows LM Studio's server log with
+`lms log stream -s server --json` while MLX Scope is open. It parses only request
+lifecycle lines (model name, prompt-processing percentage, and the completion
+summary of token counts, time to first token, and tokens per second) and ignores
+every other line. LM Studio redacts request bodies in this log by default; if you
+turn that redaction off, those lines reach the service process but are still
+discarded without being stored or sent to the panel.
 
 Chart history, recent generations, and working captures remain in memory.
 OpenChamber extension storage holds interface preferences and the selected provider

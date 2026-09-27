@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.0
+
+- Add live LM Studio and LM Studio Bionic activity, including Splash models
+  served inside Bionic. The service follows LM Studio's own redacted server log
+  (`lms log stream -s server --json`) and reads only request lifecycle lines:
+  which model is working, prompt-reading progress, and the completion summary.
+- Show generation state and elapsed time while a request runs, and the exact
+  tokens per second, time to first token, and token counts LM Studio reports
+  when each response finishes. Session average decode speed and cache reuse are
+  computed from those completion figures. LM Studio does not report a running
+  token count, so no mid-response speed is estimated or invented.
+- The log stream runs only while MLX Scope is being read, stops 60 seconds after
+  the last read, restarts with backoff if it exits, and is skipped entirely when
+  the `lms` CLI is not installed. The manifest now declares `lms`.
+
 ## 1.2.1
 
 - Bring Splash model identity, readiness, aggregate decode, and completed/failed

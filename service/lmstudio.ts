@@ -2,6 +2,10 @@ import { unavailableTelemetry, type ResidentModel, type TelemetrySnapshot } from
 import type { CatalogModel } from '../src/runtime.ts';
 import type { RuntimeRead } from './adapter.ts';
 import { HttpFailure } from './http.ts';
+import type { LMStudioActivityView } from './lmstudio-activity.ts';
+
+type ActivitySource = { touch(): void; view(): LMStudioActivityView | null };
+const rateText = (value: number | null): string | null => value === null ? null : `${value.toFixed(1)} tok/s`;
 
 const DISPLAY_LIMIT = 12;
 const object = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -20,12 +24,17 @@ const resident = (id: string): ResidentModel => ({
   tokensPerSecond: null, prefillProgress: null, progressStale: false,
 });
 
-/** Reads model inventory only; LM Studio's REST GET API does not expose live inference. */
+/**
+ * Reads model inventory from LM Studio's REST API. When a local log-stream source is healthy, live request
+ * phase and exact per-request completion figures come from LM Studio's redacted server log.
+ */
 export class LMStudioClient {
   private legacy = false;
-  constructor(private readonly read: RuntimeRead, private readonly now: () => number = Date.now) {}
+  constructor(private readonly read: RuntimeRead, private readonly now: () => number = Date.now,
+    private readonly activity: ActivitySource | null = null) {}
 
   async snapshot(): Promise<TelemetrySnapshot> {
+    this.activity?.touch();
     let body: Record<string, unknown> | null;
     try { body = await this.read(this.legacy ? '/api/v0/models' : '/api/v1/models'); }
     catch (error) {
@@ -80,12 +89,48 @@ export class LMStudioClient {
       if (catalog.length < DISPLAY_LIMIT) catalog.push({ name, loaded, format: format(this.legacy ? item.compatibility_type : item.format), contextWindow });
     }
     if (rows.length > 0 && validModels === 0) return unsupported();
-    return {
+    const inventory: TelemetrySnapshot = {
       ...unavailableTelemetry('unsupported_contract', null, this.now()),
       available: true, reason: null, runtime: 'lmstudio', phase: 'unknown',
       modelID: residentModels[0]?.id ?? null,
       message: 'Model inventory is available. Live prefill and generation are not reported by this API.',
       catalog, residentModels, residentModelCount: countKnown ? loadedCount : null,
+    };
+    const view = this.activity?.view() ?? null;
+    return view ? this.withActivity(inventory, view, countKnown ? loadedCount : null) : inventory;
+  }
+
+  private withActivity(inventory: TelemetrySnapshot, view: LMStudioActivityView, loadedCount: number | null): TelemetrySnapshot {
+    const now = this.now();
+    const active = view.active;
+    const last = view.lastRequest;
+    const phase = view.concurrent ? 'processing' : active ? active.phase : loadedCount === null ? 'unknown' : loadedCount > 0 ? 'idle' : 'notLoaded';
+    const lastSummary = last ? [
+      rateText(last.tokensPerSecond), last.outputTokens === null ? null : `${last.outputTokens.toLocaleString('en-US')} output tokens`,
+      last.ttftSeconds === null ? null : `first token ${last.ttftSeconds.toFixed(1)}s`,
+    ].filter(Boolean).join(' · ') : null;
+    const message = view.concurrent
+      ? `${view.activeRequests} requests are running in LM Studio. Per-request progress is withheld while they overlap; exact speeds appear as each finishes.`
+      : active
+      ? active.phase === 'prefill'
+        ? `Reading the prompt on ${active.model}${active.progress !== null ? ` · ${Math.round(active.progress * 100)}%` : ''}.`
+        : `Generating on ${active.model}. LM Studio reports exact speed when the response finishes${last?.tokensPerSecond != null ? ` (last: ${rateText(last.tokensPerSecond)})` : ''}.`
+      : lastSummary ? `Last response: ${lastSummary}.` : phase === 'idle' ? 'Model loaded. Ready for your next request.' : inventory.message;
+    const residentModels = inventory.residentModels.map(model => active && model.id === active.model
+      ? { ...model, phase: active.phase, activeRequests: active.requests, prefillProgress: active.phase === 'prefill' ? active.progress : null } : model);
+    return {
+      ...inventory,
+      phase,
+      modelID: active?.model ?? last?.model ?? inventory.modelID,
+      message,
+      prefillProgress: active?.phase === 'prefill' ? active.progress : null,
+      elapsedSeconds: active ? Math.max(0, (now - active.startedAt) / 1000) : null,
+      activeRequests: view.activeRequests,
+      sessionStatsState: view.completedRequests > 0 ? 'fresh' : 'unavailable',
+      sessionAverageDecodeTPS: view.averageDecodeTPS,
+      sessionCacheEfficiencyPercent: view.cacheEfficiencyPercent,
+      lastRequest: last,
+      residentModels,
     };
   }
 }

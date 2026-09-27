@@ -5,6 +5,7 @@ import { resolveRuntimeConnections, type RuntimeConnections, type RuntimeConnect
 import { requestJSON, HttpFailure, type FetchImplementation } from './http.ts';
 import { OmlxClient, isOmlxHealth } from './omlx-client.ts';
 import { LMStudioClient } from './lmstudio.ts';
+import type { LMStudioActivityStream } from './lmstudio-activity.ts';
 import { MlxLmClient } from './mlx-lm.ts';
 import { VllmMlxClient } from './vllm-mlx.ts';
 import { SplashClient } from './splash.ts';
@@ -23,6 +24,8 @@ type Options = {
   monotonicNow?: () => number;
   requestTimeoutMs?: number;
   collectionDeadlineMs?: number;
+  /** Local LM Studio log-stream source; omitted or `null` keeps LM Studio inventory-only. */
+  lmstudioActivity?: LMStudioActivityStream | null;
 };
 
 /** One demand-driven pipeline per selected connection; credentials never enter a snapshot. */
@@ -37,6 +40,7 @@ export class RuntimeClient {
   private configAt = -Infinity;
   private configFlight: Promise<RuntimeConnections> | null = null;
   private readonly slots = new Map<string, Slot>();
+  private readonly lmstudioActivity: LMStudioActivityStream | null;
 
   constructor(options: Options = {}) {
     this.fetchImpl = options.fetchImpl ?? fetch;
@@ -45,7 +49,10 @@ export class RuntimeClient {
     this.monotonic = options.monotonicNow ?? (options.now ? options.now : () => performance.now());
     this.timeout = options.requestTimeoutMs ?? 3000;
     this.budget = options.collectionDeadlineMs ?? 8000;
+    this.lmstudioActivity = options.lmstudioActivity?.available ? options.lmstudioActivity : null;
   }
+
+  dispose(): void { this.lmstudioActivity?.stop(); }
   private async config(): Promise<RuntimeConnections> {
     if (this.configuration && this.monotonic() - this.configAt < 5000) return this.configuration;
     if (!this.configFlight) this.configFlight = this.readConfig().then(value => {
@@ -84,7 +91,7 @@ export class RuntimeClient {
       this.slots.set(key, slot);
     }
     const current = slot;
-    const cadence = current.runtime === 'lmstudio' ? 5000 : current.runtime === 'mlx-lm' || current.runtime === 'splash' ? 2000 : 450;
+    const cadence = current.runtime === 'lmstudio' ? this.lmstudioActivity ? 1000 : 5000 : current.runtime === 'mlx-lm' || current.runtime === 'splash' ? 2000 : 450;
     if (!current.inFlight && !(current.snapshot && (this.monotonic() - current.sampledAt < cadence || this.monotonic() < current.retryAt))) {
       current.deadline = this.monotonic() + this.budget;
       current.inFlight = this.collect(current, choice).catch(error => {
@@ -110,7 +117,8 @@ export class RuntimeClient {
       diagnostic: snapshot.available ? runtime === 'splash' && snapshot.serverStats?.ready === false ? 'offline' : 'ready'
         : snapshot.reason === 'authentication_failed' ? 'authentication' : snapshot.reason === 'unsupported_contract' ? 'unsupported' : 'offline',
       coverage: runtime === 'splash' || runtime === 'vllm-mlx' && snapshot.available && snapshot.phase === 'unknown' && snapshot.activeRequests === null ? 'server'
-        : runtime === 'omlx' || runtime === 'vllm-mlx' ? 'requests' : runtime ? 'inventory' : null } };
+        : runtime === 'omlx' || runtime === 'vllm-mlx' || runtime === 'lmstudio' && snapshot.available && snapshot.phase !== 'unknown' ? 'requests'
+        : runtime ? 'inventory' : null } };
   }
 
   private async collect(slot: Slot, choice: RuntimeConnectionConfig): Promise<TelemetrySnapshot> {
@@ -146,7 +154,7 @@ export class RuntimeClient {
     if (!slot.client) {
       const reader: RuntimeRead = async path => (await read(path, path !== '/health')).body;
       slot.client = slot.runtime === 'omlx' ? new OmlxClient({ fetchImpl: this.fetchImpl, readConfig: async () => choice.config, now: this.now, monotonicNow: this.monotonic, requestTimeoutMs: this.timeout, collectionDeadlineMs: this.budget })
-        : slot.runtime === 'lmstudio' ? new LMStudioClient(reader, this.now)
+        : slot.runtime === 'lmstudio' ? new LMStudioClient(reader, this.now, this.lmstudioActivity)
         : slot.runtime === 'mlx-lm' ? new MlxLmClient(reader, this.now)
         : slot.runtime === 'splash' ? new SplashClient(reader, this.now)
         : new VllmMlxClient(reader, this.now);

@@ -1,4 +1,5 @@
 import { RuntimeClient } from './runtime-client.ts';
+import { LMStudioActivityStream } from './lmstudio-activity.ts';
 import { SystemSampler } from './system.ts';
 import { createScopeServer } from './server.ts';
 
@@ -8,7 +9,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535 || token.length === 0) 
   console.error('OpenChamber service port and token are required.');
   process.exit(1);
 }
-const client = new RuntimeClient();
+const client = new RuntimeClient({ lmstudioActivity: new LMStudioActivityStream() });
 const system = new SystemSampler();
 const server = createScopeServer(token, {
   snapshot: selection => client.snapshot(selection), system: () => system.sample(),
@@ -21,9 +22,11 @@ let stopping = false;
 const stop = (): void => {
   if (stopping) return;
   stopping = true;
+  client.dispose();
   server.close(() => process.exit(0));
   setTimeout(() => { server.closeAllConnections(); process.exit(0); }, 2_000).unref();
 };
 process.once('SIGTERM', stop);
 process.once('SIGINT', stop);
+process.once('exit', () => client.dispose());
 server.listen(port, '127.0.0.1');
