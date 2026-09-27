@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { LMStudioActivityStream, LMStudioActivityTracker, parseLMStudioServerLine } from './lmstudio-activity.ts';
+import { BoundedLines, LMStudioActivityStream, LMStudioActivityTracker, MAX_LOG_LINE_BYTES, parseLMStudioServerLine } from './lmstudio-activity.ts';
 
 // Lines captured from LM Studio Bionic 1.1.6 with request-content redaction on.
 const LINES = {
@@ -60,16 +60,46 @@ test('session average weights by output tokens and cache efficiency uses reporte
   expect(view.cacheEfficiencyPercent).toBeCloseTo(900 / 1100 * 100, 5);
 });
 
-test('overlapping requests on one model stay active until each finishes, and abandoned requests expire', () => {
+test('overlapping requests are ambiguous: no per-request state and no model attribution for completions', () => {
+  let now = 0;
+  const tracker = new LMStudioActivityTracker(() => now);
+  tracker.apply({ kind: 'request', model: 'a' });
+  tracker.apply({ kind: 'request', model: 'b' });
+  expect(tracker.view()).toMatchObject({ activeRequests: 2, concurrent: true, active: null });
+  tracker.apply({ kind: 'done', promptTokens: 10, cachedTokens: 0, outputTokens: 50, ttftSeconds: 0.2, tokensPerSecond: 80 });
+  expect(tracker.view().lastRequest).toMatchObject({ model: null, tokensPerSecond: 80 });
+  tracker.apply({ kind: 'finished', model: 'b' });
+  expect(tracker.view()).toMatchObject({ activeRequests: 1, concurrent: false, active: { model: 'a' } });
+  tracker.apply({ kind: 'done', promptTokens: 10, cachedTokens: 0, outputTokens: 50, ttftSeconds: 0.2, tokensPerSecond: 70 });
+  expect(tracker.view().lastRequest).toMatchObject({ model: 'a', tokensPerSecond: 70 });
+});
+
+test('requests that stop reporting are dropped after 30 minutes', () => {
   let now = 0;
   const tracker = new LMStudioActivityTracker(() => now);
   tracker.apply({ kind: 'request', model: 'm' });
-  tracker.apply({ kind: 'request', model: 'm' });
-  expect(tracker.view()).toMatchObject({ activeRequests: 2, active: { requests: 2 } });
-  tracker.apply({ kind: 'finished', model: 'm' });
-  expect(tracker.view()).toMatchObject({ activeRequests: 1 });
   now = 31 * 60_000;
-  expect(tracker.view()).toMatchObject({ active: null, activeRequests: 0 });
+  expect(tracker.view()).toMatchObject({ active: null, activeRequests: 0, concurrent: false });
+});
+
+test('absolute and URL-like model tags are reduced to their final segment', () => {
+  expect(parseLMStudioServerLine('[t][INFO][/Users/someone/private/models/my-model.gguf] Running chat completion on conversation with 1 messages.'))
+    .toEqual({ kind: 'request', model: 'my-model.gguf' });
+  expect(parseLMStudioServerLine('[t][INFO][~/models/qwen/] Prompt processing progress: 10%')).toEqual({ kind: 'prefill', model: 'qwen', progress: 0.1 });
+  expect(parseLMStudioServerLine('[t][INFO][file:///tmp/x/secret-model] Finished streaming response')).toEqual({ kind: 'finished', model: 'secret-model' });
+  expect(parseLMStudioServerLine('[t][INFO][publisher/model-name] Finished streaming response')).toEqual({ kind: 'finished', model: 'publisher/model-name' });
+});
+
+test('bounded line reader never buffers more than the limit and resumes after an oversized record', () => {
+  const lines: string[] = [];
+  const reader = new BoundedLines(line => lines.push(line), 32);
+  reader.push(Buffer.from('short\r\npart'));
+  reader.push(Buffer.from('ial\n'));
+  reader.push(Buffer.from('x'.repeat(20)));
+  reader.push(Buffer.from('y'.repeat(20)));
+  reader.push(Buffer.from('z'.repeat(1000) + '\nafter\n'));
+  expect(lines).toEqual(['short', 'partial', 'after']);
+  expect(MAX_LOG_LINE_BYTES).toBe(16 * 1024);
 });
 
 class FakeChild extends EventEmitter {

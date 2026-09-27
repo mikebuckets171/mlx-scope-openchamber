@@ -136,7 +136,7 @@ test('LM Studio client adds live phase and exact completion figures from an acti
   const last = { model: 'qwen3.8-27b-splash', tokensPerSecond: 92.9, ttftSeconds: 0.5, promptTokens: 26, cachedTokens: 0, outputTokens: 1092, finishedAt: 900 };
   let view: ReturnType<NonNullable<ConstructorParameters<typeof LMStudioClient>[2]>['view']> = {
     active: { model: 'qwen3.8-27b-splash', phase: 'decode', progress: null, startedAt: 1_000, requests: 1 },
-    activeRequests: 1, lastRequest: last, completedRequests: 1, averageDecodeTPS: 92.9, cacheEfficiencyPercent: 0,
+    concurrent: false, activeRequests: 1, lastRequest: last, completedRequests: 1, averageDecodeTPS: 92.9, cacheEfficiencyPercent: 0,
   };
   const client = new LMStudioClient(inventory, () => 4_500, { touch: () => { touched += 1; }, view: () => view });
   const generating = await client.snapshot();
@@ -153,6 +153,15 @@ test('LM Studio client adds live phase and exact completion figures from an acti
   const idle = await client.snapshot();
   expect(idle).toMatchObject({ phase: 'idle', prefillProgress: null, elapsedSeconds: null, activeRequests: 0 });
   expect(idle.message).toBe('Last response: 92.9 tok/s · 1,092 output tokens · first token 0.5s.');
+});
+
+test('overlapping LM Studio requests are reported as processing with per-request values withheld', async () => {
+  const inventory = async () => ({ models: [model({ key: 'm', loaded_instances: [{ id: 'm', config: { context_length: 8192 } }] })] });
+  const client = new LMStudioClient(inventory, () => 5_000, { touch: () => {}, view: () => ({
+    active: null, concurrent: true, activeRequests: 2, lastRequest: null, completedRequests: 0, averageDecodeTPS: null, cacheEfficiencyPercent: null }) });
+  const result = await client.snapshot();
+  expect(result).toMatchObject({ phase: 'processing', activeRequests: 2, prefillProgress: null, elapsedSeconds: null });
+  expect(result.message).toContain('2 requests are running');
 });
 
 test('LM Studio client stays inventory-only when the activity source is unhealthy', async () => {

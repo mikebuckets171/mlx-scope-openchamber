@@ -104,12 +104,14 @@ export class LMStudioClient {
     const now = this.now();
     const active = view.active;
     const last = view.lastRequest;
-    const phase = active ? active.phase : loadedCount === null ? 'unknown' : loadedCount > 0 ? 'idle' : 'notLoaded';
+    const phase = view.concurrent ? 'processing' : active ? active.phase : loadedCount === null ? 'unknown' : loadedCount > 0 ? 'idle' : 'notLoaded';
     const lastSummary = last ? [
       rateText(last.tokensPerSecond), last.outputTokens === null ? null : `${last.outputTokens.toLocaleString('en-US')} output tokens`,
       last.ttftSeconds === null ? null : `first token ${last.ttftSeconds.toFixed(1)}s`,
     ].filter(Boolean).join(' · ') : null;
-    const message = active
+    const message = view.concurrent
+      ? `${view.activeRequests} requests are running in LM Studio. Per-request progress is withheld while they overlap; exact speeds appear as each finishes.`
+      : active
       ? active.phase === 'prefill'
         ? `Reading the prompt on ${active.model}${active.progress !== null ? ` · ${Math.round(active.progress * 100)}%` : ''}.`
         : `Generating on ${active.model}. LM Studio reports exact speed when the response finishes${last?.tokensPerSecond != null ? ` (last: ${rateText(last.tokensPerSecond)})` : ''}.`

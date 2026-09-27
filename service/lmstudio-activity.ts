@@ -2,7 +2,6 @@ import { spawn, type ChildProcessByStdio } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { createInterface } from 'node:readline';
 import type { Readable } from 'node:stream';
 
 /** One recognised line of LM Studio's redacted server log. Prompt and output text are never read. */
@@ -25,7 +24,10 @@ export type LMStudioLastRequest = {
 };
 
 export type LMStudioActivityView = {
+  /** The single in-flight request. Null when idle or when requests overlap (see `concurrent`). */
   active: { model: string; phase: 'prefill' | 'decode'; progress: number | null; startedAt: number; requests: number } | null;
+  /** True when more than one request is in flight: log lines cannot be attributed to one request. */
+  concurrent: boolean;
   activeRequests: number;
   lastRequest: LMStudioLastRequest | null;
   completedRequests: number;
@@ -44,8 +46,12 @@ const decimal = (value: string | undefined): number | null => {
   const parsed = Number(value.replace(/,/g, ''));
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 };
+/** Same boundary as inventory names: absolute or URL-like paths are reduced to their final segment. */
 const cleanModel = (value: string | undefined): string | null => {
-  const clean = value?.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  let clean = value?.replace(/[\u0000-\u001f\u007f]/g, '').trim() ?? '';
+  if (/^(?:[\\/]|\.{1,2}[\\/]|[a-z]:[\\/]|~[\\/]|[a-z][a-z0-9+.-]*:\/\/|file:)/i.test(clean)) {
+    clean = clean.replace(/[?#].*$/, '').replace(/\\/g, '/').replace(/\/+$/, '').split('/').at(-1) ?? '';
+  }
   return clean ? clean.slice(0, 160) : null;
 };
 
@@ -112,7 +118,10 @@ export class LMStudioActivityTracker {
         return;
       }
       case 'done': {
-        this.last = { model: this.recentModel, tokensPerSecond: event.tokensPerSecond, ttftSeconds: event.ttftSeconds,
+        // The completion summary carries no model tag; attribute it only when exactly one request is in flight.
+        const inFlight = [...this.active.values()].reduce((sum, entry) => sum + entry.requests, 0);
+        const owner = inFlight === 1 ? [...this.active.keys()][0] ?? null : inFlight === 0 ? this.recentModel : null;
+        this.last = { model: owner, tokensPerSecond: event.tokensPerSecond, ttftSeconds: event.ttftSeconds,
           promptTokens: event.promptTokens, cachedTokens: event.cachedTokens, outputTokens: event.outputTokens, finishedAt: at };
         this.completed += 1;
         if (event.outputTokens !== null && event.tokensPerSecond !== null && event.tokensPerSecond > 0) {
@@ -147,10 +156,13 @@ export class LMStudioActivityTracker {
     let activeRequests = 0;
     for (const entry of this.active.values()) {
       activeRequests += entry.requests;
-      if (!current || entry.startedAt > current.startedAt) current = entry;
+      current = entry;
     }
+    const concurrent = activeRequests > 1;
     return {
-      active: current ? { model: current.model, phase: current.phase, progress: current.progress, startedAt: current.startedAt, requests: current.requests } : null,
+      active: current && !concurrent
+        ? { model: current.model, phase: current.phase, progress: current.progress, startedAt: current.startedAt, requests: current.requests } : null,
+      concurrent,
       activeRequests,
       lastRequest: this.last,
       completedRequests: this.completed,
@@ -158,6 +170,37 @@ export class LMStudioActivityTracker {
       cacheEfficiencyPercent: this.promptTokens > 0 ? this.cachedTokens / this.promptTokens * 100 : null,
     };
   }
+}
+
+/** Longest log record kept. Lifecycle lines are well under 1 KB; longer records are discarded unread. */
+export const MAX_LOG_LINE_BYTES = 16 * 1024;
+
+/** Splits a byte stream into lines without ever buffering more than `limit` bytes of one line. */
+export class BoundedLines {
+  private parts: Buffer[] = [];
+  private size = 0;
+  private discarding = false;
+
+  constructor(private readonly onLine: (line: string) => void, private readonly limit = MAX_LOG_LINE_BYTES) {}
+
+  push(chunk: Buffer): void {
+    let start = 0;
+    while (start < chunk.length) {
+      const newline = chunk.indexOf(0x0a, start);
+      const end = newline === -1 ? chunk.length : newline;
+      if (!this.discarding) {
+        const piece = chunk.subarray(start, end);
+        if (this.size + piece.length > this.limit) { this.discarding = true; this.parts = []; this.size = 0; }
+        else if (piece.length) { this.parts.push(Buffer.from(piece)); this.size += piece.length; }
+      }
+      if (newline === -1) return;
+      if (!this.discarding) this.onLine(Buffer.concat(this.parts, this.size).toString('utf8').replace(/\r$/, ''));
+      this.reset();
+      start = newline + 1;
+    }
+  }
+
+  reset(): void { this.parts = []; this.size = 0; this.discarding = false; }
 }
 
 type StreamProcess = ChildProcessByStdio<null, Readable, Readable>;
@@ -225,8 +268,7 @@ export class LMStudioActivityStream {
     try { child = this.spawnStream(this.lms!, ['log', 'stream', '-s', 'server', '--json']); }
     catch { this.scheduleRestart(); return; }
     this.child = child;
-    const lines = createInterface({ input: child.stdout });
-    lines.on('line', line => {
+    const lines = new BoundedLines(line => {
       if (this.child !== child) return;
       if (!this.healthy) { this.healthy = true; this.failures = 0; }
       if (!line.startsWith('{')) return;
@@ -238,13 +280,14 @@ export class LMStudioActivityStream {
       const event = parseLMStudioServerLine(content);
       if (event) this.tracker.apply(event);
     });
+    child.stdout.on('data', (chunk: Buffer) => lines.push(chunk));
     child.stderr.resume();
     const ended = () => {
       if (this.child !== child) return;
       this.child = null;
       this.healthy = false;
       this.tracker.resetActive();
-      lines.close();
+      lines.reset();
       if (this.idleTimer) this.scheduleRestart();
     };
     child.once('exit', ended);
