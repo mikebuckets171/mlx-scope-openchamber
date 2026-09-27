@@ -26,17 +26,28 @@ test('a reconnecting view reports held data without saying the user paused it', 
   expect(report).not.toContain('Prefill stage estimate:');
 });
 
-test('Splash report identifies aggregate scope and keeps Metal allocation distinct from process memory', () => {
+test('Splash report labels server-wide scope and lists only measured values', () => {
   const reading = parseTelemetrySnapshot({ available: true, runtime: 'splash', phase: 'unknown',
     modelID: 'incoai/private-model', message: 'raw private path', sampledAt: 1000,
     serverStats: { ready: true, aggregateDecodeTokensPerSecond: 47.2, completedRequests: 17,
       failedRequests: 1, metalCurrentGB: 12.5, metalPeakGB: 13 },
   });
   const report = measurementReport(reading, null, false, '1.2.0', 2000);
-  expect(report).toContain('Splash aggregate decode throughput: 47.2 tok/s (not per-request speed)');
-  expect(report).toContain('Splash completed requests: 17');
-  expect(report).toContain('Splash Metal allocation · current: 11.64 GiB');
-  expect(report).toContain('not process RSS or model-only memory');
+  expect(report).toContain('Splash server decode (all requests): 47.2 tok/s');
+  expect(report).toContain('Splash completed requests since start: 17');
+  expect(report).toContain('Splash GPU memory (Metal) · now: 11.64 GiB');
+  expect(report).not.toContain('not reported');
   expect(report).not.toContain('private-model');
   expect(report).not.toContain('raw private path');
+});
+
+test('Bionic report includes the last response’s exact figures', () => {
+  const reading = parseTelemetrySnapshot({ available: true, runtime: 'lmstudio', phase: 'idle', modelID: 'local/qwen3.8-27b-splash-levels', sampledAt: 1000,
+    activeRequests: 0, lastRequest: { model: 'local/qwen3.8-27b-splash-levels', tokensPerSecond: 38.6, ttftSeconds: 0.5,
+      promptTokens: 18_400, cachedTokens: 11_260, outputTokens: 1092, finishedAt: 900 } });
+  const report = measurementReport(reading, null, false, '1.4.0', 2000);
+  expect(report).toContain('Last response speed (exact): 38.6 tok/s');
+  expect(report).toContain('Last response cached tokens: 11260');
+  expect(report).not.toContain('not reported');
+  expect(report).not.toContain('qwen3.8');
 });

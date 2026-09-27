@@ -111,19 +111,34 @@ The generic health/catalogue responses are not a reliable runtime fingerprint.
 Use a recognizable provider name or choose **mlx-lm** in the connection setup.
 The catalogue is cached for a minute because reading it scans the model cache.
 
-## Inco AI Splash
+## Splash in Bionic
+
+Bionic (an LM Studio-based app) serves Splash models through its LM Studio-compatible
+API: `/api/v1/models` reports `format: "splash"` (v0: `compatibility_type`). MLX Scope
+monitors it with the LM Studio adapter above, marks the connection
+`engine: "splash"`, `host: "bionic"`, and shows it as "Splash via Bionic" with a
+Splash badge per model. Live activity comes from Bionic's redacted server log via
+`lms`. Bionic's embedded Splash engine (runtime 0.0.5) listens on a random loopback
+port and protects its own `/status` with a key that Bionic injects; MLX Scope does
+not read that key or scan for that port, so Metal allocation and Splash's native
+request counters are not shown for Bionic-hosted Splash.
+
+## Inco AI Splash (standalone `splash serve`)
 
 The [1.0.2 server contract](https://github.com/incoai/splash/blob/1.0.2/DEVELOPMENT.md)
 documents `/status` as a passive status response. MLX Scope reads that endpoint
-alone. The adapter displays the reported active model and declared maximum
-context, the native completed/failed request counters since engine start,
+alone and auto-detects a server from it (a JSON body with a boolean `ready`). The
+adapter displays the reported active model and declared maximum context, idle or
+generating state with in-flight requests derived as submitted − completed − failed
+− cancelled, the native completed/failed request counters since engine start,
 aggregate `decode_tokens_per_second`, and current/peak Metal allocator values.
-Counters can reset when the engine restarts. Aggregate decode throughput combines
-server work and is never attributed to an individual request.
+`ready: false` is shown as loading, not offline. Counters can reset when the engine
+restarts. Aggregate decode throughput combines server work and is never attributed
+to an individual request.
 
-Readiness does not establish inference activity. `/status` does not provide
-supported per-request progress, queue, prefill, active-context use, cache reuse,
-or process RSS, and the adapter leaves those values unavailable. Metal allocation
+`/status` does not provide supported per-request progress, queue, prefill,
+active-context use, cache reuse, or process RSS; those readings are simply not
+shown for Splash. Metal allocation
 is not process memory or model-only allocation. Instance IDs, PID, host/port, and
 other raw status fields are not sent to the panel or retained in Saved observations.
 

@@ -19,20 +19,27 @@ export const measurementReport = (snapshot: TelemetrySnapshot, system: SystemSna
       if (!paused && !progress.stale && snapshot.prefillETASeconds !== null) lines.push(`Prefill stage estimate: ${scalar(snapshot.prefillETASeconds, ' seconds')} (reported stage estimate, not a completion deadline)`);
       if (progress.counts) lines.push(`Prefill tokens: ${progress.counts.done} / ${progress.counts.total}; ${progress.counts.remaining} remaining`);
     }
-    lines.push(`Generation (request average): ${scalar(snapshot.liveDecodeTPS, ' tok/s')}`,
-      `Prefill (reported speed): ${scalar(snapshot.livePrefillTPS, ' tok/s')}`,
-      `Prompt tokens: ${scalar(snapshot.promptTokens)}`, `Cached tokens: ${scalar(snapshot.cachedTokens)}`,
-      `Output tokens: ${scalar(snapshot.completionTokens)}`, `Elapsed: ${scalar(snapshot.elapsedSeconds, ' seconds')}`,
-      `Active requests: ${scalar(snapshot.activeRequests)}`, `Queued requests: ${scalar(snapshot.queuedRequests)}`);
+    // Only measured values are listed; a runtime's unreported fields are simply left out.
+    const measured = (label: string, value: number | null | undefined, unit = '') => { if (value != null && Number.isFinite(value)) lines.push(`${label}: ${scalar(value, unit)}`); };
+    measured('Generation (request average)', snapshot.liveDecodeTPS, ' tok/s');
+    measured('Prefill (reported speed)', snapshot.livePrefillTPS, ' tok/s');
+    measured('Prompt tokens', snapshot.promptTokens); measured('Cached tokens', snapshot.cachedTokens);
+    measured('Output tokens', snapshot.completionTokens); measured('Elapsed', snapshot.elapsedSeconds, ' seconds');
+    measured('Active requests', snapshot.activeRequests); measured('Queued requests', snapshot.queuedRequests);
+    const last = snapshot.lastRequest;
+    if (last) {
+      measured('Last response speed (exact)', last.tokensPerSecond, ' tok/s'); measured('Last response first token', last.ttftSeconds, ' seconds');
+      measured('Last response prompt tokens', last.promptTokens); measured('Last response cached tokens', last.cachedTokens);
+      measured('Last response output tokens', last.outputTokens);
+    }
     if (snapshot.runtime === 'splash' && snapshot.serverStats) {
       const stats = snapshot.serverStats;
-      lines.push('Splash /status values: server-wide; request counters are since engine start and reset on restart.',
-        `Splash ready: ${stats.ready === null ? 'not reported' : stats.ready ? 'yes' : 'no'}`,
-        `Splash aggregate decode throughput: ${scalar(stats.aggregateDecodeTokensPerSecond, ' tok/s')} (not per-request speed)`,
-        `Splash completed requests: ${scalar(stats.completedRequests)}`,
-        `Splash failed requests: ${scalar(stats.failedRequests)}`,
-        `Splash Metal allocation · current: ${scalar(stats.metalCurrentGB == null ? null : stats.metalCurrentGB * 1e9 / 1024 ** 3, ' GiB')}`,
-        `Splash Metal allocation · peak: ${scalar(stats.metalPeakGB == null ? null : stats.metalPeakGB * 1e9 / 1024 ** 3, ' GiB')} (not process RSS or model-only memory)`);
+      if (stats.ready !== null) lines.push(`Splash ready: ${stats.ready ? 'yes' : 'no (loading)'}`);
+      measured('Splash server decode (all requests)', stats.aggregateDecodeTokensPerSecond, ' tok/s');
+      measured('Splash completed requests since start', stats.completedRequests);
+      measured('Splash failed requests since start', stats.failedRequests);
+      measured('Splash GPU memory (Metal) · now', stats.metalCurrentGB == null ? null : stats.metalCurrentGB * 1e9 / 1024 ** 3, ' GiB');
+      measured('Splash GPU memory (Metal) · peak', stats.metalPeakGB == null ? null : stats.metalPeakGB * 1e9 / 1024 ** 3, ' GiB');
     }
   }
   if (system) {

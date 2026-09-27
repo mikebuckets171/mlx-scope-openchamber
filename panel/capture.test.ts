@@ -233,3 +233,18 @@ test('inventory and registry observations capture host resources without output 
     expect(c.current?.status).toBe('interrupted');
   }
 });
+
+test('Splash captures use its Metal allocation and finished-request counters, but never invent output speed', () => {
+  let now = 0, finished = 17;
+  const c = new PerformanceCapture(() => now);
+  const sample = (ms: number, metal: number): AvailableTelemetry => ({ ...frame(ms), runtime: 'splash', phase: 'idle', modelID: null,
+    activeRequests: 0, completionTokens: null, memory: null, lifetime: null, sessionStatsState: 'unavailable',
+    serverStats: { ready: true, aggregateDecodeTokensPerSecond: 47.2, completedRequests: finished, failedRequests: 1, metalCurrentGB: metal, metalPeakGB: 13 },
+    connection: { selected: 'splash', label: 'Splash', runtime: 'splash', choices: [], diagnostic: 'ready', coverage: 'server' } });
+  expect(c.start(sample(0, 12), 30)).toBe(true);
+  for (now = 2000; now <= 30_000; now += 2000) { if (now === 10_000) finished += 3; c.observe(sample(now, now === 20_000 ? 12.8 : 12.1)); }
+  expect(c.current?.status).toBe('finished');
+  expect(c.current?.peakProcessGB).toBe(12.8);
+  expect(c.current?.requestCountChange).toBe(3);
+  expect(capturedRate(c.current)).toBeNull();
+});

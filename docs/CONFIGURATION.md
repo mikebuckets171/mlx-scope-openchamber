@@ -15,9 +15,24 @@ Use **Change** beside the connection status when you want another configured ser
 runtime, then select **Use connection**. This changes only what MLX Scope observes.
 It saves the provider ID and runtime choice, never an endpoint or API key.
 
-A connected limited-telemetry view is working: LM Studio, mlx-lm, and Splash do
-not expose the same passive request telemetry as oMLX. Read
-[Compatibility](COMPATIBILITY.md) before troubleshooting an unavailable metric.
+Runtimes report different readings, and MLX Scope shows only the ones yours
+provides. A shorter view is not an error. Read [Compatibility](COMPATIBILITY.md)
+before troubleshooting a missing metric.
+
+### Splash in Bionic
+
+Bionic runs Splash models behind its LM Studio-compatible Local Model API. Add
+that API as a provider (a name like `Splash (Bionic)` is fine) and leave MLX
+Scope on **Automatic**. Detection sees Splash-format models and labels the
+connection "Splash via Bionic". Install Bionic's `lms` CLI for live request
+activity. Don't choose the standalone Splash runtime for Bionic: Bionic's
+embedded Splash engine runs on a private, key-protected port, so MLX Scope reads
+Bionic's own API and server log instead.
+
+Provider names that mention `bionic` or `lm studio` are treated as that host.
+Other names containing `splash` (for example `splash-local` on port 8000) are
+treated as a standalone `splash serve` server, which is also detected
+automatically from its `/status` endpoint.
 
 ## Discovery
 

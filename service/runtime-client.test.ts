@@ -102,7 +102,41 @@ test('generic OpenAI model lists do not masquerade as mlx-lm telemetry', async (
   expect((await client.snapshot()).connection?.diagnostic).toBe('unsupported');
   const selected = await client.snapshot({ provider: 'local', runtime: 'mlx-lm' });
   expect(selected).toMatchObject({ available: true, runtime: 'mlx-lm', activeRequests: null, phase: 'unknown' });
-  expect(calls).toEqual(['/health', '/api/v1/models', '/v1/models', '/health', '/v1/models']);
+  expect(calls).toEqual(['/health', '/api/v1/models', '/status', '/v1/models', '/health', '/v1/models']);
+});
+
+test('auto-detects a standalone Splash server by its status contract', async () => {
+  const calls: string[] = [];
+  const client = new RuntimeClient({ readConfig: async () => configuration(connection('local', null)), fetchImpl: async url => {
+    const path = new URL(String(url)).pathname; calls.push(path);
+    if (path === '/health') return json({ status: 'ok' });
+    if (path === '/status') return json({ ready: false, instance: { model: 'incoai/Qwen3.8-27B-Splash' } });
+    return json({}, 404);
+  } });
+  const result = await client.snapshot();
+  expect(calls.slice(0, 3)).toEqual(['/health', '/api/v1/models', '/status']);
+  // A loading Splash server answered, so it is reachable rather than offline.
+  expect(result).toMatchObject({ available: true, runtime: 'splash', message: 'Loading Qwen3.8-27B-Splash…',
+    connection: { runtime: 'splash', diagnostic: 'ready', engine: 'splash', host: null } });
+});
+
+test('Splash-format models behind an LM Studio-compatible API are reported as Splash via Bionic', async () => {
+  const models = { models: [
+    { key: 'local/qwen3.8-27b-splash-levels', type: 'llm', format: 'splash', max_context_length: 262_144,
+      loaded_instances: [{ id: 'local/qwen3.8-27b-splash-levels', config: { context_length: 262_144 } }] },
+    { key: 'qwen3.6-35b-a3b-splash', type: 'llm', format: 'splash', max_context_length: 262_144, loaded_instances: [] },
+    { key: 'text-embedding-nomic-embed-text-v1.5', type: 'embedding', format: 'gguf', max_context_length: 2048, loaded_instances: [] },
+  ] };
+  const client = new RuntimeClient({ readConfig: async () => configuration(connection('lmstudio', null, 1234)),
+    fetchImpl: async url => new URL(String(url)).pathname === '/api/v1/models' ? json(models) : json({}, 404) });
+  const result = await client.snapshot();
+  expect(result).toMatchObject({ available: true, runtime: 'lmstudio', modelID: 'local/qwen3.8-27b-splash-levels',
+    connection: { runtime: 'lmstudio', engine: 'splash', host: 'bionic' } });
+  expect(result.catalog?.map(model => model.format)).toEqual(['splash', 'splash', 'gguf']);
+
+  const plain = new RuntimeClient({ readConfig: async () => configuration(connection('studio', 'lmstudio', 1234)),
+    fetchImpl: async () => json({ models: [models.models[2]] }) });
+  expect((await plain.snapshot()).connection).toMatchObject({ engine: null, host: null });
 });
 
 test('detects a vllm-mlx registry without a loaded engine and exposes limited coverage', async () => {

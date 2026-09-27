@@ -417,6 +417,13 @@ button, summary { transition:color 120ms ease, background-color 120ms ease, bord
 .scope[data-runtime="splash"] #session-stats .session-values { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .scope[data-runtime="splash"] #session-stats .session-values > div:first-child { display:none; }
 .scope[data-runtime="splash"] #session-stats .session-values strong { font-size:18px; }
+.metrics > div[hidden] + div { padding-left:0; border-left:0; }
+.session-values strong[data-warn="true"] { color:var(--oc-warning-text, #c99646); }
+/* Bionic/LM Studio hosting Splash: keep the live readout on top and the model list underneath. */
+.scope[data-engine="splash"][data-runtime="lmstudio"] .instrument { display:flex; flex-direction:column; }
+.scope[data-engine="splash"][data-runtime="lmstudio"] .instrument > #catalog-section { order:10; margin-top:24px; }
+.catalog-row[data-loaded="true"] strong { font-weight:600; }
+.catalog-format[data-format="splash"] { justify-self:start; padding:1px 7px; border-radius:999px; background:color-mix(in srgb, var(--scope-accent) 16%, transparent); color:var(--scope-accent); font-weight:600; letter-spacing:.02em; }
 .scope[data-runtime="splash"] .machine { margin-top:0; }
 .scope[data-compact="true"][data-runtime="splash"] #session-stats { display:block; }
 .scope[data-empty="true"] .workspace { display:block; }

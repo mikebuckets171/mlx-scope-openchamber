@@ -1,16 +1,16 @@
 import { unavailableTelemetry, type ResidentModel, type TelemetrySnapshot } from '../src/telemetry.ts';
-import type { CatalogModel } from '../src/runtime.ts';
+import { modelFormat, type CatalogModel } from '../src/runtime.ts';
 import type { RuntimeRead } from './adapter.ts';
 import { HttpFailure } from './http.ts';
 import type { LMStudioActivityView } from './lmstudio-activity.ts';
 
 type ActivitySource = { touch(): void; view(): LMStudioActivityView | null };
 const rateText = (value: number | null): string | null => value === null ? null : `${value.toFixed(1)} tok/s`;
+const shortName = (model: string): string => model.split('/').at(-1) ?? model;
 
 const DISPLAY_LIMIT = 12;
 const object = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const contextLength = (value: unknown): number | null => typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null;
-const format = (value: unknown): CatalogModel['format'] => value === 'mlx' || value === 'gguf' ? value : null;
 const modelName = (value: unknown): string | null => {
   if (typeof value !== 'string') return null;
   let name = value.replace(/[\u0000-\u001f\u007f]/g, '').trim();
@@ -86,14 +86,14 @@ export class LMStudioClient {
         contextWindow = loaded === false ? contextLength(item.max_context_length)
           : contextsKnown && contexts.size === 1 ? contexts.values().next().value ?? null : null;
       } else countKnown = false;
-      if (catalog.length < DISPLAY_LIMIT) catalog.push({ name, loaded, format: format(this.legacy ? item.compatibility_type : item.format), contextWindow });
+      if (catalog.length < DISPLAY_LIMIT) catalog.push({ name, loaded, format: modelFormat(this.legacy ? item.compatibility_type : item.format), contextWindow });
     }
     if (rows.length > 0 && validModels === 0) return unsupported();
     const inventory: TelemetrySnapshot = {
       ...unavailableTelemetry('unsupported_contract', null, this.now()),
       available: true, reason: null, runtime: 'lmstudio', phase: 'unknown',
       modelID: residentModels[0]?.id ?? null,
-      message: 'Model inventory is available. Live prefill and generation are not reported by this API.',
+      message: loadedCount > 0 ? 'Model loaded.' : countKnown ? 'No model loaded.' : null,
       catalog, residentModels, residentModelCount: countKnown ? loadedCount : null,
     };
     const view = this.activity?.view() ?? null;
@@ -110,11 +110,11 @@ export class LMStudioClient {
       last.ttftSeconds === null ? null : `first token ${last.ttftSeconds.toFixed(1)}s`,
     ].filter(Boolean).join(' · ') : null;
     const message = view.concurrent
-      ? `${view.activeRequests} requests are running in LM Studio. Per-request progress is withheld while they overlap; exact speeds appear as each finishes.`
+      ? `${view.activeRequests} requests are running. Exact speeds appear as each one finishes.`
       : active
       ? active.phase === 'prefill'
-        ? `Reading the prompt on ${active.model}${active.progress !== null ? ` · ${Math.round(active.progress * 100)}%` : ''}.`
-        : `Generating on ${active.model}. LM Studio reports exact speed when the response finishes${last?.tokensPerSecond != null ? ` (last: ${rateText(last.tokensPerSecond)})` : ''}.`
+        ? `Reading the prompt on ${shortName(active.model)}${active.progress !== null ? ` · ${Math.round(active.progress * 100)}%` : ''}.`
+        : `Generating on ${shortName(active.model)}.`
       : lastSummary ? `Last response: ${lastSummary}.` : phase === 'idle' ? 'Model loaded. Ready for your next request.' : inventory.message;
     const residentModels = inventory.residentModels.map(model => active && model.id === active.model
       ? { ...model, phase: active.phase, activeRequests: active.requests, prefillProgress: active.phase === 'prefill' ? active.progress : null } : model);

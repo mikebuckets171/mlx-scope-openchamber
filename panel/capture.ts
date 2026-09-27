@@ -46,7 +46,7 @@ export class PerformanceCapture {
       meanMemoryGB: null, peakMemoryGB: null, memorySamples: 0,
       requestCountChange: null, startSwapGB: null, lastSwapGB: null,
       status: 'recording', note: resourcesOnly ? snapshot.runtime === 'splash'
-        ? 'Observing host resources. Splash exposes aggregate decode throughput, not per-request output speed.'
+        ? 'Observing host resources. Splash reports one decode speed shared across all requests.'
         : 'Observing host resources. This runtime does not report passive output speed.'
         : 'Observing this model. No extra inference is started.' };
     this.previous = null;
@@ -81,8 +81,9 @@ export class PerformanceCapture {
     c.seconds = Math.max(0, (now - this.started) / 1000);
     this.lastRuntimeAt = snapshot.sampledAt;
     c.lastAt = Math.max(c.lastAt, snapshot.sampledAt); c.samples = Math.min(1000, c.samples + 1);
-    if (safe(snapshot.memory?.activeGB)) {
-      c.peakProcessGB = Math.max(c.peakProcessGB ?? 0, snapshot.memory.activeGB);
+    const footprint = snapshot.memory?.activeGB ?? (snapshot.runtime === 'splash' ? snapshot.serverStats?.metalCurrentGB ?? null : null);
+    if (safe(footprint)) {
+      c.peakProcessGB = Math.max(c.peakProcessGB ?? 0, footprint);
       c.processSamples += 1;
     }
     this.observeRequests(snapshot, c);
@@ -130,10 +131,13 @@ export class PerformanceCapture {
     return fresh;
   }
   private observeRequests(snapshot: TelemetrySnapshot, c: Capture): void {
-    const requests = snapshot.lifetime?.requestsTotal ?? null;
+    const splash = snapshot.runtime === 'splash' ? snapshot.serverStats : null;
+    const splashFinished = splash?.ready && count(splash.completedRequests) && count(splash.failedRequests)
+      ? splash.completedRequests + splash.failedRequests : null;
+    const requests = snapshot.lifetime?.requestsTotal ?? splashFinished;
     const uptime = snapshot.lifetime?.uptimeSeconds ?? null;
     if (!this.requestCounterValid) return;
-    if (snapshot.sessionStatsState !== 'fresh' || !count(requests)
+    if (snapshot.sessionStatsState !== 'fresh' && splashFinished === null || !count(requests)
       || (this.previousRequests !== null && requests < this.previousRequests)
       || (safe(uptime) && this.previousUptime !== null && uptime < this.previousUptime)) {
       this.requestCounterValid = false; c.requestCountChange = null; return;
