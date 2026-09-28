@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.5.0
+
+- Redesigned layout. Live now shows one reading at a time: a header with a
+  single status pill (phase first, then the connection), the model and its
+  generation speed with an inline sparkline (or prompt-reading progress), a
+  context-used bar, and one row of Output, Elapsed, Input reused and Requests.
+  CPU, RAM and swap sit on one line; "Mac details" expands the full host view.
+- New Server tab for server-wide readings: runtime memory, cache and input,
+  loaded models, the runtime advisory, server session totals and runtime
+  details. Each fact appears in one place instead of being repeated.
+- Refresh, Compact, Efficiency, Save snapshot, Share and Change connection
+  moved into a "More options" (⋯) menu. Toggles show a checkmark, the menu is
+  opaque on translucent themes, and it closes after an action, on Escape or on
+  an outside click, with keyboard focus returned to the ⋯ button.
+- Compact mode is now the header and the hero reading only.
+- Save snapshot is available from the Server tab as well as Live.
+- Narrow panels (320 px and up): the status pill moves to its own row and the
+  stat row becomes two columns.
+
 ## 1.4.0
 
 - Splash in Bionic is now named and shown as "Splash via Bionic" instead of

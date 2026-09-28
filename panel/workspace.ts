@@ -1,4 +1,4 @@
-export type Workspace = 'live' | 'compare' | 'saved';
+export type Workspace = 'live' | 'server' | 'compare' | 'saved';
 
 /** Local tabs use normal DOM focus semantics inside the extension's own frame. */
 export class WorkspaceTabs {

@@ -5,6 +5,7 @@ test('Share dismisses when focus returns to the surrounding host', async ({ page
   const frame = page.frameLocator('iframe');
   const share = frame.getByRole('button', { name: 'Share', exact: true });
   const menu = frame.getByRole('menu', { name: 'Share readings' });
+  await frame.locator('#monitor-menu > summary').click(); // Share lives in the ⋯ menu in 1.5
   await share.focus();
   await share.press('Enter');
   await expect(menu).toBeVisible();

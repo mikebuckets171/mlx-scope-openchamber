@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLX Scope 1.5 mock</title>
+<style>
+/* Static design mock for MLX Scope 1.5. Colors are the OpenChamber host tokens used by the preview host. */
+:root { --bg:#10151b; --elev:#202c36; --fg:#e9f0f5; --muted:#9aa9b7; --subtle:#8595a5; --line:#2a3440; --accent:#98c8fa; --fill:#3b72ad; --ok:#6fcf97; --warn:#e8b44f; }
+:root[data-theme="light"] { --bg:#f7f9fb; --elev:#ffffff; --fg:#172a37; --muted:#596977; --subtle:#687683; --line:#dde4ea; --accent:#245a90; --fill:#2868a5; --ok:#2f8a57; --warn:#a4700f; }
+* { box-sizing:border-box; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font:12px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
+.scope { max-width:760px; margin:0 auto; padding:16px 16px 24px; }
+/* 1. Header: one row */
+header { display:flex; align-items:center; gap:8px; min-height:32px; }
+.brand { display:flex; align-items:center; gap:7px; flex:none; font-size:14px; font-weight:600; letter-spacing:-.01em; }
+.brand svg { width:20px; height:20px; fill:none; stroke:var(--accent); stroke-width:1.8; }
+.brand span { color:var(--muted); font-weight:400; }
+.status { display:flex; align-items:center; gap:6px; min-width:0; flex:0 1 auto; margin-left:8px; padding:3px 10px; border-radius:99px; background:color-mix(in srgb, var(--elev) 70%, transparent); color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.status b { color:var(--fg); font-weight:500; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--ok); flex:none; }
+.status .txt { overflow:hidden; text-overflow:ellipsis; }
+.controls { margin-left:auto; display:flex; gap:6px; flex:none; }
+.btn { display:inline-grid; place-items:center; height:28px; min-width:28px; padding:0 9px; border:1px solid var(--line); border-radius:7px; background:transparent; color:var(--fg); font:inherit; }
+/* Tabs */
+nav { display:flex; gap:18px; margin:14px 0 0; border-bottom:1px solid var(--line); }
+nav a { padding:0 0 8px; color:var(--muted); text-decoration:none; font-weight:500; }
+nav a.on { color:var(--fg); box-shadow:inset 0 -2px 0 var(--accent); }
+/* 2. Hero */
+.hero { padding:20px 0 16px; }
+.model { margin:0; font-size:13px; font-weight:500; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.speed { display:flex; align-items:flex-end; gap:14px; margin-top:6px; }
+.value { font-size:44px; line-height:1; font-weight:300; letter-spacing:-.02em; }
+.unit { color:var(--muted); font-size:13px; margin-left:4px; }
+.spark { flex:1; max-width:220px; height:36px; margin-bottom:4px; }
+.spark path { fill:none; stroke:var(--accent); stroke-width:1.6; }
+.spark .area { fill:color-mix(in srgb, var(--accent) 14%, transparent); stroke:none; }
+.label { color:var(--muted); font-size:11px; }
+.bar { height:4px; border-radius:2px; background:color-mix(in srgb, var(--fg) 12%, transparent); overflow:hidden; }
+.bar i { display:block; height:100%; background:var(--fill); border-radius:2px; }
+.context { margin-top:16px; }
+.context .row { display:flex; justify-content:space-between; margin-bottom:6px; }
+.prefill .value { font-size:32px; }
+/* 3. Stat row */
+.stats { display:grid; grid-template-columns:repeat(4, 1fr); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+.stat { padding:12px 0; }
+.stat + .stat { padding-left:16px; border-left:1px solid var(--line); }
+.stat strong { display:block; font-size:16px; font-weight:500; }
+.machine { display:flex; align-items:center; gap:16px; padding:12px 0; color:var(--muted); }
+.machine b { color:var(--fg); font-weight:500; }
+.machine .more { margin-left:auto; color:var(--muted); }
+/* Server tab */
+section.block { padding:16px 0; border-bottom:1px solid var(--line); }
+.block h2 { display:flex; align-items:center; gap:6px; margin:0 0 10px; font-size:12px; font-weight:600; }
+.block h2 .i { display:inline-grid; place-items:center; width:15px; height:15px; border:1px solid var(--line); border-radius:50%; color:var(--muted); font-size:10px; font-weight:500; }
+.block h2 .scope-note { margin-left:auto; color:var(--muted); font-weight:400; font-size:11px; }
+.pairs { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px 16px; }
+.pairs strong { display:block; font-size:14px; font-weight:500; }
+.list { margin:0; padding:0; list-style:none; }
+.list li { display:flex; justify-content:space-between; padding:6px 0; }
+.list li + li { border-top:1px solid var(--line); }
+.tag { color:var(--accent); font-size:11px; }
+footer { display:flex; justify-content:space-between; padding-top:12px; color:var(--subtle); font-size:11px; }
+/* Narrow */
+@media (max-width: 420px) {
+  .brand span { display:none; }
+  .stats { grid-template-columns:repeat(2, 1fr); }
+  .stat:nth-child(3) { padding-left:0; border-left:0; border-top:1px solid var(--line); }
+  .stat:nth-child(4) { border-top:1px solid var(--line); }
+  .machine { flex-wrap:wrap; gap:4px 14px; }
+  .pairs { grid-template-columns:1fr 1fr; }
+  .spark { max-width:none; }
+}
+[hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main class="scope">
+  <header>
+    <div class="brand"><svg viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11"/><path d="M3 14h6l3-5 4 10 3-5h6"/></svg>MLX <span>Scope</span></div>
+    <div class="status" title="Generating · Splash via Bionic"><i class="dot"></i><span class="txt"><b id="phase">Generating</b> · Splash via Bionic</span></div>
+    <div class="controls"><button class="btn" aria-label="Pause">❙❙</button><button class="btn" aria-label="More">···</button></div>
+  </header>
+
+  <nav id="tabs"><a data-v="live" class="on">Live</a><a data-v="server">Server</a><a data-v="compare">Compare</a><a data-v="saved">Saved</a></nav>
+
+  <div id="live">
+    <div class="hero">
+      <p class="model" title="incoai/Qwen3.8-27B-Splash">incoai/Qwen3.8-27B-Splash</p>
+      <div class="speed" id="gen">
+        <div><span class="value">34.5</span><span class="unit">tok/s</span></div>
+        <svg class="spark" viewBox="0 0 220 36" preserveAspectRatio="none" aria-hidden="true"><path class="area" d="M0 30 L20 26 L40 27 L60 20 L80 18 L100 15 L120 16 L140 12 L160 13 L180 10 L200 11 L220 9 L220 36 L0 36Z"/><path d="M0 30 L20 26 L40 27 L60 20 L80 18 L100 15 L120 16 L140 12 L160 13 L180 10 L200 11 L220 9"/></svg>
+      </div>
+      <div class="prefill" id="pre" hidden>
+        <div class="context row" style="margin:6px 0 8px;display:flex;justify-content:space-between;align-items:flex-end"><span class="value">64%</span><span class="label">5,824 / 9,100 tokens · about 20 s left</span></div>
+        <div class="bar"><i style="width:64%"></i></div>
+      </div>
+      <div class="context">
+        <div class="row"><span class="label">Context used</span><span class="label">58.5K of 131K</span></div>
+        <div class="bar"><i style="width:45%"></i></div>
+      </div>
+    </div>
+    <div id="detail">
+      <div class="stats">
+        <div class="stat"><span class="label">Output</span><strong>6,494</strong></div>
+        <div class="stat"><span class="label">Elapsed</span><strong>4:20</strong></div>
+        <div class="stat"><span class="label">Input reused</span><strong>83%</strong></div>
+        <div class="stat"><span class="label">Requests</span><strong>1</strong></div>
+      </div>
+      <div class="machine"><span>CPU <b>32%</b></span><span>RAM <b>36.1 / 48 GB</b></span><span>Swap <b>1.1 GB</b></span><span class="more">Mac details ›</span></div>
+      <footer><span>MLX Scope 1.5.0</span><span>Updated now</span></footer>
+    </div>
+  </div>
+
+  <div id="server" hidden>
+    <section class="block"><h2>Runtime memory <span class="i">i</span><span class="scope-note">Server-wide</span></h2>
+      <div class="pairs"><div><span class="label">Process footprint</span><strong>32.1 GiB</strong></div><div><span class="label">Model allocation</span><strong>15.9 GiB</strong></div></div></section>
+    <section class="block"><h2>Cache &amp; input <span class="i">i</span><span class="scope-note">Current request</span></h2>
+      <div class="pairs"><div><span class="label">Reused tokens</span><strong>43,000</strong></div><div><span class="label">New tokens</span><strong>9,100</strong></div></div>
+      <div class="bar" style="margin:12px 0"><i style="width:83%"></i></div>
+      <div class="pairs"><div><span class="label">RAM cache</span><strong>3.0 GiB</strong></div><div><span class="label">SSD cache</span><strong>20.9 GiB</strong></div></div></section>
+    <section class="block"><h2>Loaded models <span class="scope-note">1 loaded</span></h2>
+      <ul class="list"><li><span>Qwen3.8-27B-Splash</span><span class="tag">Generating · 15.9 GiB</span></li></ul></section>
+    <section class="block"><h2>Server session <span class="scope-note">Since start</span></h2>
+      <div class="pairs"><div><span class="label">Requests completed</span><strong>17</strong></div><div><span class="label">Average generation</span><strong>33.9 tok/s</strong></div><div><span class="label">Average prefill</span><strong>452 tok/s</strong></div><div><span class="label">Cache efficiency</span><strong>82%</strong></div></div></section>
+    <section class="block"><h2>Runtime details</h2>
+      <div class="pairs"><div><span class="label">Memory guard</span><strong>Normal</strong></div><div><span class="label">Last cache lookup</span><strong>Hit · 58.2K</strong></div></div></section>
+  </div>
+</main>
+<script>
+const p = new URLSearchParams(location.search);
+document.documentElement.dataset.theme = p.get('theme') || 'dark';
+const view = p.get('view') || 'live';
+document.getElementById('server').hidden = view !== 'server';
+document.getElementById('live').hidden = view === 'server';
+document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.v === (view === 'compact' ? 'live' : view)));
+if (p.get('state') === 'prefill') { document.getElementById('gen').hidden = true; document.getElementById('pre').hidden = false; document.getElementById('phase').textContent = 'Reading context'; }
+if (view === 'compact') { document.getElementById('tabs').hidden = true; document.getElementById('detail').hidden = true; }
+</script>
+</body>
+</html>

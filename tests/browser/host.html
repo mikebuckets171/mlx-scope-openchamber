@@ -33,7 +33,7 @@ function theme(name) {
     : light ? ['#f7f9fb','#ffffff','#245a90','#2868a5','#ffffff']
     : ['#10151b','#202c36','#98c8fa','#3b72ad','#ffffff'];
   return {mode:light?'light':'dark',tokens:{
-    background:palette[0],elevated:palette[1],foreground:light?'#172a37':'#e9f0f5',
+    background:palette[0],elevated:params.has('translucent')?`${palette[1]}90`:palette[1],foreground:light?'#172a37':'#e9f0f5',
     elevatedForeground:light?'#172a37':'#e9f0f5',muted:light?'#596977':'#9aa9b7',
     subtle:light?'#687683':'#8595a5',border:light?'#ced7df':'#3b3a47',
     hover:light?'#e8e4de':'#2c2736',active:light?'#e1ddd7':'#342e40',
