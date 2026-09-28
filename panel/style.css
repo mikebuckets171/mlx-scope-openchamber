@@ -162,9 +162,6 @@ footer { color: var(--oc-muted); font-size: 10px; margin-top: 14px; }
 
 
 /* Quiet, keyboard-accessible monitoring controls; no animation loops. */
-#efficiency { display:grid; place-items:center; width:30px; height:32px; padding:0; border:1px solid var(--scope-line); border-radius:var(--oc-radius, 9px); background:transparent; color:var(--oc-muted); cursor:pointer; }
-#efficiency svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
-#efficiency:hover, #efficiency[aria-pressed="true"] { color:var(--scope-accent); background:var(--scope-surface); }
 .scope[data-surface="page"] .instrument { min-width:0; }
 @media (min-width:900px) { .scope[data-surface="page"] #model { font-size:25px; line-height:1.4; } .scope[data-surface="page"] .activity { font-size:12px; line-height:1.65; } }
 
@@ -431,3 +428,143 @@ button, summary { transition:color 120ms ease, background-color 120ms ease, bord
 .scope[data-compact="true"] .catalog-list { max-height:300px; overflow:auto; }
 .scope:is([data-coverage="inventory"],[data-coverage="server"]) #view-compare { display:block; max-width:800px; }
 @media (max-width:370px) { .connection { flex-wrap:wrap; } .connection-setup { padding:12px; } .catalog-row { grid-template-columns:1fr; gap:4px; } .catalog-state,.catalog-context { text-align:left; } }
+
+/* ===== MLX Scope 1.5 layout ===== one header row, a hero, one stat row, a one-line machine summary;
+   server detail lives in its own tab. Spacing 4/8/16/24. Type: hero, value (16px), label (11px). */
+.sr-only { position:absolute !important; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+.scope { max-width:760px; padding:16px 16px 20px; font-variant-numeric:tabular-nums; }
+.scope .masthead { display:flex; align-items:center; justify-content:flex-start; gap:8px; min-height:32px; }
+.scope .brand { flex:none; gap:8px; }
+.scope .scope-mark { width:20px; height:20px; stroke-width:1.8; }
+.scope h1 { font-size:14px; font-weight:600; letter-spacing:-.01em; }
+.scope .status-pill { display:flex; align-items:center; gap:6px; min-width:0; flex:0 1 auto; margin-left:4px; padding:3px 10px; border-radius:999px; background:var(--scope-surface); color:var(--oc-muted); font-size:11px; white-space:nowrap; overflow:hidden; }
+.scope .status-pill .phase { flex:none; color:var(--oc-fg); font-weight:500; font-size:11px; letter-spacing:0; text-transform:none; }
+.scope .status-pill #connection { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.scope .status-sep { flex:none; }
+.scope .connection-dot { flex:none; width:7px; height:7px; background:var(--oc-success-text, #6fcf97); }
+.scope[data-stale="true"] .connection-dot, .scope[data-phase="reconnecting"] .connection-dot { background:var(--oc-warning-text, #c99646); }
+.scope .monitor-controls { display:flex; gap:6px; margin-left:auto; flex:none; }
+.scope #pause, .scope .monitor-menu > summary { display:inline-grid; place-items:center; width:30px; height:30px; padding:0; border:1px solid var(--scope-line); border-radius:var(--oc-radius, 8px); background:transparent; color:var(--oc-fg); cursor:pointer; list-style:none; }
+.scope .monitor-menu > summary::-webkit-details-marker { display:none; }
+.scope #pause svg, .scope .monitor-menu > summary svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; }
+.scope .monitor-menu > summary svg circle { fill:currentColor; stroke:none; }
+.scope #pause[aria-pressed="true"] { color:var(--scope-accent); }
+.scope .monitor-menu { position:relative; z-index:30; }
+/* Opaque even when the host's elevated token is translucent: the elevated color is layered over the background. */
+.scope .monitor-menu-content { position:absolute; top:calc(100% + 6px); right:0; display:grid; gap:2px; width:224px; max-width:calc(100vw - 32px); padding:6px; border:1px solid var(--scope-line); border-radius:var(--oc-radius, 9px); background:linear-gradient(var(--oc-elevated, var(--oc-bg, #0f151b)), var(--oc-elevated, var(--oc-bg, #0f151b))), var(--oc-bg, #0f151b); box-shadow:0 10px 28px #0003; }
+.scope #monitor-menu .monitor-menu-content > button, .scope .monitor-menu-content .share-actions > .oc-sdk-btn { display:flex; align-items:center; gap:8px; width:100%; min-height:32px; padding:6px 8px; border:0; border-radius:6px; background:transparent; color:var(--oc-fg); font:12px var(--oc-font, sans-serif); text-align:left; cursor:pointer; }
+.scope #monitor-menu .monitor-menu-content > button:hover:not(:disabled), .scope .monitor-menu-content .share-actions > .oc-sdk-btn:hover { background:var(--oc-hover, var(--scope-surface)); }
+.scope #monitor-menu .monitor-menu-content > button:disabled { color:var(--oc-muted); cursor:default; }
+.scope .menu-check { display:inline-grid; place-items:center; width:14px; flex:none; color:var(--scope-accent); }
+.scope #monitor-menu .monitor-menu-content > button[aria-pressed="true"] .menu-check::before { content:"✓"; font-size:12px; }
+.scope .monitor-menu-content .share-actions { margin:0; }
+.scope .monitor-menu-content .share-menu { top:0; right:calc(100% + 6px); left:auto; background:linear-gradient(var(--oc-elevated, var(--oc-bg)), var(--oc-elevated, var(--oc-bg))), var(--oc-bg, #0f151b); }
+.scope .menu-about { display:grid; gap:2px; margin:4px 2px 0; padding:8px 6px 2px; border-top:1px solid var(--scope-line); color:var(--oc-muted); font-size:11px; line-height:1.5; }
+.scope .menu-about #cadence { color:var(--oc-muted); font:inherit; letter-spacing:0; }
+/* Tabs */
+.scope .workspace-nav { display:flex; margin-top:14px; border-bottom:1px solid var(--scope-line); }
+.scope .workspace-nav [role="tablist"] { display:flex; gap:18px; }
+.scope [role="tab"] { padding:0 0 8px; font-size:12px; font-weight:500; }
+/* Hero */
+.scope .instrument { margin-top:20px; }
+.scope #model { margin:0; font-size:13px; font-weight:500; line-height:1.4; color:var(--oc-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.scope .hero-row { display:flex; align-items:flex-end; gap:16px; margin-top:6px; }
+.scope .readout { display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; margin:0; min-height:0; flex:none; max-width:100%; }
+.scope .rate { font-size:44px; line-height:1; font-weight:300; letter-spacing:-.02em; }
+.scope .rate.is-word { font-size:28px; font-weight:400; letter-spacing:-.01em; }
+.scope .unit { max-width:240px; font-size:11px; color:var(--oc-muted); }
+/* The throughput chart becomes an inline sparkline beside the speed. */
+.scope .signal { flex:1; min-width:120px; max-width:260px; margin:0 0 4px; }
+.scope .signal .chart-top, .scope .signal figcaption, .scope .signal .history-reading, .scope .signal #chart-empty, .scope .signal .grid { display:none; }
+.scope .signal .plot { height:40px; border:0; background:none; }
+.scope .activity { margin-top:8px; min-height:0; font-size:11px; }
+.scope .request-output, .scope .recent-speed { display:none !important; }
+.scope .context-headroom { display:block; margin-top:16px; padding:0; border:0; }
+.scope .context-headroom[hidden] { display:none; }
+.scope .context-line { display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; font-size:11px; color:var(--oc-muted); }
+.scope .context-line strong { font-weight:500; color:var(--oc-fg); font-size:11px; }
+.scope .context-line small { font-size:11px; color:var(--oc-muted); }
+.scope .context-headroom .meter { max-width:none; height:4px; margin:0; border-radius:2px; }
+.scope .context-headroom .meter i { border-radius:2px; background:var(--scope-fill); }
+/* One stat row */
+.scope .metrics { grid-template-columns:repeat(4, minmax(0, 1fr)); margin-top:16px; padding:0; border-top:1px solid var(--scope-line); border-bottom:1px solid var(--scope-line); }
+.scope .metrics > div { padding:12px 0 12px 16px; border-left:1px solid var(--scope-line); }
+.scope .metrics > div:first-child { padding-left:0; border-left:0; }
+.scope .metric-label { display:block; font-size:11px; color:var(--oc-muted); letter-spacing:0; text-transform:none; }
+.scope .metrics strong { margin:2px 0 0; font-size:16px; font-weight:500; letter-spacing:0; }
+.scope .metric-detail { display:none; }
+.scope .metrics .meter { display:none; }
+/* Machine summary: one line, details on demand */
+.scope .machine { margin-top:0; padding:12px 0 0; border-radius:0; background:none; }
+.scope .machine-line { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 16px; font-size:11px; color:var(--oc-muted); }
+.scope .machine-line strong { color:var(--oc-fg); font:500 11px var(--oc-font, sans-serif); }
+.scope .host-details { margin-top:8px; }
+.scope .host-details > summary { display:inline-flex; gap:4px; color:var(--oc-muted); font-size:11px; cursor:pointer; list-style:none; }
+.scope .host-details > summary::-webkit-details-marker { display:none; }
+.scope .host-details > summary::after { content:"›"; transition:transform 120ms ease; }
+.scope .host-details[open] > summary::after { transform:rotate(90deg); }
+.scope .host-details .hardware { margin:8px 0 0; font-size:11px; color:var(--oc-muted); }
+.scope .host-details .machine-values { grid-template-columns:1fr 1fr; gap:16px; margin-top:8px; }
+.scope .host-details .machine-values > div { display:grid; gap:6px; }
+.scope .host-details .resource-trace { margin-top:12px; }
+.scope .native-values dd, .scope .native-values dt { font-family:var(--oc-font, sans-serif); }
+.scope .machine-explanation { margin-top:8px; font-size:11px; }
+/* Server tab: flat sections */
+.scope #view-server .insight-section, .scope #view-server .session { margin:0; padding:16px 0; border-top:0; border-bottom:1px solid var(--scope-line); border-radius:0; background:none; }
+.scope #view-server .section-heading h2 { font-size:12px; font-weight:600; letter-spacing:0; text-transform:none; }
+.scope #view-server .section-heading > span { font-size:11px; color:var(--oc-muted); }
+.scope #view-server strong, .scope .session-values strong, .scope .machine-values strong, .scope .runtime-memory-values strong { font-family:var(--oc-font, sans-serif); font-size:14px; font-weight:500; }
+.scope #view-server .cache-tier-values .meter { display:none; }
+.scope #view-server .details { margin-top:0; border-top:0; }
+.scope footer { margin-top:16px; font-size:11px; }
+.scope .connection-help { margin-top:16px; }
+/* Splash (standalone) keeps its own ordering inside the hero. */
+.scope[data-runtime="splash"] .instrument .hero-row { order:3; }
+/* Compact: header and hero only */
+.scope[data-compact="true"] :is(.workspace-nav, .metrics, .machine, .connection-help, .activity) { display:none !important; }
+/* Narrow panels */
+@media (max-width: 420px) {
+
+  .scope .metrics { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .scope .metrics > div:nth-child(3) { padding-left:0; border-left:0; border-top:1px solid var(--scope-line); }
+  .scope .metrics > div:nth-child(4) { border-top:1px solid var(--scope-line); }
+  .scope .hero-row { flex-wrap:wrap; }
+  .scope .signal { max-width:none; }
+}
+/* 1.5 refinements from the first real-panel review */
+.scope #model, .scope[data-surface="page"] #model { font-size:13px; line-height:1.4; }
+.scope .monitor-menu > summary { box-sizing:border-box; height:30px; min-height:0; }
+.scope .prefill-progress { margin-top:12px; padding:0; border:0; border-radius:0; background:none; }
+.scope .prefill-values { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.scope #prefill-remaining { font-size:32px; font-weight:300; letter-spacing:-.01em; }
+.scope #prefill-completed { color:var(--oc-muted); font-size:11px; }
+.scope .prefill-progress .progress-track { height:4px; margin:8px 0 6px; border-radius:2px; }
+.scope .prefill-heading { display:flex; justify-content:space-between; gap:12px; font-size:11px; color:var(--oc-muted); }
+.scope .prefill-counts { margin:0; font:11px var(--oc-font, sans-serif); color:var(--oc-muted); }
+.scope .prefill-estimate { display:flex; align-items:baseline; gap:8px; margin-top:8px; padding:0; border:0; font-size:11px; color:var(--oc-muted); }
+.scope .prefill-estimate[hidden] { display:none; }
+.scope .prefill-estimate strong { color:var(--oc-fg); font-size:12px; font-weight:500; }
+.scope[data-phase="prefill"] .hero-row { margin-top:16px; }
+.scope[data-phase="prefill"] .rate { font-size:28px; font-weight:400; }
+.scope .connection-help { border-top:0; }
+.scope .connection-help > summary { color:var(--oc-muted); font-size:11px; }
+@media (max-width: 420px) {
+  .scope .masthead { flex-wrap:wrap; }
+  .scope .status-pill { order:3; flex:1 1 100%; margin:6px 0 0; }
+  .scope .context-line small { display:none; }
+  .scope .context-line > span:last-child { text-align:right; }
+}
+/* Saved view: only Pause is irrelevant; the ⋯ menu (connection, sharing) stays usable. */
+.scope[data-workspace="saved"] .monitor-controls { visibility:visible; }
+.scope[data-workspace="saved"] #pause { visibility:hidden; }
+/* Share expands inline inside the ⋯ menu so it never overflows a narrow panel. */
+.scope .monitor-menu-content .share-menu { position:static; inset:auto; width:auto; max-width:none; margin:2px 0 4px 22px; padding:0; border:0; border-left:1px solid var(--scope-line); border-radius:0; background:none; box-shadow:none; }
+
+/* 1.5 polish: a one-sample sparkline is just a dot, so show it from two samples; tighter help row. */
+.scope .signal:is([data-points="0"], [data-points="1"]) { display:none; }
+.scope .connection-help { margin-top:8px; }
+.scope .connection-help > summary { padding-block:6px; }
+/* Share is mounted by the SDK inside a wrapper; align it and its items with the other menu rows. */
+.scope #monitor-menu #share-actions button { display:flex; align-items:center; justify-content:flex-start; gap:6px; width:100%; min-height:32px; padding:6px 8px; border:0; border-radius:6px; background:transparent; color:var(--oc-fg); font:12px var(--oc-font, sans-serif); text-align:left; }
+.scope #monitor-menu #share-actions button[aria-haspopup="menu"] { padding-left:30px; }
+.scope #monitor-menu #share-actions button:hover:not(:disabled) { background:var(--oc-hover, var(--scope-surface)); }

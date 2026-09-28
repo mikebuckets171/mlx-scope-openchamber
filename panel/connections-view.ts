@@ -109,6 +109,8 @@ export class ConnectionsView {
       this.runtime.value = this.selection.runtime ?? '';
     }
     this.setup.hidden = !open; this.trigger.setAttribute('aria-expanded', String(open));
-    if (focus) (open ? this.provider : this.trigger).focus({preventScroll:true});
+    // The trigger lives in the ⋯ menu, which closes once an action is chosen; return focus to the menu button then.
+    const visibleTrigger = this.trigger.checkVisibility() ? this.trigger : this.root.querySelector<HTMLElement>('#monitor-menu > summary') ?? this.trigger;
+    if (focus) (open ? this.provider : visibleTrigger).focus({preventScroll:true});
   }
 }

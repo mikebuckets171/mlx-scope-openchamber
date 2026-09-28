@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
+// 1.5: less-used controls live in the ⋯ menu; open it (if closed) before using one.
+const openMenu = async (frame: import('@playwright/test').FrameLocator): Promise<void> => {
+  if (!(await frame.locator('#monitor-menu').evaluate(element => (element as HTMLDetailsElement).open))) await frame.locator('#monitor-menu > summary').click();
+};
+const menu = async (frame: import('@playwright/test').FrameLocator, selector: string): Promise<void> => { await openMenu(frame); await frame.locator(selector).click(); };
+
 const requests = (page: Page) => page.evaluate(() => (window as unknown as { previewRequests: number }).previewRequests);
 const openPanel = async (page: Page, query = '') => {
   await page.goto(`/?${query}`);
@@ -56,6 +62,7 @@ test('relay srcdoc transport renders packaged assets, updates theme and pauses p
   await expect(frame.locator('#connection')).toHaveText('oMLX connected');
   await expect(frame.locator('#prefill-remaining')).toHaveText('36% remaining');
   await expect(frame.locator('#prefill-counts')).toContainText('5,824 / 9,100');
+  await frame.getByRole('tab',{name:'Server',exact:true}).click(); // 1.5: server detail lives in the Server tab
   await expect(frame.locator('#runtime-memory')).toBeVisible();
   await expect(frame.locator('#runtime-memory-source')).toHaveText('oMLX · server-wide');
   await expect(frame.locator('#process-memory')).toHaveText('32.1 GiB');
@@ -78,11 +85,13 @@ test('relay srcdoc transport renders packaged assets, updates theme and pauses p
 });
 
 test('responsive layouts preserve metrics in both themes', async ({ page }, info) => {
-  for (const theme of ['dark', 'light']) for (const width of [320, 430, 1160]) {
+  for (const theme of ['dark', 'light', 'violet', 'sand']) for (const width of [320, 430, 1160]) {
     await page.setViewportSize({ width, height: width < 900 ? 1200 : 860 });
     const frame = await openPanel(page, `theme=${theme}&surface=${width >= 900 ? 'page' : 'panel'}&long=1`);
     await expect(frame.locator('#connection')).toHaveText('oMLX connected');
+    await frame.getByRole('tab',{name:'Server',exact:true}).click(); // 1.5: server detail lives in the Server tab
     await expect(frame.locator('#runtime-memory')).toBeVisible();
+    await frame.getByRole('tab',{name:'Live',exact:true}).click();
     await expect(frame.locator('#ram')).toContainText('48 GiB');
     await expect(frame.locator('#swap')).toHaveText('1.1 GiB');
     const overflow = await frame.locator('main').evaluate(() => document.documentElement.scrollWidth > innerWidth);
@@ -118,13 +127,14 @@ test('responsive layouts preserve metrics in both themes', async ({ page }, info
 test('polling preserves controls, focus and open details', async ({ page }) => {
   const frame = await openPanel(page);
   const original = await frame.locator('#refresh').elementHandle();
+  await frame.getByRole('tab',{name:'Server',exact:true}).click(); // 1.5: server detail lives in the Server tab
   await frame.locator('.details summary').click();
   await frame.locator('.details summary').focus();
   await page.waitForTimeout(1_100);
   expect(await original!.evaluate(el => el.isConnected)).toBe(true);
   await expect(frame.locator('.details')).toHaveJSProperty('open', true);
   await expect(frame.locator('.details summary')).toBeFocused();
-  await frame.locator('#refresh').click();
+  await menu(frame, '#refresh');
   await expect(frame.locator('#refresh')).toBeEnabled();
 });
 
@@ -211,14 +221,14 @@ test('full-page history renders without page or console errors', async ({ page }
 
 test('energy-saving control reduces repeated polling without pausing the model', async ({ page }) => {
   const frame = await openPanel(page);
-  await frame.locator('#efficiency').click();
+  await menu(frame, '#efficiency');
   await expect(frame.locator('#efficiency')).toHaveAttribute('aria-pressed', 'true');
   await page.waitForTimeout(1_000);
   const before = await requests(page);
   await page.waitForTimeout(1_500);
   expect(await requests(page)).toBe(before);
   await expect(frame.locator('#pause')).toHaveAttribute('aria-pressed', 'false');
-  await frame.locator('#refresh').click();
+  await menu(frame, '#refresh');
   await expect.poll(() => requests(page)).toBeGreaterThan(before);
   await expect(frame.locator('#connection')).toHaveText('oMLX connected');
 });
@@ -231,7 +241,7 @@ test('prefill remaining and counts stay visible in compact mode and clear on gen
     await expect(frame.locator('#prefill-remaining')).toHaveText('36% remaining');
     await expect(frame.locator('#prefill-counts')).toContainText('5,824 / 9,100');
     await expect(frame.locator('#prefill-track')).toHaveAttribute('aria-valuetext', /36% remaining/);
-    await frame.locator('#compact').click();
+    await menu(frame, '#compact');
     await expect(frame.locator('#signal')).toBeHidden();
     await expect(frame.locator('#prefill-remaining')).toBeVisible();
     await page.screenshot({ path: info.outputPath(`prefill-${theme}.png`), fullPage: true });
@@ -239,7 +249,7 @@ test('prefill remaining and counts stay visible in compact mode and clear on gen
     await expect(frame.locator('#prefill-state')).toHaveText('Paused · last reading');
     await frame.locator('#pause').click();
     await page.evaluate(() => (window as unknown as { setPreviewState: (state: string) => void }).setPreviewState('decode'));
-    await frame.locator('#refresh').click();
+    await menu(frame, '#refresh');
     await expect(frame.locator('#prefill-progress')).toBeHidden();
     await expect(frame.locator('#request-output')).toContainText('output tokens');
     await page.evaluate(() => sessionStorage.clear());
@@ -261,7 +271,7 @@ test('invalid or missing prefill counts are not zero; stale progress is labelled
 
 test('view choices survive reload with no repeated storage writes or extra polling', async ({ page }) => {
   let frame = await openPanel(page, 'state=prefill');
-  await frame.locator('#compact').click(); await frame.locator('#efficiency').click();
+  await menu(frame, '#compact'); await menu(frame, '#efficiency');
   await expect.poll(() => page.evaluate(() => (window as unknown as { previewWrites: number }).previewWrites)).toBe(2);
   await page.reload(); frame = page.frameLocator('iframe');
   await expect(frame.locator('#compact')).toHaveAttribute('aria-pressed', 'true');
@@ -273,20 +283,20 @@ test('view choices survive reload with no repeated storage writes or extra polli
 test('copy stats uses host clipboard and reports failure without claiming success', async ({ page }) => {
   let frame = await openPanel(page, 'state=prefill&long=1&sessionTitle=PRIVATE');
   const before = await requests(page);
-  await frame.locator('#pause').click(); await frame.getByRole('button', { name: 'Share', exact: true }).click(); await frame.getByRole('menuitem', { name: 'Copy stats', exact: true }).click();
+  await frame.locator('#pause').click(); await openMenu(frame); await frame.getByRole('button', { name: 'Share', exact: true }).click(); await frame.getByRole('menuitem', { name: 'Copy stats', exact: true }).click();
   await expect(frame.locator('#action-status')).toContainText('Stats copied');
   const copied = await page.evaluate(() => (window as unknown as { previewCopied: string }).previewCopied);
   expect(copied).toContain('36% remaining'); expect(copied).toContain('held observations');
   expect(copied).not.toMatch(/PRIVATE|publisher|request_id|api_key/);
   expect(await requests(page)).toBe(before);
   frame = await openPanel(page, 'clipboard=fail');
-  await frame.getByRole('button', { name: 'Share', exact: true }).click(); await frame.getByRole('menuitem', { name: 'Copy stats', exact: true }).click();
+  await openMenu(frame); await frame.getByRole('button', { name: 'Share', exact: true }).click(); await frame.getByRole('menuitem', { name: 'Copy stats', exact: true }).click();
   await expect(frame.locator('#action-status')).toContainText('Could not copy');
 });
 
 test('storage failures never block monitoring or claim persisted preferences', async ({ page }) => {
   const frame = await openPanel(page, 'storage=fail');
-  await frame.locator('#compact').click();
+  await menu(frame, '#compact');
   await expect(frame.locator('#compact')).toHaveAttribute('aria-pressed', 'true');
   await expect(frame.locator('#action-status')).toContainText('could not save');
   await expect(frame.locator('#connection')).toHaveText('oMLX connected');
@@ -294,7 +304,7 @@ test('storage failures never block monitoring or claim persisted preferences', a
 
 test('energy saving does not turn the throughput chart into disconnected invisible points', async ({ page }) => {
   const frame = await openPanel(page);
-  await frame.locator('#efficiency').click();
+  await menu(frame, '#efficiency');
   await expect.poll(() => frame.locator('#trace path').evaluateAll(paths => paths.some(path => /L/.test(path.getAttribute('d') ?? ''))), { timeout: 9000 }).toBe(true);
 });
 
@@ -311,7 +321,7 @@ test('prefill layout is legible from a narrow panel to a full page', async ({ pa
     expect(await frame.locator('main').evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
     await page.screenshot({ path: info.outputPath(`prefill-${theme}-${width}.png`), fullPage: true });
     await page.evaluate(() => (window as unknown as { setPreviewState: (state: string) => void }).setPreviewState('prefill-missing'));
-    await frame.locator('#refresh').click();
+    await menu(frame, '#refresh');
     await expect(frame.locator('#prefill-remaining')).toHaveText('Progress unavailable');
     expect(await frame.locator('main').evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   }
@@ -323,11 +333,11 @@ test('prefill stage estimate accompanies remaining percent and disappears on pau
   await expect(frame.locator('#prefill-eta')).toHaveText('~20s');
   await expect(frame.locator('#prefill-remaining')).toHaveText('36% remaining');
   await expect(frame.locator('#runtime-memory-source')).toHaveText('oMLX · server-wide');
-  await frame.locator('#compact').click(); await expect(frame.locator('#prefill-estimate')).toBeVisible();
+  await menu(frame, '#compact'); await expect(frame.locator('#prefill-estimate')).toBeVisible();
   await frame.locator('#pause').click(); await expect(frame.locator('#prefill-estimate')).toBeHidden();
   await frame.locator('#pause').click();
   await page.evaluate(() => (window as any).setPreviewState('prefill-stale'));
-  await frame.locator('#refresh').click();
+  await menu(frame, '#refresh');
   await expect(frame.locator('#prefill-estimate')).toBeHidden();
   await expect(frame.locator('#prefill-remaining')).toHaveText('36% remaining');
 });
@@ -345,7 +355,7 @@ test('recent speed uses observations and is cleared on monitoring gaps', async (
 test('recent generations capture last seen values, copy sanitized observations, and clear without resetting runtime', async ({ page }) => {
   const frame = await openPanel(page, 'long=1');
   await page.evaluate(() => (window as any).setPreviewState('idle'));
-  await frame.locator('#refresh').click();
+  await menu(frame, '#refresh');
   await expect(frame.locator('#recent-list .generation-row')).toHaveCount(1);
   await expect(frame.locator('#recent-list')).toContainText('tokens last seen');
   const before = await requests(page);
@@ -368,11 +378,11 @@ test('resident roster reveals concurrent model activity with text-only labels', 
   await expect(frame.locator('#rate')).toHaveText('—');
   await expect(frame.locator('#activity')).toContainText('Concurrent requests');
   await page.evaluate(() => (window as any).setPreviewOverride({ residentModels: [{ id:'<img src=x onerror=alert(1)>', phase:'idle', activeRequests:0 }] }));
-  await frame.locator('#refresh').click();
+  await menu(frame, '#refresh');
   await expect(frame.locator('#resident-list img')).toHaveCount(0);
   await expect(frame.locator('#resident-list')).toContainText('<img');
   await page.evaluate(() => { (window as any).setPreviewOverride({}); (window as any).setPreviewState('offline'); });
-  await frame.locator('#refresh').click(); await expect(frame.locator('#resident-section')).toBeHidden();
+  await menu(frame, '#refresh'); await expect(frame.locator('#resident-section')).toBeHidden();
 });
 
 test('cache lens separates reused input from prefill and exposes unavailable values', async ({ page }) => {
@@ -381,7 +391,7 @@ test('cache lens separates reused input from prefill and exposes unavailable val
   await expect(frame.locator('#cache-new-count')).toHaveText('9,100');
   await expect(frame.locator('#cache-input-bar')).toHaveAttribute('aria-label', /43,000.*9,100/);
   await page.evaluate(() => (window as any).setPreviewOverride({cachedTokens: null}));
-  await frame.locator('#refresh').click();
+  await menu(frame, '#refresh');
   await expect(frame.locator('#cache-new-count')).toHaveText('—');
   await expect(frame.locator('#cache-input-bar')).toHaveAttribute('data-available', 'false');
 });
@@ -393,16 +403,18 @@ test('enhanced workspace and panel render without overflow, runtime errors or hi
   for (const theme of ['dark', 'light']) for (const width of [320, 1160]) {
     await page.setViewportSize({width, height: 1400});
     const frame = await openPanel(page, `theme=${theme}&multi=resident&surface=${width === 1160 ? 'page' : 'panel'}`);
-    if (await frame.locator('#compact').getAttribute('aria-pressed') === 'true') await frame.locator('#compact').click();
+    if (await frame.locator('#compact').getAttribute('aria-pressed') === 'true') await menu(frame, '#compact');
     await expect(frame.locator('#compact')).toHaveAttribute('aria-pressed', 'false');
+    await frame.getByRole('tab',{name:'Server',exact:true}).click(); // 1.5: server detail lives in the Server tab
     await expect(frame.locator('#cache-lens')).toBeVisible();
     await expect(frame.locator('#resident-section')).toBeVisible();
+    await frame.getByRole('tab',{name:'Live',exact:true}).click();
     await expect(frame.locator('#recent-generations')).toBeHidden();
     await page.evaluate(() => (window as any).setPreviewEpoch(2));
-    await frame.locator('#refresh').click();
+    await menu(frame, '#refresh');
     await expect(frame.locator('#recent-list .generation-row')).toHaveCount(1);
     await page.evaluate(() => (window as any).setPreviewState('prefill'));
-    await frame.locator('#refresh').click();
+    await menu(frame, '#refresh');
     await expect(frame.locator('#prefill-remaining')).toHaveText('36% remaining');
     await expect(frame.locator('#prefill-estimate')).toBeVisible();
     expect(await frame.locator('main').evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
@@ -411,7 +423,7 @@ test('enhanced workspace and panel render without overflow, runtime errors or hi
     await page.setViewportSize({width, height});
     await frame.locator('main').screenshot({path: info.outputPath(`enhanced-${theme}-${width}.png`)});
     if (width === 320) {
-      await frame.locator('#compact').click();
+      await menu(frame, '#compact');
       await expect(frame.locator('#prefill-estimate')).toBeVisible();
       await expect(frame.locator('#cache-lens')).toBeHidden();
       await frame.locator('main').screenshot({path: info.outputPath(`enhanced-compact-${theme}.png`)});
@@ -440,6 +452,7 @@ test('sharing is a quiet menu built with SDK buttons and appends a sanitized dra
   await expect(frame.locator('#chamber-context')).toHaveCount(0);
   const share = frame.getByRole('button', {name:'Share', exact:true});
   await expect(frame.getByRole('menuitem')).toHaveCount(0);
+  await openMenu(frame);
   await share.click();
   await frame.getByRole('menuitem', {name:'Add to chat draft'}).click();
   await expect(frame.locator('#action-status')).toContainText('Nothing was sent automatically');
@@ -448,19 +461,20 @@ test('sharing is a quiet menu built with SDK buttons and appends a sanitized dra
   expect(draft.text).not.toMatch(/Local coding session|Qwen/);
   expect(await page.evaluate(() => (window as any).previewUnexpectedSends)).toBe(0);
   await page.evaluate(() => (window as any).setPreviewSession(null));
+  await openMenu(frame);
   await share.click();
   await expect(frame.getByRole('menuitem', {name:'Add to chat draft'})).toBeDisabled();
 });
 
 test('draft failures do not claim success; sharing without a selected chat is unavailable', async ({page}) => {
   let frame = await openPanel(page);
-  await frame.getByRole('button', {name:'Share',exact:true}).click();
+  await openMenu(frame); await frame.getByRole('button', {name:'Share',exact:true}).click();
   await expect(frame.getByRole('menuitem',{name:'Add to chat draft'})).toBeDisabled();
   frame = await openPanel(page,'chat=1&compose=fail');
-  await frame.getByRole('button',{name:'Share',exact:true}).click();
+  await openMenu(frame); await frame.getByRole('button',{name:'Share',exact:true}).click();
   await frame.getByRole('menuitem',{name:'Add to chat draft'}).click();
   await expect(frame.locator('#action-status')).toContainText('Could not confirm');
-  await frame.getByRole('button',{name:'Share',exact:true}).click();
+  await openMenu(frame); await frame.getByRole('button',{name:'Share',exact:true}).click();
   await expect(frame.getByRole('menuitem',{name:'Add to chat draft'})).toBeEnabled();
 });
 
@@ -501,28 +515,63 @@ test('coordinated monitor layout keeps new controls legible with prefill visible
   for(const theme of ['dark','light'])for(const width of [320,1160]){
     await page.setViewportSize({width,height:1500});
     const frame=await openPanel(page,`chat=1&theme=${theme}&multi=resident&surface=${width>900?'page':'panel'}`);
-    if(await frame.locator('#compact').getAttribute('aria-pressed')==='true')await frame.locator('#compact').click();
+    if(await frame.locator('#compact').getAttribute('aria-pressed')==='true')await menu(frame, '#compact');
     await frame.getByRole('tab', {name:'Compare',exact:true}).click();
   await frame.locator('#capture-start').click();await expect(frame.locator('#capture-speed')).toContainText('tok/s');await frame.locator('#capture-stop').click();
     await frame.locator('#capture-pin').click();
     await frame.getByRole('tab', {name:'Live',exact:true}).click();
-    await page.evaluate(()=>(window as any).setPreviewState('prefill'));await frame.locator('#refresh').click();
+    await page.evaluate(()=>(window as any).setPreviewState('prefill'));await menu(frame, '#refresh');
     await expect(frame.locator('#prefill-remaining')).toHaveText('36% remaining');
+    await openMenu(frame);
     await expect(frame.getByRole('button', {name:'Share',exact:true})).toBeVisible();
     await expect(frame.locator('#chamber-context')).toHaveCount(0);
     expect(await frame.locator('main').evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
     const height=await frame.locator('main').evaluate(el=>Math.ceil(el.getBoundingClientRect().height)+40);
     await page.setViewportSize({width,height});
     await frame.locator('main').screenshot({path:info.outputPath(`coordinated-${theme}-${width}.png`)});
-    if(width===320){await frame.locator('#compact').click();await expect(frame.locator('#prefill-remaining')).toBeVisible();await expect(frame.locator('#capture')).toBeHidden();await frame.locator('main').screenshot({path:info.outputPath(`coordinated-compact-${theme}.png`)});}
+    if(width===320){await menu(frame, '#compact');await expect(frame.locator('#prefill-remaining')).toBeVisible();await expect(frame.locator('#capture')).toBeHidden();await frame.locator('main').screenshot({path:info.outputPath(`coordinated-compact-${theme}.png`)});}
   }
   expect(errors).toEqual([]);
 });
 
 
+test('monitor menu stays opaque and readable with a translucent host elevation', async ({page}, info) => {
+  for (const theme of ['dark', 'light']) for (const width of [320, 430, 1160]) {
+    await page.setViewportSize({width, height: 800});
+    const frame = await openPanel(page, `theme=${theme}&translucent=1&surface=${width > 900 ? 'page' : 'panel'}`);
+    await openMenu(frame);
+    const menuContent = frame.locator('.monitor-menu-content');
+    const values = await menuContent.evaluate(element => {
+      const style = getComputedStyle(element);
+      const box = element.getBoundingClientRect();
+      const energy = element.querySelector('#efficiency')!.getBoundingClientRect();
+      return {background: style.backgroundImage, color: style.backgroundColor, menuWidth: box.width, energyWidth: energy.width, overflow: document.documentElement.scrollWidth > innerWidth};
+    });
+    expect(values.background, `${theme}/${width}: menu needs a backing layer`).toContain('linear-gradient');
+    expect(values.color, `${theme}/${width}: menu needs an opaque base`).not.toBe('rgba(0, 0, 0, 0)');
+    expect(values.energyWidth, `${theme}/${width}: Energy-saving should fill the menu`).toBeGreaterThan(values.menuWidth - 30);
+    expect(values.overflow, `${theme}/${width}: menu overflows`).toBe(false);
+    await page.screenshot({path: info.outputPath(`translucent-menu-${theme}-${width}.png`)});
+  }
+});
+
+test('Server tab holds server-wide readings without overflow', async ({page}, info) => {
+  for (const theme of ['dark', 'light']) for (const width of [320, 1160]) {
+    await page.setViewportSize({width, height: 1400});
+    const frame = await openPanel(page, `theme=${theme}&surface=${width > 900 ? 'page' : 'panel'}&long=1`);
+    await frame.getByRole('tab', {name: 'Server', exact: true}).click();
+    await expect(frame.locator('#view-server')).toBeVisible();
+    await expect(frame.locator('#view-live')).toBeHidden();
+    await expect(frame.locator('#runtime-memory')).toBeVisible();
+    expect(await frame.locator('body').evaluate(() => document.documentElement.scrollWidth > innerWidth), `${theme}/${width}: overflow`).toBe(false);
+    await page.screenshot({path: info.outputPath(`server-${theme}-${width}.png`), fullPage: true});
+  }
+});
+
 test('Share preserves keyboard focus, responds to session changes, and survives monitoring updates', async ({page}) => {
   const frame = await openPanel(page, 'chat=1');
   const share = frame.getByRole('button',{name:'Share',exact:true});
+  await openMenu(frame);
   await share.focus(); await share.press('Enter');
   await expect(frame.getByRole('menu')).toBeVisible();
   await page.waitForTimeout(1200);
@@ -531,6 +580,7 @@ test('Share preserves keyboard focus, responds to session changes, and survives 
   await expect(share).toBeFocused();
   await expect(frame.getByRole('menu')).toHaveCount(0);
   await page.evaluate(() => (window as any).setPreviewSession(null));
+  await openMenu(frame);
   await share.press('Enter');
   await expect(frame.getByRole('menuitem',{name:'Add to chat draft'})).toBeDisabled();
   expect(await page.evaluate(() => (window as any).previewComposed)).toBeNull();
@@ -555,8 +605,8 @@ test('live host theme changes update the existing view without restarting monito
   }
   expect(await requests(page)).toBe(count);
   await page.setViewportSize({width:320,height:1200});
-  await frame.locator('#compact').click();
-  await frame.getByRole('button',{name:'Share',exact:true}).click();
+  await menu(frame, '#compact');
+  await openMenu(frame); await frame.getByRole('button',{name:'Share',exact:true}).click();
   await expect(frame.getByRole('menuitem',{name:'Add to chat draft'})).toBeVisible();
   expect(await frame.locator('main').evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   await frame.locator('main').screenshot({path:info.outputPath('share-compact-sand.png')});
@@ -568,6 +618,7 @@ test('Share remains anchored, closes outside, and does not shift the monitor', a
   const frame = await openPanel(page,'chat=1&state=prefill');
   const share = frame.getByRole('button',{name:'Share',exact:true});
   const before = await frame.locator('#model').boundingBox();
+  await openMenu(frame);
   await share.click();
   const menu = frame.getByRole('menu');
   await expect(menu).toBeVisible();
@@ -652,11 +703,11 @@ test('returning to a hidden panel with a pending request never presents old spee
   await expect(frame.locator('#runtime-memory-source')).toHaveText('Last reading · refreshing');
   await expect(frame.locator('#prefill-estimate')).toBeHidden();
   await expect(frame.locator('#capture-start')).toBeDisabled();
-  await frame.locator('#compact').click();
-  await frame.locator('#compact').click();
+  await menu(frame, '#compact');
+  await menu(frame, '#compact');
   await expect(frame.locator('#rate')).toHaveText('—');
   await expect(frame.locator('#prefill-state')).toHaveText('Refreshing · last reading');
-  await frame.getByRole('button',{name:'Share',exact:true}).click();
+  await openMenu(frame); await frame.getByRole('button',{name:'Share',exact:true}).click();
   await frame.getByRole('menuitem',{name:'Copy stats',exact:true}).click();
   await expect(frame.locator('#action-status')).toContainText('Stats copied');
   expect(await page.evaluate(() => (window as any).previewCopied)).toContain('refreshing — held observations');
@@ -701,8 +752,8 @@ test('a restored browser view waits for fresh readings even without a visibility
   await expect(frame.locator('#prefill-state')).toHaveText('Refreshing · last reading');
   await expect(frame.locator('#prefill-estimate')).toBeHidden();
   await expect(frame.locator('#capture-start')).toBeDisabled();
-  await frame.locator('#compact').click();
-  await frame.locator('#compact').click();
+  await menu(frame, '#compact');
+  await menu(frame, '#compact');
   await expect(frame.locator('#rate')).toHaveText('—');
 });
 
@@ -742,6 +793,8 @@ test('workspace tabs use keyboard navigation and Saved suspends monitoring until
   const frame = await openPanel(page,'state=prefill');
   const live = frame.getByRole('tab',{name:'Live',exact:true});
   await live.focus(); await live.press('ArrowRight');
+  await expect(frame.getByRole('tab',{name:'Server',exact:true})).toBeFocused();
+  await frame.getByRole('tab',{name:'Server',exact:true}).press('ArrowRight');
   await expect(frame.getByRole('tab',{name:'Compare',exact:true})).toBeFocused();
   await expect(frame.locator('#view-compare')).toBeVisible();
   await frame.getByRole('tab',{name:'Compare',exact:true}).press('ArrowRight');
@@ -755,7 +808,7 @@ test('workspace tabs use keyboard navigation and Saved suspends monitoring until
 test('saved snapshots are manual, sanitized, persistent and individually deletable', async ({page}) => {
   const frame = await openPanel(page,'state=prefill&long=1&chat=1');
   expect(await page.evaluate(() => (window as any).previewWrites)).toBe(0);
-  await frame.locator('#save-snapshot').click();
+  await menu(frame, '#save-snapshot');
   await expect(frame.locator('#action-status')).toContainText('Observation saved');
   const stored = await page.evaluate(() => Object.keys(sessionStorage).filter(key => key.startsWith('observation.v1.')).map(key => sessionStorage.getItem(key)).join(''));
   expect(stored).not.toMatch(/Qwen|publisher|private|request_id|traceEpoch|api_key/);
@@ -777,14 +830,14 @@ test('saved snapshots are manual, sanitized, persistent and individually deletab
 
 test('saved storage and clipboard failures are honest and never block Live', async ({page}) => {
   let frame = await openPanel(page,'storage=fail');
-  await frame.locator('#save-snapshot').click();
+  await menu(frame, '#save-snapshot');
   await expect(frame.locator('#action-status')).toContainText('Nothing was confirmed');
   await frame.getByRole('tab',{name:'Saved',exact:true}).click();
   await expect(frame.locator('#saved-state')).toContainText('unavailable');
   await frame.getByRole('tab',{name:'Live',exact:true}).click();
   await expect(frame.locator('#connection')).toHaveText('oMLX connected');
   frame = await openPanel(page,'clipboard=fail');
-  await frame.locator('#save-snapshot').click(); await expect(frame.locator('#action-status')).toContainText('Observation saved');
+  await menu(frame, '#save-snapshot'); await expect(frame.locator('#action-status')).toContainText('Observation saved');
   await frame.getByRole('tab',{name:'Saved',exact:true}).click();
   await frame.locator('.saved-row').getByRole('button',{name:'Copy',exact:true}).click();
   await expect(frame.locator('#action-status')).toContainText('clipboard was not confirmed');
@@ -795,12 +848,13 @@ test('Share feedback preserves layout and a draft append preserves existing text
   const frame = await openPanel(page,'chat=1&state=prefill');
   await frame.locator('#pause').click();
   const before = await frame.locator('#model').boundingBox();
-  await frame.getByRole('button',{name:'Share',exact:true}).click();
+  await openMenu(frame); await frame.getByRole('button',{name:'Share',exact:true}).click();
   await frame.getByRole('menuitem',{name:'Add to chat draft'}).click();
   await expect(frame.locator('#action-status')).toContainText('Nothing was sent');
   expect(await page.evaluate(() => (window as any).previewDraft)).toMatch(/^Existing draft\n\nMLX Scope/);
   expect(await frame.locator('#model').boundingBox()).toEqual(before);
-  await expect(frame.getByRole('button',{name:'Share',exact:true})).toBeFocused();
+  // 1.5: choosing a share action closes the ⋯ menu; focus returns to the menu button.
+  await expect(frame.locator('#monitor-menu > summary')).toBeFocused();
 });
 
 test('a save clicked while a previous Saved load is pending is queued and confirmed', async ({page}) => {
@@ -808,7 +862,7 @@ test('a save clicked while a previous Saved load is pending is queued and confir
   await frame.getByRole('tab',{name:'Saved',exact:true}).click();
   await frame.getByRole('tab',{name:'Live',exact:true}).click();
   await expect(frame.locator('#prefill-state')).toHaveText('Live reading');
-  await frame.locator('#save-snapshot').click();
+  await menu(frame, '#save-snapshot');
   await expect(frame.locator('#action-status')).toContainText('Observation saved');
   await frame.getByRole('tab',{name:'Saved',exact:true}).click();
   await expect(frame.locator('.saved-row')).toHaveCount(1);
