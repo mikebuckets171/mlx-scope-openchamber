@@ -1,0 +1,112 @@
+{
+  "models": [
+    {
+      "type": "llm",
+      "publisher": "publisher",
+      "key": "publisher/example-27b-splash",
+      "display_name": "Example 27B Splash",
+      "architecture": "qwen3_5",
+      "quantization": {
+        "name": "4bit",
+        "bits_per_weight": 4
+      },
+      "size_bytes": 18683107738,
+      "params_string": "27B",
+      "loaded_instances": [
+        {
+          "id": "publisher/example-27b-splash",
+          "config": {
+            "context_length": 262144,
+            "parallel": 4,
+            "reasoning_budget_message": ""
+          }
+        }
+      ],
+      "max_context_length": 262144,
+      "format": "splash",
+      "capabilities": {
+        "vision": true,
+        "trained_for_tool_use": true
+      },
+      "description": null
+    },
+    {
+      "type": "llm",
+      "publisher": "publisher",
+      "key": "example-35b-a3b-splash",
+      "display_name": "Example 35B A3B Splash",
+      "architecture": "qwen3_5_moe",
+      "quantization": {
+        "name": "4bit",
+        "bits_per_weight": 4
+      },
+      "size_bytes": 20401094656,
+      "params_string": "35B-A3B",
+      "loaded_instances": [],
+      "max_context_length": 262144,
+      "format": "splash",
+      "capabilities": {
+        "vision": true,
+        "trained_for_tool_use": true
+      },
+      "description": null
+    },
+    {
+      "type": "llm",
+      "publisher": "publisher",
+      "key": "publisher/example-27b-4bit",
+      "display_name": "Example 27B 4bit",
+      "architecture": "qwen3",
+      "quantization": {
+        "name": "4bit",
+        "bits_per_weight": 4
+      },
+      "size_bytes": 15569256448,
+      "params_string": "27B",
+      "loaded_instances": [],
+      "max_context_length": 131072,
+      "format": "mlx",
+      "capabilities": {
+        "vision": false,
+        "trained_for_tool_use": true
+      },
+      "description": null
+    },
+    {
+      "type": "llm",
+      "publisher": "publisher",
+      "key": "publisher/example-8b-gguf",
+      "display_name": "Example 8B",
+      "architecture": "llama",
+      "quantization": {
+        "name": "Q4_K_M",
+        "bits_per_weight": 4
+      },
+      "size_bytes": 4920734976,
+      "params_string": "8B",
+      "loaded_instances": [],
+      "max_context_length": 131072,
+      "format": "gguf",
+      "capabilities": {
+        "vision": false,
+        "trained_for_tool_use": true
+      },
+      "description": null
+    },
+    {
+      "type": "embedding",
+      "publisher": "publisher",
+      "key": "text-embedding-example-embed-v1.5",
+      "display_name": "Example Embed v1.5",
+      "quantization": {
+        "name": "Q4_K_M",
+        "bits_per_weight": 4
+      },
+      "size_bytes": 84106624,
+      "params_string": null,
+      "loaded_instances": [],
+      "max_context_length": 2048,
+      "format": "gguf"
+    }
+  ]
+}
