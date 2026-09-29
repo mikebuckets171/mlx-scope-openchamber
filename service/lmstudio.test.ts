@@ -55,6 +55,41 @@ test('only a typed v1 route 404 enables the documented v0 inventory fallback', a
   expect(result.catalog?.[0]).toEqual({ name: 'fixture/legacy-loaded', loaded: true, format: 'mlx', contextWindow: 16384 });
 });
 
+test('an HTTP 200 route-missing error body also enables the v0 inventory fallback', async () => {
+  const calls: string[] = [];
+  const client = new LMStudioClient(async path => {
+    calls.push(path);
+    if (path === '/api/v1/models') return { error: 'Unexpected endpoint or method. (GET /api/v1/models)' };
+    return { object: 'list', data: [{ id: 'fixture/legacy-loaded', type: 'llm', state: 'loaded', compatibility_type: 'mlx', max_context_length: 8192 }] };
+  });
+  const result = await client.snapshot();
+  await client.snapshot();
+  expect(calls).toEqual(['/api/v1/models', '/api/v0/models', '/api/v0/models']);
+  expect(result).toMatchObject({ available: true, modelID: 'fixture/legacy-loaded', residentModelCount: 1 });
+});
+
+test('other error bodies stay unsupported without a legacy fallback', async () => {
+  for (const body of [{ error: 'Model crashed' }, { error: 'Unexpected endpoint or method.', models: [] }, { error: 42 }]) {
+    const calls: string[] = [];
+    const result = await new LMStudioClient(async path => { calls.push(path); return body; }).snapshot();
+    expect(calls).toEqual(['/api/v1/models']);
+    if (!Array.isArray((body as { models?: unknown }).models)) expect(result).toMatchObject({ available: false, reason: 'unsupported_contract' });
+  }
+});
+
+test('the lms activity stream is touched only after a recognised inventory, so an absent LM Studio is never started', async () => {
+  let touched = 0;
+  const activity = { touch: () => { touched += 1; }, view: () => null };
+  await expect(new LMStudioClient(async () => { throw new HttpFailure('runtime_unreachable', 'Connection refused.', null); }, () => 1, activity).snapshot()).rejects.toBeDefined();
+  expect(touched).toBe(0);
+  expect(await new LMStudioClient(async () => ({ unexpected: true }), () => 1, activity).snapshot()).toMatchObject({ available: false });
+  expect(touched).toBe(0);
+  expect(await new LMStudioClient(async () => ({ models: [{ key: 7 }] }), () => 1, activity).snapshot()).toMatchObject({ available: false });
+  expect(touched).toBe(0);
+  expect(await new LMStudioClient(async () => ({ models: [model()] }), () => 1, activity).snapshot()).toMatchObject({ available: true });
+  expect(touched).toBe(1);
+});
+
 test('authentication, server and malformed-response failures never try an unauthenticated or legacy fallback', async () => {
   for (const status of [401, 403, 500, 503, null]) {
     const calls: string[] = [];

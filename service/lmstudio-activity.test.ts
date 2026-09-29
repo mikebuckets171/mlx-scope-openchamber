@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { BoundedLines, LMStudioActivityStream, LMStudioActivityTracker, MAX_LOG_LINE_BYTES, parseLMStudioServerLine } from './lmstudio-activity.ts';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { BoundedLines, findLMStudioHome, findLms, LMStudioActivityStream, LMStudioActivityTracker, MAX_LOG_LINE_BYTES, parseLMStudioServerLine } from './lmstudio-activity.ts';
 
 // Lines captured from LM Studio Bionic 1.1.6 with request-content redaction on.
 const LINES = {
@@ -148,14 +151,30 @@ class FakeChild extends EventEmitter {
 }
 const tick = () => new Promise(resolve => setTimeout(resolve, 5));
 
+/** A temporary user home with an LM Studio home whose running app recorded `infoPort` and serves REST on `restPort`. */
+const fixtureHome = (options: { infoPort?: number | null; restPort?: number | null; studio?: string; pointer?: boolean } = {}) => {
+  const home = mkdtempSync(path.join(tmpdir(), 'scope-lms-'));
+  const studio = path.join(home, options.studio ?? '.lmstudio');
+  mkdirSync(path.join(studio, '.internal'), { recursive: true });
+  if (options.infoPort !== null) writeFileSync(path.join(studio, '.internal', 'http-server.json'), JSON.stringify({ host: '127.0.0.1', pid: 1, port: options.infoPort ?? 41343 }));
+  if (options.restPort !== null) writeFileSync(path.join(studio, '.internal', 'http-server-config.json'), JSON.stringify({ port: options.restPort ?? 1234 }));
+  if (options.pointer) writeFileSync(path.join(home, '.lmstudio-home-pointer'), `${studio}\n`);
+  return { home, studio };
+};
+const recorder = () => {
+  const spawned: Array<{ file: string; args: string[]; env: NodeJS.ProcessEnv; child: FakeChild }> = [];
+  const spawnStream = (file: string, args: string[], env: NodeJS.ProcessEnv) => { const child = new FakeChild(); spawned.push({ file, args, env, child }); return child as never; };
+  return { spawned, spawnStream };
+};
+const STREAM_ARGS = ['log', 'stream', '-s', 'server', '--json', '--port', '41343'];
+
 test('stream runs lms only while watched, feeds the tracker, and stops when idle', async () => {
-  const spawned: Array<{ file: string; args: string[]; child: FakeChild }> = [];
-  const stream = new LMStudioActivityStream({ lmsPath: '/fake/lms', idleStopMs: 40, now: () => 5,
-    spawnStream: (file, args) => { const child = new FakeChild(); spawned.push({ file, args, child }); return child as never; } });
+  const { spawned, spawnStream } = recorder();
+  const stream = new LMStudioActivityStream({ home: fixtureHome().home, lmsPath: '/fake/lms', idleStopMs: 40, now: () => 5, spawnStream });
   expect(stream.view()).toBeNull();
   stream.touch();
   expect(spawned).toHaveLength(1);
-  expect(spawned[0]).toMatchObject({ file: '/fake/lms', args: ['log', 'stream', '-s', 'server', '--json'] });
+  expect(spawned[0]).toMatchObject({ file: '/fake/lms', args: STREAM_ARGS });
   const child = spawned[0].child;
   child.stdout.write('Streaming logs from LM Studio\n');
   child.stdout.write(`${JSON.stringify({ timestamp: 1, data: { type: 'server.log', level: 'info', content: LINES.running } })}\n`);
@@ -169,25 +188,154 @@ test('stream runs lms only while watched, feeds the tracker, and stops when idle
 });
 
 test('stream is unavailable without an lms binary and never spawns', () => {
-  let spawned = 0;
-  const stream = new LMStudioActivityStream({ lmsPath: null, spawnStream: () => { spawned += 1; return new FakeChild() as never; } });
+  const { spawned, spawnStream } = recorder();
+  const stream = new LMStudioActivityStream({ home: fixtureHome().home, lmsPath: null, spawnStream });
   expect(stream.available).toBe(false);
   stream.touch();
-  expect(spawned).toBe(0);
+  expect(spawned).toHaveLength(0);
   expect(stream.view()).toBeNull();
 });
 
-test('stream exit clears in-flight state and restarts while still watched', async () => {
-  const children: FakeChild[] = [];
-  const stream = new LMStudioActivityStream({ lmsPath: '/fake/lms', idleStopMs: 5_000,
-    spawnStream: () => { const child = new FakeChild(); children.push(child); return child as never; } });
+test('stream exit clears in-flight state and restarts while LM Studio still answers', async () => {
+  const { spawned, spawnStream } = recorder();
+  const stream = new LMStudioActivityStream({ home: fixtureHome().home, lmsPath: '/fake/lms', idleStopMs: 5_000, restartBaseMs: 20, spawnStream });
   stream.touch();
-  children[0].stdout.write(`${JSON.stringify({ data: { content: LINES.running } })}\n`);
+  spawned[0].child.stdout.write(`${JSON.stringify({ data: { content: LINES.running } })}\n`);
   await tick();
   expect(stream.view()?.activeRequests).toBe(1);
-  children[0].exitCode = 1; children[0].emit('exit', 1, null);
+  spawned[0].child.exitCode = 1; spawned[0].child.emit('exit', 1, null);
   expect(stream.view()).toBeNull();
-  await new Promise(resolve => setTimeout(resolve, 1_100));
-  expect(children).toHaveLength(2);
+  stream.touch();
+  expect(spawned).toHaveLength(1);
+  await new Promise(resolve => setTimeout(resolve, 60));
+  expect(spawned).toHaveLength(2);
   stream.stop();
+});
+
+test('lms gets the explicit recorded port and the server-info path of the LM Studio home lms itself would use', () => {
+  const standard = fixtureHome();
+  const pointed = fixtureHome({ studio: 'custom-studio', infoPort: 50_123, pointer: true });
+  mkdirSync(path.join(pointed.home, '.lmstudio', 'bin'), { recursive: true });
+  const { spawned, spawnStream } = recorder();
+  for (const home of [standard.home, pointed.home]) {
+    const stream = new LMStudioActivityStream({ home, lmsPath: '/fake/lms', idleStopMs: 5_000, spawnStream });
+    stream.touch();
+    stream.stop();
+  }
+  expect(spawned.map(entry => entry.args)).toEqual([STREAM_ARGS, [...STREAM_ARGS.slice(0, -1), '50123']]);
+  expect(spawned.map(entry => entry.env.LMS_API_SERVER_INFO_PATH)).toEqual([
+    path.join(standard.studio, '.internal', 'http-server.json'), path.join(pointed.studio, '.internal', 'http-server.json')]);
+  for (const entry of spawned) {
+    expect(entry.env).toMatchObject({ LANG: 'C', LC_ALL: 'C', PATH: '/usr/bin:/bin' });
+    expect(Object.keys(entry.env).sort()).toEqual(['HOME', 'LANG', 'LC_ALL', 'LMS_API_SERVER_INFO_PATH', 'PATH']);
+  }
+});
+
+test('the LM Studio home and lms binary resolve the way lms resolves its home', () => {
+  const standard = fixtureHome();
+  expect(findLMStudioHome(standard.home)).toBe(standard.studio);
+  const legacy = fixtureHome({ studio: path.join('.cache', 'lm-studio') });
+  expect(findLMStudioHome(legacy.home)).toBe(legacy.studio);
+  const pointed = fixtureHome({ studio: 'elsewhere', pointer: true });
+  mkdirSync(path.join(pointed.home, '.lmstudio', 'bin'), { recursive: true });
+  mkdirSync(path.join(pointed.studio, 'bin'), { recursive: true });
+  writeFileSync(path.join(pointed.home, '.lmstudio', 'bin', 'lms'), '');
+  writeFileSync(path.join(pointed.studio, 'bin', 'lms'), '');
+  expect(findLMStudioHome(pointed.home)).toBe(pointed.studio);
+  expect(findLms(pointed.home)).toBe(path.join(pointed.studio, 'bin', 'lms'));
+  expect(findLms(fixtureHome().home)).toBeNull();
+});
+
+test('without a recorded server port lms is never started', async () => {
+  const { spawned, spawnStream } = recorder();
+  const stream = new LMStudioActivityStream({ home: fixtureHome({ infoPort: null }).home, lmsPath: '/fake/lms', idleStopMs: 5_000, restartBaseMs: 5, spawnStream });
+  for (let i = 0; i < 3; i++) { stream.touch(); await tick(); }
+  expect(spawned).toHaveLength(0);
+  stream.stop();
+});
+
+test('only the connection on the LM Studio home REST port starts or sees the stream', async () => {
+  const { spawned, spawnStream } = recorder();
+  const stream = new LMStudioActivityStream({ home: fixtureHome().home, lmsPath: '/fake/lms', idleStopMs: 5_000, spawnStream });
+  const tunnel = stream.forPort(1235), home = stream.forPort(1234), unknown = stream.forPort(null);
+  tunnel.touch(); unknown.touch();
+  expect(spawned).toHaveLength(0);
+  home.touch();
+  expect(spawned).toHaveLength(1);
+  spawned[0].child.stdout.write(`${JSON.stringify({ data: { content: LINES.running } })}\n`);
+  await tick();
+  expect(home.view()?.activeRequests).toBe(1);
+  expect(tunnel.view()).toBeNull();
+  expect(unknown.view()).toBeNull();
+  stream.stop();
+  const unconfigured = new LMStudioActivityStream({ home: fixtureHome({ restPort: null }).home, lmsPath: '/fake/lms', spawnStream });
+  unconfigured.forPort(1234).touch();
+  expect(spawned).toHaveLength(1);
+  unconfigured.stop();
+});
+
+test('a stream that ended is not restarted until LM Studio answers again', async () => {
+  const { spawned, spawnStream } = recorder();
+  const stream = new LMStudioActivityStream({ home: fixtureHome().home, lmsPath: '/fake/lms', idleStopMs: 5_000, restartBaseMs: 10, spawnStream });
+  stream.touch();
+  spawned[0].child.exitCode = 1; spawned[0].child.emit('exit', 1, null);
+  await new Promise(resolve => setTimeout(resolve, 40));
+  expect(spawned).toHaveLength(1);
+  stream.touch();
+  expect(spawned).toHaveLength(2);
+  stream.stop();
+});
+
+test('a failed spawn is retried only after LM Studio answers again', async () => {
+  let attempts = 0;
+  const stream = new LMStudioActivityStream({ home: fixtureHome().home, lmsPath: '/fake/lms', idleStopMs: 5_000, restartBaseMs: 10,
+    spawnStream: () => { attempts += 1; throw new Error('spawn failed'); } });
+  stream.touch();
+  await new Promise(resolve => setTimeout(resolve, 40));
+  expect(attempts).toBe(1);
+  stream.stop();
+});
+
+test('lms that keeps exiting without output is given up until Scope is reopened', async () => {
+  const { spawned, spawnStream } = recorder();
+  const stream = new LMStudioActivityStream({ home: fixtureHome().home, lmsPath: '/fake/lms', idleStopMs: 5_000, restartBaseMs: 2, spawnStream });
+  stream.touch();
+  for (let i = 0; i < 8; i++) {
+    const child = spawned.at(-1)!.child;
+    if (child.exitCode === null) { child.exitCode = 1; child.emit('exit', 1, null); }
+    stream.touch();
+    await new Promise(resolve => setTimeout(resolve, 15));
+  }
+  expect(spawned).toHaveLength(5);
+  stream.stop();
+  stream.touch();
+  expect(spawned).toHaveLength(6);
+  stream.stop();
+});
+
+test('the real spawner runs lms with only the minimal environment, the explicit port and the server-info path', async () => {
+  const { home, studio } = fixtureHome();
+  const bin = path.join(studio, 'bin');
+  mkdirSync(bin, { recursive: true });
+  const stub = path.join(bin, 'lms');
+  writeFileSync(stub, '#!/bin/sh\nenv > "$(/usr/bin/dirname "$0")/env.txt"\necho "$@" > "$(/usr/bin/dirname "$0")/args.txt"\necho "Streaming logs from LM Studio"\n');
+  chmodSync(stub, 0o755);
+  const previous = process.env.OPENCHAMBER_SERVICE_TOKEN;
+  process.env.OPENCHAMBER_SERVICE_TOKEN = 'canary-service-token';
+  try {
+    const stream = new LMStudioActivityStream({ home, idleStopMs: 5_000 });
+    expect(stream.available).toBe(true);
+    stream.touch();
+    for (let i = 0; i < 100 && !existsSync(path.join(bin, 'args.txt')); i++) await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    stream.stop();
+    expect(readFileSync(path.join(bin, 'args.txt'), 'utf8').trim()).toBe(STREAM_ARGS.join(' '));
+    const env = readFileSync(path.join(bin, 'env.txt'), 'utf8');
+    expect(env).toContain(`LMS_API_SERVER_INFO_PATH=${path.join(studio, '.internal', 'http-server.json')}\n`);
+    expect(env).toContain('PATH=/usr/bin:/bin\n');
+    expect(env).not.toContain('canary-service-token');
+    expect(env).not.toContain('OPENCHAMBER');
+  } finally {
+    if (previous === undefined) delete process.env.OPENCHAMBER_SERVICE_TOKEN; else process.env.OPENCHAMBER_SERVICE_TOKEN = previous;
+  }
 });

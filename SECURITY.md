@@ -29,7 +29,11 @@ source and install releases you trust.
 - Configuration and referenced-file reads, response bodies, subprocess output,
   timeouts, histories, connections, and storage are bounded. Native diagnostics
   use two fixed commands without a shell. LM Studio activity uses one fixed
-  `lms log stream -s server --json` command without a shell, started only on demand.
+  `lms log stream -s server --json --port <port>` command without a shell. It starts
+  only on demand, after the LM Studio server of the local LM Studio home has
+  answered, and only with the port that running app recorded. With an explicit
+  port, `lms` connects to that app and exits if it is gone instead of launching
+  LM Studio or Bionic.
 - API responses are normalized into an allowlist before reaching the panel.
   oMLX admin responses can contain sensitive fields; raw responses are never shared.
   Inference response streams are not observed. LM Studio's server log is read only

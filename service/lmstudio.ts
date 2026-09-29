@@ -19,6 +19,9 @@ const modelName = (value: unknown): string | null => {
   }
   return name ? name.slice(0, 160) : null;
 };
+/** LM Studio-family servers answer unknown routes with HTTP 200 and this error body instead of a 404. */
+export const isRouteMissingBody = (body: Record<string, unknown> | null): boolean =>
+  body !== null && typeof body.error === 'string' && /^Unexpected endpoint\b/i.test(body.error) && !('models' in body) && !('data' in body);
 const resident = (id: string): ResidentModel => ({
   id, phase: 'unknown', activeRequests: null, queuedRequests: null, allocationGB: null,
   tokensPerSecond: null, prefillProgress: null, progressStale: false,
@@ -34,14 +37,17 @@ export class LMStudioClient {
     private readonly activity: ActivitySource | null = null) {}
 
   async snapshot(): Promise<TelemetrySnapshot> {
-    this.activity?.touch();
-    let body: Record<string, unknown> | null;
-    try { body = await this.read(this.legacy ? '/api/v0/models' : '/api/v1/models'); }
-    catch (error) {
-      if (this.legacy || !(error instanceof HttpFailure) || error.status !== 404) throw error;
-      this.legacy = true;
-      body = await this.read('/api/v0/models');
+    let body: Record<string, unknown> | null = null;
+    if (!this.legacy) {
+      try {
+        body = await this.read('/api/v1/models');
+        if (isRouteMissingBody(body)) this.legacy = true;
+      } catch (error) {
+        if (!(error instanceof HttpFailure) || error.status !== 404) throw error;
+        this.legacy = true;
+      }
     }
+    if (this.legacy) body = await this.read('/api/v0/models');
     const rows = this.legacy ? body?.data : body?.models;
     const unsupported = (): TelemetrySnapshot => ({
       ...unavailableTelemetry('unsupported_contract', 'LM Studio returned an unsupported model inventory.', this.now()),
@@ -96,6 +102,8 @@ export class LMStudioClient {
       message: loadedCount > 0 ? 'Model loaded.' : countKnown ? 'No model loaded.' : null,
       catalog, residentModels, residentModelCount: countKnown ? loadedCount : null,
     };
+    // Only a server that just answered with a recognised inventory may start or keep the lms log stream.
+    this.activity?.touch();
     const view = this.activity?.view() ?? null;
     return view ? this.withActivity(inventory, view, countKnown ? loadedCount : null) : inventory;
   }

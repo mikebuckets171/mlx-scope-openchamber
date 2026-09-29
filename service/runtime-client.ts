@@ -11,6 +11,11 @@ import { VllmMlxClient } from './vllm-mlx.ts';
 import { SplashClient } from './splash.ts';
 import type { RuntimeRead } from './adapter.ts';
 
+const urlPort = (url: URL): number | null => {
+  const port = url.port ? Number(url.port) : url.protocol === 'https:' ? 443 : url.protocol === 'http:' ? 80 : Number.NaN;
+  return Number.isInteger(port) ? port : null;
+};
+
 type Adapter = { snapshot(deadline?: number): Promise<TelemetrySnapshot> };
 type Slot = {
   fingerprint: string; generation: string; runtime: Runtime | null; client: Adapter | null;
@@ -163,7 +168,7 @@ export class RuntimeClient {
     if (!slot.client) {
       const reader: RuntimeRead = async path => (await read(path, path !== '/health')).body;
       slot.client = slot.runtime === 'omlx' ? new OmlxClient({ fetchImpl: this.fetchImpl, readConfig: async () => choice.config, now: this.now, monotonicNow: this.monotonic, requestTimeoutMs: this.timeout, collectionDeadlineMs: this.budget })
-        : slot.runtime === 'lmstudio' ? new LMStudioClient(reader, this.now, this.lmstudioActivity)
+        : slot.runtime === 'lmstudio' ? new LMStudioClient(reader, this.now, this.lmstudioActivity?.forPort(urlPort(base)) ?? null)
         : slot.runtime === 'mlx-lm' ? new MlxLmClient(reader, this.now)
         : slot.runtime === 'splash' ? new SplashClient(reader, this.now)
         : new VllmMlxClient(reader, this.now);

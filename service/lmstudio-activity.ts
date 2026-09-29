@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessByStdio } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import type { Readable } from 'node:stream';
@@ -224,49 +224,105 @@ export class BoundedLines {
 }
 
 type StreamProcess = ChildProcessByStdio<null, Readable, Readable>;
-type Spawner = (file: string, args: string[]) => StreamProcess;
-type StreamOptions = { lmsPath?: string | null; spawnStream?: Spawner; now?: () => number; idleStopMs?: number };
+type Spawner = (file: string, args: string[], env: NodeJS.ProcessEnv) => StreamProcess;
+type StreamOptions = {
+  lmsPath?: string | null; home?: string; spawnStream?: Spawner; now?: () => number; idleStopMs?: number; restartBaseMs?: number;
+};
+export type ActivitySource = { touch(): void; view(): LMStudioActivityView | null };
 
-export const findLms = (home = homedir()): string | null => {
-  for (const candidate of [path.join(home, '.lmstudio', 'bin', 'lms'), path.join(home, '.cache', 'lm-studio', 'bin', 'lms')]) {
-    if (existsSync(candidate)) return candidate;
-  }
-  return null;
+/** Small local JSON/text files only; anything missing, oversized or malformed reads as absent. */
+const readSmall = (file: string, limit = 64 * 1024): string | null => {
+  try { return statSync(file).size <= limit ? readFileSync(file, 'utf8') : null; } catch { return null; }
+};
+const filePort = (file: string): number | null => {
+  try {
+    const port = (JSON.parse(readSmall(file) ?? 'null') as { port?: unknown } | null)?.port;
+    return typeof port === 'number' && Number.isInteger(port) && port > 0 && port < 65_536 ? port : null;
+  } catch { return null; }
 };
 
-const defaultSpawner: Spawner = (file, args) => spawn(file, args, {
-  shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
-  env: { LANG: 'C', LC_ALL: 'C', HOME: homedir(), PATH: '/usr/bin:/bin' },
+/** The LM Studio home, resolved the way lms resolves it: the home pointer, then the legacy cache home, then ~/.lmstudio. */
+export const findLMStudioHome = (home = homedir()): string => {
+  const pointer = readSmall(path.join(home, '.lmstudio-home-pointer'), 4096)?.trim();
+  if (pointer && path.isAbsolute(pointer)) return pointer;
+  const legacy = path.join(home, '.cache', 'lm-studio');
+  return existsSync(legacy) ? legacy : path.join(home, '.lmstudio');
+};
+
+export const findLms = (home = homedir()): string | null => {
+  const candidates = [findLMStudioHome(home), path.join(home, '.lmstudio'), path.join(home, '.cache', 'lm-studio')]
+    .map(root => path.join(root, 'bin', 'lms'));
+  return [...new Set(candidates)].find(candidate => existsSync(candidate)) ?? null;
+};
+
+/** Where the running LM Studio or Bionic records its internal API port. Absent or portless while the app is not running. */
+export const lmsServerInfoPath = (lmstudioHome: string): string => path.join(lmstudioHome, '.internal', 'http-server.json');
+/** The REST server settings of that LM Studio home; its `port` is the loopback port OpenChamber connects to. */
+const restConfigPath = (lmstudioHome: string): string => path.join(lmstudioHome, '.internal', 'http-server-config.json');
+
+export const defaultSpawner: Spawner = (file, args, env) => spawn(file, args, {
+  shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env,
 });
 
-/** Runs `lms log stream -s server --json` only while MLX Scope is being watched. */
+const SILENT_EXIT_LIMIT = 5;
+
+/**
+ * Runs `lms log stream -s server --json --port <port>` only while MLX Scope is being watched and the LM Studio server
+ * of the local LM Studio home has just answered. The explicit port and server-info path make lms connect to that
+ * already-running app; without them lms launches LM Studio or Bionic when none is running.
+ */
 export class LMStudioActivityStream {
   readonly tracker: LMStudioActivityTracker;
   private child: StreamProcess | null = null;
   private healthy = false;
   private failures = 0;
+  private silentExits = 0;
   private restartTimer: NodeJS.Timeout | null = null;
   private idleTimer: NodeJS.Timeout | null = null;
+  /** Counts successful reads from the home server; a stream that ended restarts only after a newer one. */
+  private reads = 0;
+  private readsAtEnd = 0;
+  private restPort: { value: number | null; at: number } | null = null;
   private readonly lms: string | null;
+  private readonly lmstudioHome: string;
   private readonly spawnStream: Spawner;
   private readonly idleStopMs: number;
+  private readonly restartBaseMs: number;
 
   constructor(options: StreamOptions = {}) {
-    this.lms = options.lmsPath === undefined ? findLms() : options.lmsPath;
+    const home = options.home ?? homedir();
+    this.lmstudioHome = findLMStudioHome(home);
+    this.lms = options.lmsPath === undefined ? findLms(home) : options.lmsPath;
     this.spawnStream = options.spawnStream ?? defaultSpawner;
     this.idleStopMs = options.idleStopMs ?? 60_000;
+    this.restartBaseMs = options.restartBaseMs ?? 1000;
     this.tracker = new LMStudioActivityTracker(options.now);
   }
 
   get available(): boolean { return this.lms !== null; }
 
-  /** Call on every snapshot read. Starts the stream if needed and extends its demand window. */
+  /** The view for one connection. Only the connection on the home server's REST port starts or sees the stream. */
+  forPort(port: number | null): ActivitySource {
+    return { touch: () => { if (this.servesPort(port)) this.touch(); }, view: () => this.servesPort(port) ? this.view() : null };
+  }
+
+  private servesPort(port: number | null): boolean {
+    const now = Date.now();
+    if (!this.restPort || now - this.restPort.at > 10_000) this.restPort = { value: filePort(restConfigPath(this.lmstudioHome)), at: now };
+    return port !== null && this.restPort.value !== null && port === this.restPort.value;
+  }
+
+  /**
+   * Call only after a successful read from the home LM Studio server. Starts the stream if needed and extends its
+   * demand window. A runtime that stopped answering is never restarted by MLX Scope.
+   */
   touch(): void {
     if (!this.lms) return;
+    this.reads += 1;
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => this.stop(), this.idleStopMs);
     this.idleTimer.unref?.();
-    if (!this.child && !this.restartTimer) this.start();
+    if (!this.child && !this.restartTimer && this.silentExits < SILENT_EXIT_LIMIT) this.start();
   }
 
   view(): LMStudioActivityView | null { return this.healthy ? this.tracker.view() : null; }
@@ -277,6 +333,7 @@ export class LMStudioActivityStream {
     const child = this.child;
     this.child = null;
     this.healthy = false;
+    this.silentExits = 0;
     this.tracker.resetActive();
     if (child && child.exitCode === null && child.signalCode === null) {
       try { child.kill('SIGTERM'); } catch { /* Already exited. */ }
@@ -284,13 +341,23 @@ export class LMStudioActivityStream {
   }
 
   private start(): void {
+    const lms = this.lms!;
+    const infoPath = lmsServerInfoPath(this.lmstudioHome);
+    // No recorded port means the app is not running: never ask lms to find (and so start) it.
+    const port = filePort(infoPath);
+    if (port === null) return;
     let child: StreamProcess;
-    try { child = this.spawnStream(this.lms!, ['log', 'stream', '-s', 'server', '--json']); }
-    catch { this.scheduleRestart(); return; }
+    let output = false;
+    try {
+      child = this.spawnStream(lms, ['log', 'stream', '-s', 'server', '--json', '--port', String(port)], {
+        LANG: 'C', LC_ALL: 'C', HOME: homedir(), PATH: '/usr/bin:/bin', LMS_API_SERVER_INFO_PATH: infoPath,
+      });
+    } catch { this.readsAtEnd = this.reads; this.scheduleRestart(); return; }
     this.child = child;
     const lines = new BoundedLines(line => {
       if (this.child !== child) return;
-      if (!this.healthy) { this.healthy = true; this.failures = 0; }
+      output = true;
+      if (!this.healthy) { this.healthy = true; this.failures = 0; this.silentExits = 0; }
       if (!line.startsWith('{')) return;
       let record: unknown;
       try { record = JSON.parse(line); } catch { return; }
@@ -308,7 +375,10 @@ export class LMStudioActivityStream {
       this.healthy = false;
       this.tracker.resetActive();
       lines.reset();
-      if (this.idleTimer) this.scheduleRestart();
+      this.readsAtEnd = this.reads;
+      if (!output) this.silentExits += 1;
+      // lms that exits without output keeps failing to connect; stop retrying until Scope is reopened.
+      if (this.idleTimer && this.silentExits < SILENT_EXIT_LIMIT) this.scheduleRestart();
     };
     child.once('exit', ended);
     child.once('error', ended);
@@ -316,8 +386,12 @@ export class LMStudioActivityStream {
 
   private scheduleRestart(): void {
     this.failures = Math.min(6, this.failures + 1);
-    const delay = Math.min(30_000, 1000 * 2 ** (this.failures - 1));
-    this.restartTimer = setTimeout(() => { this.restartTimer = null; if (this.idleTimer) this.start(); }, delay);
+    const delay = Math.min(30 * this.restartBaseMs, this.restartBaseMs * 2 ** (this.failures - 1));
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      // Otherwise the next successful read restarts it through touch().
+      if (this.idleTimer && this.reads > this.readsAtEnd) this.start();
+    }, delay);
     this.restartTimer.unref?.();
   }
 }

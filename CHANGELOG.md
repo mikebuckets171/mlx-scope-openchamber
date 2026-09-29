@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.6.1
+
+- MLX Scope no longer starts LM Studio or Bionic. When no LM Studio app is
+  running, `lms log stream` launches one unless it is given a server to connect
+  to, so quitting Bionic while Scope watched it could relaunch it through the
+  log-stream restart. Scope now starts `lms` only after that LM Studio has just
+  answered, and only when the running app has recorded its port. It passes that
+  port explicitly (`--port`, plus `LMS_API_SERVER_INFO_PATH`), so `lms` connects
+  instead of launching. The stream is not restarted after LM Studio stops
+  answering, and Scope gives up after repeated failed connections until it is
+  reopened.
+- LM Studio activity now belongs only to the connection on the LM Studio home's
+  own REST port (for example 1234). A second LM Studio-family server, such as an
+  SSH tunnel, no longer starts the log stream or shows its activity. The LM Studio
+  home is resolved the way `lms` resolves it (`~/.lmstudio-home-pointer` first).
+- LM Studio versions that answer an unknown route with HTTP 200 and an
+  "Unexpected endpoint" error body now fall back to the `/api/v0` inventory, as
+  they already did for a 404.
+
 ## 1.6.0
 
 - Rewrote the stylesheet as a single system (570 layered lines → 424): one set
