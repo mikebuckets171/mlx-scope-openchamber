@@ -1,5 +1,6 @@
-import type { TelemetrySnapshot } from '../src/telemetry.ts';
-import { PerformanceCapture, capturedRate } from './capture.ts';
+import { PerformanceCapture } from './capture.ts';
+import { presentCapture } from './present/captures.ts';
+import type { Reading } from './present/reading.ts';
 
 export const captureMarkup = `<section id="capture" class="capture-card" aria-labelledby="capture-title">
   <div class="section-heading"><h2 id="capture-title">Observation window</h2><span id="capture-state">On demand</span></div>
@@ -27,7 +28,7 @@ export const captureMarkup = `<section id="capture" class="capture-card" aria-la
 
 export class CaptureView {
   readonly capture = new PerformanceCapture();
-  private latest: TelemetrySnapshot | null = null;
+  private latest: Reading | null = null;
   private paused = false;
   constructor(private readonly root: HTMLElement, private readonly copied: (text: string) => Promise<void>, private readonly status: (message: string) => void, private readonly version: string) {
     this.node('capture-start').addEventListener('click', () => {
@@ -49,7 +50,7 @@ export class CaptureView {
   }
   private node(id: string): HTMLElement { return this.root.querySelector<HTMLElement>(`#${id}`)!; }
   private text(id: string, value: string): void { const node = this.node(id); if (node.textContent !== value) node.textContent = value; }
-  update(snapshot: TelemetrySnapshot): void { this.latest = snapshot; this.paused = false; this.capture.observe(snapshot); this.render(); }
+  update(reading: Reading): void { this.latest = reading; this.paused = false; this.capture.observe(reading); this.render(); }
   suspend(): void { this.paused = true; this.capture.stop('Monitoring interrupted'); this.render(); }
   report(): string { return this.capture.current ? this.capture.report(this.version) : ''; }
   private render(): void {
@@ -61,38 +62,31 @@ export class CaptureView {
     (this.node('capture-length') as HTMLSelectElement).disabled = recording;
     this.node('capture-progress').hidden = !recording;
     this.node('capture-results').hidden = c === null;
-    this.text('capture-state', c ? recording ? `${Math.floor(c.seconds)} / ${c.targetSeconds}s` : c.status === 'finished' ? 'Captured' : 'Partial capture' : 'On demand');
-    if (!c) return;
-    const percent = Math.min(100, c.seconds / c.targetSeconds * 100);
-    this.node('capture-progress').setAttribute('aria-valuenow', String(Math.floor(percent)));
-    (this.node('capture-progress').firstElementChild as HTMLElement).style.width = `${percent}%`;
-    const r = capturedRate(c), ref = capturedRate(b);
-    const memory = (value: number | null) => value === null ? '—' : `${(value * 1e9 / 1024 ** 3).toFixed(1)} GiB`;
-    const meanPeak = (mean: number | null, peak: number | null, unit: '%' | 'GiB') => {
-      const format = (value: number | null) => value === null ? '—' : (unit === '%' ? value : value * 1e9 / 1024 ** 3).toFixed(1);
-      return mean === null && peak === null ? '—' : `${format(mean)} / ${format(peak)} ${unit}`;
-    };
-    this.text('capture-speed', r === null ? '—' : `${r.toFixed(1)} tok/s`);
-    this.text('capture-coverage', c.model.startsWith('resources:') ? 'Per-request output speed needs live token counts' : `${c.decodeSeconds.toFixed(1)}s of fresh output intervals`);
-    this.text('capture-duration', `${c.seconds.toFixed(1)}s`);
-    this.text('capture-samples', `${c.samples} runtime samples · ${c.targetSeconds}s requested`);
-    this.text('capture-memory', memory(c.peakProcessGB));
-    this.text('capture-cpu', meanPeak(c.meanCPU, c.peakCPU, '%'));
-    this.text('capture-host-memory', meanPeak(c.meanMemoryGB, c.peakMemoryGB, 'GiB'));
-    this.text('capture-requests', c.requestCountChange === null ? '—' : String(c.requestCountChange));
-    this.text('capture-resource-coverage', `${c.cpuSamples} CPU · ${c.memorySamples} RAM · ${c.processSamples} footprint samples`);
-    this.text('capture-note', c.note);
+    const view = presentCapture(c, b, recording, this.capture.comparison());
+    this.text('capture-state', view?.state ?? 'On demand');
+    if (!view) return;
+    this.node('capture-progress').setAttribute('aria-valuenow', String(Math.floor(view.percent)));
+    (this.node('capture-progress').firstElementChild as HTMLElement).style.width = `${view.percent}%`;
+    this.text('capture-speed', view.speed);
+    this.text('capture-coverage', view.coverage);
+    this.text('capture-duration', view.duration);
+    this.text('capture-samples', view.samples);
+    this.text('capture-memory', view.memory);
+    this.text('capture-cpu', view.cpu);
+    this.text('capture-host-memory', view.hostMemory);
+    this.text('capture-requests', view.requests);
+    this.text('capture-resource-coverage', view.resources);
+    this.text('capture-note', view.note);
     (this.node('capture-pin') as HTMLButtonElement).disabled = !this.capture.canPin;
     this.node('capture-baseline').hidden = b === null;
     this.root.querySelectorAll<HTMLElement>('.capture-reference-column').forEach(node => { node.hidden = b === null; });
-    if (b) {
-      this.text('capture-reference-cpu', meanPeak(b.meanCPU, b.peakCPU, '%'));
-      this.text('capture-reference-host-memory', meanPeak(b.meanMemoryGB, b.peakMemoryGB, 'GiB'));
-      this.text('capture-reference-memory', memory(b.peakProcessGB));
-      this.text('capture-reference-requests', b.requestCountChange === null ? '—' : String(b.requestCountChange));
+    if (view.reference) {
+      this.text('capture-reference-cpu', view.reference.cpu);
+      this.text('capture-reference-host-memory', view.reference.hostMemory);
+      this.text('capture-reference-memory', view.reference.memory);
+      this.text('capture-reference-requests', view.reference.requests);
     }
-    this.text('capture-reference', ref === null ? 'Pinned reference' : `Reference · ${ref.toFixed(1)} tok/s over ${b!.decodeSeconds.toFixed(1)}s`);
-    const change = this.capture.comparison();
-    this.text('capture-change', change === null ? b?.model !== c.model ? 'Different observation' : c.model.startsWith('resources:') ? 'Resource observations' : 'Collect another window' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}% observed`);
+    this.text('capture-reference', view.referenceLabel);
+    this.text('capture-change', view.change);
   }
 }

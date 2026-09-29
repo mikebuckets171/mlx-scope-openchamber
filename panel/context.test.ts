@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { contextBudget } from './context.ts';
-import { parseTelemetrySnapshot } from '../src/telemetry.ts';
-const reading=(extra={})=>parseTelemetrySnapshot({available:true,phase:'decode',activeRequests:1,promptTokens:52000,completionTokens:8000,contextWindow:100000,...extra});
+import { fromV1 } from './testing/readings.ts';
+const reading=(extra={})=>fromV1({available:true,phase:'decode',activeRequests:1,promptTokens:52000,completionTokens:8000,contextWindow:100000,...extra});
 test('context headroom includes output and reused input without claiming compaction',()=>{
  expect(contextBudget(reading({cachedTokens:40000}))).toEqual({used:60000,limit:100000,remaining:40000,percent:60});
  expect(contextBudget(reading({phase:'prefill',completionTokens:null}))?.used).toBe(52000);

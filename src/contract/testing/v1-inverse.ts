@@ -1,15 +1,11 @@
 // Test support only: the v2 → 1.x inverse and the 1.6 panel's rendered projection, for the lossless round trip.
 import { connectionName } from '../../runtime.ts';
 import type { TelemetrySnapshot } from '../../telemetry.ts';
-import { contextBudget } from '../../../panel/context.ts';
-import { cacheSplit, prefillEstimate } from '../../../panel/insights.ts';
-import { prefillReading } from '../../../panel/progress.ts';
-import { measurementReport } from '../../../panel/report.ts';
-import { snapshotObservation } from '../../../panel/saved.ts';
 import { traceGeometry } from '../../../panel/signal.ts';
 import { v1Reason } from '../convert-v1.ts';
 import type { SnapshotV2 } from '../snapshot.ts';
 import { bytesToGB, fractionToPercent, msToSeconds } from '../units.ts';
+import { cacheSplit, contextBudget, measurementReport, prefillEstimate, prefillReading, snapshotObservation } from './v1-panel.ts';
 
 const v1Phase = (phase: string) => phase === 'not-loaded' ? 'notLoaded' : phase;
 
@@ -59,7 +55,7 @@ export const toV1 = (snapshot: SnapshotV2): Record<string, unknown> => {
   };
 };
 
-// The panel's own formatters (panel/main.ts, insights-view.ts, report.ts, saved-view.ts, capture-view.ts), en-US.
+// The 1.6 panel's formatters (panel/main.ts, insights-view.ts, report.ts, saved-view.ts, capture-view.ts at v1.6.1), en-US.
 const decimal = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 const rate = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });

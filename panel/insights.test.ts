@@ -1,25 +1,25 @@
 import { expect, test } from 'bun:test';
-import { normalizeOmlxTelemetry, parseTelemetrySnapshot, unavailableTelemetry, MAX_RESIDENT_MODELS } from '../src/telemetry.ts';
+import { normalizeOmlxTelemetry, parseTelemetrySnapshot, MAX_RESIDENT_MODELS } from '../src/telemetry.ts';
 import { cacheSplit, prefillEstimate, SessionInsights, recentGenerationsReport, MAX_RECENT_GENERATIONS } from './insights.ts';
-const reading = (at: number, overrides: object = {}) => {
-  const snapshot = parseTelemetrySnapshot({ available: true, sampledAt: at, modelID: 'private-model', traceEpoch: 1, phase: 'decode',
-    completionTokens: at / 1000 * 20, liveDecodeTPS: 20, activeRequests: 1, elapsedSeconds: at / 1000, ...overrides });
-  if (!snapshot.available) throw Error('Invalid fixture');
-  return snapshot;
-};
+import { frameReading, type Reading } from './present/reading.ts';
+import { fromV1 } from './testing/readings.ts';
+const reading = (at: number, overrides: object = {}) => fromV1({ available: true, sampledAt: at, modelID: 'private-model', traceEpoch: 1, phase: 'decode',
+  completionTokens: at / 1000 * 20, liveDecodeTPS: 20, activeRequests: 1, elapsedSeconds: at / 1000, ...overrides });
 const activity = (models: object[]) => normalizeOmlxTelemetry(null, { active_models: { models } })!;
+const request = (value: Reading, patch: Partial<NonNullable<Reading['request']>>): Reading => ({ ...value, request: { ...value.request!, ...patch } });
 
 test('prefill ETA is a reported estimate, never a synthetic countdown or completion prediction', () => {
   const raw = activity([{ id: 'm', active_requests: 1, prefilling: [{ processed: 64, total: 100, speed: 10, eta: 3.6 }] }]);
   expect(raw.prefillETASeconds).toBe(3.6);
-  expect(prefillEstimate(raw)).toBe('~5s');
+  const panel = fromV1(raw);
+  expect(prefillEstimate(panel)).toBe('~5s');
   expect(parseTelemetrySnapshot(raw)).toEqual(raw);
-  expect(prefillEstimate({ ...raw, prefillETASeconds: 125 })).toBe('~3m');
-  for (const value of [-1, Infinity, NaN, null]) expect(prefillEstimate({ ...raw, prefillETASeconds: value })).toBeNull();
-  for (const patch of [{ prefillProgressStale: true }, { prefillProgress: 1 }, { prefillProgress: null }, { livePrefillTPS: 0 }]) {
-    expect(prefillEstimate({ ...raw, ...patch })).toBeNull();
+  expect(prefillEstimate(request(panel, { prefillEtaMs: 125_000 }))).toBe('~3m');
+  for (const value of [-1, Infinity, NaN, undefined]) expect(prefillEstimate(request(panel, { prefillEtaMs: value }))).toBeNull();
+  for (const patch of [{ prefillStale: true }, { prefillFraction: 1 }, { prefillFraction: undefined }, { prefillTps: 0 }]) {
+    expect(prefillEstimate(request(panel, patch))).toBeNull();
   }
-  expect(prefillEstimate({ ...raw, prefillETASeconds: 0.1 })).toBe('<1s');
+  expect(prefillEstimate(request(panel, { prefillEtaMs: 100 }))).toBe('<1s');
   expect(prefillEstimate(reading(1000))).toBeNull();
 });
 
@@ -29,7 +29,7 @@ test('raw and wire contracts withhold stale, ambiguous and invalid ETA data', ()
     expect(activity([{ id: 'm', prefilling: [{ ...flight, ...patch }] }]).prefillETASeconds).toBeNull();
   }
   expect(activity([{ id: 'm', active_requests: 2, prefilling: [flight] }]).prefillETASeconds).toBeNull();
-  expect(reading(1000, { phase: 'prefill', prefillProgress: .5, prefillETASeconds: 2, livePrefillTPS: 1, prefillProgressStale: true }).prefillETASeconds).toBeNull();
+  expect(reading(1000, { phase: 'prefill', prefillProgress: .5, prefillETASeconds: 2, livePrefillTPS: 1, prefillProgressStale: true }).request?.prefillEtaMs).toBeUndefined();
 });
 
 test('resident model roster separates simultaneous models without aggregating speeds', () => {
@@ -41,15 +41,16 @@ test('resident model roster separates simultaneous models without aggregating sp
   expect(result.residentModels).toMatchObject([{ id: 'one', tokensPerSecond: 20, allocationGB: 10 }, { id: 'two', prefillProgress: .5, tokensPerSecond: 30 }]);
   expect(JSON.stringify(result)).not.toContain('PRIVATE');
   expect(parseTelemetrySnapshot(result)).toEqual(result);
+  expect(fromV1(result).residents).toMatchObject([{ model: 'one', tps: 20, bytes: 10e9 }, { model: 'two', prefillFraction: .5, tps: 30 }]);
 });
 
 test('model list is bounded and rejects raw request data, stale speeds and invalid measurements', () => {
   const result = activity(Array.from({ length: 100 }, (_, i) => ({ id: `model-${i}`, active_requests: 0 })));
   expect(result.residentModelCount).toBe(100); expect(result.residentModels).toHaveLength(MAX_RESIDENT_MODELS);
   const wire = reading(1000, { residentModels: [{ id: 'm'.repeat(1000), phase: 'prefill', tokensPerSecond: 100, prefillProgress: .5, progressStale: true, allocationGB: -1, prompt: 'PRIVATE' }] });
-  expect(wire.residentModels[0]?.id).toHaveLength(256); expect(wire.residentModels[0]?.tokensPerSecond).toBeNull();
-  expect(wire.residentModels[0]?.allocationGB).toBeNull(); expect(JSON.stringify(wire)).not.toContain('PRIVATE');
-  expect(reading(1000).residentModels).toEqual([]);
+  expect(wire.residents[0]?.model).toHaveLength(256); expect(wire.residents[0]?.tps).toBeNull();
+  expect(wire.residents[0]?.bytes).toBeNull(); expect(JSON.stringify(wire)).not.toContain('PRIVATE');
+  expect(reading(1000).residents).toEqual([]);
 });
 
 test('recent speed needs multiple samples and measures actual counter deltas, not request average', () => {
@@ -80,7 +81,7 @@ test('counter resets, lost observations, pause and clock jumps do not produce gi
   const model = new SessionInsights(); model.observe(reading(1000)); model.observe(reading(2000)); model.observe(reading(3000));
   model.observe(reading(30000)); expect(model.speed).toBeNull(); expect(model.recent[0]?.coverage).toBe('monitoring-gap');
   model.break(); model.observe(reading(31000)); expect(model.speed).toBeNull();
-  model.observe(unavailableTelemetry('runtime_unreachable')); expect(model.speed).toBeNull();
+  model.observe(frameReading('runtime_unreachable', null, 31_500)); expect(model.speed).toBeNull();
   model.observe(reading(32000)); model.observe(reading(30000)); expect(model.speed).toBeNull();
 });
 
@@ -97,14 +98,14 @@ test('history records last seen output and footprint, without claiming request s
   model.observe(reading(1000, { memory: { activeGB: 30 } }));
   model.observe(reading(2000, { memory: { activeGB: 34 } }));
   model.observe(reading(3000, { phase: 'idle', completionTokens: null }));
-  expect(model.recent[0]).toMatchObject({ outputTokens: 40, averageTPS: 20, peakProcessGB: 34, coverage: 'no-longer-observed' });
+  expect(model.recent[0]).toMatchObject({ outputTokens: 40, averageTPS: 20, peakProcessBytes: 34e9, elapsedMs: 2000, coverage: 'no-longer-observed' });
   const report = recentGenerationsReport(model.recent, 'test');
   expect(report).not.toContain('private-model'); expect(report).toContain('not final'); expect(report).not.toContain('success');
+  expect(report).toContain('reported elapsed 2s'); expect(report).toContain('peak observed process 31.66 GiB');
 });
 
 test('cache split never double-subtracts prefill or fabricates missing measurements', () => {
-  expect(cacheSplit(reading(1000, { promptTokens: 100, cachedTokens: 80, prefillTotalTokens: 10 }))).toEqual({ total: 100, reused: 80, fresh: 20, percent: 80 });
-  for (const patch of [{ cachedTokens: null }, { cachedTokens: 110 }, { promptTokens: 0 }, { cachedTokens: -2 }, { cachedTokens: .5 }]) {
-    expect(cacheSplit(reading(1000, { promptTokens: 100, cachedTokens: 80, ...patch }))).toBeNull();
-  }
+  expect(cacheSplit(100, 80)).toEqual({ total: 100, reused: 80, fresh: 20, percent: 80 });
+  for (const [total, reused] of [[100, null], [100, 110], [0, 80], [100, -2], [100, .5]] as const) expect(cacheSplit(total, reused)).toBeNull();
+  expect(reading(1000, { promptTokens: 100, cachedTokens: 80, prefillTotalTokens: 10 }).request).toMatchObject({ promptTokens: 100, cachedTokens: 80 });
 });

@@ -1,10 +1,10 @@
-import type { TelemetrySnapshot } from '../src/telemetry.ts';
+import type { Reading } from './present/reading.ts';
 
 /** Reported prompt + output against model context, NOT OpenCode compaction or an output allowance. */
-export function contextBudget(snapshot: TelemetrySnapshot): {used: number; limit: number; remaining: number; percent: number} | null {
-  if (!snapshot.available || !['prefill','decode','processing'].includes(snapshot.phase) || (snapshot.activeRequests ?? 0) > 1) return null;
-  const prompt = snapshot.promptTokens, limit = snapshot.contextWindow;
-  const output = snapshot.phase === 'prefill' ? 0 : snapshot.completionTokens;
+export function contextBudget(reading: Reading): {used: number; limit: number; remaining: number; percent: number} | null {
+  if (!reading.available || !['prefill','decode','processing'].includes(reading.phase) || (reading.active ?? 0) > 1) return null;
+  const prompt = reading.request?.promptTokens ?? null, limit = reading.contextWindowTokens;
+  const output = reading.phase === 'prefill' ? 0 : reading.request?.outputTokens ?? null;
   const valid = (n: number | null): n is number => n !== null && Number.isSafeInteger(n) && n >= 0;
   if (!valid(prompt) || !valid(limit) || limit === 0 || !valid(output)) return null;
   const used = prompt + output;

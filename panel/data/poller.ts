@@ -57,3 +57,13 @@ export class Poller {
   }
   private clear(): void { if (this.timer !== null) clearTimeout(this.timer); this.timer = null; }
 }
+
+/**
+ * The next poll: the service's `nextPollMs` after a reading, else the 1.6 backoff. Host readings stay useful while the
+ * runtime is offline (the service keeps its own retry budget), and energy saving never polls faster than 3 s.
+ */
+export const pollDelay = ({ failures, nextPollMs, host, efficient }: { failures: number; nextPollMs: number | null; host: boolean; efficient: boolean }): number => {
+  const delay = failures > 0 ? Math.min(15_000, 1_000 * 2 ** Math.min(4, failures - 1)) : nextPollMs ?? 2_000;
+  const held = host ? Math.min(2_000, delay) : delay;
+  return efficient ? Math.max(3_000, held) : held;
+};

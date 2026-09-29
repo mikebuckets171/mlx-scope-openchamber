@@ -23,12 +23,14 @@ const hostPayloads = (query: string, provider: string | undefined, steps: number
   const scope = { previewAutoProvider: provider, addEventListener: (type: string, handler: Listener) => { if (type === 'message') listener = handler; } };
   const storage = { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => { store.set(key, value); },
     removeItem: (key: string) => { store.delete(key); }, clear: () => store.clear() };
-  new Function('window', 'document', 'location', 'sessionStorage', 'Date', HOST)(scope, { querySelector: () => ({ contentWindow }) },
-    { search: `?${query}`, href: 'http://fixture.invalid/' }, storage, { now: () => now });
+  // The host answers `/v2/snapshot` through the bridge; an identity bridge hands back the 1.x reading it would convert.
+  const bridge = { toSnapshotV2: (reading: unknown) => reading };
+  new Function('window', 'document', 'location', 'sessionStorage', 'Date', 'ScopeConvert', HOST)(scope, { querySelector: () => ({ contentWindow }) },
+    { search: `?${query}`, href: 'http://fixture.invalid/' }, storage, { now: () => now }, bridge);
   const payloads: TelemetrySnapshot[] = [];
   for (let step = 0; step < steps; step += 1, now += 500) {
     const before = replies.length;
-    void listener!({ source: contentWindow, data: { channel: 'openchamber.sdk', type: 'service-request', id: step, payload: {} } });
+    void listener!({ source: contentWindow, data: { channel: 'openchamber.sdk', type: 'service-request', id: step, payload: { method: 'GET', path: '/v2/snapshot' } } });
     if (replies.length > before && replies.at(-1)!.payload?.body) payloads.push(JSON.parse(replies.at(-1)!.payload!.body!));
   }
   return payloads;
