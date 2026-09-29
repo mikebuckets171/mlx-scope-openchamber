@@ -2,7 +2,9 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import { version as packageVersion } from '../package.json';
 import { assertBodyLimit } from '../src/contract/guards.ts';
-import { isBadQuery, parseSnapshotQuery, parseTrendQuery, parseUsageQuery } from '../src/contract/query.ts';
+import { isBadQuery, parseSnapshotQuery, parseTrendQuery, parseUsageQuery, type TrendQuery, type UsageQuery } from '../src/contract/query.ts';
+import type { TrendV2 } from '../src/contract/trend.ts';
+import type { UsageV2 } from '../src/contract/usage.ts';
 import { badQuery, NOT_FOUND_BODY, RETIRED_BODY, RETIRED_STATUS, ROUTES } from '../src/contract/version.ts';
 import { runtimeValue, type RuntimeSelection } from '../src/runtime.ts';
 import type { SystemSnapshot } from '../src/system.ts';
@@ -18,6 +20,9 @@ export type Sources = {
   system: () => Promise<SystemSnapshot>;
   /** The newest completion seq assigned; verdicts for later seqs are dropped. */
   completionHead?: () => number;
+  /** `/v2/trend` and `/v2/usage` bodies (svc-history); absent → 501 until they are served. */
+  trend?: (query: TrendQuery) => Promise<TrendV2>;
+  usage?: (query: UsageQuery) => Promise<UsageV2>;
 };
 export type ServerOptions = { version?: string; instance?: string; now?: () => number; monotonic?: () => number };
 
@@ -50,8 +55,15 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       if (url.pathname === ROUTES.retired) { json(response, RETIRED_STATUS, RETIRED_BODY); return; }
       if (url.pathname === ROUTES.trend || url.pathname === ROUTES.usage) {
         // Validated now so frames built against these routes fail the same way once they are served (Stage 6).
-        const query = url.pathname === ROUTES.trend ? parseTrendQuery(url.searchParams) : parseUsageQuery(url.searchParams);
-        if (isBadQuery(query)) json(response, 400, query); else json(response, 501, NOT_IMPLEMENTED);
+        if (url.pathname === ROUTES.trend) {
+          const query = parseTrendQuery(url.searchParams);
+          if (isBadQuery(query)) json(response, 400, query);
+          else if (sources.trend) json(response, 200, await sources.trend(query)); else json(response, 501, NOT_IMPLEMENTED);
+        } else {
+          const query = parseUsageQuery(url.searchParams);
+          if (isBadQuery(query)) json(response, 400, query);
+          else if (sources.usage) json(response, 200, await sources.usage(query)); else json(response, 501, NOT_IMPLEMENTED);
+        }
         return;
       }
       if (url.pathname !== ROUTES.snapshot) { json(response, 404, NOT_FOUND_BODY); return; }

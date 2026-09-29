@@ -100,7 +100,7 @@ export interface SlotV2 {
 }
 export interface CatalogV2 {
   name: string; format: 'mlx' | 'gguf' | 'splash' | null; loaded: boolean | null; contextWindowTokens: number | null;
-  vision?: boolean; inputModalities?: Array<'text' | 'image' | 'audio'>;
+  vision?: boolean; inputModalities?: Array<'text' | 'image' | 'audio' | 'pdf'>;
 }
 export interface EngineV2 { name: string; version: string; selected: boolean }
 export interface LeaseV2 { leader: boolean; epoch: number; ttlMs: number; leaderSurface: 'page' | 'panel' | 'status' | null }
@@ -227,7 +227,7 @@ const slots = (value: unknown): SlotV2[] => {
   const single = parsed.filter(slot => slot.busy).length === 1;
   return parsed.map(slot => single && slot.busy ? slot : (({ decodeTps: _, ...rest }) => rest)(slot));
 };
-const MODALITIES = ['text', 'image', 'audio'] as const;
+const MODALITIES = ['text', 'image', 'audio', 'pdf'] as const;   // Splash 1.1 reports 'pdf' (fixture report)
 const catalog = (value: unknown): CatalogV2 | null => {
   const item = obj(value), name = label(item?.name, 160), context = limit(item?.contextWindowTokens);
   if (!item || !name) return null;

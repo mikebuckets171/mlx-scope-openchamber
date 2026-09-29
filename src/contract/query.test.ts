@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { isBadQuery, parseSnapshotQuery, parseTrendQuery, parseUsageQuery } from './query.ts';
+import { encodeAttrs, encodeMarks, isBadQuery, MAX_ATTRS, MAX_MARKS, parseSnapshotQuery, parseTrendQuery, parseUsageQuery, type SnapshotQuery } from './query.ts';
 
 const q = (text: string) => new URLSearchParams(text);
 
@@ -11,6 +11,20 @@ test('snapshot queries follow the contract grammar', () => {
     .toEqual({ provider: 'local.omlx_2-a', runtime: 'llama-server', frame: '0a1b2c3d', surface: 'page', tier: 'full', since: 58, detail: 'server',
       marks: [{ phase: 'started', at: 1_790_690_700_000, tag: 'deadbeef' }, { phase: 'completed', at: 1_790_690_710_000, tag: 'deadbeef' }],
       attrs: [{ seq: 58, attr: 'withheld', reason: 'several-chats' }, { seq: 59, attr: 'inferred', reason: null }, { seq: 60, attr: 'armed', reason: null }] });
+});
+
+test('marks and attrs travel as one comma-joined value, because serviceRequest queries are Record<string, string>', () => {
+  const marks: SnapshotQuery['marks'] = [{ phase: 'started', at: 1_790_690_700_000, tag: 'deadbeef' }, { phase: 'completed', at: 1_790_690_710_000, tag: 'deadbeef' }];
+  const attrs: SnapshotQuery['attrs'] = [{ seq: 58, attr: 'withheld', reason: 'several-chats' }, { seq: 59, attr: 'inferred', reason: null }];
+  const query = new URLSearchParams({ mark: encodeMarks(marks)!, attr: encodeAttrs(attrs)! });
+  expect(parseSnapshotQuery(query)).toEqual({ tier: 'full', marks, attrs });
+  expect(encodeMarks([])).toBeUndefined();
+  expect(encodeAttrs([])).toBeUndefined();
+  const many = Array.from({ length: 12 }, (_, index) => ({ seq: index + 1, attr: 'inferred' as const, reason: null }));
+  expect(encodeAttrs(many)!.split(',')).toHaveLength(MAX_ATTRS);
+  expect(encodeMarks(Array.from({ length: 6 }, () => marks[0]!))!.split(',')).toHaveLength(MAX_MARKS);
+  expect(parseSnapshotQuery(q(`mark=${Array.from({ length: 5 }, () => 'started.1.deadbeef').join(',')}`))).toEqual({ error: 'bad_query', param: 'mark' });
+  expect(parseSnapshotQuery(q('mark=started.1.deadbeef,'))).toEqual({ error: 'bad_query', param: 'mark' });
 });
 
 test.each([

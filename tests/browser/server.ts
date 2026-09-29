@@ -1,5 +1,7 @@
 import { join } from 'node:path';
 const root = join(import.meta.dir, '../..');
+const port = Number(process.env.SCOPE_PREVIEW_PORT ?? 8787);
+if (!Number.isInteger(port) || port < 1024 || port > 65_535) throw new Error('SCOPE_PREVIEW_PORT must be an integer from 1024 to 65535.');
 const allow = new Map([
   ['/', 'tests/browser/host.html'],
   ['/panel/index.html', 'panel/index.html'],
@@ -11,7 +13,7 @@ const convert = await Bun.build({ entrypoints: [join(import.meta.dir, 'convert-e
 if (!convert.success || !convert.outputs[0]) throw new AggregateError(convert.logs, 'Could not bundle the v1 → v2 converter for the preview host.');
 const converter = await convert.outputs[0].text();
 const server = Bun.serve({
-  hostname: '127.0.0.1', port: 8787,
+  hostname: '127.0.0.1', port,
   fetch(request) {
     const pathname = new URL(request.url).pathname;
     if (pathname === '/convert-v1.js') return new Response(converter, { headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/javascript; charset=utf-8' } });

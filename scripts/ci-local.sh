@@ -13,8 +13,8 @@ node -e 'process.exit(+process.versions.node.split(".")[0] >= 22 ? 0 : 1)' || di
 [ -z "$(git status --porcelain --untracked-files=all -- . ':(exclude)docs/receipts')" ] ||
   die 'commit or set aside local changes first; a receipt attests one commit.'
 # Hosted CI never reuses a running server (CI=1 below); a stray one would test someone else's build.
-if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:8787 -sTCP:LISTEN -t >/dev/null 2>&1; then
-  die 'port 8787 is in use; the browser tests must start their own preview server.'
+if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"${SCOPE_PREVIEW_PORT:-8787}" -sTCP:LISTEN -t >/dev/null 2>&1; then
+  die "port ${SCOPE_PREVIEW_PORT:-8787} is in use; the browser tests must start their own preview server."
 fi
 
 sha=$(git rev-parse HEAD)
