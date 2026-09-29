@@ -233,3 +233,19 @@ test('discovery and oMLX authentication share one real collection deadline', asy
   expect(requests).toBe(2);
   expect(signals.every(signal => signal.aborted)).toBe(true);
 });
+
+test('each LM Studio connection gets the activity view for its own port', async () => {
+  const ports: Array<number | null> = [];
+  let touched = 0;
+  const activity = { available: true, stop: () => {}, forPort: (port: number | null) => {
+    ports.push(port);
+    return { touch: () => { touched += 1; }, view: () => null };
+  } };
+  const client = new RuntimeClient({ lmstudioActivity: activity as never,
+    readConfig: async () => configuration(connection('bionic', 'lmstudio', 1234), connection('tunnel', 'lmstudio', 1235)),
+    fetchImpl: async () => json({ models: [] }) });
+  await client.snapshot({ provider: 'bionic', runtime: null });
+  await client.snapshot({ provider: 'tunnel', runtime: null });
+  expect(ports).toEqual([1234, 1235]);
+  expect(touched).toBe(2);
+});

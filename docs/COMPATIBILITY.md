@@ -97,7 +97,13 @@ LM Studio does not report a running token count during generation, so the view
 shows generating with elapsed time and the previous response's exact speed until the
 current one finishes. Session decode average and cache reuse cover responses finished
 since Scope started watching. Statistics inside inference responses are not used.
-Without `lms`, the view shows inventory and host resources only. With authentication
+The stream follows the LM Studio app of the local LM Studio home (resolved as `lms` does,
+starting with `~/.lmstudio-home-pointer`) and applies only to the connection on that
+home's REST port. It starts only after that server has answered and only with the port
+the running app recorded, passed explicitly, so `lms` connects instead of launching LM
+Studio or Bionic. It is not restarted after the server stops answering, and it stops
+within a minute of the last successful read. Without `lms`, the view shows inventory and
+host resources only. With authentication
 enabled, use an existing [LM Studio API token](https://lmstudio.ai/docs/developer/core/authentication).
 
 ## mlx-lm
