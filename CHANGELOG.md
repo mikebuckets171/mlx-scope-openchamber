@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — visual redesign
+## 1.6.0
 
 - Rewrote the stylesheet as a single system (570 layered lines → 424): one set
   of color tokens derived from the host theme, one type scale and one card
