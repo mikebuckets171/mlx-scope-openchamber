@@ -74,7 +74,8 @@
     "verify:package": "bun scripts/verify-package.ts",
     "check": "bun run type-check && bun run scan && bun run test && bun run build && bun run verify:package",
     "check:all": "bun run check && bun run test:browser",
-    "scan": "bun scripts/scan-committed.ts"
+    "scan": "bun scripts/scan-committed.ts",
+    "overhead": "node scripts/measure-overhead.mjs"
   },
   "dependencies": {
     "@openchamber/sdk": "1.24.2",
