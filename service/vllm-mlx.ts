@@ -1,11 +1,8 @@
 import { unavailableTelemetry, type AvailableTelemetry, type TelemetrySnapshot } from '../src/telemetry.ts';
 import type { CatalogModel } from '../src/runtime.ts';
 import type { RuntimeRead } from './adapter.ts';
+import { count, nonneg, obj, type Json } from './lib/parse.ts';
 
-type ObjectValue = Record<string, unknown>;
-const object = (value: unknown): ObjectValue | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as ObjectValue : null;
-const number = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
-const count = (value: unknown): number | null => { const n = number(value); return n !== null && Number.isSafeInteger(n) ? n : null; };
 const text = (value: unknown): string | null => typeof value === 'string' && value.trim() ? value.trim() : null;
 const name = (value: unknown): string | null => {
   const clean = text(value)?.replace(/[\u0000-\u001f\u007f]/g, '');
@@ -18,7 +15,7 @@ type Progress = { identity: string; phase: string; tokens: number | null; ratio:
 
 /** Read the documented status endpoint; request identities remain service-local. */
 export class VllmMlxClient {
-  private health: ObjectValue | null = null;
+  private health: Json | null = null;
   private healthAt = Number.NEGATIVE_INFINITY;
   private healthModel: string | null = null;
   private progress: Progress | null = null;
@@ -36,7 +33,7 @@ export class VllmMlxClient {
   private async collect(): Promise<TelemetrySnapshot> {
     const status = await this.read('/v1/status');
     const sampledAt = this.now();
-    const registry = object(status?.model_manager);
+    const registry = obj(status?.model_manager);
     const supportedShape = status !== null && (registry ? Array.isArray(registry.models)
       : Object.hasOwn(status, 'model') && Array.isArray(status.requests));
     if (!status || !supportedShape || !['running', 'stopped', 'not_loaded'].includes(String(status.status))) {
@@ -56,14 +53,14 @@ export class VllmMlxClient {
       this.reset();
       const rows = Array.isArray(registry.models) ? registry.models : [];
       const catalog: CatalogModel[] = rows.slice(0, 12).flatMap(raw => {
-        const item = object(raw), label = name(item?.id);
+        const item = obj(raw), label = name(item?.id);
         return label ? [{ name: label, loaded: typeof item?.loaded === 'boolean' ? item.loaded : null,
           format: 'mlx', contextWindow: null }] : [];
       });
       return { ...base, catalog, message: 'Model registry connected · this endpoint does not expose per-model request readings.' };
     }
     const modelID = name(status.model);
-    const residency = object(status.residency);
+    const residency = obj(status.residency);
     const loading = residency?.state === 'loading' || residency?.state === 'unloading';
     const loaded = status.status === 'not_loaded' ? false : status.status === 'running' ? true : null;
     base.modelID = modelID;
@@ -84,17 +81,17 @@ export class VllmMlxClient {
     base.sessionStatsState = 'fresh';
     base.lifetime = {
       requestsTotal: count(status.total_requests_processed), promptTokensTotal: count(status.total_prompt_tokens),
-      completionTokensTotal: count(status.total_completion_tokens), cachedTokensTotal: null, uptimeSeconds: number(status.uptime_s),
+      completionTokensTotal: count(status.total_completion_tokens), cachedTokensTotal: null, uptimeSeconds: nonneg(status.uptime_s),
     };
-    const cache = object(status.cache);
+    const cache = obj(status.cache);
     // These fields come from MemoryAwarePrefixCache. A zero limit is the MLLM placeholder for no cache.
-    if (cache && (number(cache.max_memory_mb) ?? 0) > 0 && number(cache.current_memory_mb) !== null) {
-      base.sessionBank = { hot: { totalGB: number(cache.current_memory_mb)! * 1024 ** 2 / 1e9,
+    if (cache && (nonneg(cache.max_memory_mb) ?? 0) > 0 && nonneg(cache.current_memory_mb) !== null) {
+      base.sessionBank = { hot: { totalGB: nonneg(cache.current_memory_mb)! * 1024 ** 2 / 1e9,
         entries: count(cache.entry_count) }, cold: null, lastMissReason: null };
     }
     // Metal allocations are not an OS process footprint. The process memory fields stay unavailable.
     const rows = Array.isArray(status.requests) ? status.requests : [];
-    const canonical = rows.length <= 256 ? rows.map(object).filter((row): row is ObjectValue => row !== null
+    const canonical = rows.length <= 256 ? rows.map(obj).filter((row): row is Json => row !== null
       && row.status === 'running' && ['prefill', 'generation'].includes(String(row.phase))) : [];
     if (active === 0 && canonical.length === 0 && rows.length <= 256) {
       this.reset();
@@ -110,7 +107,7 @@ export class VllmMlxClient {
     const tokens = count(request.completion_tokens);
     const prompt = count(request.prompt_tokens);
     const identity = JSON.stringify([status.model, request.request_id]);
-    const rawRatio = number(request.progress);
+    const rawRatio = nonneg(request.progress);
     const ratio = phase === 'prefill' && tokens === 0 && this.health?.engine_type === 'batched' && this.health.model_type === 'mllm'
       && this.health.model_name === status.model && rawRatio !== null && rawRatio >= 0 && rawRatio <= 1 ? rawRatio : null;
     const previous = this.progress;
@@ -136,7 +133,7 @@ export class VllmMlxClient {
       && this.health.model_name === status.model
       && reuseKinds.has(String(request.cache_hit_type)) && cached !== null && base.promptTokens !== null && cached <= base.promptTokens ? cached : null;
     base.completionTokens = tokens;
-    base.elapsedSeconds = number(request.elapsed_s);
+    base.elapsedSeconds = nonneg(request.elapsed_s);
     if (phase === 'prefill') {
       // Only batched MLLM reports prefill ratios. Zero also means unavailable;
       // one may be unfinished work rounded up by the runtime. Neither is a precise percentage.
@@ -150,7 +147,7 @@ export class VllmMlxClient {
     const advancedAt = this.progress!.advancedAt;
     const fresh = tokens !== null && tokens > 0 && advancedAt !== null && sampledAt - advancedAt <= 5_000;
     return { ...base, phase: fresh ? 'decode' : 'processing',
-      liveDecodeTPS: fresh && (number(request.tokens_per_second) ?? 0) > 0 ? number(request.tokens_per_second) : null,
+      liveDecodeTPS: fresh && (nonneg(request.tokens_per_second) ?? 0) > 0 ? nonneg(request.tokens_per_second) : null,
       message: fresh ? null : tokens !== null && tokens > 0 ? 'Waiting for fresh output counters' : 'Waiting for the first output token' };
   }
 }

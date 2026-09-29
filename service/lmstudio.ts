@@ -2,15 +2,14 @@ import { unavailableTelemetry, type ResidentModel, type TelemetrySnapshot } from
 import { modelFormat, type CatalogModel } from '../src/runtime.ts';
 import type { RuntimeRead } from './adapter.ts';
 import { HttpFailure } from './http.ts';
-import type { LMStudioActivityView } from './lmstudio-activity.ts';
+import type { ActivitySource, LMStudioActivityView } from './lmstudio-activity.ts';
+import { obj, positive } from './lib/parse.ts';
 
-type ActivitySource = { touch(): void; view(): LMStudioActivityView | null };
 const rateText = (value: number | null): string | null => value === null ? null : `${value.toFixed(1)} tok/s`;
 const shortName = (model: string): string => model.split('/').at(-1) ?? model;
 
 const DISPLAY_LIMIT = 12;
-const object = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
-const contextLength = (value: unknown): number | null => typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null;
+/** LM Studio also reports model URLs, so query strings and trailing slashes go before the last segment is kept. */
 const modelName = (value: unknown): string | null => {
   if (typeof value !== 'string') return null;
   let name = value.replace(/[\u0000-\u001f\u007f]/g, '').trim();
@@ -60,7 +59,7 @@ export class LMStudioClient {
     let countKnown = true;
     let validModels = 0;
     for (const raw of rows) {
-      const item = object(raw);
+      const item = obj(raw);
       const name = modelName(this.legacy ? item?.id : item?.key);
       const validType = this.legacy ? ['llm', 'vlm', 'embeddings'].includes(String(item?.type)) : item?.type === 'llm' || item?.type === 'embedding';
       if (!item || !name || !validType) { countKnown = false; continue; }
@@ -69,7 +68,7 @@ export class LMStudioClient {
       let contextWindow: number | null = null;
       if (this.legacy) {
         loaded = item.state === 'loaded' ? true : item.state === 'not-loaded' ? false : null;
-        contextWindow = contextLength(item.max_context_length);
+        contextWindow = positive(item.max_context_length);
         if (loaded) {
           loadedCount += 1;
           if (residentModels.length < DISPLAY_LIMIT) residentModels.push(resident(name));
@@ -79,17 +78,17 @@ export class LMStudioClient {
         let contextsKnown = true;
         let modelLoadedCount = 0;
         for (const rawInstance of item.loaded_instances) {
-          const instance = object(rawInstance), id = modelName(instance?.id);
+          const instance = obj(rawInstance), id = modelName(instance?.id);
           if (!instance || !id) { countKnown = false; contextsKnown = false; continue; }
           modelLoadedCount += 1;
           loadedCount += 1;
           if (residentModels.length < DISPLAY_LIMIT) residentModels.push(resident(id));
-          const length = contextLength(object(instance.config)?.context_length);
+          const length = positive(obj(instance.config)?.context_length);
           if (length === null) contextsKnown = false;
           else contexts.add(length);
         }
         loaded = modelLoadedCount > 0 ? true : item.loaded_instances.length === 0 ? false : null;
-        contextWindow = loaded === false ? contextLength(item.max_context_length)
+        contextWindow = loaded === false ? positive(item.max_context_length)
           : contextsKnown && contexts.size === 1 ? contexts.values().next().value ?? null : null;
       } else countKnown = false;
       if (catalog.length < DISPLAY_LIMIT) catalog.push({ name, loaded, format: modelFormat(this.legacy ? item.compatibility_type : item.format), contextWindow });
