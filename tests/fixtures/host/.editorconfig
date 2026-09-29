@@ -1,0 +1,5 @@
+# Fixture files are exact tool output: `ps` pads with trailing spaces, `ioreg` ends with a whitespace-only line, and the
+# truncated/partial-line variants deliberately lack a final newline. Editors must not "fix" them.
+[*.txt]
+trim_trailing_whitespace = false
+insert_final_newline = false

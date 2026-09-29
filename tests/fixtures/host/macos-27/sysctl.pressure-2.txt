@@ -1,0 +1,4 @@
+vm.swapusage: total = 4096.00M  used = 3017.25M  free = 1078.75M  (encrypted)
+kern.memorystatus_vm_pressure_level: 2
+kern.memorystatus_level: 31
+iogpu.wired_limit_mb: 40960
