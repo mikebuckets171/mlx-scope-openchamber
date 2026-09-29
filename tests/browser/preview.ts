@@ -97,11 +97,16 @@ test('responsive layouts preserve metrics in both themes', async ({ page }, info
     const overflow = await frame.locator('main').evaluate(() => document.documentElement.scrollWidth > innerWidth);
     expect(overflow, `${theme}/${width} overflows`).toBe(false);
     // Text presence alone cannot catch a broken shared layout selector.
-    for (const selector of ['.masthead', '.brand', '.connection', '.model-line', '.chart-top', 'figcaption', '.section-heading']) {
+    // Every core selector must match a visible element, so a renamed class fails here instead of passing vacuously.
+    const required = new Set(['.masthead', '.brand', '.status-pill', '#model', '.chart-top']);
+    for (const selector of ['.masthead', '.brand', '.status-pill', '#model', '.chart-top', 'figcaption', '.section-heading']) {
+      let visible = 0;
       for (const row of await frame.locator(selector).all()) {
         if (!await row.isVisible()) continue;
+        visible += 1;
         await expect(row, `${theme}/${width}: ${selector}`).toHaveCSS('display', 'flex');
       }
+      if (required.has(selector)) expect(visible, `${theme}/${width}: ${selector} is visible`).toBeGreaterThan(0);
     }
     const alignment = await frame.locator('.masthead').evaluate(el => {
       const brand = el.querySelector('.brand')!.getBoundingClientRect();
@@ -111,7 +116,7 @@ test('responsive layouts preserve metrics in both themes', async ({ page }, info
     });
     expect(alignment.centerDelta, `${theme}/${width}: header alignment`).toBeLessThan(2);
     expect(alignment.clear, `${theme}/${width}: header controls overlap the name`).toBe(true);
-    for (const selector of ['.model-line', '.chart-top', 'figcaption']) {
+    for (const selector of ['#model', '.chart-top', 'figcaption']) {
       for (const row of await frame.locator(selector).all()) {
         const overlap = await row.evaluate(el => {
           const children = Array.from(el.children).filter(child => child.getBoundingClientRect().width > 0);
