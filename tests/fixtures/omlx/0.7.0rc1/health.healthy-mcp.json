@@ -1,0 +1,1 @@
+{"status":"healthy","default_model":"Example-27B-4bit","engine_pool":{"model_count":4,"loaded_count":1,"final_ceiling":45097156608,"current_model_memory":16391340032},"mcp":{"enabled":true,"servers_connected":1,"servers_total":2,"tools_available":7}}
