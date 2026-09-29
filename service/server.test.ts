@@ -208,10 +208,12 @@ test('attribution verdicts are kept next to their completion; the first stands u
   expect((await snapshot(request, '/v2/snapshot?attr=5.inferred.-')).completions.items[0]!.verdict?.attr).toBe('withheld');
   expect((await snapshot(request, '/v2/snapshot?attr=5.armed.-')).completions.items[0]!.verdict).toEqual({ attr: 'armed', at: NOW + 2_000 });
   expect((await snapshot(request, '/v2/snapshot?attr=5.withheld.overlap')).completions.items[0]!.verdict?.attr).toBe('armed');
-  // `since` returns only newer items; a cursor this ring never issued is a reset.
+  // `since` returns only newer items; a cursor this ring never issued is a reset, answered with the whole ring.
   expect((await snapshot(request, '/v2/snapshot?since=5')).completions).toEqual({ instance: INSTANCE, cursor: 5, reset: false, items: [] });
   expect((await snapshot(request, '/v2/snapshot?since=4')).completions.items.map(item => item.seq)).toEqual([5]);
-  expect((await snapshot(request, '/v2/snapshot?since=77')).completions).toMatchObject({ cursor: 5, reset: true, items: [] });
+  const reset = (await snapshot(request, '/v2/snapshot?since=77')).completions;
+  expect(reset).toMatchObject({ cursor: 5, reset: true });
+  expect(reset.items.map(item => item.seq)).toEqual([5]);
 });
 
 test('the next poll follows the reading, the backoff and the surface', async () => {

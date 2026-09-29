@@ -18,6 +18,7 @@ const urlPort = (url: URL): number | null => {
 type SlotContext = {
   runtime: Runtime | null; client: Adapter | null; detection: Detection | null;
   completion: { key: string; seq: number } | null;
+  deadline: number;                          // this collection's budget; the adapter's reader outlives one collection
 };
 type Options = {
   fetchImpl?: FetchImplementation;
@@ -108,7 +109,7 @@ export class RuntimeClient {
     }
     const key = `${choice.id}\0${selection?.runtime ?? 'auto'}`;
     const fingerprint = JSON.stringify([choice.config.baseURL.href, choice.config.apiKey, choice.config.preferredModel, info.runtime]);
-    const slot = this.scheduler.claim(key, fingerprint, () => ({ runtime: info.runtime, client: null, detection: null, completion: null }));
+    const slot = this.scheduler.claim(key, fingerprint, () => ({ runtime: info.runtime, client: null, detection: null, completion: null, deadline: 0 }));
     if (!slot) {
       return unslotted({ ...unavailableTelemetry('runtime_unreachable', 'Earlier connection reads are finishing. Monitoring retries automatically.', this.now()),
         connection: { ...info, diagnostic: 'offline' } });
@@ -151,9 +152,10 @@ export class RuntimeClient {
   }
 
   private async collect(slot: SlotContext, choice: RuntimeConnectionConfig): Promise<TelemetrySnapshot> {
-    const base = choice.config.baseURL!, deadline = this.monotonic() + this.budget;
+    const base = choice.config.baseURL!;
+    slot.deadline = this.monotonic() + this.budget;
     const read = async (path: string, authenticated = true) => {
-      const remaining = deadline - this.monotonic();
+      const remaining = slot.deadline - this.monotonic();
       if (remaining <= 0) throw new HttpFailure('runtime_unreachable', 'The snapshot deadline expired.');
       return requestJSON({ url: new URL(path, base), fetchImpl: this.fetchImpl, timeoutMs: Math.min(this.timeout, remaining), allowLoadingHealth: path === '/health',
         init: { method: 'GET', headers: { Accept: 'application/json', ...(authenticated && choice.config.apiKey ? { Authorization: `Bearer ${choice.config.apiKey}` } : {}) } } });
@@ -169,7 +171,7 @@ export class RuntimeClient {
         monotonic: this.monotonic, timeoutMs: this.timeout, budgetMs: this.budget,
         activity: () => this.lmstudioActivity?.forPort(urlPort(base)) ?? null });
     }
-    return slot.client.snapshot(deadline);
+    return slot.client.snapshot(slot.deadline);
   }
 }
 class UnsupportedRuntime extends Error {}

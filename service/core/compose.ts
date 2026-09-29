@@ -29,10 +29,12 @@ export const composeSnapshot = ({ reading: { snapshot: reading, meta }, system, 
   const snapshot = toSnapshotV2({ ...reading, system }, { service, serverNow, generation: meta.generation, detection: meta.detection,
     completionSeq: meta.completionSeq ?? undefined, marksHead, lease: wireLease satisfies LeaseV2, nextPollMs: pollMs });
   const { completions } = snapshot, since = query.since;
+  // A cursor past this ring's newest seq was not issued by it: an earlier service start, or another connection. The frame
+  // then resyncs from the whole ring, so a panel that outlives a service restart still shows the last request (1.6 did).
+  const reset = since !== undefined && since > completions.cursor;
   // Stage 2a has no completion ring: the only item is the runtime's own last request, when it reports one.
-  completions.items = completions.items.filter(item => since === undefined || item.seq > since)
+  completions.items = completions.items.filter(item => since === undefined || reset || item.seq > since)
     .map(item => { const label = verdict(item.seq); return label ? { ...item, verdict: label } : item; });
-  // A cursor past this ring's newest seq was not issued by it: an earlier service start, or another connection.
-  if (since !== undefined && since > completions.cursor) completions.reset = true;
+  if (reset) completions.reset = true;
   return snapshot;
 };

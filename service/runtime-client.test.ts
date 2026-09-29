@@ -249,3 +249,19 @@ test('each LM Studio connection gets the activity view for its own port', async 
   expect(ports).toEqual([1234, 1235]);
   expect(touched).toBe(2);
 });
+
+test('every collection gets its own deadline, however long an adapter lives', async () => {
+  const replies: Record<string, unknown> = { '/api/v1/models': { models: [] }, '/health': { status: 'ok' }, '/v1/models': { object: 'list', data: [] },
+    '/status': { ready: true, requests: { completed: 1, failed: 0 } } };
+  const vllm = { '/health': { status: 'healthy', model_loaded: true, model_name: 'fixture', engine_type: 'batched', model_type: 'llm' },
+    '/v1/status': { status: 'running', model: 'fixture', num_running: 0, num_waiting: 0, requests: [] } };
+  for (const runtime of ['lmstudio', 'mlx-lm', 'splash', 'vllm-mlx'] as const) {
+    let now = 1000, requests = 0;
+    const table: Record<string, unknown> = runtime === 'vllm-mlx' ? vllm : replies;
+    const client = new RuntimeClient({ now: () => now, readConfig: async () => configuration(connection('local', runtime)),
+      fetchImpl: async url => { requests += 1; const body = table[new URL(String(url)).pathname]; return body ? json(body) : json({}, 404); } });
+    // The adapter is created by the first collection and kept; a reader bound to that collection's budget expired after 8 s.
+    for (let poll = 0; poll < 6; poll += 1, now += 5_000) expect((await client.snapshot()).available, `${runtime} at ${now - 1000} ms`).toBe(true);
+    expect(requests, runtime).toBeGreaterThanOrEqual(6);
+  }
+});
