@@ -67,7 +67,7 @@
     "build:panel": "openchamber-guest-bundle panel/main.ts panel/main.js",
     "build:service": "bun build service/main.ts --target=node --format=esm --minify-whitespace --outfile=service/main.js",
     "type-check": "tsc --noEmit",
-    "test": "bun test ./service ./src ./panel",
+    "test": "bun test ./service ./src ./panel ./tests/fixtures",
     "preview": "bun run build:panel && bun tests/browser/server.ts",
     "test:browser": "playwright test",
     "test:goldens": "playwright test tests/browser/goldens.spec.ts",
