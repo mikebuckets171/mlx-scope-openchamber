@@ -52,9 +52,13 @@ export const traceGeometry = (points: SignalPoint[], now: number, width = 600, h
     if (segments.at(-1)?.at(-1)?.segment === point.segment) segments.at(-1)!.push(point);
     else segments.push([point]);
   }
+  const paths = segments.map((segment) => segment.map((point, index) => `${index ? 'L' : 'M'}${x(point.at).toFixed(2)},${y(point.rate).toFixed(2)}`).join(' '));
+  const base = (height - 4).toFixed(2);
   return {
-    upper, peak,
-    paths: segments.map((segment) => segment.map((point, index) => `${index ? 'L' : 'M'}${x(point.at).toFixed(2)},${y(point.rate).toFixed(2)}`).join(' ')),
+    upper, peak, paths,
+    // Each segment closed down to the zero baseline; gaps stay unfilled.
+    areas: segments.map((segment, index) => segment.length < 2 ? ''
+      : `${paths[index]} L${x(segment.at(-1)!.at).toFixed(2)},${base} L${x(segment[0]!.at).toFixed(2)},${base} Z`),
     latest: visible.length ? { x: x(visible.at(-1)!.at), y: y(visible.at(-1)!.rate) } : null,
   };
 };
