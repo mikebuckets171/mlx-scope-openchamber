@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import type { HostClient } from '@openchamber/sdk';
-import { parseTelemetrySnapshot } from '../src/telemetry.ts';
 import { SAVED_KEY, SAVED_LIMIT, SavedObservations, sanitizeObservation, snapshotObservation, observationReport } from './saved.ts';
+import { fromV1 } from './testing/readings.ts';
 
-const observation = (now = 1000) => snapshotObservation(parseTelemetrySnapshot({ available:true, runtime:'omlx', phase:'prefill',
+const observation = (now = 1000) => snapshotObservation(fromV1({ available:true, runtime:'omlx', phase:'prefill',
   sampledAt:now, activeRequests:1, prefillProgress:.99999, prefillProcessedTokens:99999, prefillTotalTokens:100000,
   modelID:'private-model', message:'private-path', traceEpoch:123, prefillETASeconds:4 }), false, null, now);
 const storage = () => {
@@ -52,14 +52,14 @@ test('malformed stored data stays bounded and cannot inject strings into reports
   await saved.clear(); values.set(SAVED_KEY+'001',{kind:'invalid'}); await saved.load(); expect(saved.items).toEqual([]);
 });
 test('held prefill omits the stage estimate and preserves missing telemetry', () => {
-  const snapshot = parseTelemetrySnapshot({ available:true, runtime:'omlx',phase:'prefill',sampledAt:1000,activeRequests:1,prefillETASeconds:9,prefillProgress:.5 });
+  const snapshot = fromV1({ available:true, runtime:'omlx',phase:'prefill',sampledAt:1000,activeRequests:1,prefillETASeconds:9,prefillProgress:.5 });
   const saved = snapshotObservation(snapshot,true,null,2000);
   expect(saved.state).toBe('held'); expect(saved.measurements.stageEstimate).toBeNull();
   expect(saved.measurements.cpu).toBeNull(); expect(saved.measurements.processed).toBeNull();
 });
 
 test('manually saved Splash values stay numeric, aggregate-scoped, and free of model identity', () => {
-  const snapshot = parseTelemetrySnapshot({ available:true, runtime:'splash', phase:'unknown', modelID:'private/model',
+  const snapshot = fromV1({ available:true, runtime:'splash', phase:'unknown', modelID:'private/model',
     sampledAt:1000, serverStats:{ready:true,aggregateDecodeTokensPerSecond:47.2,completedRequests:17,
       failedRequests:1,metalCurrentGB:12.5,metalPeakGB:13} });
   const saved = snapshotObservation(snapshot,false,null,2000);
@@ -97,7 +97,7 @@ test('same-time saves remain distinct when secure-context randomUUID is unavaila
   }
 });
 test('saved snapshot withholds native readings beyond the live display freshness boundary', () => {
-  const snapshot = parseTelemetrySnapshot({available:true,runtime:'omlx',phase:'idle',sampledAt:100000,
+  const snapshot = fromV1({available:true,runtime:'omlx',phase:'idle',sampledAt:100000,
     system:{platform:'darwin',sampledAt:100000,cpuPercent:12,macOS:{sampledAt:1000,swapUsedGB:2}}});
   const saved=snapshotObservation(snapshot,false,null,100000);
   expect(saved.measurements.swap).toBeNull(); expect(saved.measurements.cpu).toBe(12);

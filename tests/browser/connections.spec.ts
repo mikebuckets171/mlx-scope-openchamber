@@ -12,6 +12,11 @@ const open = async (page: Page, query = '') => {
   await expect(frame.locator('#connection')).not.toHaveText('Connecting to local runtime');
   return frame;
 };
+// Each poll also names its frame, surface, probe tier and completion cursor; these tests check the selection only.
+const selection = async (page: Page) => {
+  const { provider, runtime } = await page.evaluate(() => (window as any).previewQueries.at(-1));
+  return { provider, runtime };
+};
 const choose = async (page: Page, provider: string, runtime = '') => {
   const frame = page.frameLocator('iframe');
   await openMenu(frame); await frame.getByRole('button', {name:'Change connection',exact:true}).click();
@@ -36,7 +41,7 @@ test('configured runtime selection is stored without credentials and survives re
   await expect(frame.locator('#session-stats')).toBeHidden();
   await expect(frame.locator('#machine')).toBeVisible();
   expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('connection.selection')!))).toEqual({provider:'studio',runtime:null});
-  expect(await page.evaluate(()=>(window as any).previewQueries.at(-1))).toEqual({provider:'studio'});
+  expect(await selection(page)).toEqual({provider:'studio'});
   await page.reload();
   await expect(frame.locator('#connection')).toHaveText('LM Studio connected');
   await choose(page,'omlx');
@@ -186,7 +191,7 @@ test('connection setup supports keyboard dismissal and an explicit runtime for c
   await expect(frame.locator('#monitor-menu > summary')).toBeFocused();
   await choose(page,'custom','lmstudio');
   await expect(frame.locator('#connection')).toHaveText('LM Studio connected');
-  expect(await page.evaluate(()=>(window as any).previewQueries.at(-1))).toEqual({provider:'custom',runtime:'lmstudio'});
+  expect(await selection(page)).toEqual({provider:'custom',runtime:'lmstudio'});
 });
 
 test('storage failure keeps the selected connection usable and first-run failure keeps host readings', async ({page}) => {

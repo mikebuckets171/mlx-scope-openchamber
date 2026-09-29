@@ -1,8 +1,9 @@
 import { HostRequestError, isHostRequestErrorCode } from '@openchamber/sdk';
-import { unavailableTelemetry, type TelemetryReason, type UnavailableTelemetry } from '../src/telemetry.ts';
+import type { PanelReason } from './present/reading.ts';
 
-type Diagnostic = {
-  reason: TelemetryReason;
+/** Why the frame has no reading, in the 1.6 vocabulary; the message never carries raw host error text. */
+export type Diagnostic = {
+  reason: PanelReason;
   message: string;
 };
 
@@ -36,22 +37,18 @@ const diagnosticForCode = (code: string): Diagnostic => {
   }
 };
 
-export const unavailableForHostError = (error: unknown, sampledAt = Date.now()): UnavailableTelemetry => {
+export const unavailableForHostError = (error: unknown): Diagnostic => {
   const code = error instanceof HostRequestError && isHostRequestErrorCode(error.code) ? error.code : null;
-  const diagnostic = code === null
-    ? { reason: 'host_unavailable' as const, message: 'OpenChamber did not return a service response. Reopen the panel and try again.' }
+  return code === null
+    ? { reason: 'host_unavailable', message: 'OpenChamber did not return a service response. Reopen the panel and try again.' }
     : diagnosticForCode(code);
-  return unavailableTelemetry(diagnostic.reason, diagnostic.message, sampledAt);
 };
 
-export const unavailableForServiceResponse = (status: number, sampledAt = Date.now()): UnavailableTelemetry => (
-  unavailableTelemetry(
-    'service_failed',
-    status === 401
-      ? 'The extension service authorization was rejected by OpenChamber.'
-      : `The MLX Scope service returned HTTP ${status}. Reopen the extension and try again.`,
-    sampledAt,
-  )
-);
+export const unavailableForServiceResponse = (status: number): Diagnostic => ({
+  reason: 'service_failed',
+  message: status === 401
+    ? 'The extension service authorization was rejected by OpenChamber.'
+    : `The MLX Scope service returned HTTP ${status}. Reopen the extension and try again.`,
+});
 
 export const __test__ = { diagnosticForCode };

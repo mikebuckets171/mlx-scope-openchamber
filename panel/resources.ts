@@ -1,4 +1,4 @@
-import type { SystemSnapshot } from '../src/system.ts';
+import type { HostReading } from './present/reading.ts';
 
 const WINDOW_MS = 90_000;
 type Reading = { at: number; cpu: number | null; memory: number | null; segment: number };
@@ -9,15 +9,15 @@ export class ResourceHistory {
   private disconnected = true;
   get size(): number { return this.samples.length; }
   break(): void { this.disconnected = true; }
-  observe(system: SystemSnapshot | null): void {
+  observe(system: HostReading | null): void {
     if (!system) { this.break(); return; }
     const last = this.samples.at(-1);
     if (last && system.sampledAt <= last.at) return;
     if (this.disconnected || !last || system.sampledAt - last.at > 5_000) this.segment++;
     this.disconnected = false;
-    const total = system.memoryTotalGB;
+    const total = system.memTotalBytes;
     this.samples.push({ at: system.sampledAt, cpu: system.cpuPercent,
-      memory: total !== null && total > 0 && system.memoryUsedGB !== null ? system.memoryUsedGB / total * 100 : null,
+      memory: total !== null && total > 0 && system.memUsedBytes !== null ? system.memUsedBytes / total * 100 : null,
       segment: this.segment });
     this.samples = this.samples.filter((point) => point.at >= system.sampledAt - WINDOW_MS).slice(-100);
   }
@@ -34,6 +34,3 @@ export class ResourceHistory {
     }).join(' ');
   }
 }
-
-/** Wire contract uses decimal GB; all memory values in the UI use binary GiB. */
-export const toGiB = (gb: number): number => gb * 1e9 / 1024 ** 3;

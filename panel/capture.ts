@@ -1,18 +1,21 @@
-import type { TelemetrySnapshot } from '../src/telemetry.ts';
+import { gibFixed } from './present/format.ts';
+import type { Reading } from './present/reading.ts';
 
 export type Capture = {
   model: string; targetSeconds: 30 | 60; startedAt: number; lastAt: number;
   seconds: number; samples: number; decodeSeconds: number; decodeTokens: number;
-  peakProcessGB: number | null; processSamples: number;
+  peakProcessBytes: number | null; processSamples: number;
   meanCPU: number | null; peakCPU: number | null; cpuSamples: number;
-  meanMemoryGB: number | null; peakMemoryGB: number | null; memorySamples: number;
-  requestCountChange: number | null; startSwapGB: number | null;
-  lastSwapGB: number | null; status: 'recording' | 'finished' | 'interrupted'; note: string;
+  meanMemoryBytes: number | null; peakMemoryBytes: number | null; memorySamples: number;
+  requestCountChange: number | null; startSwapBytes: number | null;
+  lastSwapBytes: number | null; status: 'recording' | 'finished' | 'interrupted'; note: string;
 };
 type Counter = { epoch: number; tokens: number; at: number };
-const count = (n: number | null): n is number => n !== null && Number.isSafeInteger(n) && n >= 0;
+const count = (n: number | null | undefined): n is number => n != null && Number.isSafeInteger(n) && n >= 0;
 const safe = (n: number | null | undefined): n is number => n != null && Number.isFinite(n) && n >= 0;
 export const capturedRate = (capture: Capture | null): number | null => capture && capture.decodeSeconds >= 2 ? capture.decodeTokens / capture.decodeSeconds : null;
+const RESOURCES = ['inventory', 'server'];
+const resourceKey = (reading: Reading): string => `resources:${reading.link?.selected ?? reading.runtime}`;
 
 /** Explicit, bounded observation window. Two summaries + one counter, not a request log.
  * Uses the monitor's existing observations; no timer, inference, disk write or network call.
@@ -34,18 +37,18 @@ export class PerformanceCapture {
   constructor(private readonly clock: () => number = () => performance.now()) {}
   get recording(): boolean { return this.current?.status === 'recording'; }
 
-  start(snapshot: TelemetrySnapshot, targetSeconds: 30 | 60): boolean {
-    const resourcesOnly = ['inventory', 'server'].includes(snapshot.connection?.coverage ?? '') && snapshot.system !== null;
-    if (this.recording || !snapshot.available || !resourcesOnly && (!snapshot.modelID || snapshot.activeRequests !== 1
-      || !['decode', 'prefill', 'processing'].includes(snapshot.phase))) return false;
+  start(reading: Reading, targetSeconds: 30 | 60): boolean {
+    const resourcesOnly = RESOURCES.includes(reading.link?.coverage ?? '') && reading.host !== null;
+    if (this.recording || !reading.available || !resourcesOnly && (!reading.model || reading.active !== 1
+      || !['decode', 'prefill', 'processing'].includes(reading.phase))) return false;
     this.resourcesOnly = resourcesOnly;
     this.started = this.lastClock = this.clock();
-    this.current = { model: resourcesOnly ? `resources:${snapshot.connection?.selected ?? snapshot.runtime}` : snapshot.modelID!, targetSeconds, startedAt: snapshot.sampledAt,
-      lastAt: snapshot.sampledAt, seconds: 0, samples: 0, decodeSeconds: 0, decodeTokens: 0,
-      peakProcessGB: null, processSamples: 0, meanCPU: null, peakCPU: null, cpuSamples: 0,
-      meanMemoryGB: null, peakMemoryGB: null, memorySamples: 0,
-      requestCountChange: null, startSwapGB: null, lastSwapGB: null,
-      status: 'recording', note: resourcesOnly ? snapshot.runtime === 'splash'
+    this.current = { model: resourcesOnly ? resourceKey(reading) : reading.model!, targetSeconds, startedAt: reading.sampledAt,
+      lastAt: reading.sampledAt, seconds: 0, samples: 0, decodeSeconds: 0, decodeTokens: 0,
+      peakProcessBytes: null, processSamples: 0, meanCPU: null, peakCPU: null, cpuSamples: 0,
+      meanMemoryBytes: null, peakMemoryBytes: null, memorySamples: 0,
+      requestCountChange: null, startSwapBytes: null, lastSwapBytes: null,
+      status: 'recording', note: resourcesOnly ? reading.runtime === 'splash'
         ? 'Observing host resources. Splash reports one decode speed shared across all requests.'
         : 'Observing host resources. This runtime does not report passive output speed.'
         : 'Observing this model. No extra inference is started.' };
@@ -53,13 +56,13 @@ export class PerformanceCapture {
     this.lastRuntimeAt = this.lastSystemAt = this.lastMacAt = null;
     this.initialRequests = this.previousRequests = this.previousUptime = null;
     this.requestCounterValid = true;
-    this.observe(snapshot);
+    this.observe(reading);
     // The latest reading can predate the click. Begin rate intervals with the
     // first fresh post-click sample instead of attributing that earlier span.
     this.previous = null;
     return true;
   }
-  observe(snapshot: TelemetrySnapshot): void {
+  observe(reading: Reading): void {
     const c = this.current;
     if (!c || !this.recording) return;
     const now = this.clock();
@@ -67,45 +70,45 @@ export class PerformanceCapture {
     this.lastClock = now;
     // A late response cannot supply the unobserved end of the requested window.
     if (now - this.started > c.targetSeconds * 1000) { this.finish(); return; }
-    if (!snapshot.available) { this.stop('Runtime unavailable'); return; }
-    if (this.resourcesOnly ? !['inventory', 'server'].includes(snapshot.connection?.coverage ?? '') || `resources:${snapshot.connection?.selected ?? snapshot.runtime}` !== c.model
-      : snapshot.modelID !== c.model || (snapshot.activeRequests ?? 0) > 1) { this.stop('Model, connection or workload changed'); return; }
-    if (this.lastRuntimeAt !== null && snapshot.sampledAt < this.lastRuntimeAt) { this.stop('Observation clock changed'); return; }
-    const systemFresh = this.observeSystem(snapshot, c);
+    if (!reading.available) { this.stop('Runtime unavailable'); return; }
+    if (this.resourcesOnly ? !RESOURCES.includes(reading.link?.coverage ?? '') || resourceKey(reading) !== c.model
+      : reading.model !== c.model || (reading.active ?? 0) > 1) { this.stop('Model, connection or workload changed'); return; }
+    if (this.lastRuntimeAt !== null && reading.sampledAt < this.lastRuntimeAt) { this.stop('Observation clock changed'); return; }
+    const systemFresh = this.observeSystem(reading, c);
     if (systemFresh) c.seconds = Math.max(c.seconds, (now - this.started) / 1000);
-    if (snapshot.sampledAt === this.lastRuntimeAt) {
+    if (reading.sampledAt === this.lastRuntimeAt) {
       if (now - this.started >= c.targetSeconds * 1000) this.finish();
       return;
     }
-    if (this.lastRuntimeAt !== null && snapshot.sampledAt - this.lastRuntimeAt > 12_000) { this.stop('Monitoring gap'); return; }
+    if (this.lastRuntimeAt !== null && reading.sampledAt - this.lastRuntimeAt > 12_000) { this.stop('Monitoring gap'); return; }
     c.seconds = Math.max(0, (now - this.started) / 1000);
-    this.lastRuntimeAt = snapshot.sampledAt;
-    c.lastAt = Math.max(c.lastAt, snapshot.sampledAt); c.samples = Math.min(1000, c.samples + 1);
-    const footprint = snapshot.memory?.activeGB ?? (snapshot.runtime === 'splash' ? snapshot.serverStats?.metalCurrentGB ?? null : null);
+    this.lastRuntimeAt = reading.sampledAt;
+    c.lastAt = Math.max(c.lastAt, reading.sampledAt); c.samples = Math.min(1000, c.samples + 1);
+    const footprint = reading.memory.processBytes ?? (reading.runtime === 'splash' ? reading.splash?.metalBytes ?? null : null);
     if (safe(footprint)) {
-      c.peakProcessGB = Math.max(c.peakProcessGB ?? 0, footprint);
+      c.peakProcessBytes = Math.max(c.peakProcessBytes ?? 0, footprint);
       c.processSamples += 1;
     }
-    this.observeRequests(snapshot, c);
-    const n = snapshot.completionTokens;
-    if (!this.resourcesOnly && snapshot.phase === 'decode' && snapshot.activeRequests === 1 && count(n) && snapshot.traceEpoch !== null) {
+    this.observeRequests(reading, c);
+    const n = reading.request?.outputTokens;
+    if (!this.resourcesOnly && reading.phase === 'decode' && reading.active === 1 && count(n) && reading.traceEpoch !== null) {
       const p = this.previous;
-      if (p && p.epoch === snapshot.traceEpoch && n >= p.tokens && snapshot.sampledAt > p.at) {
-        const elapsed = (snapshot.sampledAt - p.at) / 1000;
+      if (p && p.epoch === reading.traceEpoch && n >= p.tokens && reading.sampledAt > p.at) {
+        const elapsed = (reading.sampledAt - p.at) / 1000;
         if (elapsed <= 12) {
           const sum = c.decodeTokens + (n - p.tokens);
           if (!Number.isSafeInteger(sum)) { this.stop('Token counter exceeded safe range'); return; }
           c.decodeTokens = sum; c.decodeSeconds += elapsed;
         }
       }
-      this.previous = { epoch: snapshot.traceEpoch, tokens: n, at: snapshot.sampledAt };
+      this.previous = { epoch: reading.traceEpoch, tokens: n, at: reading.sampledAt };
     } else this.previous = null;
     if (c.seconds >= c.targetSeconds || c.samples >= 1000) {
       this.finish();
     }
   }
-  private observeSystem(snapshot: TelemetrySnapshot, c: Capture): boolean {
-    const system = snapshot.system;
+  private observeSystem(reading: Reading, c: Capture): boolean {
+    const system = reading.host;
     let fresh = false;
     if (system && system.sampledAt >= c.startedAt && (this.lastSystemAt === null || system.sampledAt > this.lastSystemAt)) {
       this.lastSystemAt = system.sampledAt;
@@ -116,28 +119,28 @@ export class PerformanceCapture {
         c.peakCPU = Math.max(c.peakCPU ?? 0, system.cpuPercent);
         fresh = true;
       }
-      if (safe(system.memoryUsedGB)) {
+      if (safe(system.memUsedBytes)) {
         c.memorySamples += 1;
-        c.meanMemoryGB = c.meanMemoryGB === null ? system.memoryUsedGB : c.meanMemoryGB + (system.memoryUsedGB - c.meanMemoryGB) / c.memorySamples;
-        c.peakMemoryGB = Math.max(c.peakMemoryGB ?? 0, system.memoryUsedGB);
+        c.meanMemoryBytes = c.meanMemoryBytes === null ? system.memUsedBytes : c.meanMemoryBytes + (system.memUsedBytes - c.meanMemoryBytes) / c.memorySamples;
+        c.peakMemoryBytes = Math.max(c.peakMemoryBytes ?? 0, system.memUsedBytes);
         fresh = true;
       }
     }
-    const mac = system?.macOS;
+    const mac = system?.mac;
     if (mac && mac.sampledAt >= c.startedAt && (this.lastMacAt === null || mac.sampledAt > this.lastMacAt)) {
       this.lastMacAt = mac.sampledAt;
-      if (safe(mac.swapUsedGB)) { c.startSwapGB ??= mac.swapUsedGB; c.lastSwapGB = mac.swapUsedGB; }
+      if (safe(mac.swapUsedBytes)) { c.startSwapBytes ??= mac.swapUsedBytes; c.lastSwapBytes = mac.swapUsedBytes; }
     }
     return fresh;
   }
-  private observeRequests(snapshot: TelemetrySnapshot, c: Capture): void {
-    const splash = snapshot.runtime === 'splash' ? snapshot.serverStats : null;
-    const splashFinished = splash?.ready && count(splash.completedRequests) && count(splash.failedRequests)
-      ? splash.completedRequests + splash.failedRequests : null;
-    const requests = snapshot.lifetime?.requestsTotal ?? splashFinished;
-    const uptime = snapshot.lifetime?.uptimeSeconds ?? null;
+  private observeRequests(reading: Reading, c: Capture): void {
+    const splash = reading.runtime === 'splash' ? reading.splash : null;
+    const splashFinished = splash?.ready && count(splash.completed) && count(splash.failed)
+      ? splash.completed + splash.failed : null;
+    const requests = reading.lifetime?.requestsTotal ?? splashFinished;
+    const uptime = reading.lifetime?.uptimeMs ?? null;
     if (!this.requestCounterValid) return;
-    if (snapshot.sessionStatsState !== 'fresh' && splashFinished === null || !count(requests)
+    if (reading.statsState !== 'fresh' && splashFinished === null || !count(requests)
       || (this.previousRequests !== null && requests < this.previousRequests)
       || (safe(uptime) && this.previousUptime !== null && uptime < this.previousUptime)) {
       this.requestCounterValid = false; c.requestCountChange = null; return;
@@ -181,14 +184,14 @@ export class PerformanceCapture {
     const lines = [`MLX Scope ${version} — performance observations`,
       'Server-wide observations, not selected-chat attribution or a controlled benchmark. Speed uses continuous fresh output intervals, including zero-token intervals; idle, processing and prefill are excluded. Resource means use distinct samples, not time weighting. Differences do not establish causality.'];
     const percent = (value: number | null) => value === null ? 'not reported' : value.toFixed(1) + '%';
-    const memory = (value: number | null) => value === null ? 'not reported' : (value * 1e9 / 1024 ** 3).toFixed(2) + ' GiB';
+    const memory = (bytes: number | null) => bytes === null ? 'not reported' : gibFixed(bytes, 2) + ' GiB';
     const print = (label: string, c: Capture) => {
       const rate = capturedRate(c);
       lines.push(`${label}: ${c.status}, ${c.seconds.toFixed(1)}s observed in a ${c.targetSeconds}s window, ${c.samples} runtime samples; ${c.note}`,
         `Observed output: ${rate === null ? 'not enough data' : rate.toFixed(1) + ' tok/s'} across ${c.decodeSeconds.toFixed(1)}s; ${c.decodeTokens} observed token increments.`,
         `Sampled host CPU: mean ${percent(c.meanCPU)}, peak ${percent(c.peakCPU)} (${c.cpuSamples} samples).`,
-        `Sampled non-free host RAM: mean ${memory(c.meanMemoryGB)}, peak ${memory(c.peakMemoryGB)} (${c.memorySamples} samples).`,
-        `Peak sampled runtime footprint: ${memory(c.peakProcessGB)} (${c.processSamples} samples).`,
+        `Sampled non-free host RAM: mean ${memory(c.meanMemoryBytes)}, peak ${memory(c.peakMemoryBytes)} (${c.memorySamples} samples).`,
+        `Peak sampled runtime footprint: ${memory(c.peakProcessBytes)} (${c.processSamples} samples).`,
         `Reported server request count change: ${c.requestCountChange === null ? 'not available for this window' : c.requestCountChange}.`);
     };
     if (this.current) print('Current capture', this.current);

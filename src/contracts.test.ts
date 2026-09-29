@@ -3,6 +3,7 @@ import { parse } from 'jsonc-parser/lib/esm/main.js';
 import { normalizeOmlxTelemetry } from './telemetry.ts';
 import { contextBudget } from '../panel/context.ts';
 import { cacheSplit } from '../panel/insights.ts';
+import { fromV1 } from '../panel/testing/readings.ts';
 import corpus from '../tests/fixtures/omlx-monitoring.json';
 import configurations from '../tests/fixtures/jsonc.json';
 
@@ -14,7 +15,8 @@ for (const fixture of corpus.cases) test(`oMLX contract: ${fixture.name}`, () =>
   const actual: Record<string, unknown> = {phase: reading!.phase, active: reading!.activeRequests, queued: reading!.queuedRequests,
     rate: reading!.liveDecodeTPS ?? reading!.livePrefillTPS, prompt: reading!.promptTokens, reused: reading!.cachedTokens,
     output: reading!.completionTokens, progress: reading!.prefillProgress, eta: reading!.prefillETASeconds,
-    contextRemaining: contextBudget(reading!)?.remaining ?? null, inputReusedPercent: cacheSplit(reading!)?.percent ?? null};
+    // The panel reads these through the v2 bridge, as it does in the host.
+    contextRemaining: contextBudget(fromV1(reading!))?.remaining ?? null, inputReusedPercent: cacheSplit(reading!.promptTokens, reading!.cachedTokens)?.percent ?? null};
   for (const [key, value] of Object.entries(input.expected!)) expect(actual[key], `${fixture.name}: ${key}`).toEqual(value);
   expect(JSON.stringify(reading)).not.toContain('synthetic-a');
 });
