@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.6.0
+
+- Rewrote the stylesheet as a single system (570 layered lines → 424): one set
+  of color tokens derived from the host theme, one type scale and one card
+  shape. Dropped rules for classes that no longer exist.
+- Live: the model, headline reading, 90-second trend and context budget sit
+  together in one hero card tinted by phase (generating, reading context,
+  waiting/stale, paused).
+- The throughput trend is full width again with its scale, time axis and a
+  filled area. The 1.5 inline sparkline squeezed the 90-second window into
+  260 px, so a young trace showed up as a stray dash.
+- Output, Elapsed, Input reused and Requests are tiles with their detail lines
+  restored. Placeholder dashes are muted so they don't read as values.
+- The host card shows CPU and RAM meters without having to open Mac details.
+- Full page: the reading is on the left and the host card is pinned on the
+  right. The Server tab is a packed two-column card grid, and Saved uses a
+  two-column list.
+- Tabs are a segmented control. Diagnosis callouts no longer repeat their
+  message inside the hero card, and the retained-reading notice is a quiet
+  line instead of a second callout.
+- Model catalogue rows keep name/state and badge/context on two lines at
+  narrow widths instead of stacking into four.
+
 ## 1.5.0
 
 - Redesigned layout. Live now shows one reading at a time: a header with a

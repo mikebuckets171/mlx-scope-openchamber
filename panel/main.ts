@@ -73,10 +73,10 @@ root.innerHTML = `
   <div id="view-live" role="tabpanel" aria-labelledby="tab-live" tabindex="0">
   <section id="instrument" class="instrument" aria-label="Inference activity">
     <span id="activity-label" class="sr-only">MODEL ACTIVITY</span>
+    <div class="hero-card">
     <h2 id="model" translate="no">Your local model</h2>
     <p id="splash-model-detail" class="splash-model-detail" hidden></p>
     <p id="coverage-note" class="coverage-note" hidden></p>
-    <section id="catalog-section" class="catalog-section" aria-labelledby="catalog-title" hidden><div class="section-heading"><h3 id="catalog-title">Model inventory</h3><span id="catalog-count"></span></div><ul id="catalog-list" class="catalog-list"></ul><p id="catalog-note" class="insight-note"></p></section>
     <section id="prefill-progress" class="prefill-progress" aria-label="Prefill progress" hidden>
       <div class="prefill-values"><strong id="prefill-remaining">—</strong><span id="prefill-completed">—</span></div>
       <div id="prefill-track" class="progress-track" role="progressbar" aria-label="Prefill stage completed" aria-valuemin="0" aria-valuemax="100"><span></span></div>
@@ -87,7 +87,7 @@ root.innerHTML = `
       <div class="readout"><span id="rate" class="rate">—</span><span id="unit" class="unit">Waiting for readings</span></div>
       <figure id="signal" class="signal" aria-label="No observed throughput yet">
         <div class="chart-top"><span id="chart-title">Request throughput</span><span id="ceiling">tok/s</span></div>
-        <div id="history-inspector" class="plot" role="slider" tabindex="-1" aria-orientation="horizontal" aria-describedby="history-reading" aria-label="Inspect throughput history" aria-valuemin="0" aria-valuemax="0" aria-disabled="true"><svg viewBox="0 0 600 120" preserveAspectRatio="none" aria-hidden="true"><path class="grid" d="M4 4H596 M4 60H596 M4 116H596"/><g id="trace"></g><circle id="cursor" r="3" hidden/><line id="inspect-line" y1="4" y2="116" hidden/><circle id="inspect-dot" r="4" hidden/></svg><span id="chart-empty">The next request starts here.</span></div>
+        <div id="history-inspector" class="plot" role="slider" tabindex="-1" aria-orientation="horizontal" aria-describedby="history-reading" aria-label="Inspect throughput history" aria-valuemin="0" aria-valuemax="0" aria-disabled="true"><svg viewBox="0 0 600 120" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="trace-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0"/><stop offset="1"/></linearGradient></defs><path class="grid" d="M4 4H596 M4 60H596 M4 116H596"/><g id="trace-area"></g><g id="trace"></g><circle id="cursor" r="3" hidden/><line id="inspect-line" y1="4" y2="116" hidden/><circle id="inspect-dot" r="4" hidden/></svg><span id="chart-empty">The next request starts here.</span></div>
         <figcaption><span>−90s</span><span id="chart-state">Observed samples only</span><span id="chart-end">now</span></figcaption>
         <p id="history-reading" class="history-reading">History appears as readings arrive</p>
       </figure>
@@ -96,6 +96,8 @@ root.innerHTML = `
     <div id="recent-speed" class="recent-speed" hidden><strong id="window-speed">—</strong><span id="window-span">Recent generation speed</span></div>
     <p id="request-output" class="request-output" hidden></p>
     <div id="context-headroom" class="context-headroom" hidden title="Reported prompt plus output against the model context limit. This is not OpenCode's compaction threshold or reserved output budget."><div class="context-line"><span>Context used</span><span><strong id="context-remaining">—</strong><small class="context-accounted"> · <span id="context-accounted">Not reported</span></small></span></div><div class="meter" aria-hidden="true"><i id="context-used-bar"></i></div></div>
+    </div>
+    <section id="catalog-section" class="catalog-section" aria-labelledby="catalog-title" hidden><div class="section-heading"><h3 id="catalog-title">Model inventory</h3><span id="catalog-count"></span></div><ul id="catalog-list" class="catalog-list"></ul><p id="catalog-note" class="insight-note"></p></section>
     <div class="metrics" aria-label="Current request">
       <div><span class="metric-label">Output</span><strong id="output">—</strong></div>
       <div><span class="metric-label">Elapsed</span><strong id="elapsed">—</strong></div>
@@ -104,11 +106,10 @@ root.innerHTML = `
     </div>
   </section>
   <section id="machine" class="machine" aria-labelledby="machine-title" hidden>
-    <h2 id="machine-title" class="sr-only">Host resources</h2>
-    <div class="machine-line"><span>CPU <strong id="cpu">—</strong></span><span title="Physical memory minus OS-reported free memory. Includes reclaimable pages; not Activity Monitor’s Memory Used or memory pressure.">RAM <strong id="ram">—</strong></span><span>Swap <strong id="swap">—</strong></span></div>
+    <h2 id="machine-title" class="machine-title">Host resources</h2>
+    <div class="machine-line"><div><span class="machine-label">CPU</span><strong id="cpu">—</strong><div class="meter" aria-hidden="true"><i id="cpu-bar"></i></div></div><div title="Physical memory minus OS-reported free memory. Includes reclaimable pages; not Activity Monitor’s Memory Used or memory pressure."><span class="machine-label">RAM</span><strong id="ram">—</strong><div class="meter" aria-hidden="true"><i id="ram-bar"></i></div></div><div><span class="machine-label">Swap</span><strong id="swap">—</strong></div></div>
     <details id="host-details" class="host-details"><summary>Mac details</summary>
       <p id="hardware" class="hardware"></p>
-      <div class="machine-values"><div><span>CPU</span><div class="meter" aria-hidden="true"><i id="cpu-bar"></i></div></div><div><span>Non-free RAM</span><div class="meter" aria-hidden="true"><i id="ram-bar"></i></div></div></div>
       <figure class="resource-trace" role="img" aria-label="CPU and non-free memory over the last 90 seconds, on a fixed zero to 100 percent scale">
         <div class="chart-top"><span><i class="legend-cpu"></i>CPU <i class="legend-ram"></i>RAM</span><span>0–100%</span></div>
         <svg viewBox="0 0 300 60" preserveAspectRatio="none" aria-hidden="true"><path class="grid" d="M2 2H298 M2 30H298 M2 58H298"/><path id="cpu-history"/><path id="ram-history"/></svg>
@@ -165,7 +166,12 @@ root.prepend(startupFallback);
 const nodes = new Map<string, HTMLElement>();
 root.querySelectorAll<HTMLElement>('[id]').forEach((node) => nodes.set(node.id, node));
 const node = (id: string): HTMLElement => nodes.get(id)!;
-const text = (id: string, value: string): void => { const target = node(id); if (target.textContent !== value) target.textContent = value; };
+const text = (id: string, value: string): void => {
+  const target = node(id);
+  if (target.textContent !== value) target.textContent = value;
+  // Placeholder dashes are styled as quiet, never as a reading.
+  target.toggleAttribute('data-empty', value === '—');
+};
 const hidden = (id: string, value: boolean): void => { node(id).hidden = value; };
 const meter = (id: string, value: number | null): void => { node(id).style.width = `${value === null ? 0 : Math.min(100, Math.max(0, value))}%`; };
 const button = node('refresh') as HTMLButtonElement;
@@ -212,17 +218,20 @@ const drawSignal = (now: number, live: boolean, phase: TelemetryPhase): void => 
   const basis = signal.points.filter(point => point.phase === tracePhase).at(-1)?.basis;
   const points = signal.points.filter(point => point.phase === tracePhase && point.basis === basis);
   const geometry = traceGeometry(points, now);
-  const group = document.getElementById('trace')!;
   // Reuse path elements when the segment count is unchanged.
-  while (group.childElementCount > geometry.paths.length) group.lastElementChild!.remove();
-  geometry.paths.forEach((path, index) => {
-    let target = group.children[index];
-    if (!target) {
-      target = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      group.append(target);
-    }
-    target.setAttribute('d', path);
-  });
+  const drawPaths = (group: Element, paths: string[]): void => {
+    while (group.childElementCount > paths.length) group.lastElementChild!.remove();
+    paths.forEach((path, index) => {
+      let target = group.children[index];
+      if (!target) {
+        target = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        group.append(target);
+      }
+      target.setAttribute('d', path);
+    });
+  };
+  drawPaths(document.getElementById('trace-area')!, geometry.areas);
+  drawPaths(document.getElementById('trace')!, geometry.paths);
   const cursor = document.getElementById('cursor')!;
   if (geometry.latest) {
     cursor.removeAttribute('hidden');
