@@ -43,7 +43,19 @@ Status: **GO**, **PARTIAL** (go with the listed fallback), **NO-GO** (replaced),
 - Sessions in the sidebar's "chats" group belong to no registered project, so `onSessions` cannot see them.
 - Every project snapshot is re-sent roughly every 45 s (loading → ready), including all 1,112 records.
 
-**Decision:** the owner approved removing the `sessions` capability. Attribution now relies on the open chat's `onSession` and `onSessionLifecycle` (neither needs a grant), the provider and model match, and runtime active requests ≤ 1.
+**Decision:** the owner approved removing the `sessions` capability.
+
+**Lag measurement.** The owner sent 3 local messages to standalone Splash with the Work Status open. Runtime activity came from Splash `/status` sampled at 2 Hz.
+- `started` leads runtime busy by 0.14–0.20 s.
+- `completed` coincides with runtime idle within one 0.5 s sample, in all 4 turns.
+- A multi-step turn (two runtime requests with a 1.5 s tool pause) keeps `started` across the pause.
+- A 3 s background request after the last turn (title/recap generation) happened while the chat was `completed`. The rule correctly treats it as `outside-turn`.
+- **Hold time and tolerance: 1 s** (the plan default was 2 s).
+
+**More host behaviour**
+- On every busy/idle transition the host re-sends `ready` and then replays `session` and the lifecycle phase. Each transition therefore reaches a frame 2–3 times. Deduplicate on (session id, phase) changes, not on events.
+- A frame mounted mid-turn received `started` ×3 as replays. The first turn is therefore `joined-mid-turn`, as designed.
+- `onSession().model` = `splish/<publisher>/<model>`. Attribution now relies on the open chat's `onSession` and `onSessionLifecycle` (neither needs a grant), the provider and model match, and runtime active requests ≤ 1.
 Verified so far:
 
 **Lifecycle replay**
