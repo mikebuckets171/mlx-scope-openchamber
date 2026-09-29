@@ -1,0 +1,1 @@
+{"detail":[{"type":"literal_error","loc":["query","range"],"msg":"Input should be 'today', 'yesterday', '7d', '30d', '90d' or 'month'","input":"1y","ctx":{"expected":"'today', 'yesterday', '7d', '30d', '90d' or 'month'"}}]}
