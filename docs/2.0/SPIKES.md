@@ -37,7 +37,13 @@ Status: **GO**, **PARTIAL** (go with the listed fallback), **NO-GO** (replaced),
 - "Expand panel" widens the rail panel; it stays `surface: 'panel'`.
 - The full page was not opened: the background automation cannot drive the Extension pages dropdown. This is deferred to Stage 12 real-host qualification.
 
-### S2 · Sessions, lifecycle, workspace activity — PENDING (needs the owner's normal chats)
+### S2 · Sessions, lifecycle, workspace activity — the `sessions` capability is DROPPED (owner decision); lag measurement below
+**What 11 minutes of normal use showed**
+- The owner created seven new chats. Both registered projects kept their session totals, and no session was ever `running` in any project snapshot.
+- Sessions in the sidebar's "chats" group belong to no registered project, so `onSessions` cannot see them.
+- Every project snapshot is re-sent roughly every 45 s (loading → ready), including all 1,112 records.
+
+**Decision:** the owner approved removing the `sessions` capability. Attribution now relies on the open chat's `onSession` and `onSessionLifecycle` (neither needs a grant), the provider and model match, and runtime active requests ≤ 1.
 Verified so far:
 
 **Lifecycle replay**
@@ -281,7 +287,7 @@ Owner authority was delegated to the executing agent for this run ("full permiss
 
 `pmset` is **not** declared. Each entry's exact argv is allowlisted in code and tested.
 
-**Capabilities:** `sessions`.
+**Capabilities:** none. `sessions` was dropped after S2 (owner decision).
 
 **Manifest:** `statusSection` (panel entry) + `commands` (`scope`) + `background.entry` + `page: true`. Engines floor `>=2.0.4`, SDK `2.0.4`.
 
