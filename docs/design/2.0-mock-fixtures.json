@@ -84,10 +84,6 @@
      "scope": "server",
      "basis": "reported"
     },
-    "server.memory.process": {
-     "scope": "server",
-     "basis": "reported"
-    },
     "server.memory.model": {
      "scope": "server",
      "basis": "reported"
@@ -180,7 +176,6 @@
      }
     },
     "memory": {
-     "processBytes": 37044092928,
      "modelBytes": 18360985190,
      "ceilingBytes": 40802189312
     },
@@ -402,10 +397,6 @@
      "scope": "server",
      "basis": "reported"
     },
-    "server.memory.process": {
-     "scope": "server",
-     "basis": "reported"
-    },
     "server.memory.model": {
      "scope": "server",
      "basis": "reported"
@@ -501,7 +492,6 @@
      }
     },
     "memory": {
-     "processBytes": 37044092928,
      "modelBytes": 18360985190,
      "ceilingBytes": 40802189312
     },
@@ -723,10 +713,6 @@
      "scope": "server",
      "basis": "reported"
     },
-    "server.memory.process": {
-     "scope": "server",
-     "basis": "reported"
-    },
     "server.memory.model": {
      "scope": "server",
      "basis": "reported"
@@ -810,7 +796,6 @@
      }
     },
     "memory": {
-     "processBytes": 37044092928,
      "modelBytes": 18360985190,
      "ceilingBytes": 40802189312
     },
@@ -2104,30 +2089,14 @@
    "decodeTps": {
     "basis": "reported",
     "buckets": [
+     null,
+     null,
+     null,
+     null,
      [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
+      24.6,
       26.4,
-      0
+      25.2
      ],
      [
       21.8,
@@ -2175,82 +2144,26 @@
       24.1
      ],
      [
-      0,
+      24.4,
       26.2,
-      0
+      25.0
      ],
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
      [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
+      23.8,
       25.6,
       24
      ],
@@ -2290,60 +2203,20 @@
       24.2
      ],
      [
-      0,
+      23.8,
       25.8,
-      0
+      24.6
      ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
      [
       21.5,
       25.6,
@@ -2370,24 +2243,9 @@
       23.8
      ],
      [
-      0,
+      24.3,
       26.2,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
+      25.0
      ],
      null,
      null,
@@ -2455,30 +2313,17 @@
      null,
      null,
      null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
      [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
+      24.1,
       26.1,
-      0
+      24.9
      ],
      [
       23.9,
@@ -2531,79 +2376,27 @@
       25
      ],
      [
-      0,
+      24.1,
       26,
       25.5
      ],
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
      [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
+      24.0,
       26,
-      0
+      24.8
      ],
      [
       22.5,
@@ -2646,92 +2439,36 @@
       26.2
      ],
      [
-      0,
+      24.3,
       26.4,
       25.5
      ],
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
      [
-      0,
-      0,
-      0
+      23.8,
+      25.9,
+      24.6
      ],
      [
-      0,
-      0,
-      0
+      23.9,
+      25.6,
+      24.9
      ],
+     null,
      [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
+      24.5,
       26.4,
       25.1
      ],
@@ -2797,7 +2534,7 @@
    },
    {
     "seq": 10,
-    "at": 1790690334000,
+    "at": 1790690641000,
     "phase": "completed"
    },
    {
@@ -2906,12 +2643,14 @@
     "steps": 3,
     "outputTokens": 3284,
     "wDecodeTps": 25.2,
-    "waitMs": 72000,
+    "waitMs": 332000,
     "cacheReuseFraction": 0.84,
     "attr": {
      "label": "inferred"
     },
-    "id": 3
+    "id": 3,
+    "promptTokens": 142200,
+    "cachedTokens": 119800
    },
    {
     "kind": "r",
@@ -3036,7 +2775,8 @@
     "promptTokens": 26100,
     "cachedTokens": 0,
     "attr": {
-     "label": "server"
+     "label": "server",
+     "reason": "not-observed"
     }
    }
   ],
@@ -3116,7 +2856,8 @@
     "decodeTps": 24.6,
     "outputTokens": 1480,
     "attr": {
-     "label": "server"
+     "label": "server",
+     "reason": "all-requests"
     }
    },
    {
@@ -3127,7 +2868,8 @@
     "decodeTps": 61.3,
     "outputTokens": 1830,
     "attr": {
-     "label": "server"
+     "label": "server",
+     "reason": "all-requests"
     }
    }
   ],
@@ -3139,23 +2881,69 @@
    "statusMayToast": "owner decides"
   },
   "turnStats": {
-   "startedAt": 1790690486000,
-   "endedAt": 1790690658000,
-   "steps": 3,
-   "wholeMs": 112000,
-   "modelMs": 81000,
-   "waitMs": 31000,
-   "firstTtftMs": 520,
-   "promptTokens": 18400,
-   "cachedTokens": 11260,
-   "outputTokens": 3104,
-   "wDecodeTps": 38.2,
-   "cacheReuseFraction": 0.61,
-   "contextUsedTokens": 19492,
-   "contextWindowTokens": 262144,
-   "vsUsual": {
-    "delta": 0.02,
-    "n": 23
+   "bionic": {
+    "startedAt": 1790690546000,
+    "endedAt": 1790690658000,
+    "steps": 3,
+    "wholeMs": 112000,
+    "modelMs": 75000,
+    "waitMs": 37000,
+    "firstTtftMs": 520,
+    "promptTokens": 54420,
+    "cachedTokens": 33460,
+    "outputTokens": 3104,
+    "wDecodeTps": 38.1,
+    "cacheReuseFraction": 0.615,
+    "contextUsedTokens": 19492,
+    "contextWindowTokens": 262144,
+    "basis": "reported",
+    "vsUsual": {
+     "delta": 0.019,
+     "n": 23
+    }
+   },
+   "live": {
+    "startedAt": 1790690661000,
+    "step": 1,
+    "phase": "decode",
+    "wholeMs": 39000,
+    "modelMs": 38200,
+    "waitMs": 800,
+    "decodeTps": 26.4,
+    "promptTokens": 52100,
+    "cachedTokens": 43000,
+    "outputTokens": 612,
+    "cacheReuseFraction": 0.825,
+    "contextUsedTokens": 52712,
+    "contextWindowTokens": 131072,
+    "basis": "last-observed"
+   },
+   "omlx": {
+    "startedAt": 1790690142000,
+    "endedAt": 1790690640000,
+    "steps": 3,
+    "wholeMs": 498000,
+    "modelMs": 166000,
+    "waitMs": 332000,
+    "promptTokens": 142200,
+    "cachedTokens": 119800,
+    "outputTokens": 3284,
+    "wDecodeTps": 25.2,
+    "cacheReuseFraction": 0.842,
+    "contextUsedTokens": 50904,
+    "contextWindowTokens": 131072,
+    "basis": "last-observed",
+    "vsUsual": {
+     "delta": -0.019,
+     "n": 23
+    }
+   },
+   "withheld": {
+    "seq": 23,
+    "reason": "several-chats",
+    "params": {
+     "count": 2
+    }
    }
   }
  },
@@ -3198,13 +2986,107 @@
     }
    }
   },
+  "other-provider": {
+   "title": "This chat uses Splash · Watch Splash",
+   "snapshot": "omlx-decode",
+   "view": {
+    "attr": {
+     "label": "withheld",
+     "reason": "other-provider",
+     "params": {
+      "provider": "Splash"
+     }
+    },
+    "lastAttr": {
+     "label": "withheld",
+     "reason": "other-provider",
+     "params": {
+      "provider": "Splash"
+     }
+    },
+    "watch": "Splash"
+   }
+  },
+  "armed-refusal": {
+   "title": "Next reply won’t arm · chat model differs",
+   "snapshot": "omlx-idle",
+   "view": {
+    "lastAttr": {
+     "label": "withheld",
+     "reason": "model-differs"
+    },
+    "next": {
+     "state": "refused",
+     "reason": "model-differs"
+    }
+   }
+  },
+  "first-readings": {
+   "title": "First readings · no chart yet",
+   "snapshot": "omlx-decode",
+   "patch": {
+    "runtime": {
+     "request": {
+      "decodeTps": 24.8,
+      "outputTokens": 14,
+      "elapsedMs": 15100,
+      "contextUsedTokens": 52114
+     },
+     "residency": [
+      {
+       "model": "Example-27B-4bit",
+       "phase": "decode",
+       "source": "runtime",
+       "active": 1,
+       "queued": 0,
+       "bytes": 18360985190,
+       "decodeTps": 24.8,
+       "contextWindowTokens": 131072
+      }
+     ]
+    }
+   },
+   "view": {
+    "liveSamples": 1
+   }
+  },
   "prefill": {
    "title": "oMLX prefill with ETA",
    "snapshot": "omlx-prefill"
   },
+  "prefill-stall": {
+   "title": "oMLX prefill stalled",
+   "snapshot": "omlx-prefill",
+   "patch": {
+    "runtime": {
+     "request": {
+      "prefillStale": true,
+      "prefillEtaMs": null
+     }
+    },
+    "alerts": [
+     {
+      "id": "omlx-prefill-stall",
+      "severity": "warning",
+      "since": 1790690655000,
+      "params": {
+       "stalledMs": 45000
+      },
+      "badge": true
+     }
+    ]
+   }
+  },
   "idle": {
    "title": "Idle",
    "snapshot": "omlx-idle"
+  },
+  "paused": {
+   "title": "Paused",
+   "snapshot": "omlx-decode",
+   "view": {
+    "paused": true
+   }
   },
   "next-armed": {
    "title": "Next reply · armed",
@@ -3225,9 +3107,7 @@
     },
     "next": {
      "state": "measuring",
-     "elapsedMs": 12400,
-     "outputTokens": 318,
-     "decodeTps": 25.3
+     "elapsedMs": 38200
     }
    }
   },
@@ -3257,7 +3137,62 @@
    "snapshot": "splash-recovering",
    "view": {
     "attr": {
-     "label": "server"
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "splash-stale": {
+   "title": "Splash status stale",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "status_stale",
+     "params": {
+      "staleSinceAt": 1790690580000
+     },
+     "sinceAt": 1790690580000
+    },
+    "runtime": {
+     "phase": "idle"
+    },
+    "alerts": []
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "splash-not-admitting": {
+   "title": "Splash not admitting",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "not_admitting",
+     "params": {
+      "cause": "metal"
+     },
+     "sinceAt": 1790690640000
+    },
+    "runtime": {
+     "phase": "idle",
+     "server": {
+      "active": 0,
+      "queued": 2
+     }
+    },
+    "alerts": []
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
     },
     "lastAttr": null
    }
@@ -3267,8 +3202,96 @@
    "snapshot": "omlx-offline",
    "view": {
     "attr": {
-     "label": "server"
+     "label": "server",
+     "reason": "not-observed"
     }
+   }
+  },
+  "runtime-changed": {
+   "title": "Looks like Splash now",
+   "snapshot": "omlx-idle",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "runtime_changed",
+     "params": {
+      "detected": "splash",
+      "port": 8000
+     },
+     "sinceAt": 1790690680000
+    },
+    "runtime": {
+     "phase": "unknown",
+     "residency": []
+    },
+    "completions": {
+     "items": []
+    }
+   }
+  },
+  "detecting": {
+   "title": "Detecting",
+   "snapshot": "omlx-offline",
+   "patch": {
+    "connection": {
+     "id": "auto",
+     "label": "Automatic",
+     "runtime": null,
+     "version": null,
+     "detection": {
+      "basis": "probe",
+      "confidence": "low",
+      "probe": null
+     }
+    },
+    "status": {
+     "state": "detecting",
+     "reason": "detecting",
+     "params": {
+      "port": 8000
+     },
+     "sinceAt": 1790690696000
+    },
+    "alerts": [],
+    "completions": {
+     "cursor": 0,
+     "items": []
+    }
+   }
+  },
+  "unconfigured": {
+   "title": "No runtime found",
+   "snapshot": "omlx-offline",
+   "patch": {
+    "connection": {
+     "id": "auto",
+     "label": "Automatic",
+     "runtime": null,
+     "version": null,
+     "detection": {
+      "basis": "probe",
+      "confidence": "low",
+      "probe": null
+     }
+    },
+    "status": {
+     "state": "unconfigured",
+     "reason": "configuration_missing",
+     "params": {},
+     "sinceAt": 1790690600000
+    },
+    "alerts": [],
+    "completions": {
+     "cursor": 0,
+     "items": []
+    }
+   }
+  },
+  "contract-mismatch": {
+   "title": "Version skew · restart the service",
+   "snapshot": "omlx-idle",
+   "view": {
+    "frame": "contract_mismatch"
    }
   },
   "needs-approval": {
@@ -3276,6 +3299,46 @@
    "snapshot": "omlx-idle",
    "view": {
     "approval": true
+   }
+  },
+  "admin-unauthorized": {
+   "title": "oMLX admin refused · public status",
+   "snapshot": "omlx-decode",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "admin_unauthorized",
+     "params": {},
+     "sinceAt": 1790690400000
+    },
+    "capabilities": {
+     "request.decodeRate": null,
+     "request.prefillRate": null,
+     "request.prefillProgress": null,
+     "request.prefillEta": null,
+     "request.tokens": null,
+     "request.elapsed": null,
+     "request.context": null,
+     "server.cache": null,
+     "server.usage": null,
+     "server.completions": null
+    },
+    "runtime": {
+     "request": null,
+     "server": {
+      "cache": null
+     }
+    },
+    "completions": {
+     "items": []
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "all-requests"
+    },
+    "lastAttr": null
    }
   },
   "pressure": {
@@ -3372,6 +3435,133 @@
     }
    }
   },
+  "pressure-critical": {
+   "title": "Pressure critical",
+   "snapshot": "omlx-decode",
+   "patch": {
+    "host": {
+     "mac": {
+      "pressureLevel": 4,
+      "swapUsedBytes": 6442450944
+     },
+     "memUsedBytes": 50465865728
+    },
+    "runtime": {
+     "request": {
+      "decodeTps": 14.6
+     },
+     "residency": [
+      {
+       "model": "Example-27B-4bit",
+       "phase": "decode",
+       "source": "runtime",
+       "active": 1,
+       "queued": 0,
+       "bytes": 18360985190,
+       "decodeTps": 14.6,
+       "contextWindowTokens": 131072
+      }
+     ]
+    },
+    "alerts": [
+     {
+      "id": "pressure-critical",
+      "severity": "critical",
+      "since": 1790690580000,
+      "params": {
+       "level": 4
+      },
+      "badge": true,
+      "toastSeq": 9
+     },
+     {
+      "id": "swap-growth",
+      "severity": "info",
+      "since": 1790690520000,
+      "params": {
+       "deltaBytes": 3865470566,
+       "windowMs": 300000
+      },
+      "badge": true
+     }
+    ]
+   }
+  },
+  "thermal": {
+   "title": "Thermal pressure heavy",
+   "snapshot": "omlx-decode",
+   "patch": {
+    "host": {
+     "thermal": {
+      "level": 2
+     }
+    },
+    "alerts": [
+     {
+      "id": "thermal",
+      "severity": "warning",
+      "since": 1790690560000,
+      "params": {
+       "level": 2
+      },
+      "badge": true,
+      "toastSeq": 8
+     }
+    ]
+   }
+  },
+  "model-unloaded": {
+   "title": "Model unloaded",
+   "snapshot": "omlx-idle",
+   "patch": {
+    "runtime": {
+     "phase": "not-loaded",
+     "residency": [],
+     "memory": {
+      "modelBytes": null
+     }
+    },
+    "host": {
+     "runtimeProcess": {
+      "footprintBytes": 1395864371
+     }
+    },
+    "alerts": [
+     {
+      "id": "model-unloaded",
+      "severity": "info",
+      "since": 1790690670000,
+      "params": {
+       "model": "Example-27B-4bit"
+      },
+      "badge": true,
+      "toastSeq": 10
+     }
+    ]
+   }
+  },
+  "memory-guard": {
+   "title": "oMLX memory guard",
+   "snapshot": "omlx-idle",
+   "patch": {
+    "runtime": {
+     "phase": "queued",
+     "server": {
+      "active": 0,
+      "queued": 1
+     }
+    },
+    "alerts": [
+     {
+      "id": "omlx-memory-guard",
+      "severity": "warning",
+      "since": 1790690650000,
+      "params": {},
+      "badge": true
+     }
+    ]
+   }
+  },
   "llama": {
    "title": "llama-server slots + speculative decoding",
    "snapshot": "llama-slots",
@@ -3383,12 +3573,78 @@
     "lastAttr": null
    }
   },
+  "llama-sleeping": {
+   "title": "llama-server asleep",
+   "snapshot": "llama-slots",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": "sleeping",
+     "params": {},
+     "sinceAt": 1790690400000
+    },
+    "runtime": {
+     "phase": "idle",
+     "server": {
+      "active": 0,
+      "queued": 0,
+      "rates": null,
+      "speculative": null
+     },
+     "slots": []
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "llama-metrics": {
+   "title": "llama-server without --metrics",
+   "snapshot": "llama-slots",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "metrics_required",
+     "params": {},
+     "sinceAt": 1790690400000
+    },
+    "capabilities": {
+     "server.slots": null,
+     "server.rates": null,
+     "server.speculative": null,
+     "server.requests": null,
+     "server.completions": null
+    },
+    "runtime": {
+     "phase": "unknown",
+     "server": {
+      "active": null,
+      "queued": null,
+      "rates": null,
+      "speculative": null
+     },
+     "slots": []
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "cannot-count"
+    },
+    "lastAttr": null
+   }
+  },
   "ollama": {
    "title": "Ollama residency",
    "snapshot": "ollama-residency",
    "view": {
     "attr": {
-     "label": "server"
+     "label": "server",
+     "reason": "cannot-count"
     },
     "lastAttr": null
    }
@@ -3397,12 +3653,255 @@
    "title": "Splash via Bionic · Engines",
    "snapshot": "bionic"
   },
+  "lms-unavailable": {
+   "title": "Bionic not answering · no lms",
+   "snapshot": "bionic",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "lms_unavailable",
+     "params": {},
+     "sinceAt": 1790690620000
+    },
+    "capabilities": {
+     "server.residency": null,
+     "server.engines": null
+    },
+    "runtime": {
+     "phase": "unknown",
+     "residency": [],
+     "engines": []
+    }
+   }
+  },
   "storage-full": {
    "title": "History storage full",
    "snapshot": "omlx-idle",
    "view": {
     "storage": "full"
    }
+  },
+  "history-empty": {
+   "title": "History after a fresh upgrade",
+   "snapshot": "omlx-idle",
+   "view": {
+    "history": "empty"
+   }
+  },
+  "recording-paused": {
+   "title": "Recording paused",
+   "snapshot": "omlx-idle",
+   "view": {
+    "storage": "paused"
+   }
+  },
+  "clear-confirm": {
+   "title": "Clear history · confirmation",
+   "snapshot": "omlx-idle",
+   "view": {
+    "storage": "confirm"
+   }
   }
+ },
+ "trendFresh": {
+  "contractVersion": 2,
+  "serverNow": 1790690700000,
+  "windowMs": 3600000,
+  "bucketMs": 20000,
+  "startAt": 1790687100000,
+  "series": {
+   "decodeTps": {
+    "basis": "reported",
+    "buckets": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ]
+   }
+  },
+  "gaps": [
+   {
+    "fromAt": 1790687100000,
+    "toAt": 1790690580000
+   }
+  ],
+  "marks": []
  }
 }
