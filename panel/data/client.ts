@@ -6,17 +6,20 @@ import { unavailableForHostError, unavailableForServiceResponse } from '../host-
 import { CONTRACT_MISMATCH } from '../present/messages.ts';
 import { frameReading, fromSnapshot, type Reading } from '../present/reading.ts';
 
-export type SnapshotQuery = { provider?: string; runtime?: string; frame: string; surface: string; since?: number };
+/** `mark`/`attr` are pre-encoded comma lists (src/contract/query.ts encodeMarks/encodeAttrs); `tier` defaults to full. */
+export type SnapshotQuery = { provider?: string; runtime?: string; frame: string; surface: string; since?: number;
+  tier?: 'glance' | 'full'; detail?: 'server'; mark?: string; attr?: string };
 const OFFSET_SAMPLES = 5;
 
 /** 8 hex characters per frame mount, memory only: the service's lease key. `getRandomValues` works on plain HTTP hosts. */
 export const frameId = (): string => Array.from(crypto.getRandomValues(new Uint8Array(4)), byte => byte.toString(16).padStart(2, '0')).join('');
 
-/** Contract §7: the full tier, a surface the service knows (others are left out rather than rejected), and the cursor. */
+/** Contract §7: the tier (full unless asked), a surface the service knows (others are left out rather than rejected), the cursor, then marks and verdicts. */
 export const snapshotQuery = (query: SnapshotQuery): Record<string, string> => ({
   ...query.provider ? { provider: query.provider } : {}, ...query.runtime ? { runtime: query.runtime } : {},
-  frame: query.frame, ...SURFACES.includes(query.surface as Surface) ? { surface: query.surface } : {}, tier: 'full',
+  frame: query.frame, ...SURFACES.includes(query.surface as Surface) ? { surface: query.surface } : {}, tier: query.tier ?? 'full',
   ...query.since !== undefined ? { since: String(query.since) } : {},
+  ...query.detail ? { detail: query.detail } : {}, ...query.mark ? { mark: query.mark } : {}, ...query.attr ? { attr: query.attr } : {},
 });
 
 /** `serviceRequest` returns the body as a string (SPIKES S1); an object is accepted too. Malformed JSON throws. */

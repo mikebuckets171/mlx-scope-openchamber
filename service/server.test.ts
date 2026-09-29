@@ -104,6 +104,18 @@ test('/v2/trend and /v2/usage validate, then answer 501 until their rings exist'
   }
 });
 
+test('/v2/trend and /v2/usage serve their sources with the parsed query once svc-history supplies them', async () => {
+  const seen: unknown[] = [];
+  const trend = { contractVersion: 2 as const, serverNow: NOW, windowMs: 3_600_000 as const, bucketMs: 20_000, startAt: NOW - 3_600_000, series: {}, gaps: [], marks: [] };
+  const usage = { contractVersion: 2 as const, serverNow: NOW, available: false, reason: 'not_omlx' as const, range: '90d' as const, cachedAt: NOW,
+    basis: 'reported' as const, granularity: 'day' as const, buckets: [], totals: { requests: 0, promptTokens: 0, outputTokens: 0 }, models: [] };
+  const request = await launch({ ...defaults, trend: async query => { seen.push(query); return trend; }, usage: async query => { seen.push(query); return usage; } });
+  expect(await (await request('/v2/trend?window=3600&series=cpuFraction')).json()).toEqual(trend);
+  expect(await (await request('/v2/usage?range=90d')).json()).toEqual(usage);
+  expect((await request('/v2/usage?range=1y')).status).toBe(400);
+  expect(seen).toEqual([{ windowMs: 3_600_000, series: ['cpuFraction'] }, { range: '90d' }]);
+});
+
 test('a v2 snapshot is canonical, honest and carries the service identity', async () => {
   const request = await launch();
   const response = await request('/v2/snapshot');

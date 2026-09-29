@@ -53,14 +53,23 @@ const attr = (value: string): SnapshotQuery['attrs'][number] | null => {
   if (!parsedSeq || !kind || extra !== undefined || reason !== '-' && !parsedReason || kind === 'withheld' && !parsedReason) return null;
   return { seq: parsedSeq, attr: kind, reason: parsedReason };
 };
+// `serviceRequest` takes `query: Record<string, string>`, so frames send a list as one comma-joined value; repeated
+// parameters stay accepted. The cap counts items, not parameters.
 const repeated = <T>(params: Params, name: string, max: number, parse: (value: string) => T | null): T[] => {
-  const values = params.getAll(name);
+  const values = params.getAll(name).flatMap(value => value.split(','));
   if (values.length > max) throw new Bad(name);
   return values.map(value => { const parsed = parse(value); if (parsed === null) throw new Bad(name); return parsed; });
 };
 const run = <T>(read: () => T): T | BadQuery => {
   try { return read(); } catch (error) { if (error instanceof Bad) return { error: 'bad_query', param: error.param }; throw error; }
 };
+/** Frame side of `mark=`: one comma-joined value, newest last, at most MAX_MARKS; undefined when empty. */
+export const encodeMarks = (marks: SnapshotQuery['marks']): string | undefined =>
+  marks.length ? marks.slice(-MAX_MARKS).map(({ phase, at, tag }) => `${phase}.${Math.round(at)}.${tag}`).join(',') : undefined;
+/** Frame side of `attr=`: one comma-joined value, newest last, at most MAX_ATTRS; undefined when empty. */
+export const encodeAttrs = (attrs: SnapshotQuery['attrs']): string | undefined =>
+  attrs.length ? attrs.slice(-MAX_ATTRS).map(({ seq, attr, reason }) => `${seq}.${attr}.${reason ?? '-'}`).join(',') : undefined;
+
 export const isBadQuery = (value: object): value is BadQuery => (value as BadQuery).error === 'bad_query';
 
 export const parseSnapshotQuery = (params: Params): SnapshotQuery | BadQuery => run(() => {
