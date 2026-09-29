@@ -1,0 +1,7 @@
+{"timestamp":1790683260000,"data":{"type":"server.log","content":"[2026-09-29 12:01:00][DEBUG] Received request: POST to /v1/chat/completions with body [Sensitive]","level":"debug"}}
+{"timestamp":1790683260035,"data":{"type":"server.log","content":"[2026-09-29 12:01:00][INFO][publisher/example-27b-splash] Running chat completion on conversation with 1 messages.","level":"info"}}
+{"timestamp":1790683260410,"data":{"type":"server.log","content":"[2026-09-29 12:01:00][INFO][publisher/example-27b-splash] Prompt processing progress: 18.9%","level":"info"}}
+{"timestamp":1790683260602,"data":{"type":"server.log","content":"[2026-09-29 12:01:00][INFO][publisher/example-27b-splash] Prompt processing progress: 100.0%","level":"info"}}
+{"timestamp":1790683262270,"data":{"type":"server.log","content":"[2026-09-29 12:01:02][DEBUG] 12:01:02 Done · input 214 · cached 0 · output 96 · TTFT 0.6s · 58.1 tok/s","level":"debug"}}
+{"timestamp":1790683262281,"data":{"type":"server.log","content":"[2026-09-29 12:01:02][INFO][publisher/example-27b-splash] Model generated tool calls: [Sensitive]","level":"info"}}
+{"timestamp":1790683262283,"data":{"type":"server.log","content":"[2026-09-29 12:01:02][INFO][publisher/example-27b-splash] Generated prediction: [Sensitive]","level":"info"}}
