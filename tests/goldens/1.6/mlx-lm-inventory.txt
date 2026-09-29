@@ -1,0 +1,42 @@
+# mlx-lm-inventory · ?connections=1 · automatic connection: mlx
+
+## live · 320 dark panel
+main.scope {aria-labelledby="scope-title"}: · | MLX Scope
+#scope-title: MLX Scope
+#phase: Connected
+#connection: mlx-lm connected
+#pause {aria-pressed="false" title="Pause this monitor, not inference"}
+#pause-symbol {d="M7 5v10M13 5v10"}
+#pause-label: Pause
+#monitor-menu
+#tab-live {aria-controls="view-live" aria-selected="true"}: Live
+#tab-server {aria-controls="view-server" aria-selected="false"}: Server
+#tab-compare {aria-controls="view-compare" aria-selected="false"}: Compare
+#tab-saved {aria-controls="view-saved" aria-selected="false"}: Saved
+#view-live {aria-labelledby="tab-live"}
+#instrument {aria-label="Runtime inventory and coverage"}
+#activity-label: LOCAL RUNTIME
+#model {title="Observing mlx-lm on the OpenChamber host."}: mlx-lm
+#coverage-note: mlx-lm lists its models here. Live request activity appears when its local log stream is available.
+#catalog-section {aria-labelledby="catalog-title"}
+#catalog-title: Available models
+#catalog-count: 1 reported
+#catalog-list: Configured MLX model | MLX
+#catalog-note: Listed models are not necessarily in use. Context is the configured or maximum length.
+#machine {aria-labelledby="machine-title"}: CPU RAM Swap
+#machine-title: macOS host
+#cpu: 33%
+#cpu-bar {style="width: 32.5893%;"}
+#ram: 36.1 / 48 GiB
+#ram-bar {style="width: 75.2083%;"}
+#swap: 1.1 GiB
+#host-details: Mac details
+#connection-help: Connection help
+#scope-version: <version>
+#freshness: Updated now
+live #connection: mlx-lm connected
+live #action-status (hidden): 
+live #notice (hidden): 
+live #runtime-advisory (hidden): 
+live #saved-state (hidden): Nothing saved yet. Save a Live snapshot or a Compare capture.
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.

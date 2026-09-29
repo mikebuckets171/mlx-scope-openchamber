@@ -1,0 +1,57 @@
+# bionic-prefill · ?connections=1&bionic=prefill · automatic connection: bionic
+
+## live · 320 dark panel
+main.scope {aria-labelledby="scope-title"}: · | MLX Scope
+#scope-title: MLX Scope
+#phase: Reading context
+#connection: Splash via Bionic connected
+#pause {aria-pressed="false" title="Pause this monitor, not inference"}
+#pause-symbol {d="M7 5v10M13 5v10"}
+#pause-label: Pause
+#monitor-menu
+#tab-live {aria-controls="view-live" aria-selected="true"}: Live
+#tab-server {aria-controls="view-server" aria-selected="false"}: Server
+#tab-compare {aria-controls="view-compare" aria-selected="false"}: Compare
+#tab-saved {aria-controls="view-saved" aria-selected="false"}: Saved
+#view-live {aria-labelledby="tab-live"}
+#instrument {aria-label="Inference activity"}: Output | Elapsed | Input reused | Requests
+#activity-label: MODEL ACTIVITY
+#model {title="local/qwen3.8-27b-splash-levels"}: qwen3.8-27b-splash-levels
+#prefill-progress {aria-label="Prefill progress"}
+#prefill-remaining: 58% remaining
+#prefill-completed: 42% complete
+#prefill-track {aria-label="Prefill stage completed" aria-valuemax="100" aria-valuemin="0" aria-valuenow="42" aria-valuetext="58% remaining; 42% complete"}
+#prefill-counts: Percent of the current prefill stage, not time remaining.
+#prefill-state: Live reading
+#rate: Reading
+#unit: Reading the prompt
+#activity: Reading the prompt on qwen3.8-27b-splash-levels · 42%.
+#catalog-section {aria-labelledby="catalog-title"}
+#catalog-title: Splash models
+#catalog-count: 5 Splash · 1 loaded
+#catalog-list: local/qwen3.8-27b-splash-levels | Loaded | Splash | 262,144 context | local/qwen3.8-27b-splash-abliterated-levels | Not loaded | Splash | 262,144 context | qwen3.8-27b-splash | Not loaded | Splash | 262,144 context | qwen3.6-35b-a3b-splash | Not loaded | Splash | 262,144 context | qwen3.6-35b-a3b-heretic-splash | Not loaded | Splash | 262,144 context | text-embedding-nomic-embed-text-v1.5 | Not loaded | GGUF | 2,048 context
+#catalog-note: Load or switch models in Bionic. MLX Scope only watches.
+#output: —
+#elapsed: 6.4s
+#reuse: 61%
+#reuse-detail: 11.3K tokens · last response
+#reuse-bar {style="width: 61.1957%;"}
+#requests: 1
+#queue: running now
+#machine {aria-labelledby="machine-title"}: CPU RAM Swap
+#machine-title: macOS host
+#cpu: 34%
+#cpu-bar {style="width: 33.9894%;"}
+#ram: 36.1 / 48 GiB
+#ram-bar {style="width: 75.2083%;"}
+#swap: 1.1 GiB
+#host-details: Mac details
+#connection-help: Connection help
+#scope-version: <version>
+#freshness: Updated now
+live #connection: Splash via Bionic connected
+live #action-status (hidden): 
+live #notice (hidden): 
+live #runtime-advisory (hidden): 
+live #saved-state (hidden): Nothing saved yet. Save a Live snapshot or a Compare capture.
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
