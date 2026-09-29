@@ -1,0 +1,232 @@
+# omlx-offline · ?state=offline
+
+## live · 320 dark panel
+main.scope {aria-labelledby="scope-title"}: · | MLX Scope
+#scope-title: MLX Scope
+#phase: Connecting
+#connection: Waiting for Local runtime
+#pause {aria-pressed="false" title="Pause this monitor, not inference"}
+#pause-symbol {d="M7 5v10M13 5v10"}
+#pause-label: Pause
+#monitor-menu
+#connection-diagnosis
+#connection-message: oMLX is not responding. Start the server, then refresh.
+#connection-configure: Choose connection
+#tab-live {aria-controls="view-live" aria-selected="true"}: Live
+#tab-server {aria-controls="view-server" aria-selected="false"}: Server
+#tab-compare {aria-controls="view-compare" aria-selected="false"}: Compare
+#tab-saved {aria-controls="view-saved" aria-selected="false"}: Saved
+#view-live {aria-labelledby="tab-live"}
+#machine {aria-labelledby="machine-title"}: CPU RAM Swap
+#machine-title: macOS host
+#cpu: 33%
+#cpu-bar {style="width: 32.5893%;"}
+#ram: 36.1 / 48 GiB
+#ram-bar {style="width: 75.2083%;"}
+#swap: 1.1 GiB
+#host-details: Mac details
+#connection-help: Connection help
+#scope-version: <version>
+#freshness: No sample yet
+live #connection: Waiting for Local runtime
+live #action-status (hidden): 
+live #notice (hidden): 
+live #runtime-advisory (hidden): 
+live #saved-state (hidden): Nothing saved yet. Save a Live snapshot or a Compare capture.
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+
+## menu · 320 dark panel
+#monitor-menu {open=""}: Local · read-only · server-wide observations
+#refresh {title="Refresh readings"}: Refresh readings
+#compact {aria-pressed="false"}: Compact view
+#efficiency {aria-pressed="false" title="Reduce monitoring refresh frequency"}: Energy-saving updates
+#save-snapshot {title="Keep the 12 newest observations; the oldest is replaced when full"}: Save snapshot
+#share-actions {aria-label="Share readings"}: Share
+#connection-change {aria-controls="connection-setup" aria-expanded="false"}: Change connection
+#cadence: Adaptive updates
+
+## server · 320 dark panel
+main.scope {aria-labelledby="scope-title"}: · | MLX Scope
+#scope-title: MLX Scope
+#phase: Connecting
+#connection: Waiting for Local runtime
+#pause {aria-pressed="false" title="Pause this monitor, not inference"}
+#pause-symbol {d="M7 5v10M13 5v10"}
+#pause-label: Pause
+#monitor-menu
+#connection-diagnosis
+#connection-message: oMLX is not responding. Start the server, then refresh.
+#connection-configure: Choose connection
+#tab-live {aria-controls="view-live" aria-selected="false"}: Live
+#tab-server {aria-controls="view-server" aria-selected="true"}: Server
+#tab-compare {aria-controls="view-compare" aria-selected="false"}: Compare
+#tab-saved {aria-controls="view-saved" aria-selected="false"}: Saved
+#view-server {aria-labelledby="tab-server"}
+#connection-help: Connection help
+#scope-version: <version>
+#freshness: No sample yet
+live #connection: Waiting for Local runtime
+live #action-status (hidden): 
+live #notice (hidden): 
+live #runtime-advisory (hidden): 
+live #saved-state (hidden): Nothing saved yet. Save a Live snapshot or a Compare capture.
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+
+## compare · 320 dark panel
+main.scope {aria-labelledby="scope-title"}: · | MLX Scope
+#scope-title: MLX Scope
+#phase: Connecting
+#connection: Waiting for Local runtime
+#pause {aria-pressed="false" title="Pause this monitor, not inference"}
+#pause-symbol {d="M7 5v10M13 5v10"}
+#pause-label: Pause
+#monitor-menu
+#connection-diagnosis
+#connection-message: oMLX is not responding. Start the server, then refresh.
+#connection-configure: Choose connection
+#tab-live {aria-controls="view-live" aria-selected="false"}: Live
+#tab-server {aria-controls="view-server" aria-selected="false"}: Server
+#tab-compare {aria-controls="view-compare" aria-selected="true"}: Compare
+#tab-saved {aria-controls="view-saved" aria-selected="false"}: Saved
+#view-compare {aria-labelledby="tab-compare"}
+#capture {aria-labelledby="capture-title"}: Record existing work, pin a reference, then observe another run. | Sample means are not time-weighted. Differences do not establish causality. Captures stay in memory unless you save them; no inference is started.
+#capture-title: Observation window
+#capture-state: On demand
+#capture-length {aria-label="Observation length"}: 30 seconds | 60 seconds
+#capture-start: Record window
+#recent-generations {aria-labelledby="recent-title"}: Last observed readings · not completion records | Kept only while this view is open. A request leaving the view does not confirm completion.
+#recent-title: Recent generations
+#recent-count: 0 / 8
+#recent-list: Your next generation will appear here when it leaves the active view.
+#copy-recent {disabled=""}: Copy recent
+#clear-recent {disabled="" title="Clear this view’s observation history, not runtime statistics"}: Clear history
+#connection-help: Connection help
+#scope-version: <version>
+#freshness: No sample yet
+live #connection: Waiting for Local runtime
+live #action-status (hidden): 
+live #notice (hidden): 
+live #runtime-advisory (hidden): 
+live #saved-state (hidden): Nothing saved yet. Save a Live snapshot or a Compare capture.
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+
+## saved · 320 dark panel
+main.scope {aria-labelledby="scope-title"}: · | MLX Scope
+#scope-title: MLX Scope
+#phase: Connecting
+#connection: Viewing saved observations
+#monitor-menu
+#connection-diagnosis
+#connection-message: oMLX is not responding. Start the server, then refresh.
+#connection-configure: Choose connection
+#tab-live {aria-controls="view-live" aria-selected="false"}: Live
+#tab-server {aria-controls="view-server" aria-selected="false"}: Server
+#tab-compare {aria-controls="view-compare" aria-selected="false"}: Compare
+#tab-saved {aria-controls="view-saved" aria-selected="true"}: Saved
+#view-saved {aria-labelledby="tab-saved"}: Saved on this OpenChamber host. Keeps the 12 newest saves; the oldest is replaced when full. No model names or chat content.
+h2: Saved observations
+#saved-count: 0 / 12
+#saved-clear {disabled=""}: Clear saved
+#saved-state: Nothing saved yet. Save a Live snapshot or a Compare capture.
+#saved-list
+#connection-help: Connection help
+#scope-version: <version>
+#freshness: No sample yet
+live #connection: Viewing saved observations
+live #action-status (hidden): 
+live #notice (hidden): 
+live #runtime-advisory (hidden): 
+live #saved-state: Nothing saved yet. Save a Live snapshot or a Compare capture.
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+
+## compact · 320 dark panel
+main.scope {aria-labelledby="scope-title"}: · | MLX Scope
+#scope-title: MLX Scope
+#phase: Connecting
+#connection: Waiting for Local runtime
+#pause {aria-pressed="false" title="Pause this monitor, not inference"}
+#pause-symbol {d="M7 5v10M13 5v10"}
+#pause-label: Pause
+#monitor-menu
+#connection-diagnosis
+#connection-message: oMLX is not responding. Start the server, then refresh.
+#connection-configure: Choose connection
+#view-live {aria-labelledby="tab-live"}
+#scope-version: <version>
+#freshness: No sample yet
+live #connection: Waiting for Local runtime
+live #action-status (hidden): 
+live #notice (hidden): 
+live #runtime-advisory (hidden): 
+live #saved-state (hidden): Nothing saved yet. Save a Live snapshot or a Compare capture.
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+
+## live · 320 light panel
+main.scope {aria-labelledby="scope-title"}: · | MLX Scope
+#scope-title: MLX Scope
+#phase: Connecting
+#connection: Waiting for Local runtime
+#pause {aria-pressed="false" title="Pause this monitor, not inference"}
+#pause-symbol {d="M7 5v10M13 5v10"}
+#pause-label: Pause
+#monitor-menu
+#connection-diagnosis
+#connection-message: oMLX is not responding. Start the server, then refresh.
+#connection-configure: Choose connection
+#tab-live {aria-controls="view-live" aria-selected="true"}: Live
+#tab-server {aria-controls="view-server" aria-selected="false"}: Server
+#tab-compare {aria-controls="view-compare" aria-selected="false"}: Compare
+#tab-saved {aria-controls="view-saved" aria-selected="false"}: Saved
+#view-live {aria-labelledby="tab-live"}
+#machine {aria-labelledby="machine-title"}: CPU RAM Swap
+#machine-title: macOS host
+#cpu: 33%
+#cpu-bar {style="width: 32.5893%;"}
+#ram: 36.1 / 48 GiB
+#ram-bar {style="width: 75.2083%;"}
+#swap: 1.1 GiB
+#host-details: Mac details
+#connection-help: Connection help
+#scope-version: <version>
+#freshness: No sample yet
+live #connection: Waiting for Local runtime
+live #action-status (hidden): 
+live #notice (hidden): 
+live #runtime-advisory (hidden): 
+live #saved-state (hidden): Nothing saved yet. Save a Live snapshot or a Compare capture.
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+
+## live · 1160 dark page
+main.scope {aria-labelledby="scope-title"}: · | MLX Scope
+#scope-title: MLX Scope
+#phase: Connecting
+#connection: Waiting for Local runtime
+#pause {aria-pressed="false" title="Pause this monitor, not inference"}
+#pause-symbol {d="M7 5v10M13 5v10"}
+#pause-label: Pause
+#monitor-menu
+#connection-diagnosis
+#connection-message: oMLX is not responding. Start the server, then refresh.
+#connection-configure: Choose connection
+#tab-live {aria-controls="view-live" aria-selected="true"}: Live
+#tab-server {aria-controls="view-server" aria-selected="false"}: Server
+#tab-compare {aria-controls="view-compare" aria-selected="false"}: Compare
+#tab-saved {aria-controls="view-saved" aria-selected="false"}: Saved
+#view-live {aria-labelledby="tab-live"}
+#machine {aria-labelledby="machine-title"}: CPU RAM Swap
+#machine-title: macOS host
+#cpu: 33%
+#cpu-bar {style="width: 32.5893%;"}
+#ram: 36.1 / 48 GiB
+#ram-bar {style="width: 75.2083%;"}
+#swap: 1.1 GiB
+#host-details: Mac details
+#connection-help: Connection help
+#scope-version: <version>
+#freshness: No sample yet
+live #connection: Waiting for Local runtime
+live #action-status (hidden): 
+live #notice (hidden): 
+live #runtime-advisory (hidden): 
+live #saved-state (hidden): Nothing saved yet. Save a Live snapshot or a Compare capture.
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.

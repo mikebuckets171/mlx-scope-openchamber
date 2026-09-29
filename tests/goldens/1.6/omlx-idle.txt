@@ -1,0 +1,57 @@
+# omlx-idle · ?state=idle
+
+## live · 320 dark panel
+main.scope {aria-labelledby="scope-title"}: · | MLX Scope
+#scope-title: MLX Scope
+#phase: Ready
+#connection: oMLX connected
+#pause {aria-pressed="false" title="Pause this monitor, not inference"}
+#pause-symbol {d="M7 5v10M13 5v10"}
+#pause-label: Pause
+#monitor-menu
+#tab-live {aria-controls="view-live" aria-selected="true"}: Live
+#tab-server {aria-controls="view-server" aria-selected="false"}: Server
+#tab-compare {aria-controls="view-compare" aria-selected="false"}: Compare
+#tab-saved {aria-controls="view-saved" aria-selected="false"}: Saved
+#view-live {aria-labelledby="tab-live"}
+#instrument {aria-label="Inference activity"}: Output | Elapsed | Input reused | Requests
+#activity-label: MODEL ACTIVITY
+#model {title="Qwen3.8-27B-4bit"}: Qwen3.8-27B-4bit
+#rate: Ready
+#unit: Waiting for your next request
+#signal {aria-label="No observed throughput in the last 90 seconds."}: −90s
+#chart-title: Generation · request average
+#ceiling: 10 tok/s
+#history-inspector {aria-describedby="history-reading" aria-disabled="true" aria-label="Inspect throughput history" aria-orientation="horizontal" aria-valuemax="0" aria-valuemin="0" aria-valuenow="0" aria-valuetext="No observations yet"}
+#trace-fill
+#trace-area
+#trace
+#chart-empty: The next request starts here.
+#chart-state: Observed samples only
+#chart-end: now
+#history-reading: History appears as readings arrive
+#activity: Model loaded. Ready for your next request.
+#output: —
+#elapsed: —
+#reuse: —
+#reuse-detail: Not reported
+#reuse-bar {style="width: 0%;"}
+#requests: 0
+#queue: Queue clear
+#machine {aria-labelledby="machine-title"}: CPU RAM Swap
+#machine-title: macOS host
+#cpu: 33%
+#cpu-bar {style="width: 32.5893%;"}
+#ram: 36.1 / 48 GiB
+#ram-bar {style="width: 75.2083%;"}
+#swap: 1.1 GiB
+#host-details: Mac details
+#connection-help: Connection help
+#scope-version: <version>
+#freshness: Updated now
+live #connection: oMLX connected
+live #action-status (hidden): 
+live #notice (hidden): 
+live #runtime-advisory (hidden): 
+live #saved-state (hidden): Nothing saved yet. Save a Live snapshot or a Compare capture.
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.

@@ -69,6 +69,7 @@
     "test": "bun test ./service ./src ./panel",
     "preview": "bun run build:panel && bun tests/browser/server.ts",
     "test:browser": "playwright test",
+    "test:goldens": "playwright test tests/browser/goldens.spec.ts",
     "verify:package": "bun scripts/verify-package.ts",
     "check": "bun run type-check && bun run scan && bun run test && bun run build && bun run verify:package",
     "check:all": "bun run check && bun run test:browser",
