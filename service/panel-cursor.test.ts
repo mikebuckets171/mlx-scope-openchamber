@@ -1,0 +1,52 @@
+import { afterEach, expect, test } from 'bun:test';
+import type http from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { SnapshotClient } from '../panel/data/client.ts';
+import { ScopeState } from '../panel/state/scope-state.ts';
+import { parseSystemSnapshot } from '../src/system.ts';
+import { parseTelemetrySnapshot } from '../src/telemetry.ts';
+import type { RuntimeReading } from './runtime-client.ts';
+import { createScopeServer } from './server.ts';
+
+// The panel's completion cursor against the real service: the two tracks agree on `since`, `cursor` and `reset`.
+const NOW = 1_790_690_700_000;
+const servers: http.Server[] = [];
+afterEach(async () => {
+  await Promise.all(servers.splice(0).map(server => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); })));
+});
+const system = parseSystemSnapshot({ platform: 'darwin', sampledAt: NOW - 500, memoryTotalGB: 48 })!;
+const last = { model: 'fixture', tokensPerSecond: 38.6, ttftSeconds: 0.5, promptTokens: 100, cachedTokens: 60, outputTokens: 20, finishedAt: NOW - 42_000 };
+const bionic = (seq: number): RuntimeReading => ({
+  snapshot: parseTelemetrySnapshot({ available: true, runtime: 'lmstudio', phase: 'idle', sampledAt: NOW - 300, lastRequest: last,
+    connection: { selected: 'bionic', label: 'Bionic', runtime: 'lmstudio', choices: [], diagnostic: 'ready', coverage: 'requests', generation: null } }),
+  meta: { generation: 1, detection: { basis: 'hint', confidence: 'medium' }, failures: 0, idleMs: 0, completionSeq: seq },
+});
+
+/** A service instance whose last finished request has `seq`; the panel reaches it the way the host does, with a string body. */
+const service = async (instance: string, seq: number): Promise<SnapshotClient> => {
+  const server = createScopeServer('test-token', { read: async () => bionic(seq), system: async () => system, completionHead: () => seq },
+    { version: '2.0.0-test', instance, now: () => NOW });
+  servers.push(server);
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  return new SnapshotClient({ serviceRequest: async ({ path, query }) => {
+    const response = await fetch(`${url}${path}?${new URLSearchParams(query as Record<string, string>)}`, { headers: { Authorization: 'Bearer test-token' } });
+    return { status: response.status, body: await response.text() } as never;
+  } }, () => NOW);
+};
+
+test('the last request stays through cursor polls and survives a service restart the panel outlived', async () => {
+  const state = new ScopeState(NOW), poll = async (client: SnapshotClient) =>
+    state.accept(await client.read({ frame: 'c0ffee42', surface: 'panel', since: state.since }));
+  const first = await service('5c1e0a7b', 5);
+  await poll(first);
+  expect([state.since, state.lastRequest?.seq, state.lastRequest?.decodeTps]).toEqual([5, 5, 38.6]);
+  await poll(first);
+  expect([state.since, state.lastRequest?.seq]).toEqual([5, 5]);
+  // A restarted service numbers from 1 again; the panel's cursor 5 is not its own, so it resyncs from the whole ring.
+  const restarted = await service('0a1b2c3d', 1);
+  await poll(restarted);
+  expect([state.since, state.lastRequest?.seq, state.lastRequest?.model]).toEqual([1, 1, 'fixture']);
+  await poll(restarted);
+  expect(state.lastRequest?.seq).toBe(1);
+});

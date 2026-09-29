@@ -161,7 +161,7 @@ async function measure(kind) {
       const until = performance.now() + duration * 1000, latencies = [];
       while (performance.now() < until) {
         const start = performance.now();
-        assert.equal((await get('/snapshot')).available, true);
+        assert.equal((await get('/v2/snapshot')).status.state, 'ready');
         latencies.push(performance.now() - start);
         lastRead = Date.now();
         await delay(Math.max(1, Math.min(interval - (performance.now() - start), until - performance.now())));
@@ -188,7 +188,7 @@ async function measure(kind) {
     edges.activeEnd = await probe();
     // One transition read keeps the active runtime state out of the idle measurement.
     state.active = false;
-    assert.equal((await get('/snapshot')).available, true);
+    assert.equal((await get('/v2/snapshot')).status.state, 'ready');
     await delay(500);
     edges.idle = await probe();
     const idleLatency = await poll(seconds.idle, 2_000), lastRequestAt = lastRead;

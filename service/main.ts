@@ -12,7 +12,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535 || token.length === 0) 
 const client = new RuntimeClient({ lmstudioActivity: new LMStudioActivityStream() });
 const system = new SystemSampler();
 const server = createScopeServer(token, {
-  snapshot: selection => client.snapshot(selection), system: () => system.sample(),
+  read: selection => client.read(selection), system: () => system.sample(), completionHead: () => client.completionHead,
 });
 server.on('error', (error: NodeJS.ErrnoException) => {
   console.error('MLX Scope could not start its local service.', error);

@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test';
-import { SignalHistory, nextDelay, traceGeometry } from './signal.ts';
-import { parseTelemetrySnapshot, unavailableTelemetry } from '../src/telemetry.ts';
+import { frameReading } from './present/reading.ts';
+import { SignalHistory, traceGeometry } from './signal.ts';
+import { fromV1 } from './testing/readings.ts';
 
-const sample = (at: number, overrides: object = {}) => parseTelemetrySnapshot({
+const sample = (at: number, overrides: object = {}) => fromV1({
   available: true, phase: 'decode', modelID: 'fixture', liveDecodeTPS: 20,
   sampledAt: at, traceEpoch: 1, ...overrides,
 });
@@ -22,7 +23,7 @@ test('trace breaks at requests, phases, models, connection loss and elapsed gaps
   history.observe(sample(2_500, { modelID: 'other' }));
   history.observe(sample(3_000, { phase: 'idle' }));
   history.observe(sample(3_500));
-  history.observe(unavailableTelemetry('runtime_unreachable', null, 4_000));
+  history.observe(frameReading('runtime_unreachable', null, 4_000));
   history.observe(sample(4_500));
   history.observe(sample(10_000));
   expect(history.points.map((point) => point.segment)).toEqual([1, 1, 2, 3, 4, 5, 6]);
@@ -38,14 +39,6 @@ test('chart never stretches two samples across a fictitious 90 seconds', () => {
   history.prune(200_000);
   expect(history.points).toHaveLength(0);
 });
-
-test('polling is bounded, adaptive, and backs off failures', () => {
-  const active = sample(0);
-  expect(nextDelay(active.available ? active : null, 0)).toBe(500);
-  expect(nextDelay(null, 0)).toBe(2_000);
-  expect(nextDelay(null, 10)).toBe(15_000);
-});
-
 
 test('energy-saving history joins its scheduled samples but still breaks real gaps', () => {
   const history = new SignalHistory();

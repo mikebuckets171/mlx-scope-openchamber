@@ -1,13 +1,10 @@
-import type { TelemetrySnapshot } from '../src/telemetry.ts';
-import { cacheSplit, prefillEstimate, recentGenerationsReport, SessionInsights } from './insights.ts';
-import { runtimeNames } from '../src/runtime.ts';
-
-const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
-const integer = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-const rate = (value: number | null) => value === null ? '—' : `${number.format(value)} tok/s`;
-const size = (gb: number | null | undefined) => gb == null ? '—' : `${number.format(gb * 1e9 / 1024 ** 3)} GiB`;
-const phases: Record<string, string> = { decode: 'Generating', prefill: 'Reading context', idle: 'Ready', queued: 'Queued', processing: 'Processing', unknown: 'Unavailable' };
-const put = (element: Element, text: string) => { if (element.textContent !== text) element.textContent = text; };
+import type { CompletionV2 } from '../src/contract/completion.ts';
+import { recentGenerationsReport, SessionInsights } from './insights.ts';
+import { presentGeneration } from './present/captures.ts';
+import { presentRecent } from './present/live.ts';
+import type { Reading } from './present/reading.ts';
+import { presentInsights } from './present/server.ts';
+import { put, syncChildren } from './render/dom.ts';
 
 /** Small observation-driven views: no new poller, frame loop, chart library, or persisted request data. */
 export class InsightView {
@@ -17,95 +14,63 @@ export class InsightView {
   private node(id: string): HTMLElement { return this.root.querySelector<HTMLElement>(`#${id}`)!; }
   private text(id: string, value: string): void { put(this.node(id), value); }
 
-  update(snapshot: TelemetrySnapshot): void {
-    this.history.observe(snapshot);
-    const current = snapshot.available ? snapshot : null;
-    const runtimeName = current?.runtime ? runtimeNames[current.runtime] : 'Runtime';
-    const estimate = prefillEstimate(current);
-    this.node('prefill-estimate').hidden = estimate === null;
-    this.text('prefill-eta', estimate ?? '—');
-    const speed = current?.phase === 'decode' ? this.history.speed : null;
-    this.node('recent-speed').hidden = current?.phase !== 'decode';
-    this.text('window-speed', speed ? rate(speed.tokensPerSecond) : 'Gathering samples…');
-    this.text('window-span', speed ? `Observed over ${number.format(speed.seconds)}s` : 'Recent speed · needs 2s of observations');
-    const lastResponse = current?.promptTokens == null && current?.lastRequest?.promptTokens != null && current.lastRequest.cachedTokens != null
-      ? current.lastRequest : null;
-    const split = cacheSplit(current) ?? (lastResponse ? cacheSplit({ ...current!, promptTokens: lastResponse.promptTokens, cachedTokens: lastResponse.cachedTokens }) : null);
-    // Hide the whole panel for runtimes that report neither request reuse nor cache totals.
-    this.node('cache-lens').hidden = current !== null && split === null && !current.sessionBank;
-    this.text('cache-reuse-count', split ? integer.format(split.reused) : '—');
-    this.text('cache-new-count', split ? integer.format(split.fresh) : '—');
-    this.node('cache-reused-fill').style.width = `${split?.percent ?? 0}%`;
-    this.node('cache-input-bar').dataset.available = String(split !== null);
-    this.node('cache-input-bar').setAttribute('aria-label', split ? `${integer.format(split.reused)} input tokens reused; ${integer.format(split.fresh)} not reused` : 'Cache reuse unavailable for the current request');
-    const statsFresh = current?.sessionStatsState === 'fresh';
-    this.text('cache-ram-size', size(current?.sessionBank?.hot?.totalGB));
-    this.text('cache-ssd-size', size(current?.sessionBank?.cold?.totalGB));
-    this.text('cache-bank-state', current?.sessionBank
-      ? statsFresh ? 'Server cache · categories can overlap' : 'Last cache totals · not live'
-      : current ? 'Cache totals not reported by this runtime.' : 'Cache totals not live');
-    this.node('cache-lens').dataset.stale = String(!current);
-    this.text('cache-request-state', split ? `${number.format(split.percent)}% of input reused${lastResponse ? ' · last response' : ''}` : 'Waiting for the next request');
-    this.text('cache-scope', lastResponse ? 'Last response' : 'Current request');
-    this.node('cache-lens').querySelectorAll<HTMLElement>('.cache-tier-values, #cache-bank-state').forEach(element => { element.hidden = current !== null && !current.sessionBank; });
-    const warning = current?.memoryPressureLevel && current.memoryPressureLevel >= 2
-      ? `${runtimeName} memory guard elevated. This is the runtime’s guard, not macOS memory pressure.`
-      : current?.prefillProgressStale ? 'Prefill progress has not advanced. The stage estimate is withheld until fresh progress arrives.' : '';
-    this.text('runtime-advisory', warning); this.node('runtime-advisory').hidden = !warning;
+  update(reading: Reading, lastRequest: CompletionV2 | null): void {
+    this.history.observe(reading);
+    const recent = presentRecent(reading, this.history.speed), view = presentInsights(reading, lastRequest);
+    this.node('prefill-estimate').hidden = recent.estimateHidden;
+    this.text('prefill-eta', recent.estimate);
+    this.text('window-speed', recent.windowSpeed);
+    this.text('window-span', recent.windowSpan);
+    const cache = view.cache, lens = this.node('cache-lens');
+    lens.hidden = cache.hidden;
+    this.text('cache-reuse-count', cache.reused);
+    this.text('cache-new-count', cache.fresh);
+    this.node('cache-reused-fill').style.width = `${cache.fill}%`;
+    this.node('cache-input-bar').dataset.available = String(cache.available);
+    this.node('cache-input-bar').setAttribute('aria-label', cache.barLabel);
+    this.text('cache-ram-size', cache.ram);
+    this.text('cache-ssd-size', cache.ssd);
+    this.text('cache-bank-state', cache.bankState);
+    lens.dataset.stale = String(cache.stale);
+    this.text('cache-request-state', cache.requestState);
+    this.text('cache-scope', cache.scope);
+    lens.querySelectorAll<HTMLElement>('.cache-tier-values, #cache-bank-state').forEach(element => { element.hidden = cache.tiersHidden; });
+    this.text('runtime-advisory', view.advisory); this.node('runtime-advisory').hidden = !view.advisory;
 
-    const models = current?.residentModels ?? [];
-    this.node('resident-section').hidden = models.length === 0 || current?.connection?.coverage === 'inventory';
-    this.text('resident-count', current?.residentModelCount == null ? '' : `${current.residentModelCount} loaded`);
-    this.text('resident-note', (current?.residentModelCount ?? 0) > models.length
-      ? `Showing ${models.length} of ${current!.residentModelCount} reported models. Read-only; no model switching.`
-      : 'Reported models · not assigned to a selected chat');
-    const roster = this.node('resident-list');
-    while (roster.children.length > models.length) roster.lastElementChild!.remove();
-    models.forEach((model, index) => {
-      let row = roster.children[index] as HTMLElement | undefined;
-      if (!row) {
-        row = document.createElement('li'); row.className = 'resident-row';
-        // Static markup only; runtime strings are always assigned with textContent.
-        row.innerHTML = '<div class="resident-heading"><strong></strong><span></span></div><div class="resident-reading"><span></span><span></span></div>';
-        roster.append(row);
-      }
+    const residents = view.residents;
+    this.node('resident-section').hidden = residents.hidden;
+    this.text('resident-count', residents.count);
+    this.text('resident-note', residents.note);
+    syncChildren(this.node('resident-list'), residents.rows, () => {
+      const row = document.createElement('li'); row.className = 'resident-row';
+      // Static markup only; runtime strings are always assigned with textContent.
+      row.innerHTML = '<div class="resident-heading"><strong></strong><span></span></div><div class="resident-reading"><span></span><span></span></div>';
+      return row;
+    }, (row, model) => {
       row.dataset.phase = model.phase;
-      put(row.querySelector('strong')!, model.id.split('/').at(-1) ?? model.id);
-      row.querySelector('strong')!.setAttribute('title', model.id);
-      put(row.querySelector('.resident-heading span')!, phases[model.phase] ?? 'Unavailable');
-      const progress = model.phase === 'prefill' && model.prefillProgress !== null
-        ? `${model.prefillProgress < 1 && model.prefillProgress > .99 ? '<1' : Math.max(0, 100 - Math.floor(model.prefillProgress * 100 + Number.EPSILON * 100))}% left${model.progressStale ? ' · last reading' : ''}` : null;
-      put(row.querySelector('.resident-reading span')!, progress ?? (model.tokensPerSecond !== null ? rate(model.tokensPerSecond)
-        : [model.activeRequests === null ? null : `${model.activeRequests} active`, model.queuedRequests === null ? null : `${model.queuedRequests} queued`].filter(Boolean).join(' · ')));
-      put(row.querySelector('.resident-reading span:last-child')!, model.allocationGB === null ? '' : `${size(model.allocationGB)} allocated`);
-    });
-    const splashHost = current?.runtime === 'lmstudio' && current.connection?.engine === 'splash';
-    // Loaded first, then Splash-format models, then everything else; order is otherwise preserved.
-    const rank = (model: { loaded: boolean | null; format: string | null }) => model.loaded ? 0 : model.format === 'splash' ? 1 : 2;
-    const catalog = splashHost ? [...current.catalog ?? []].sort((a, b) => rank(a) - rank(b)) : current?.catalog ?? [];
-    this.node('catalog-section').hidden = !current || current.runtime === 'splash' || catalog.length === 0
-      || (current.connection?.coverage ?? 'requests') === 'requests' && !splashHost;
-    const splashCount = catalog.filter(model => model.format === 'splash').length;
-    this.text('catalog-title', current?.runtime === 'mlx-lm' ? 'Available models' : splashHost ? 'Splash models' : 'Model inventory');
-    this.text('catalog-count', splashHost ? `${splashCount} Splash · ${catalog.filter(model => model.loaded).length} loaded` : `${catalog.length} reported`);
-    this.text('catalog-note', splashHost ? 'Load or switch models in Bionic. MLX Scope only watches.'
-      : 'Listed models are not necessarily in use. Context is the configured or maximum length.');
-    const catalogList = this.node('catalog-list');
-    while (catalogList.children.length > catalog.length) catalogList.lastElementChild!.remove();
-    catalog.forEach((model, index) => {
-      let row = catalogList.children[index] as HTMLElement | undefined;
-      if (!row) {
-        row = document.createElement('li'); row.className = 'catalog-row';
-        row.innerHTML = '<strong></strong><span class="catalog-state"></span><span class="catalog-format"></span><span class="catalog-context"></span>';
-        catalogList.append(row);
-      }
       put(row.querySelector('strong')!, model.name);
-      row.dataset.loaded = String(model.loaded === true);
-      put(row.querySelector('.catalog-state')!, model.loaded === null ? '' : model.loaded ? 'Loaded' : 'Not loaded');
+      row.querySelector('strong')!.setAttribute('title', model.title);
+      put(row.querySelector('.resident-heading span')!, model.label);
+      put(row.querySelector('.resident-reading span')!, model.reading);
+      put(row.querySelector('.resident-reading span:last-child')!, model.allocation);
+    });
+    const catalog = view.catalog;
+    this.node('catalog-section').hidden = catalog.hidden;
+    this.text('catalog-title', catalog.title);
+    this.text('catalog-count', catalog.count);
+    this.text('catalog-note', catalog.note);
+    syncChildren(this.node('catalog-list'), catalog.rows, () => {
+      const row = document.createElement('li'); row.className = 'catalog-row';
+      row.innerHTML = '<strong></strong><span class="catalog-state"></span><span class="catalog-format"></span><span class="catalog-context"></span>';
+      return row;
+    }, (row, model) => {
+      put(row.querySelector('strong')!, model.name);
+      row.dataset.loaded = String(model.loaded);
+      put(row.querySelector('.catalog-state')!, model.state);
       const badge = row.querySelector<HTMLElement>('.catalog-format')!;
-      badge.dataset.format = model.format ?? '';
-      put(badge, model.format === 'splash' ? 'Splash' : model.format?.toUpperCase() ?? '');
-      put(row.querySelector('.catalog-context')!, model.contextWindow === null ? '' : `${integer.format(model.contextWindow)} context`);
+      badge.dataset.format = model.format;
+      put(badge, model.formatLabel);
+      put(row.querySelector('.catalog-context')!, model.context);
     });
     this.renderRecent();
   }
@@ -136,19 +101,20 @@ export class InsightView {
       empty.textContent = 'Generations appear here after they leave the active view.'; list.append(empty); return;
     }
     for (const record of records) {
+      const view = presentGeneration(record);
       const row = document.createElement('li'); row.className = 'generation-row';
       const heading = document.createElement('div'); heading.className = 'generation-heading';
-      const title = document.createElement('strong'); title.textContent = record.model.split('/').at(-1) ?? record.model;
-      title.title = record.model;
-      const time = document.createElement('time'); time.dateTime = new Date(record.lastSeenAt).toISOString();
-      time.textContent = new Date(record.lastSeenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const title = document.createElement('strong'); title.textContent = view.name;
+      title.title = view.title;
+      const time = document.createElement('time'); time.dateTime = view.at;
+      time.textContent = view.time;
       heading.append(title, time);
       const measurements = document.createElement('div'); measurements.className = 'generation-values';
-      const speed = document.createElement('strong'); speed.textContent = rate(record.averageTPS);
-      const counts = document.createElement('span'); counts.textContent = `${record.outputTokens === null ? '—' : integer.format(record.outputTokens)} tokens last seen`;
+      const speed = document.createElement('strong'); speed.textContent = view.speed;
+      const counts = document.createElement('span'); counts.textContent = view.tokens;
       measurements.append(speed, counts);
       const note = document.createElement('p'); note.className = 'insight-note';
-      note.textContent = `${record.coverage === 'monitoring-gap' ? 'Monitoring gap' : 'No longer observed'}${record.peakProcessGB !== null ? ` · ${size(record.peakProcessGB)} peak observed footprint` : ''}`;
+      note.textContent = view.note;
       row.append(heading, measurements, note); list.append(row);
     }
   }

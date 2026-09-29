@@ -1,5 +1,7 @@
 import type { HostClient } from '@openchamber/sdk';
-import { RUNTIMES, runtimeNames, runtimeValue, type ConnectionInfo, type RuntimeSelection } from '../src/runtime.ts';
+import { runtimeNames as kindNames } from '../src/contract/runtime.ts';
+import { RUNTIMES, runtimeNames, runtimeValue, type RuntimeSelection } from '../src/runtime.ts';
+import type { Choice, Link } from './present/reading.ts';
 
 const STORAGE_KEY = 'connection.selection';
 export const connectionsMarkup = `<section id="connection-setup" class="connection-setup" aria-labelledby="connection-setup-title" hidden>
@@ -15,9 +17,9 @@ export const connectionsMarkup = `<section id="connection-setup" class="connecti
 </section>`;
 
 /** Omit the runtime suffix when the label already names it, and never tag a Bionic provider as "LM Studio". */
-export const choiceLabel = (choice: { label: string; runtime: ConnectionInfo['runtime'] }): string => {
+export const choiceLabel = (choice: Pick<Choice, 'label' | 'runtime'>): string => {
   if (!choice.runtime) return choice.label;
-  const name = runtimeNames[choice.runtime];
+  const name = kindNames[choice.runtime];
   const label = choice.label.toLowerCase();
   const redundant = label.includes(name.toLowerCase().replace(/ \(.*\)$/, '')) || choice.runtime === 'lmstudio' && label.includes('bionic');
   return redundant ? choice.label : `${choice.label} · ${name}`;
@@ -34,7 +36,7 @@ const selectionValue = (value: unknown): RuntimeSelection | null => {
 /** One saved selection; metadata arrives through the existing snapshot request. */
 export class ConnectionsView {
   selection: RuntimeSelection = {provider:'', runtime:null};
-  private choices: ConnectionInfo['choices'] = [];
+  private choices: Choice[] = [];
   private revision = 0;
   private pending: Promise<void> = Promise.resolve();
   private readonly provider: HTMLSelectElement;
@@ -82,7 +84,7 @@ export class ConnectionsView {
     if (this.selection.runtime) query.runtime = this.selection.runtime;
     return Object.keys(query).length ? query : undefined;
   }
-  update(info: ConnectionInfo | null | undefined): void {
+  update(info: Pick<Link, 'choices'> | null): void {
     if (!info) return;
     if (JSON.stringify(info.choices) !== JSON.stringify(this.choices)) {
       this.choices = info.choices;

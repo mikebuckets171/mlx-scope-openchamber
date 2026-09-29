@@ -11,8 +11,9 @@ OpenChamber panel → SDK serviceRequest → connection router → runtime adapt
 ```
 
 `service/config.ts` resolves existing local provider connections and credentials.
-`service/runtime-client.ts` selects an adapter and shares in-flight reads, caches,
-and backoff for the same selection. Adapters observe oMLX, vllm-mlx, LM Studio,
+`service/runtime-client.ts` selects an adapter from `service/core/registry.ts`, and
+`service/core/scheduler.ts` shares in-flight reads, caches, and the one backoff for the
+same selection. Adapters observe oMLX, vllm-mlx, LM Studio,
 mlx-lm, or Splash through bounded HTTP reads. They do not initiate inference or
 manage models.
 
@@ -40,7 +41,7 @@ The host sampler is shared across connections.
 | oMLX session statistics | At most once every 10 seconds |
 | oMLX model context lookup | At most once per minute; 1-second timeout |
 | Energy-saving updates | At least 3 seconds between panel polls |
-| Runtime failure retries | 1, 2, 4, 8, then at most 15 seconds |
+| Runtime failure retries | 1, 2, 4, then at most 8 seconds |
 | Basic host resources | Shared 2-second cache, independent of runtime backoff |
 | macOS wired/compressed/swap | Shared 10-second cache; two fixed commands |
 | Native command execution | 1.5-second deadline; 64 KiB combined output per command |

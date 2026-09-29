@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
-import { ResourceHistory, toGiB } from './resources.ts';
-import { parseSystemSnapshot } from '../src/system.ts';
-const sample = (sampledAt: number, extra: object = {}) => parseSystemSnapshot({ platform: 'darwin', sampledAt, cpuPercent: 25, memoryUsedGB: 24, memoryTotalGB: 48, ...extra })!;
+import { gib } from './present/format.ts';
+import { ResourceHistory } from './resources.ts';
+import { fromV1 } from './testing/readings.ts';
+const sample = (sampledAt: number, extra: object = {}) => fromV1({ available: false, sampledAt,
+  system: { platform: 'darwin', sampledAt, cpuPercent: 25, memoryUsedGB: 24, memoryTotalGB: 48, ...extra } }).host!;
 
 test('host trace deduplicates cached timestamps and uses fixed time and percentage axes', () => {
   const history = new ResourceHistory();
@@ -27,5 +29,5 @@ test('host history is bounded and memory units round-trip correctly', () => {
   const history = new ResourceHistory();
   for (let at = 0; at < 100_000; at += 500) history.observe(sample(at));
   expect(history.size).toBe(100);
-  expect(toGiB(48 * 1024 ** 3 / 1e9)).toBe(48);
+  expect(gib(48 * 1024 ** 3)).toBe(48);
 });
