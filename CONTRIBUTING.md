@@ -1,10 +1,12 @@
 # Contributing
 
-This personal project is shared as a one-time release, with no planned ongoing
-maintenance, updates, or support. Community forks and adaptations are welcome
-under the MIT license. Issues and pull requests are welcome, but review and
-merging are not promised. The guidance below also applies to anyone carrying
-the project forward.
+> **Draft for 2.0 — finalised in Stage 11.** The "one-time release" wording is replaced by the community-maintained
+> status the README already states.
+
+MLX Scope is a community-maintained project. Review, merging and releases depend on
+maintainer availability and are not promised. Community forks and adaptations are
+welcome under the MIT license, and so are issues and pull requests. The guidance
+below also applies to anyone carrying the project forward.
 
 Use Bun 1.4.2 and Node 22 or newer. Bun 1.4.2 is required for reproducible bundles: the committed
 `panel/main.js` and `service/main.js` are its output, and another version can change them (1.3.14 renames
