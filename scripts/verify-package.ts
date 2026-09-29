@@ -36,6 +36,10 @@ for (const entry of entries.filter(name => name.endsWith('.md'))) {
 }
 const panel = await Bun.file(join(root, 'panel/main.js')).text();
 if (['node:os', 'node:fs', 'node:child_process', 'MLX_SCOPE_API_KEY', '/usr/bin/vm_stat', '/usr/sbin/sysctl'].some((secret) => panel.includes(secret))) throw new Error('Host-only code leaked into the panel');
+const service = await Bun.file(join(root, 'service/main.js')).text();
+// The service reads only when a view asks (P5), and serves contract v2 with the 1.x route retired.
+if (/\bsetInterval\b/.test(service)) throw new Error('The service bundle must not schedule repeating work.');
+for (const route of ['/v2/snapshot', '/v2/trend', '/v2/usage', 'contract_mismatch']) if (!service.includes(route)) throw new Error(`The service bundle does not serve ${route}.`);
 // A coarse regression ceiling catches accidental dependencies or build artifacts.
 // Runtime overhead is measured separately; this is not a product size target.
 if (bytes > 2 * 1024 * 1024) throw new Error('Installable content exceeds 2 MiB. Review the package allowlist and dependency change.');
@@ -75,7 +79,9 @@ try {
     const copy = await Bun.file(join(extracted, name)).bytes();
     if (!Buffer.from(original).equals(Buffer.from(copy))) throw new Error(`ZIP content mismatch: ${name}`);
   }
-  process.stdout.write(command('node', [join(root, 'scripts/smoke-service.mjs'), extracted], extracted, 20_000));
+  const smoke = command('node', [join(root, 'scripts/smoke-service.mjs'), extracted], extracted, 20_000);
+  process.stdout.write(smoke);
+  if (!smoke.includes('/v2/snapshot, the retired /snapshot 410')) throw new Error('The packaged smoke did not verify the v2 routes.');
   const digest = createHash('sha256').update(archiveBytes).digest('hex');
   await Bun.write(`${archive}.sha256`, `${digest}  ${basename(archive)}\n`);
   console.log(`PASS: SDK manifest, ${names.length} assets, ${bytes} uncompressed bytes; ${archiveBytes.byteLength} ZIP bytes; reproducible archive and extracted bytes verified.`);

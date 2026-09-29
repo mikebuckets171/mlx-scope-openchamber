@@ -1,26 +1,23 @@
-import { randomUUID } from 'node:crypto';
 import { unavailableTelemetry, type TelemetrySnapshot } from '../src/telemetry.ts';
 import { runtimeNames, type Runtime, type RuntimeSelection, type ConnectionInfo } from '../src/runtime.ts';
+import { oneOf } from '../src/contract/guards.ts';
+import { PROBES, type ConnectionV2 } from '../src/contract/snapshot.ts';
 import { resolveRuntimeConnections, type RuntimeConnections, type RuntimeConnectionConfig } from './config.ts';
 import { requestJSON, HttpFailure, type FetchImplementation } from './http.ts';
-import { OmlxClient, isOmlxHealth } from './omlx-client.ts';
-import { LMStudioClient } from './lmstudio.ts';
 import type { LMStudioActivityStream } from './lmstudio-activity.ts';
-import { MlxLmClient } from './mlx-lm.ts';
-import { VllmMlxClient } from './vllm-mlx.ts';
-import { SplashClient } from './splash.ts';
 import type { RuntimeRead } from './adapter.ts';
+import { cadenceOf, descriptor, detectRuntime, type Adapter, type Detection } from './core/registry.ts';
+import { Scheduler, type Outcome, type Slot } from './core/scheduler.ts';
+import { failuresOf } from './core/slot.ts';
 
 const urlPort = (url: URL): number | null => {
   const port = url.port ? Number(url.port) : url.protocol === 'https:' ? 443 : url.protocol === 'http:' ? 80 : Number.NaN;
   return Number.isInteger(port) ? port : null;
 };
 
-type Adapter = { snapshot(deadline?: number): Promise<TelemetrySnapshot> };
-type Slot = {
-  fingerprint: string; generation: string; runtime: Runtime | null; client: Adapter | null;
-  snapshot: TelemetrySnapshot | null; inFlight: Promise<TelemetrySnapshot> | null;
-  sampledAt: number; retryAt: number; failures: number; deadline: number;
+type SlotContext = {
+  runtime: Runtime | null; client: Adapter | null; detection: Detection | null;
+  completion: { key: string; seq: number } | null;
 };
 type Options = {
   fetchImpl?: FetchImplementation;
@@ -31,6 +28,25 @@ type Options = {
   collectionDeadlineMs?: number;
   /** Local LM Studio log-stream source; omitted or `null` keeps LM Studio inventory-only. */
   lmstudioActivity?: LMStudioActivityStream | null;
+};
+/** What a v2 body needs beyond the 1.x reading. */
+export interface ReadingMeta {
+  generation: number;                        // 0 when no slot serves the selection
+  detection: ConnectionV2['detection'];
+  failures: number;
+  idleMs: number;
+  completionSeq: number | null;              // seq of the reading's last finished request
+}
+export interface RuntimeReading { snapshot: TelemetrySnapshot; meta: ReadingMeta }
+
+const ACTIVE = new Set(['decode', 'prefill', 'processing', 'queued']);
+/** Work in progress: the phases 1.6 polls at its active cadence. */
+export const busy = (snapshot: TelemetrySnapshot): boolean => snapshot.available && ACTIVE.has(snapshot.phase);
+/** The detection probes the contract names; LM Studio's `/api/v1/models` is not one of them and stays off the wire. */
+const wireProbe = oneOf(PROBES);
+const probed = ({ confidence, probe }: Detection): ConnectionV2['detection'] => {
+  const path = wireProbe(probe);
+  return path ? { basis: 'probe', confidence, probe: path } : { basis: 'probe', confidence };
 };
 
 /** One demand-driven pipeline per selected connection; credentials never enter a snapshot. */
@@ -44,8 +60,9 @@ export class RuntimeClient {
   private configuration: RuntimeConnections | null = null;
   private configAt = -Infinity;
   private configFlight: Promise<RuntimeConnections> | null = null;
-  private readonly slots = new Map<string, Slot>();
+  private readonly scheduler: Scheduler<SlotContext, TelemetrySnapshot>;
   private readonly lmstudioActivity: LMStudioActivityStream | null;
+  private completions = 0;
 
   constructor(options: Options = {}) {
     this.fetchImpl = options.fetchImpl ?? fetch;
@@ -55,8 +72,11 @@ export class RuntimeClient {
     this.timeout = options.requestTimeoutMs ?? 3000;
     this.budget = options.collectionDeadlineMs ?? 8000;
     this.lmstudioActivity = options.lmstudioActivity?.available ? options.lmstudioActivity : null;
+    this.scheduler = new Scheduler(this.monotonic);
   }
 
+  /** The newest completion seq this instance has assigned; attribution verdicts may only name one at or below it. */
+  get completionHead(): number { return this.completions; }
   dispose(): void { this.lmstudioActivity?.stop(); }
   private async config(): Promise<RuntimeConnections> {
     if (this.configuration && this.monotonic() - this.configAt < 5000) return this.configuration;
@@ -66,7 +86,9 @@ export class RuntimeClient {
     return this.configFlight;
   }
 
-  async snapshot(selection?: RuntimeSelection): Promise<TelemetrySnapshot> {
+  async snapshot(selection?: RuntimeSelection): Promise<TelemetrySnapshot> { return (await this.read(selection)).snapshot; }
+
+  async read(selection?: RuntimeSelection): Promise<RuntimeReading> {
     let configuration: RuntimeConnections;
     try { configuration = await this.config(); }
     catch { configuration = { connections: [], issue: 'unreadable_config', error: 'Saved runtime connections could not be read. Reopen MLX Scope after checking the provider in OpenChamber.' }; }
@@ -74,45 +96,32 @@ export class RuntimeClient {
     const info: ConnectionInfo = { selected: choice?.id ?? null, label: choice?.label ?? null, runtime: selection?.runtime ?? choice?.runtime ?? null,
       choices: configuration.connections.slice(0, 8).map(item => ({ id: item.id, label: item.label, runtime: item.runtime })),
       diagnostic: 'missing', coverage: null, generation: null };
-    if (!choice) return { ...unavailableTelemetry('runtime_unreachable', selection?.provider
+    const detection: ConnectionV2['detection'] = selection?.runtime ? { basis: 'explicit', confidence: 'high' }
+      : choice?.runtime ? { basis: 'hint', confidence: 'medium' } : { basis: 'probe', confidence: 'low' };
+    const unslotted = (snapshot: TelemetrySnapshot): RuntimeReading => ({ snapshot, meta: { generation: 0, detection, failures: 0, idleMs: 0, completionSeq: null } });
+    if (!choice) return unslotted({ ...unavailableTelemetry('runtime_unreachable', selection?.provider
       ? 'This saved connection is no longer configured. Choose another connection or Automatic.' : configuration.error, this.now()),
-      connection: { ...info, diagnostic: configuration.issue === 'malformed_config' || configuration.issue === 'unreadable_config' ? 'unreadable' : 'missing' } };
+      connection: { ...info, diagnostic: configuration.issue === 'malformed_config' || configuration.issue === 'unreadable_config' ? 'unreadable' : 'missing' } });
     if (!choice.config.baseURL || !['none', 'missing_credential'].includes(choice.config.issue)) {
-      return { ...unavailableTelemetry('runtime_unreachable', choice.config.error, this.now()),
-        connection: { ...info, diagnostic: ['malformed_config', 'unreadable_config'].includes(choice.config.issue) ? 'unreadable' : 'invalid' } };
+      return unslotted({ ...unavailableTelemetry('runtime_unreachable', choice.config.error, this.now()),
+        connection: { ...info, diagnostic: ['malformed_config', 'unreadable_config'].includes(choice.config.issue) ? 'unreadable' : 'invalid' } });
     }
     const key = `${choice.id}\0${selection?.runtime ?? 'auto'}`;
     const fingerprint = JSON.stringify([choice.config.baseURL.href, choice.config.apiKey, choice.config.preferredModel, info.runtime]);
-    let slot = this.slots.get(key);
-    if (!slot || slot.fingerprint !== fingerprint) {
-      const idleKey = [...this.slots].find(([, value]) => !value.inFlight)?.[0];
-      if (slot?.inFlight || !slot && this.slots.size >= 8 && idleKey === undefined) {
-        return { ...unavailableTelemetry('runtime_unreachable', 'Earlier connection reads are finishing. Monitoring retries automatically.', this.now()),
-          connection: { ...info, diagnostic: 'offline' } };
-      }
-      slot = { fingerprint, generation: randomUUID(), runtime: info.runtime, client: null, snapshot: null, inFlight: null, sampledAt: -Infinity, retryAt: -Infinity, failures: 0, deadline: 0 };
-      this.slots.delete(key);
-      if (this.slots.size >= 8 && idleKey !== undefined) this.slots.delete(idleKey);
-      this.slots.set(key, slot);
+    const slot = this.scheduler.claim(key, fingerprint, () => ({ runtime: info.runtime, client: null, detection: null, completion: null }));
+    if (!slot) {
+      return unslotted({ ...unavailableTelemetry('runtime_unreachable', 'Earlier connection reads are finishing. Monitoring retries automatically.', this.now()),
+        connection: { ...info, diagnostic: 'offline' } });
     }
-    const current = slot;
-    const cadence = current.runtime === 'lmstudio' ? this.lmstudioActivity ? 1000 : 5000 : current.runtime === 'mlx-lm' || current.runtime === 'splash' ? 2000 : 450;
-    if (!current.inFlight && !(current.snapshot && (this.monotonic() - current.sampledAt < cadence || this.monotonic() < current.retryAt))) {
-      current.deadline = this.monotonic() + this.budget;
-      current.inFlight = this.collect(current, choice).catch(error => {
+    const current = slot.context;
+    const snapshot = await this.scheduler.read(slot, cadenceOf(current.runtime, { activity: this.lmstudioActivity !== null }),
+      () => this.collect(current, choice).catch(error => {
         const auth = error instanceof HttpFailure && error.reason === 'authentication_failed';
         return unavailableTelemetry(auth ? 'authentication_failed' : error instanceof UnsupportedRuntime ? 'unsupported_contract' : 'runtime_unreachable', auth
           ? `The saved key was rejected by ${current.runtime ? runtimeNames[current.runtime] : 'this runtime'}. Reconnect that provider in OpenChamber using its API key.`
           : error instanceof UnsupportedRuntime ? error.message
           : `${current.runtime ? runtimeNames[current.runtime] : 'The configured runtime'} is not responding with supported readings. Start it on the OpenChamber host; monitoring retries automatically.`, this.now());
-      }).then(snapshot => {
-        current.snapshot = snapshot; current.sampledAt = this.monotonic();
-        current.failures = snapshot.available ? 0 : Math.min(5, current.failures + 1);
-        current.retryAt = snapshot.available ? -Infinity : current.sampledAt + Math.min(15000, 1000 * 2 ** (current.failures - 1));
-        return snapshot;
-      }).finally(() => { current.inFlight = null; });
-    }
-    const snapshot = current.inFlight ? await current.inFlight : current.snapshot!;
+      }), outcome);
     const runtime = snapshot.runtime ?? current.runtime;
     const authMessage = snapshot.reason === 'authentication_failed'
       ? choice.config.apiKey === null ? `${runtime ? runtimeNames[runtime] : 'This runtime'} needs an API key. Connect this provider in OpenChamber, then return here.`
@@ -121,59 +130,53 @@ export class RuntimeClient {
     const splashModels = runtime === 'lmstudio' && (snapshot.catalog ?? []).some(model => model.format === 'splash');
     const engine = runtime === 'splash' || splashModels ? 'splash' as const : null;
     const host = runtime === 'lmstudio' && (splashModels || /bionic/i.test(`${choice.id} ${choice.label}`)) ? 'bionic' as const : null;
-    return { ...snapshot, message: authMessage, connection: { ...info, runtime, generation: current.generation, engine, host,
-      diagnostic: snapshot.available ? 'ready'
-        : snapshot.reason === 'authentication_failed' ? 'authentication' : snapshot.reason === 'unsupported_contract' ? 'unsupported' : 'offline',
-      coverage: runtime === 'splash' || runtime === 'vllm-mlx' && snapshot.available && snapshot.phase === 'unknown' && snapshot.activeRequests === null ? 'server'
-        : runtime === 'omlx' || runtime === 'vllm-mlx' || runtime === 'lmstudio' && snapshot.available && snapshot.phase !== 'unknown' ? 'requests'
-        : runtime ? 'inventory' : null } };
+    return {
+      snapshot: { ...snapshot, message: authMessage, connection: { ...info, runtime, generation: slot.marker, engine, host,
+        diagnostic: snapshot.available ? 'ready'
+          : snapshot.reason === 'authentication_failed' ? 'authentication' : snapshot.reason === 'unsupported_contract' ? 'unsupported' : 'offline',
+        coverage: runtime ? descriptor(runtime).capabilities(snapshot) : null } },
+      meta: { generation: slot.generation, failures: failuresOf(slot.state), idleMs: Math.max(0, this.monotonic() - slot.activeAt),
+        detection: current.detection ? probed(current.detection) : detection,
+        completionSeq: this.completionSeq(slot, snapshot) },
+    };
   }
 
-  private async collect(slot: Slot, choice: RuntimeConnectionConfig): Promise<TelemetrySnapshot> {
-    const base = choice.config.baseURL!;
+  /** A new seq for each distinct finished request a slot reports; the same request keeps its seq across polls. */
+  private completionSeq(slot: Slot<SlotContext, TelemetrySnapshot>, snapshot: TelemetrySnapshot): number | null {
+    const last = snapshot.available ? snapshot.lastRequest : null;
+    if (!last) return null;
+    const key = JSON.stringify([last.finishedAt, last.model, last.outputTokens, last.promptTokens]);
+    if (slot.context.completion?.key !== key) slot.context.completion = { key, seq: ++this.completions };
+    return slot.context.completion.seq;
+  }
+
+  private async collect(slot: SlotContext, choice: RuntimeConnectionConfig): Promise<TelemetrySnapshot> {
+    const base = choice.config.baseURL!, deadline = this.monotonic() + this.budget;
     const read = async (path: string, authenticated = true) => {
-      const remaining = slot.deadline - this.monotonic();
+      const remaining = deadline - this.monotonic();
       if (remaining <= 0) throw new HttpFailure('runtime_unreachable', 'The snapshot deadline expired.');
       return requestJSON({ url: new URL(path, base), fetchImpl: this.fetchImpl, timeoutMs: Math.min(this.timeout, remaining), allowLoadingHealth: path === '/health',
         init: { method: 'GET', headers: { Accept: 'application/json', ...(authenticated && choice.config.apiKey ? { Authorization: `Bearer ${choice.config.apiKey}` } : {}) } } });
     };
     if (!slot.runtime) {
-      try {
-        const health = await read('/health', false);
-        if (isOmlxHealth(health.body, health.status)) slot.runtime = 'omlx';
-        else if (health.body && typeof health.body.model_loaded === 'boolean' && ['simple', 'batched', 'unknown'].includes(String(health.body.engine_type)) && Array.isArray(health.body.available_models)) slot.runtime = 'vllm-mlx';
-      } catch (error) {
-        if (!(error instanceof HttpFailure) || ![401, 403, 404].includes(error.status ?? 0)) throw error;
-      }
-      if (!slot.runtime) {
-        try {
-          const models = await read('/api/v1/models');
-          if (Array.isArray(models.body?.models)) slot.runtime = 'lmstudio';
-        } catch (error) { if (!(error instanceof HttpFailure) || error.status !== 404) throw error; }
-      }
-      if (!slot.runtime) {
-        try {
-          const status = await read('/status');
-          if (typeof status.body?.ready === 'boolean') slot.runtime = 'splash';
-        } catch (error) { if (!(error instanceof HttpFailure) || ![404, 405].includes(error.status ?? 0)) throw error; }
-      }
-      if (!slot.runtime) {
-        const response = await read('/v1/models');
-        const models = Array.isArray(response.body?.data) ? response.body.data : [];
-        const owners = models.map(model => model && typeof model === 'object' ? (model as Record<string, unknown>).owned_by : null);
-        if (owners.includes('vllm-mlx') && owners.every(owner => ['vllm-mlx', 'vllm-mlx-embedding', 'vllm-mlx-reranker'].includes(String(owner)))) slot.runtime = 'vllm-mlx';
-      }
-      if (!slot.runtime) throw new UnsupportedRuntime('This connection does not identify a supported runtime. Choose its runtime in Change connection. OpenAI-compatible chat endpoints alone do not provide live telemetry.');
+      slot.detection = await detectRuntime(read);
+      if (!slot.detection) throw new UnsupportedRuntime('This connection does not identify a supported runtime. Choose its runtime in Change connection. OpenAI-compatible chat endpoints alone do not provide live telemetry.');
+      slot.runtime = slot.detection.runtime;
     }
     if (!slot.client) {
       const reader: RuntimeRead = async path => (await read(path, path !== '/health')).body;
-      slot.client = slot.runtime === 'omlx' ? new OmlxClient({ fetchImpl: this.fetchImpl, readConfig: async () => choice.config, now: this.now, monotonicNow: this.monotonic, requestTimeoutMs: this.timeout, collectionDeadlineMs: this.budget })
-        : slot.runtime === 'lmstudio' ? new LMStudioClient(reader, this.now, this.lmstudioActivity?.forPort(urlPort(base)) ?? null)
-        : slot.runtime === 'mlx-lm' ? new MlxLmClient(reader, this.now)
-        : slot.runtime === 'splash' ? new SplashClient(reader, this.now)
-        : new VllmMlxClient(reader, this.now);
+      slot.client = descriptor(slot.runtime).create({ read: reader, config: choice.config, fetchImpl: this.fetchImpl, now: this.now,
+        monotonic: this.monotonic, timeoutMs: this.timeout, budgetMs: this.budget,
+        activity: () => this.lmstudioActivity?.forPort(urlPort(base)) ?? null });
     }
-    return slot.client.snapshot(slot.deadline);
+    return slot.client.snapshot(deadline);
   }
 }
 class UnsupportedRuntime extends Error {}
+
+/** 1.6 semantics: any available reading is healthy; Splash still loading its model is degraded. */
+const outcome = (snapshot: TelemetrySnapshot): Outcome => ({
+  event: !snapshot.available ? { kind: 'failed', reason: snapshot.reason === 'authentication_failed' || snapshot.reason === 'unsupported_contract' ? snapshot.reason : 'runtime_unreachable' }
+    : snapshot.runtime === 'splash' && snapshot.serverStats?.ready === false ? { kind: 'degraded' } : { kind: 'ready' },
+  active: busy(snapshot),
+});

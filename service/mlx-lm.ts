@@ -1,14 +1,7 @@
 import { unavailableTelemetry, type TelemetrySnapshot } from '../src/telemetry.ts';
 import type { CatalogModel } from '../src/runtime.ts';
 import type { RuntimeRead } from './adapter.ts';
-
-const modelName = (value: unknown): string | null => {
-  if (typeof value !== 'string') return null;
-  const clean = value.replace(/[\u0000-\u001f\u007f]/g, '').trim();
-  const name = /^(?:[\\/]|\.{1,2}[\\/]|~[\\/]|file:|[A-Za-z]:[\\/])/.test(clean)
-    ? clean.split(/[\\/]/).filter(Boolean).at(-1) : clean;
-  return name?.slice(0, 160) || null;
-};
+import { modelLabel, obj } from './lib/parse.ts';
 
 /** The official server exposes availability and a disk catalogue, not live inference readings. */
 export class MlxLmClient {
@@ -33,8 +26,7 @@ export class MlxLmClient {
       if (response?.object === 'list' && Array.isArray(response.data)) {
         this.catalogAvailable = true;
         this.catalog = response.data.slice(0, 12).flatMap(raw => {
-          const name = raw && typeof raw === 'object' && !Array.isArray(raw)
-            ? modelName((raw as Record<string, unknown>).id) : null;
+          const name = modelLabel(obj(raw)?.id);
           return name ? [{ name, loaded: null, format: 'mlx' as const, contextWindow: null }] : [];
         });
       }
