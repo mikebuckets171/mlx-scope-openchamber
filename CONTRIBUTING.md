@@ -6,7 +6,10 @@ under the MIT license. Issues and pull requests are welcome, but review and
 merging are not promised. The guidance below also applies to anyone carrying
 the project forward.
 
-Use Bun 1.3.14 and Node 22 or newer.
+Use Bun 1.4.2 and Node 22 or newer. Bun 1.4.2 is required for reproducible bundles: the committed
+`panel/main.js` and `service/main.js` are its output, and another version can change them (1.3.14 renames
+minifier identifiers), which fails CI's tracked-bundle check. `.bun-version` and `packageManager` in
+`package.json` pin it, and CI installs the version in `.bun-version`.
 
 ```sh
 bun install --frozen-lockfile

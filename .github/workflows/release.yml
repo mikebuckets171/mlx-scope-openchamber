@@ -58,6 +58,17 @@ jobs:
       - name: Verify checksum
         working-directory: dist
         run: sha256sum --check "$RELEASE_ASSET.sha256"
+      # Only the highest published version is Latest, so a legacy/1.6.x fix after 2.0 gets --latest=false.
+      - name: Decide the Latest label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select((.draft or .prerelease) | not) | .tag_name' > "$RUNNER_TEMP/released-tags"
+          newest=$({ cat "$RUNNER_TEMP/released-tags"; echo "$RELEASE_TAG"; } | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          if [ "$newest" = "$RELEASE_TAG" ]; then latest=true; else latest=false; fi
+          echo "RELEASE_LATEST=$latest" >> "$GITHUB_ENV"
       - name: Publish verified package
         env:
           GH_TOKEN: ${{ github.token }}
@@ -67,3 +78,4 @@ jobs:
           "dist/$RELEASE_ASSET" "dist/$RELEASE_ASSET.sha256"
           --verify-tag --title "MLX Scope $RELEASE_TAG"
           --notes-file "$RUNNER_TEMP/release-notes.md"
+          --latest="$RELEASE_LATEST"
