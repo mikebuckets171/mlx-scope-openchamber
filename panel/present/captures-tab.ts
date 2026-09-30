@@ -100,9 +100,9 @@ export const windowCapture = (state: WindowCaptureState, savedAt: number): Captu
       ['swapDeltaBytes', state.swapStartBytes !== null && state.swapEndBytes !== null ? state.swapEndBytes - state.swapStartBytes : null]]) };
 };
 
-/** The headline rate. Migrated 1.x captures may keep their 1.6 names (`observedGeneration`, `generation`). */
+/** The headline rate. Migrated 1.x windows carry `observedDecodeTps`; older records may keep their 1.6 names. */
 export const captureRate = (capture: CaptureV2): { tps: number; basis: Basis } | null => {
-  const m = capture.measurements, tps = m.decodeTps ?? m.observedGeneration ?? m.generation;
+  const m = capture.measurements, tps = m.decodeTps ?? m.observedDecodeTps ?? m.observedGeneration ?? m.generation;
   if (tps === undefined || !Number.isFinite(tps) || tps <= 0) return null;
   const stored = m.decodeBasis === undefined ? undefined : BASES[m.decodeBasis];
   // Without a stored basis: a 1.6 snapshot showed the runtime's reported rate; windows count output Scope observed.

@@ -89,8 +89,8 @@ export class WindowCapture {
   }
   private runtime(snapshot: SnapshotV2, s: WindowCaptureState, end: number): void {
     const at = snapshot.runtime.sampledAt ?? snapshot.serverNow;
-    // A reading after the window's end belongs to no part of it.
-    if (at === this.runtimeAt || at < s.startedAt && this.runtimeAt !== null || at > end) { if (at > end) this.previous = null; return; }
+    // A reading from before the click (a cached one at the click included) or after the window's end belongs to no part of it.
+    if (at === this.runtimeAt || at < s.startedAt || at > end) { if (at > end) this.previous = null; return; }
     this.runtimeAt = at; s.samples += 1;
     const footprint = snapshot.host?.runtimeProcess?.footprintBytes ?? snapshot.runtime.memory.processBytes;
     if (footprint != null) s.footprintPeakBytes = Math.max(s.footprintPeakBytes ?? 0, footprint);

@@ -79,6 +79,8 @@ describe('Captures tab presenter (plan §5.9, G2 mock)', () => {
     expect(view.legacy).toEqual({ right: 'Read-only · kept until MLX Scope 2.1', rows: [expect.objectContaining({ key: `v1:${NOW - 86_400_000}`, title: 'Snapshot · runtime not recorded',
       rate: { text: '23.4 tok/s', basis: 'reported', note: null } })] });
     expect(captureRate(capture(0, { measurements: { observedGeneration: 22 } }))).toEqual({ tps: 22, basis: 'observed' });
+    // 1.x windows are migrated with their observed rate renamed to observedDecodeTps.
+    expect(captureRate(capture(0, { kind: 'window', measurements: { observedDecodeTps: 21 } }))).toEqual({ tps: 21, basis: 'observed' });
     expect(presentCaptures(input()).legacy).toBeNull();
   });
   test('Copy and Add to chat draft never carry a model name, even one the frame knows from the snapshot', () => {

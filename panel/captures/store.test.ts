@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { unitViolations } from '../../src/contract/units.ts';
 import { createFakeStorage } from '../testing/storage.ts';
+import { CAPTURE_MEASUREMENTS as TAB_KEYS } from '../present/captures-tab.ts';
 import { CAPTURE_LIMIT, captureCount, CaptureStore, parseCapture, type CaptureV2 } from './store.ts';
 
 const NOW = 1_790_690_700_000;
@@ -43,4 +44,9 @@ test('concurrent saves from one view both land; a colliding random suffix gets a
   const keys = await Promise.all([store.save(capture(NOW)), store.save(capture(NOW))]);
   expect(new Set(keys).size).toBe(2);
   expect(await store.list()).toHaveLength(2);
+});
+
+test('every measurement the Captures tab writes survives a save and a reload', () => {
+  const measurements = Object.fromEntries(TAB_KEYS.map(key => [key, key.endsWith('Fraction') ? 0.5 : key === 'swapDeltaBytes' ? -4096 : 7]));
+  expect(parseCapture(capture(NOW, { kind: 'window', measurements }))!.measurements).toEqual(measurements);
 });

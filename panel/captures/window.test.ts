@@ -35,6 +35,13 @@ describe('Captures window (30/60 s, server-wide)', () => {
     expect(state.memPeakBytes).toBe(36 * GiB + 30_000);
     expect(state.swapEndBytes! - state.swapStartBytes!).toBe(30_000_000);
   });
+  test('a cached reading from before the click is no sample, so stopping at once leaves nothing to save', () => {
+    const capture = new WindowCapture();
+    expect(capture.start(poll(0, 1000, s => { s.runtime.sampledAt = T0 - 800; s.host!.sampledAt = T0 - 800; }), 30_000)).toBe(true);
+    expect(capture.current).toEqual(expect.objectContaining({ samples: 0, footprintPeakBytes: null, cpuSamples: 0 }));
+    capture.stop();
+    expect(capture.current).toEqual(expect.objectContaining({ status: 'interrupted', samples: 0 }));
+  });
   test('a late poll cannot supply the unobserved end of the window', () => {
     const capture = new WindowCapture();
     capture.start(poll(0, 1000), 30_000);

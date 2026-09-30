@@ -19,6 +19,9 @@ export const CAPTURE_MEASUREMENTS = [
   'recentOutputTps', 'prefillRemainingFraction', 'prefillProcessedTokens', 'prefillTotalTokens', 'prefillEtaMs',
   'activeRequests', 'queuedRequests', 'splashDecodeTps', 'splashCompletedRequests', 'splashFailedRequests',
   'splashMetalBytes', 'splashMetalPeakBytes', 'cpuFraction', 'memUsedBytes', 'footprintBytes', 'swapUsedBytes',
+  // What the 2.0 Captures tab writes (panel/present/captures-tab.ts); `decodeBasis` indexes its BASES.
+  'decodeBasis', 'wholeMs', 'modelMs', 'toolMs', 'steps', 'observedMs', 'completions',
+  'cpuMeanFraction', 'cpuPeakFraction', 'memMeanBytes', 'memPeakBytes', 'footprintPeakBytes',
 ] as const;
 export type CaptureMeasurement = typeof CAPTURE_MEASUREMENTS[number];
 export const V1_PHASES = ['connecting', 'reconnecting', 'offline', 'notLoaded', 'idle', 'queued', 'prefill', 'decode', 'processing', 'unknown'] as const;
