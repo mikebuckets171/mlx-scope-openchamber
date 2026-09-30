@@ -7,6 +7,8 @@ const allow = new Map([
   ['/panel/index.html', 'panel/index.html'],
   ['/panel/main.js', 'panel/main.js'],
   ['/panel/style.css', 'panel/style.css'],
+  ['/background/index.html', 'background/index.html'],
+  ['/background/main.js', 'background/main.js'],
 ]);
 // host.html converts its 1.x fixtures with the real v1 → v2 bridge, bundled once at startup and never written to disk.
 const convert = await Bun.build({ entrypoints: [join(import.meta.dir, 'convert-entry.ts')], format: 'iife', target: 'browser' });

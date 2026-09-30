@@ -31,7 +31,7 @@
   "openchamber": {
     "apiVersion": 1,
     "engines": {
-      "openchamber": ">=1.24.2"
+      "openchamber": ">=2.0.4"
     },
     "contributes": {
       "panel": {
@@ -39,6 +39,14 @@
         "name": "MLX Scope",
         "icon": "panel/scope-icon.svg",
         "entry": "panel/index.html"
+      },
+      "statusSection": {
+        "entry": "panel/index.html",
+        "title": "MLX Scope",
+        "height": 72
+      },
+      "background": {
+        "entry": "background/index.html"
       },
       "actions": [
         {
@@ -48,6 +56,12 @@
           "where": "session"
         }
       ],
+      "commands": [
+        {
+          "name": "scope",
+          "description": "Attach a private MLX Scope diagnostics summary"
+        }
+      ],
       "service": {
         "entry": "service/main.js",
         "runtime": "host",
@@ -55,7 +69,14 @@
           "exec": [
             "/usr/bin/vm_stat",
             "/usr/sbin/sysctl",
-            "lms"
+            "/usr/sbin/ioreg",
+            "/usr/bin/notifyutil",
+            "/usr/sbin/lsof",
+            "/usr/bin/footprint",
+            "~/.lmstudio/bin/lms",
+            "~/.cache/lm-studio/bin/lms",
+            "/opt/homebrew/bin/macmon",
+            "/usr/local/bin/macmon"
           ]
         }
       },
@@ -63,12 +84,13 @@
     }
   },
   "scripts": {
-    "build": "bun run build:panel && bun run build:service",
+    "build": "bun run build:panel && bun run build:service && bun run build:background",
     "build:panel": "openchamber-guest-bundle panel/main.ts panel/main.js",
     "build:service": "bun build service/main.ts --target=node --format=esm --minify-whitespace --outfile=service/main.js",
+    "build:background": "openchamber-guest-bundle background/main.ts background/main.js",
     "type-check": "tsc --noEmit",
-    "test": "bun test ./service ./src ./panel ./tests/fixtures",
-    "preview": "bun run build:panel && bun tests/browser/server.ts",
+    "test": "bun test ./service ./src ./panel ./background ./scripts ./tests/fixtures",
+    "preview": "bun run build:panel && bun run build:background && bun tests/browser/server.ts",
     "test:browser": "playwright test",
     "test:goldens": "playwright test tests/browser/goldens.spec.ts",
     "verify:package": "bun scripts/verify-package.ts",
@@ -100,6 +122,9 @@
     "panel/style.css",
     "panel/scope-icon.svg",
     "service/main.js",
+    "background/index.html",
+    "background/main.js",
+    "ui/tokens.css",
     "docs/CONFIGURATION.md",
     "docs/METRICS.md",
     "docs/ARCHITECTURE.md",

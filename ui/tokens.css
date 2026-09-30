@@ -1,0 +1,26 @@
+/* MLX Scope design tokens, extracted unchanged from panel/style.css (the 1.6 :root block, plan P8).
+   panel/style.css keeps its own copy so the relay transport never needs a cross-folder @import;
+   scripts/package-checks.test.ts fails if the two drift apart. */
+:root {
+  --scope-fg: var(--oc-fg, #ecf2f7);
+  --scope-muted: var(--oc-muted, #9aa9b7);
+  --scope-bg: var(--oc-bg, #0f151b);
+  --scope-fill: var(--oc-primary, #377dbd);
+  --scope-on-fill: var(--oc-primary-fg, #ffffff);
+  --scope-blue: var(--oc-info-text, #88b9ee);
+  --scope-good: var(--oc-success-text, #79cfb7);
+  --scope-warn: var(--oc-warning-text, #c99646);
+  --scope-accent: var(--oc-primary-text, #88b9ee);
+  --scope-line: color-mix(in srgb, var(--oc-border, #29313a) 70%, transparent);
+  --scope-line-strong: var(--oc-border, #29313a);
+  --scope-surface: color-mix(in srgb, var(--oc-muted-surface, #192128) 55%, var(--scope-bg));
+  --scope-surface-2: color-mix(in srgb, var(--oc-muted-surface, #192128) 85%, var(--scope-bg));
+  --scope-radius: var(--oc-radius, 9px);
+  --scope-card-radius: calc(var(--oc-radius, 9px) + 3px);
+  --scope-mono: var(--oc-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--oc-font, -apple-system, BlinkMacSystemFont, sans-serif);
+  color: var(--scope-fg);
+  background: var(--scope-bg);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}

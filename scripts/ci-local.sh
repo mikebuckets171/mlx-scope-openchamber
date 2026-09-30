@@ -37,7 +37,7 @@ run() {
 browser_tests() { CI=1 PLAYWRIGHT_JSON_OUTPUT_FILE="$tmp/browser.json" bunx playwright test --reporter=list,json; }
 run install bun install --frozen-lockfile
 run check bun run check
-run bundles git diff --exit-code -- panel/main.js service/main.js
+run bundles git diff --exit-code -- panel/main.js service/main.js background/main.js
 run browsers bunx playwright install chromium webkit
 run browser browser_tests
 finished=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -69,10 +69,10 @@ const receipt = {
   result: env.FAILED ? 'fail' : 'pass',
   ...(env.FAILED ? { failedStep: env.FAILED } : {}),
   sha: env.SHA, bunVersion: env.BUN_VERSION, nodeVersion: process.versions.node, os: `macOS ${env.MACOS}`,
-  steps: ['bun install --frozen-lockfile', 'bun run check', 'git diff --exit-code -- panel/main.js service/main.js',
+  steps: ['bun install --frozen-lockfile', 'bun run check', 'git diff --exit-code -- panel/main.js service/main.js background/main.js',
     'bunx playwright install chromium webkit', 'CI=1 bunx playwright test (chromium, webkit)'],
   unit, browser,
-  bundles: { panel: digest('panel/main.js'), service: digest('service/main.js') },
+  bundles: { panel: digest('panel/main.js'), service: digest('service/main.js'), background: digest('background/main.js') },
   zip: existsSync(`dist/${env.ZIP}`) ? { name: env.ZIP, sha256: digest(`dist/${env.ZIP}`) } : null,
   startedAt: env.STARTED, finishedAt: env.FINISHED,
 };

@@ -1,10 +1,7 @@
-import type { AttachIssueRequest, HostClient, ResolveRequest } from '@openchamber/sdk';
+import { connectHost } from '@openchamber/sdk';
+import { resolveScope } from './scope.ts';
 
-// Owner: scope-flip. The `/scope` background frame (≤ 25 KB): handles onResolve only, with one
-// /v2/snapshot?surface=background read. Never polls, never subscribes to sessions, never a lease candidate.
-// Not bundled yet: the build script, manifest `background.entry` and verify-package ceilings arrive with Stage 7/11.
-
-export const resolveScope = async (host: Pick<HostClient, 'serviceRequest'>, request: ResolveRequest): Promise<AttachIssueRequest | null> => {
-  void host; void request;
-  throw new Error('resolveScope: not implemented (scope-flip)');
-};
+// Owner: scope-flip. The `/scope` background frame (≤ 25 KB, plan §4.1): the host loads it on demand for the slash
+// command and it registers the resolver, nothing else. It exports nothing, so the bundle carries no module wrapper.
+const host = connectHost();
+host.onResolve(request => resolveScope(host, request));
