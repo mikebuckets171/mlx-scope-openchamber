@@ -34,7 +34,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run check
       - name: Verify tracked bundles
-        run: git diff --exit-code -- panel/main.js service/main.js
+        run: git diff --exit-code -- panel/main.js service/main.js background/main.js
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: matrix.os == 'ubuntu-latest'
         with:

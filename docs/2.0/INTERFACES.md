@@ -42,7 +42,7 @@ K kept, edited in place · C contract file (`src/contract/*`).
 | **ledger** | N `panel/history/ledger.ts`, `ledger-schema.ts`, `accounting.ts`, `migrate-v1.ts`, N `panel/captures/store.ts` (successor of `panel/saved.ts`), N `panel/testing/storage.ts` |
 | **ui-core** | K `panel/main.ts` (bootstrap ≤ 250 lines), K `panel/state/scope-state.ts`, K `panel/data/client.ts`, K `panel/data/poller.ts`, K `panel/data/visibility.ts`, K `panel/present/{header,live,server,glance,captures,scope,reading,format,messages}.ts`, N `panel/present/status.ts`, `panel/present/alerts.ts`, N `panel/alerts/signals.ts`, N `panel/render/views/types.ts` and every other `panel/render/views/*` except `history.ts`, K `panel/render/*`, `panel/style.css`, `panel/index.html` |
 | **ui-history** | N `panel/data/history.ts`, `panel/history/baselines.ts`, `regress.ts`, `summary.ts`, `panel/present/history.ts`, `panel/render/trend-chart.ts`, `panel/render/views/history.ts` |
-| **scope-flip** | K `package.json` (§6 manifest, `files`, build scripts), K `scripts/verify-package.ts`, K `tests/browser/host.html` (2.0.4 emulation), N `panel/share/report.ts`, N `background/main.ts` (+ `background/index.html`), N `ui/tokens.css` (extract `panel/style.css:7-27` unchanged), docs (Stage 11) |
+| **scope-flip** | K `package.json` (§6 manifest, `files`, build scripts), K `scripts/verify-package.ts` (+ N `scripts/package-checks.ts`), K `tests/browser/host.html` (2.0.4 emulation) and `tests/browser/server.ts` (serves `background/*`), N `tests/browser/scope.spec.ts`, N `panel/share/report.ts` (façade), N `panel/share/sanitize.ts`, N `panel/share/scope.ts`, N `background/main.ts` (bootstrap), N `background/scope.ts`, N `background/usual.ts`, N `background/index.html`, N `ui/tokens.css` (the 1.6 `:root` block of `panel/style.css`, unchanged), CI bundle-diff lines in `.github/workflows/ci.yml` and `scripts/ci-local.sh`, docs (Stage 11) |
 
 ## 3. Service interfaces
 
@@ -547,11 +547,47 @@ type MountView = (root: HTMLElement, context: ViewContext) => ViewHandle
 // present/reasons.ts (svc-2b): statusMessage(reason, params, runtime, context?); statusCopy(...) → { severity, title, detail, action? };
 //   frameMessage(reason); withholdMessage(reason | 'all-requests', chatRuntime); WITHHOLD_PHRASES;
 //   alertMessage(id, params); alertCopy(id, params) → { title, detail }   (model-unloaded names the model: in-view only)
-// share/report.ts (scope-flip; redact/clamp/toastText/scopeItem implemented, scopeText stub)
-TOAST_MAX_CHARS = 500; SCOPE_TEXT_MAX_CHARS = 16_000; SCOPE_HEADER
-redact(text, forbidden); clamp(text, max); toastText(text, forbidden); scopeText(input): string; scopeItem(text, readmeUrl): AttachIssueRequest
-// background/main.ts (scope-flip): resolveScope(host, request): Promise<AttachIssueRequest | null>
+// share/report.ts (scope-flip): the one import for every share path; re-exports measurementReport (../report.ts),
+//   sanitize.ts and scope.ts. Import from report.ts, except the background frame (it imports scope.ts to stay < 25 KB).
+// share/sanitize.ts: TOAST_MAX_CHARS = 500; redact(text, forbidden); clamp(text, max); toastText(text, forbidden)
+// share/scope.ts: SCOPE_TEXT_MAX_CHARS = 16_000; SCOPE_HEADER = "Sent to this chat's model, which may be a cloud provider"
+interface ScopeTextInput { version: string; now: number; snapshot: unknown /* raw /v2/snapshot body or SnapshotV2 */;
+  vsUsual?: readonly VsUsual[] | null /* null: history unreadable; omitted: no line */ }
+scopeText(input): string                                  // copies only numbers and enum codes; same text raw or parsed
+scopeItem(text, readmeUrl): AttachIssueRequest            // { providerId: 'mlx-scope', id: 'mlx-scope-diagnostics', title: 'MLX Scope diagnostics' }
+scopeReadme(version): string                              // …/blob/v<version>/README.md#scope-diagnostics; prereleases → main
+lastReply(body, reported?): Json | null; sizeBucket(tokens): number | null   // = ledger-schema sizeBucket (pinned by a test)
+// background/scope.ts (scope-flip)
+resolveScope(host: Pick<HostClient, 'serviceRequest' | 'storage'>, request, now?): Promise<AttachIssueRequest | null>
+  // one GET /v2/snapshot {surface: 'background', tier: 'glance'} + storage.get('baseline.v2', 'ledger.v2.models');
+  // never set/delete/keys, never a subscription; throws SCOPE_ERRORS.{approval, unreachable, mismatch}
+// background/usual.ts (scope-flip): usualFor(snapshot, baselineStore, models): VsUsual[]; readUsual(storage, snapshot)
+// background/main.ts: connectHost() + onResolve(resolveScope) only; exports nothing
 ```
+
+**Storage the background reads (a contract for ledger and ui-history).** `ledger.v2.models` is a JSON `string[]` whose
+index is `modelRef`. `baseline.v2` is `BaselineStoreV2` with keys `${metric}|${rt}|${modelRef}|${bucket}`: `decodeTps` by
+`ctxB = sizeBucket(promptTokens)`, `prefillTps` and `ttftMs` by `uncB = sizeBucket(promptTokens − cachedTokens)`. p50 is
+null below n = 5. A different choice in the ledger rows needs a matching change in `background/usual.ts`
+(`background/scope.test.ts` pins the keys).
+
+**Packaging (`scripts/package-checks.ts`).** The two-way exec match is literal: the service bundle must contain each
+declared path as a whole string literal (`~/` entries as `.lmstudio/bin/lms` / `.cache/lm-studio/bin/lms`), which
+argv.ts's `EXEC_PATHS`, `LMS_HOME_PATHS` and `MACMON_PATHS` provide once the service imports them; a path assembled with
+`path.join(home, '.lmstudio', …)` does not count, and any other executable literal fails. Ceilings are bytes with
+1 KB = 1,000. Guest bundles (panel, background) must not contain `node:*` imports, `MLX_SCOPE_API_KEY`,
+`LMS_API_SERVER_INFO_PATH` or `/Users/`; exec paths as display text are allowed (needs-approval card).
+
+**Host emulation (`tests/browser/host.html`) for every panel track.** `?surface=panel|page|status|background`
+(`background` loads `background/index.html` and sends `resolve` for `/scope` after hello; `?args=`, `?noresolve`,
+`window.resolvePreviewCommand(args)`, results in `window.previewResolved`). Status frames start at 72 px and follow
+`resize` clamped to 24–320 (`window.previewHeights`). `window.previewBadges`, `window.previewToasts`. Lifecycle:
+`?chat=1&lifecycle=N` replays the open chat's phase N times after ready; `window.pushPreviewLifecycle(phase, times)`.
+Storage is one namespace with the SDK limits (`window.setPreviewStorageLimits({ valueBytes, totalBytes, keys })`,
+over-limit writes answer `HOST_REJECTED`), counted in `window.previewStorage` (`gets`, `keys`, `sets`, `deletes`,
+`rejected`, `fileBytes`, `rewrittenBytes`: whole-file rewrite cost). `window.setPreviewExtras({ lease, alerts, alertLog,
+nextPollMs, marksHead })` feeds the v1 → v2 bridge (leader handover); `window.previewLastResponse` is the last
+`/v2/snapshot` answer. `?frame=hidden` is a `display:none` tab. No `onSessions` feed: the capability is not requested.
 
 ### 4.6 ui-core additions (Stage 8)
 
@@ -595,8 +631,8 @@ Decided here (listed in contract §12):
 2. **`CatalogV2.inputModalities` accepts `'pdf'`**: Splash 1.1 reports it (fixture report).
 3. **`native-command.ts` and `http.ts` stay where they are.** The plan's `lib/` moves would only add churn to the
    byte-identical file; the new text helpers live in `service/lib/http-text.ts`.
-4. **`background/` is type-checked and scanned** (`tsconfig.json` include, `scan-committed.ts` roots); it is not
-   bundled or declared yet (scope-flip).
+4. **`background/` is type-checked and scanned** (`tsconfig.json` include, `scan-committed.ts` roots), bundled by
+   `build:background`, tested by `bun run test`, and declared in the manifest (scope-flip, Stage 7).
 
 Open, for the named track:
 - **svc-host (resolved, for owner review):** `/bin/ps` stays outside the G1 exec freeze. A `ps -o lstart=` or an extra
@@ -620,5 +656,14 @@ Open, for the named track:
   (`why.ts`) carries "Another chat alternating requests on the same runtime during this turn can't be ruled out."
 - **ui-core / svc-2b:** `compat` removal order (§3.6). `snapshotQuery` still sends `tier=full` unless told otherwise;
   the status surface must pass `tier: 'glance'`.
-- **scope-flip:** `ui/tokens.css` (a Stage 1 item) was never extracted; `background/index.html`, build script, `files`,
-  bundle ceilings and the two-way exec match are all still to do.
+- **scope-flip (done on `mb/scope-flip`):** manifest flip, `background/*`, `ui/tokens.css`, build/test/CI wiring,
+  verify-package checks, host emulation, Stage 11 docs. `verify:package` fails until integration wires the eight new
+  exec paths into `service/main.ts` (svc-host argv.ts, ad-lmstudio `lms`, macmon), by design. The background bundle is
+  24.8 KB of its 25 KB ceiling, 16.8 KB of it the SDK client: keep `background/` imports to the modules it uses today.
+- **Doc claims other tracks must make true (Stage 11 docs describe 2.0 as designed):** svc-2b: `MLX_SCOPE_RUNTIME`
+  accepts `llama-server`/`ollama`; provider-name hints `llama.cpp`/`llama-server`, `ollama`, `splish` (CONFIGURATION);
+  re-detection triggers. ad-lmstudio: summaries only from lifecycle lines (SECURITY); `lms` only from the two declared
+  paths, so a `~/.lmstudio-home-pointer` home gets inventory without live activity (README). ad-llama-ollama: router
+  mode unsupported; "needs --metrics" copy. ui-core: "⋯ → Connection", Toasts critical · all · off, needs-approval card.
+  ledger / ui-history: numbers in README and PRIVACY (30/90 days, 1,280 KiB, flush rules, p50 n ≥ 5, 0.85×/1.25×).
+  Anything that ends up different: tell scope-flip or edit the doc line with the change.

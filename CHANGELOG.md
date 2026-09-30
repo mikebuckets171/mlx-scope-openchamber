@@ -1,5 +1,70 @@
 # Changelog
 
+## 2.0.0 (unreleased)
+
+MLX Scope 2.0 follows OpenChamber 2 into the chat: a Work Status section that can replace Turn stats, per-chat labels,
+a local reply history with baselines, alerts while you watch, two more runtimes, deeper Mac readings and `/scope`.
+
+### Breaking
+
+- **OpenChamber 2.0.4 or newer is required** (`engines.openchamber` `>=2.0.4`, SDK 2.0.4). OpenChamber refuses the
+  install on an older host as too old. OpenChamber 1.24.x–2.0.3 users stay on the 1.6 line:
+  `https://github.com/mikebuckets171/mlx-scope-openchamber#legacy/1.6.x`, which takes security and correctness fixes only.
+- **One new approval.** The local service now declares ten absolute commands (`/usr/bin/vm_stat`, `/usr/sbin/sysctl`,
+  `/usr/sbin/ioreg`, `/usr/bin/notifyutil`, `/usr/sbin/lsof`, `/usr/bin/footprint`, `~/.lmstudio/bin/lms`,
+  `~/.cache/lm-studio/bin/lms`, `/opt/homebrew/bin/macmon`, `/usr/local/bin/macmon`) instead of 1.6's two plus a bare
+  `lms`. No capability is requested. The list does not change within 2.0.x.
+- **Wire contract v2.** The service answers `/v2/snapshot`, `/v2/trend` and `/v2/usage`; the 1.x `/snapshot` route
+  answers `410 contract_mismatch`. A 1.6 panel and a 2.0 service (or the reverse) say so instead of misreading each
+  other.
+- **Tabs.** Live, Server, History and Captures. Compare and Saved become Captures, and monitoring keeps running while a
+  capture records. Compact mode is the Work Status glance view (≤160 px) instead of 1.6's compact panel.
+- **Units.** Memory travels as integer bytes and is shown in GiB (1,024³ bytes) everywhere; 1.6 saved observations,
+  which stored GiB, are converted exactly when copied into Captures.
+
+### Added
+
+- **Work Status section** with a glance line (phase, model, speed, per-chat label, 15-minute sparkline, pressure, GPU
+  and thermal chips, top alert) and an expanded Turn stats replacement with runtime-exact rows. A one-time tip explains
+  how to hide Turn stats and put MLX Scope in its place.
+- **Per-chat labels:** "This chat · inferred" only when a reply provably belongs to the open chat, otherwise
+  server-wide with one reason; **Next reply · armed** captures; turn summaries for fully attributed turns.
+- **Local reply history** in OpenChamber extension storage: 30 days by default (90 at most), Pause, Clear, a usage bar,
+  "vs usual" baselines with sample counts, a "Slower than usual" flag, Copy baseline summary, and a 15/30/60-minute
+  History chart with unobserved stretches hatched.
+- **Alerts** while a Scope view is visible: runtime lost, model unloaded, memory pressure, swap growth, thermal
+  pressure, Splash recovering, oMLX prefill stall and memory guard, and "Slower than usual"; a rail badge and toasts
+  (critical-only by default) from one view at a time; an alert log.
+- **Runtimes:** llama.cpp `llama-server` (slots, sleep-aware; rates and speculative decoding with `--metrics`) and
+  Ollama (residency). Splash 1.1 (recovering and stale states, vision chips, native first-token and inter-token
+  p50/p95), oMLX 0.7 (a usage card "Recorded by oMLX", the engine ceiling, a read-only fallback for sub keys), and
+  Bionic/LM Studio loaded instances and an Engines card.
+- **Mac readings:** kernel memory pressure, the GPU wired-memory limit, driver-reported GPU busy and memory, thermal
+  pressure, the oMLX process footprint, and an optional macmon chip-power estimate with tokens per joule.
+- **`/scope`:** attaches an "MLX Scope diagnostics" chip with a sanitized summary for the chat's model. Its first line
+  says the summary goes to this chat's model, which may be a cloud provider.
+- A two-column full page (Live and History).
+
+### Changed
+
+- Detection re-runs when a runtime changes on the same port, and optional endpoints degrade one reading instead of the
+  whole runtime.
+- Hidden views make no requests at all, including rail tabs that OpenChamber 2 keeps mounted behind another tab.
+- One visible view at a time writes history and raises toasts; the service writes no files and never schedules
+  repeating work.
+- oMLX no longer calls `/admin/api/stats`.
+
+### Upgrading
+
+1. Update MLX Scope in Settings → Extensions (git installs are offered **Update**; ZIP users install the new ZIP).
+2. Approve the new permission set. Until then Scope explains what it needs instead of showing readings.
+3. If a view says the service is still the previous version, pause MLX Scope and resume it in Settings → Extensions.
+4. Your view preferences, selected connection and 1.6 saved observations carry over. The 1.6 observations are copied
+   into Captures and the originals are kept through 2.0.x, so a rollback to 1.6 still shows them.
+5. Optional: to replace Turn stats, hide it in the Work Status panel's **Panel sections** and drag MLX Scope into its
+   place.
+6. Something wrong? `docs/2.0/ROLLBACK.md` describes fixes (2.0.x) and the legacy pin.
+
 ## 1.6.1
 
 - MLX Scope no longer starts LM Studio or Bionic. When no LM Studio app is
@@ -105,6 +170,8 @@
 
 ## 1.2.0
 
+Not released separately; these changes shipped in 1.2.1.
+
 - Add Inco AI Splash using its documented passive `/status` endpoint. Show its
   declared model/context, server-wide completed and failed request counters,
   aggregate decode throughput, and current/peak Metal allocations where reported.
@@ -116,6 +183,8 @@
   inference, control, or background polling loop is added.
 
 ## 1.1.1
+
+Not released separately; these changes shipped in 1.2.1.
 
 - Show an accessible startup fallback if the extension UI bundle cannot load,
   or fails during bootstrap, with a clear instruction to reload the extension in
