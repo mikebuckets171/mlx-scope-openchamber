@@ -27,6 +27,7 @@ window.previewOpenedURL = '';
 window.previewHold = false;
 window.previewTransportError = '';
 window.previewQueries = [];
+window.previewHistoryQueries = [];
 window.previewBodies = [];
 window.previewDelay = false;
 window.previewDeferred = [];
@@ -145,8 +146,19 @@ if(m.type === 'hello') {
   if(m.type === 'prompt' || m.type === 'generate' || m.type === 'start-session') window.previewUnexpectedSends += 1;
   if(m.type !== 'service-request') return;
   const selection = m.payload.query || {};
-  window.previewQueries.push(selection);
   window.previewRequests += 1;
+  // History routes, as the 2.0 service answers them for a preview it never watched: one gap, and no oMLX records.
+  if (m.payload.path === '/v2/trend' || m.payload.path === '/v2/usage') {
+    window.previewHistoryQueries.push({ path: m.payload.path, ...selection });
+    const now = Date.now(), windowMs = Number(selection.window ?? 900000) || 900000, range = selection.range ?? '7d';
+    const body = m.payload.path === '/v2/trend'
+      ? { contractVersion: 2, serverNow: now, windowMs, bucketMs: windowMs / 180, startAt: now - windowMs, series: {}, gaps: [{ fromAt: now - windowMs, toAt: now }], marks: [] }
+      : { contractVersion: 2, serverNow: now, available: false, reason: 'not_omlx', range, cachedAt: now, basis: 'reported', granularity: 'day', buckets: [],
+        totals: { requests: 0, promptTokens: 0, outputTokens: 0 }, models: [] };
+    post({ type: 'result', id: m.id, ok: true, payload: { status: params.get('contract') === '1.6' ? 404 : 200, body: JSON.stringify(body) } });
+    return;
+  }
+  window.previewQueries.push(selection);
   samples += 1;
   if (window.previewHold) return;
   if (state === 'stalled' && samples > 2) return;

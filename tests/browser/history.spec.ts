@@ -345,7 +345,7 @@ test.describe('Captures tab', () => {
 test('monitoring keeps running on the saved captures tab (the 1.6 suspend is gone)', async ({ page }) => {
   await page.goto('/?state=decode');
   const frame = page.frameLocator('iframe');
-  await expect(frame.locator('#connection')).toHaveText('oMLX connected');
+  await expect(frame.locator('#phase')).toHaveText('Generating');
   await frame.getByRole('tab', { name: /^(Saved|Captures)$/ }).click();
   const requests = () => page.evaluate(() => (window as unknown as { previewRequests: number }).previewRequests);
   const before = await requests();

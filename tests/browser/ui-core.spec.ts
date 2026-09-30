@@ -161,6 +161,9 @@ const status = async (page: Page, query: string) => {
 const lastHeight = (page: Page) => host(page, w => w.previewHeights.at(-1));
 
 test('Work Status: 56 / 80 / 24 px glance and the one-time tip, sized with setHeight on the glance tier', async ({ page }) => {
+  // The first-run notice has its own test; this one starts with it dismissed.
+  await page.goto('/v2');
+  await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ noticeDismissed: true })));
   // Until the attribution join labels it, the live reading is server-wide: its reason line stays beside the tip (56 + 64).
   let frame = await status(page, 'state=decode');
   await expect.poll(() => lastHeight(page)).toBe(120);
@@ -193,7 +196,7 @@ test('Work Status: every mock state in both themes at 280 px fits its section he
   const errors = errorsOf(page);
   for (const theme of ['dark', 'light']) for (const [state, tip] of STATES.flatMap(state => [[state, true], [state, false]] as const)) {
     await page.goto('/v2');
-    await page.evaluate(dismissed => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: dismissed })), !tip);
+    await page.evaluate(dismissed => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: dismissed, noticeDismissed: true })), !tip);
     await status(page, `state=${state}&theme=${theme}`);
     await expect.poll(() => lastHeight(page), `${state} ${theme}`).toBeDefined();
     const height = await lastHeight(page);
@@ -205,9 +208,21 @@ test('Work Status: every mock state in both themes at 280 px fits its section he
   expect(errors).toEqual([]);
 });
 
-test('Work Status: the Turn stats replacement stays within 200 px and its choice is kept in pref.v2', async ({ page }) => {
+test('Work Status: the first-run notice shows while the leader records into an empty history, and dismissing it is kept', async ({ page }) => {
   await page.goto('/v2');
   await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true })));
+  const frame = await status(page, 'state=idle');
+  await expect(frame.locator('#ws')).toContainText('Recording reply history locally');
+  await expect.poll(() => lastHeight(page)).toBe(80);
+  await frame.getByRole('button', { name: /Dismiss/ }).click();
+  await expect.poll(() => lastHeight(page)).toBe(56);
+  expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ noticeDismissed: true, tipDismissed: true });
+  expect(await problems(page)).toEqual([]);
+});
+
+test('Work Status: the Turn stats replacement stays within 200 px and its choice is kept in pref.v2', async ({ page }) => {
+  await page.goto('/v2');
+  await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true, noticeDismissed: true })));
   let frame = await status(page, 'state=bionic&chat=local');
   await expect.poll(() => lastHeight(page)).toBe(56);
   await frame.getByRole('button', { name: 'Show turn stats' }).click();

@@ -41,16 +41,20 @@ test('/scope names a stale service instead of attaching an empty chip', async ({
 });
 
 test('2.0.4 emulation: status height, badge and toast recorders, lifecycle replays, storage limits, lease extras', async ({ page }) => {
+  // The one-time tip and first-run notice are dismissed, so the section settles on one height.
+  await page.goto('/?surface=status');
+  await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true, noticeDismissed: true })));
   await page.goto('/?surface=status&chat=1&lifecycle=3&state=idle');
   const frame = page.frameLocator('iframe');
-  await expect(frame.locator('#connection')).toHaveText('oMLX connected');
-  expect(await page.locator('iframe').evaluate(node => (node as HTMLIFrameElement).style.height)).toBe('72px');
+  await expect(frame.locator('#ws')).toBeVisible();
+  // Status frames start at 72 px; the section then sizes itself with setHeight.
+  await expect.poll(async () => (await state(page)).heights.length).toBeGreaterThan(0);
   const send = (message: object) => frame.locator('body').evaluate((_, value) => parent.postMessage({ channel: 'openchamber.sdk', v: 1, ...value }, '*'), message);
   await send({ type: 'resize', id: 'h1', payload: { height: 500 } });
   await send({ type: 'badge', id: 'b1', payload: { count: 2 } });
   await send({ type: 'toast', id: 't1', payload: { kind: 'info', message: 'fixture toast' } });
-  await expect.poll(async () => [(await state(page)).heights, (await state(page)).badges, (await state(page)).toasts])
-    .toEqual([[500], [2], [{ kind: 'info', message: 'fixture toast' }]]);
+  await expect.poll(async () => [(await state(page)).heights.at(-1), (await state(page)).badges.at(-1), (await state(page)).toasts])
+    .toEqual([500, 2, [{ kind: 'info', message: 'fixture toast' }]]);
   expect(await page.locator('iframe').evaluate(node => (node as HTMLIFrameElement).style.height)).toBe('320px');
 
   // Lifecycle: a scripted phase, repeated as the host repeats it.
