@@ -212,8 +212,9 @@ test('Work Status: the Turn stats replacement stays within 200 px and its choice
   await expect.poll(() => lastHeight(page)).toBe(56);
   await frame.getByRole('button', { name: 'Show turn stats' }).click();
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'turn-stats');
+  // setHeight is a message to the host: wait for it rather than for the DOM.
+  await expect.poll(() => lastHeight(page)).toBeGreaterThan(56);
   const height = await lastHeight(page);
-  expect(height).toBeGreaterThan(56);
   expect(height).toBeLessThanOrEqual(200);
   // Without a turn summary, the slot is the last reply with its own label and the rows the runtime reports.
   await expect(frame.locator('.ts-head')).toContainText('Last reply');

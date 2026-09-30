@@ -414,7 +414,7 @@ footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--scope-
 .scope[data-surface="status"] .ws { width: auto; }
 .icon-btn:hover, .monitor-menu[open] > summary { background: var(--oc-hover, var(--scope-surface)); }
 .icon-btn[aria-pressed="true"] { color: var(--scope-warn); border-color: color-mix(in srgb, var(--scope-warn) 45%, var(--scope-line)); background: color-mix(in srgb, var(--scope-warn) 10%, transparent); }
-.tab:hover, .btn:hover:not(:disabled), .link-btn:hover { background: var(--oc-hover, var(--scope-surface)); }
+.tab:not([aria-selected="true"]):hover, .btn:hover:not(:disabled), .link-btn:hover { background: var(--oc-hover, var(--scope-surface)); }
 .tab:hover { color: var(--scope-fg); }
 .view[hidden] { display: none; }
 .machine[data-stale="true"] :is(.machine-line, .mac-rows) { opacity: .55; }

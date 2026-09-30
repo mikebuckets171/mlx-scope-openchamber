@@ -75,7 +75,7 @@ h2: Model inventory
 span.chip {data-tone="accent"}: splash
 span.chip {data-tone="accent"}: splash
 span.chip: gguf
-[server-session]: i Since the runtime started Decode average Cache efficiency Completed
+[server-session]: i Since the log stream started Decode average Cache efficiency Completed
 h2: Server session
 span.val {data-basis="reported"}: 37.9 tok/s
 span.val {data-basis="reported"}: 61%

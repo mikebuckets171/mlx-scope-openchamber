@@ -14,7 +14,7 @@ export type Block =
   | { kind: 'values'; cols: 2 | 3; big?: boolean; items: Array<{ label: string; value: Val; small?: string }> }
   | { kind: 'meter'; fraction: number }
   | { kind: 'bar'; fraction: number }
-  | { kind: 'list'; items: Array<{ title: string; loaded: boolean; chips: Chip[]; reading: string[]; meter: number | null }> };
+  | { kind: 'list'; items: Array<{ title: string; loaded: boolean; chips: Chip[]; reading: string[]; meter: number | null }>; chipGroup?: boolean };
 export interface ServerCard { key: string; title: string; right: string; tip: Tip | null; blocks: Block[] }
 export interface ServerView { callouts: Callout[]; cards: ServerCard[] }
 
@@ -87,7 +87,8 @@ const sessionCard = (s: SnapshotV2, now: number): ServerCard | null => {
   const a = s.runtime.server.averages;
   if (!a) return null;
   const held = heldBySource(s), basis = held ? 'last-observed' as const : 'reported' as const;
-  const since = held && s.status.sinceAt ? `before ${clock(s.status.sinceAt, now)}` : a.uptimeMs ? `${dur(a.uptimeMs)} · since start` : 'Since the runtime started';
+  const since = held && s.status.sinceAt ? `before ${clock(s.status.sinceAt, now)}` : a.uptimeMs ? `${dur(a.uptimeMs)} · since start`
+    : s.connection.runtime === 'lmstudio' ? 'Since the log stream started' : 'Since the runtime started';
   const items = [...a.decodeTps != null ? [{ label: 'Decode average', value: v(`${tps(a.decodeTps)} tok/s`, basis) }] : [],
     ...a.prefillTps != null ? [{ label: 'Prefill average', value: v(`${tps(a.prefillTps)} tok/s`, basis) }] : [],
     ...a.cacheEfficiencyFraction != null ? [{ label: 'Cache efficiency', value: v(pct(a.cacheEfficiencyFraction), basis) }] : [],
@@ -143,7 +144,7 @@ const catalogCard = (s: SnapshotV2): ServerCard | null => {
   const catalog = s.runtime.catalog;
   if (!catalog.length) return null;
   return { key: 'catalog', title: 'Model inventory', right: `${catalog.filter(model => model.loaded).length} loaded · ${catalog.length} listed`, tip: null,
-    blocks: [{ kind: 'list', items: catalog.map(model => ({ title: model.name, loaded: model.loaded === true, meter: null,
+    blocks: [{ kind: 'list', chipGroup: true, items: catalog.map(model => ({ title: model.name, loaded: model.loaded === true, meter: null,
       chips: [...model.format ? [{ text: model.format, ...model.format === 'splash' ? { tone: 'accent' as const } : {} }] : [],
         ...model.vision ? [{ text: `vision${model.inputModalities?.length ? ` · ${model.inputModalities.join(' + ')}` : ''}` }] : []],
       reading: [model.loaded ? 'Loaded' : model.loaded === false ? 'Available' : 'Listed', ...model.contextWindowTokens ? [`${kt(model.contextWindowTokens)} context`] : []] })) }] };
