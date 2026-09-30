@@ -57,7 +57,8 @@ const inspect = (page: Page, openAll = false): Promise<string[]> => page.evaluat
     let alpha = 1; for (let a: HTMLElement | null = el; a; a = a.parentElement) alpha *= Number(getComputedStyle(a).opacity);
     const fg = parse(cs.color); if (!fg) return;
     const bg = behind(el), cr = ratio(over([fg[0]!, fg[1]!, fg[2]!, fg[3]! * alpha], bg), bg);
-    if (cr < 4.5 && !(size >= 18.66 || (size >= 14 && Number(cs.fontWeight) >= 700))) problems.push(`contrast ${cr.toFixed(2)}:1 for "${own.slice(0, 30)}"`);
+    const rgb = (c: number[]) => `rgb(${c.slice(0, 3).map(v => Math.round(v * 255)).join(' ')})`;
+    if (cr < 4.5 && !(size >= 18.66 || (size >= 14 && Number(cs.fontWeight) >= 700))) problems.push(`contrast ${cr.toFixed(2)}:1 for "${own.slice(0, 30)}" (${cs.color} × ${alpha.toFixed(2)} on ${rgb(bg)})`);
   });
   if (openAll) return problems;
   const text = document.body.innerText;
@@ -98,7 +99,8 @@ const inspect = (page: Page, openAll = false): Promise<string[]> => page.evaluat
   document.querySelectorAll<HTMLElement>('#views *').forEach(el => { if (visible(el) && getComputedStyle(el).textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth + 1) problems.push(`text cut off: "${el.textContent!.trim().slice(0, 40)}"`); });
   return problems;
 }, openAll);
-const clean = async (page: Page) => { expect(await inspect(page)).toEqual([]); expect(await inspect(page, true)).toEqual([]); };
+// Polled: the Captures window re-renders on every poll, so a reading taken mid-update gets another look before it counts.
+const clean = async (page: Page) => { await expect.poll(() => inspect(page), { timeout: 5_000 }).toEqual([]); await expect.poll(() => inspect(page, true), { timeout: 5_000 }).toEqual([]); };
 
 test.describe('History tab', () => {
   for (const theme of ['dark', 'light']) for (const width of [320, 430]) {

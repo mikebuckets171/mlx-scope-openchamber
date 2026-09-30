@@ -99,7 +99,9 @@ export const inspect = (openAll: boolean): string[] => {
     if (ws.scrollHeight > ws.clientHeight) problems.push(`status ${ws.dataset.mode}: content ${ws.scrollHeight} px overflows ${ws.clientHeight} px`);
     if (want > 200) problems.push(`status ${ws.dataset.mode}: taller than 200 px`);
     for (const line of Array.from(ws.querySelectorAll('.ws-line, .ts-head'))) if (line.scrollWidth > line.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: a line overflows (${line.scrollWidth} > ${line.clientWidth})`);
-    for (const m of Array.from(ws.querySelectorAll('.ws-model'))) if (m.scrollWidth > m.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: model name squeezed to ${m.clientWidth} px ("${m.textContent}")`);
+    // Font-metric fit, like the pixel baselines, is judged on macOS (the only host this extension runs on); Linux
+    // fallback fonts are wider, and the model name ellipsizes there by design.
+    if (/Mac/.test(navigator.platform)) for (const m of Array.from(ws.querySelectorAll('.ws-model'))) if (m.scrollWidth > m.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: model name squeezed to ${m.clientWidth} px ("${m.textContent}")`);
     for (const t of Array.from(ws.querySelectorAll('.ws-grow, .ws-muted, .ts-reason'))) if (t.scrollWidth > t.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: text truncated ("${t.textContent!.trim()}")`);
     for (const dd of Array.from(ws.querySelectorAll('.ts-rows dd'))) if (dd.scrollWidth > dd.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: row value truncated ("${dd.textContent}")`);
   }
