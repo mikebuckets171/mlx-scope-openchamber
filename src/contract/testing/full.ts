@@ -35,7 +35,7 @@ export const fullSnapshot = () => ({
       remainingTokens: 9_999_999, promptTokens: 9_999_999, decodeTps: 12_345.678_9 })),
     catalog: Array.from({ length: 12 }, (_, index) => ({ name: name(index, 160), format: 'gguf', loaded: false, contextWindowTokens: 99_999_999,
       vision: true, inputModalities: ['text', 'image', 'audio'] })),
-    engines: Array.from({ length: 8 }, (_, index) => ({ name: name(index, 40), version: 'v'.repeat(40), selected: index === 0 })),
+    engines: Array.from({ length: 8 }, (_, index) => ({ name: name(index, 40), version: 'v'.repeat(40), selected: index === 0, format: 'f'.repeat(16) })),
   },
   host: { sampledAt: AT, platform: 'macOS', cpuModel: 'x'.repeat(80), logicalCores: 128, cpuFraction: 0.123_456_789,
     memTotalBytes: 999_999_999_999, memUsedBytes: 999_999_999_998,

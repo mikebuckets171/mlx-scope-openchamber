@@ -48,6 +48,22 @@ export const lmsArgv = (lms: string, command: LmsCommand, port: number, serverIn
   return { file: lms, args: [...args, '--port', String(port)], timeoutMs: 5_000, maxBytes: 256 * 1024,
     env: { LMS_API_SERVER_INFO_PATH: serverInfoPath } };
 };
+
+// ── LM Studio · owned by ad-lmstudio ───────────────────────────────────────────────────────────────────────────────
+// The lms half of the P1 oracle, kept apart so `allowed` below can delegate to it. An lms spawn is legal only as
+// exactly what `lmsArgv` builds, for an allowlisted binary under HOME and an app's own `.internal/http-server.json`.
+/** The allowlisted lms binaries for this HOME, in preference order. */
+export const lmsPaths = (home: string): string[] => path.isAbsolute(home) ? LMS_HOME_PATHS.map(file => path.join(home, file)) : [];
+const LMS_COMMANDS: readonly LmsCommand[] = ['ps', 'runtime-ls', 'log-stream'];
+const argvKey = (argv: Argv): string => JSON.stringify([argv.file, argv.args, argv.env ?? null, argv.timeoutMs, argv.maxBytes]);
+export const isLmsArgv = (argv: Argv, home: string): boolean => {
+  const info = argv.env?.LMS_API_SERVER_INFO_PATH, port = loopbackPort(Number(argv.args.at(-1)));
+  if (!lmsPaths(home).includes(argv.file) || port === null || typeof info !== 'string' || path.normalize(info) !== info
+    || path.basename(info) !== 'http-server.json' || path.basename(path.dirname(info)) !== '.internal') return false;
+  return LMS_COMMANDS.some(command => { const built = lmsArgv(argv.file, command, port, info); return built !== null && argvKey(built) === argvKey(argv); });
+};
+// ── end LM Studio ──────────────────────────────────────────────────────────────────────────────────────────────────
+
 export const macmonArgv = (macmon: string): Argv | null => (MACMON_PATHS as readonly string[]).includes(macmon)
   ? { file: macmon, args: ['pipe', '-i', '1000'], timeoutMs: 60_000, maxBytes: 16 * 1024 } : null;
 
