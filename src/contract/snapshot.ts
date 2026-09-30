@@ -106,7 +106,7 @@ export interface CatalogV2 {
   name: string; format: 'mlx' | 'gguf' | 'splash' | null; loaded: boolean | null; contextWindowTokens: number | null;
   vision?: boolean; inputModalities?: Array<'text' | 'image' | 'audio' | 'pdf'>;
 }
-export interface EngineV2 { name: string; version: string; selected: boolean }
+export interface EngineV2 { name: string; version: string; selected: boolean; format?: string }   // format: lms runtime ls model format, e.g. 'yuzu' (§12.3)
 export interface LeaseV2 { leader: boolean; epoch: number; ttlMs: number; leaderSurface: 'page' | 'panel' | 'status' | null }
 
 // The 1.6 vocabulary the bridge keeps verbatim.
@@ -231,6 +231,7 @@ const slots = (value: unknown): SlotV2[] => {
   const single = parsed.filter(slot => slot.busy).length === 1;
   return parsed.map(slot => single && slot.busy ? slot : (({ decodeTps: _, ...rest }) => rest)(slot));
 };
+const ENGINE_FORMAT = /^[a-z0-9._-]{1,16}$/;   // §12.3: a lower-case format token (gguf, mlx, yuzu), never free text
 const MODALITIES = ['text', 'image', 'audio', 'pdf'] as const;   // Splash 1.1 reports 'pdf' (fixture report)
 const catalog = (value: unknown): CatalogV2 | null => {
   const item = obj(value), name = label(item?.name, 160), context = limit(item?.contextWindowTokens);
@@ -278,7 +279,8 @@ const runtime = (value: unknown): RuntimeV2 | null => {
     catalog: list(item.catalog, LIMITS.catalog, catalog),
     engines: list(item.engines, LIMITS.engines, raw => {
       const engine = obj(raw), name = label(engine?.name, 40), version = label(engine?.version, 40), selected = bool(engine?.selected);
-      return name && version && selected !== null ? { name, version, selected } : null;
+      const format = typeof engine?.format === 'string' && ENGINE_FORMAT.test(engine.format) ? engine.format : undefined;
+      return name && version && selected !== null ? defined({ name, version, selected, format }) : null;
     }),
   });
 };

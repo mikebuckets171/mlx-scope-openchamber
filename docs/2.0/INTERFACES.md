@@ -114,6 +114,20 @@ Adapter helpers (pure, fixture-tested):
   `parseLmsPs(text): ResidencyV2[]`, `parseRuntimeLs(text): EngineV2[]`,
   `createLmsCli({ exec, lms, serverInfoPath, now }): LmsCli` (`ps(port, generation)`, `runtimeLs(port)`), cadence
   constants `LMS_PS_MIN_MS`, `LMS_PS_EVERY_MS`, `LMS_RUNTIME_CACHE_MS`.
+  Added by ad-lmstudio (implemented):
+  - `lmstudio.ts`: `createLmstudioAdapter(context, deps?)` (deps inject `home`, `lms`, `serverInfoPath`, `cli`, `activity`,
+    `readPorts`), `isGreeting(reply)`, `GREETING_WINDOW_MS = 10_000`, `LMSTUDIO_CAPABILITIES`, `parseV1Models(body)`,
+    `parseV0Models(body)` (→ `LmstudioInventory | null`), pure `lmstudioReading(sample): AdapterReadingV2`.
+  - `lmstudio-cli.ts`: `lmstudioHome(home)`, `findLms(home)` (only the two manifest paths), `serverInfoPathOf(home)`,
+    `readLmsPorts(serverInfoPath): { internal, rest }`, `lmsEnv(argv, home)`, `lmsModelName(value)`, `engineName(full)`,
+    `createLmsExec(home?, spawn?): Exec` (the bounded one-shot spawner; refuses anything `isLmsArgv` rejects).
+  - `lmstudio-activity.ts`: `ServerLineEvent` variants carry the model tag (`started`, `progress`, `streaming`, `done`,
+    `finished {prediction}`, `failed`); `ActivityView = { healthy, active, request, models, averages, seen, completions }`
+    (no `queued`: the log cannot see queued requests; `view()` drains completions); `ActivityTracker`, `BoundedLines`,
+    `MAX_LOG_LINE_BYTES = 16 KiB`, `MAX_RECORD_CHARS = 2_048`, `IDLE_STOP_MS`; `createConnectionActivity` also takes
+    `home`, `spawn`, `idleStopMs`, `restartBaseMs`. `touch(port)` takes the app's **internal** (lms) port.
+  - LM Studio never uses `AdapterContextV2.exec`: native-command.ts drops env, and lms without the no-wake env can launch
+    the app. Both lms spawners live in the adapter and check `isLmsArgv` first.
 - llama-server: `LLAMA_METRICS`, `parseSlots(body): SlotV2[]`, `slotCompletion(previous, next, at)`,
   `llamaRates(previous, next)`, `llamaSpeculative(previous, next)` (both `PromParse`).
 - Ollama: `parseOllamaVersion(body): string | null`, `parseOllamaPs(body): ResidencyV2[]`.
@@ -137,6 +151,7 @@ createExec(home, read = readCommand): Exec              // the one-shot gate: al
 type StreamChild; type StreamSpawn = (argv: Argv) => StreamChild | null
 createStreamSpawn(home, spawn?): StreamSpawn            // the streaming gate (macmon): allowlisted only, no shell, stderr ignored,
                                                         // env {LANG, LC_ALL, ...argv.env}
+lmsPaths(home): string[]; isLmsArgv(argv, home): boolean                       // ad-lmstudio block: exactly lmsArgv's output
 ```
 
 `native-command.ts` stays byte-identical at `service/native-command.ts` (not moved) and passes only `{LANG, LC_ALL}`,
@@ -444,7 +459,9 @@ Open, for the named track:
 - **ad-splash:** `metal.failure_reason` is free text (canary planted); treat it like `transport.error` (presence only).
   Counters reset on engine restart (a negative Δ is a reset, not a completion); walk histogram buckets by bound.
 - **ad-lmstudio:** the 1.6 parser (`lmstudio-activity.ts:72`) accepts a fake `Done ·` inside generated text; stock
-  LM Studio prints no `Done ·` line, so its completions exist only on Splash-engine Bionic.
+  LM Studio prints no `Done ·` line, so its completions exist only on Splash-engine Bionic. *Done on mb/ad-lmstudio:*
+  a summary counts only as its own untagged DEBUG record, and `server.completions` is claimed only for a Splash
+  catalog or once a summary has arrived.
 - **ad-llama-ollama:** b10519 clears an idle slot's `n_decoded`; keep the last busy read. Windowed gauges differ by
   build (b10519 reads 0 mid-request, b6700 never resets): never use them for rates.
 - **attribution:** `SessionSnapshot.model` format for local providers decides `sameModel`; the ⓘ must carry "Another chat

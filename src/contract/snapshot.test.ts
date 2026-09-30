@@ -182,3 +182,12 @@ test('a snapshot type is the parser output', () => {
   const parsed: SnapshotV2 | null = parseSnapshotV2(base());
   expect(parsed?.contractVersion).toBe(2);
 });
+
+test('engine format (§12.3): a lower-case token is kept; anything else is dropped, the engine kept', () => {
+  const body = edit(body => { body.runtime.engines = [
+    { name: 'splash', version: '0.0.5', selected: true, format: 'yuzu' }, { name: 'llama.cpp', version: '2.41.0', selected: true, format: 'GGUF' },
+    { name: 'mlx-llm', version: '1.9.0', selected: false, format: 'x'.repeat(17) }, { name: 'other', version: '1.0.0', selected: false, format: 'free text' }];
+  body.capabilities['server.engines'] = { scope: 'server', basis: 'reported' }; });
+  expect(parseSnapshotV2(body)!.runtime.engines).toEqual([{ name: 'splash', version: '0.0.5', selected: true, format: 'yuzu' },
+    { name: 'llama.cpp', version: '2.41.0', selected: true }, { name: 'mlx-llm', version: '1.9.0', selected: false }, { name: 'other', version: '1.0.0', selected: false }]);
+});

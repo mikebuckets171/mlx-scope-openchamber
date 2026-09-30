@@ -109,7 +109,9 @@ test('createStreamSpawn spawns only allowlisted argv, without a shell, with stde
 });
 
 // P1: every child the service starts goes through the allowlist. Only argv.ts and native-command.ts (reached only from
-// argv.ts) may spawn. The 1.6 files below still spawn directly and are named so their owners' rewrites retire them.
+// argv.ts) may spawn, plus the LM Studio adapter's two lms spawners, which need HOME and the no-wake env that neither
+// gate passes; each refuses any argv `isLmsArgv` (the lms half of `allowed`) rejects. The 1.6 files below still spawn
+// directly and are named so their owners' rewrites retire them.
 test('every spawn in the service goes through the argv allowlist', () => {
   const root = new URL('../', import.meta.url).pathname;
   const sources = [...new Glob('**/*.ts').scanSync(root)].filter(file => !file.endsWith('.test.ts')).sort();
@@ -118,7 +120,9 @@ test('every spawn in the service goes through the argv allowlist', () => {
     'mac-memory.ts': 'svc-host: service/host/memory.ts replaces it; off the production path (main.ts uses HostSampler)',
   };
   const spawning = sources.filter(file => /from 'node:child_process'|require\(['"]node:child_process/.test(readFileSync(`${root}${file}`, 'utf8')));
-  expect(spawning.filter(file => !(file in LEGACY))).toEqual(['lib/argv.ts', 'native-command.ts']);
+  const LMS_SPAWNERS = ['adapters/lmstudio-activity.ts', 'adapters/lmstudio-cli.ts'];
+  expect(spawning.filter(file => !(file in LEGACY))).toEqual([...LMS_SPAWNERS, 'lib/argv.ts', 'native-command.ts']);
+  for (const file of LMS_SPAWNERS) expect(readFileSync(`${root}${file}`, 'utf8')).toMatch(/if \(!argv \|\| !isLmsArgv\(argv, this\.home\)\) return;|if \(!isLmsArgv\(argv, home\)\) \{ resolve\(null\); return; \}/);
   const readers = sources.filter(file => /from '\.{1,2}\/(?:\.\.\/)*native-command\.ts'/.test(readFileSync(`${root}${file}`, 'utf8')));
   expect(readers.filter(file => !(file in LEGACY))).toEqual(['lib/argv.ts']);
   // The production entry never reaches the legacy host reader.
