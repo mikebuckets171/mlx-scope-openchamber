@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.0.1
+
+### Fixed
+
+- `/scope` no longer starts LM Studio's log stream (an `lms` process of about 119 MB that ran for a minute after each
+  use); it reads the connection once, as documented, and still shows live requests while the panel or Work Status is
+  watching.
+- **History shows a paused recording correctly** on the page's History column and in Scope views that aren't
+  recording. They used to say "Stored on this Mac" and offer Pause, so resuming took two clicks.
+- **Badge after closing the page.** When you close the page while the rail panel is open, the panel now clears the
+  rail badge the page set, so the icon no longer shows an alert count the panel doesn't show.
+- **Last reply after a hidden panel.** A panel shown again after more than 64 replies finished out of view now pages
+  through them to the newest reply, instead of staying on an older reply's speed and TTFT until the next reply
+  finishes.
+- **History:** the oMLX usage card now appears when you pick Automatic with the oMLX runtime and another connection
+  is listed first; before, the card stayed hidden even though the snapshot said usage was available.
+- **LM Studio Engines card no longer flickers.** While a reply was generating and Work Status was open, the Server
+  tab's Engines card could vanish for a poll about every 10 s. Readings now keep the last `lms runtime ls` rows, with
+  no extra lms run.
+
+### Maintenance
+
+- The overhead measurement (`bun run overhead`) works on 2.0 again: its stand-in `lms` answers `ps` and `runtime ls`
+  at once, and its polls are shaped like the panel's and Work Status's.
+
 ## 2.0.0
 
 MLX Scope 2.0 follows OpenChamber 2 into the chat: a Work Status section that can replace Turn stats, per-chat labels,

@@ -11,14 +11,13 @@ import { unavailableForHostError } from '../host-errors.ts';
 
 export type HistoryResult<T> = { ok: true; body: T } | { ok: false; reason: FrameReason | 'unparseable' | 'not_served' };
 export interface TrendRequest { provider?: string; runtime?: string; windowMs: TrendWindowMs; series: readonly TrendSeries[] }
-export interface UsageRequest { provider?: string; range: UsageRange }
+export interface UsageRequest { provider?: string; runtime?: string; range: UsageRange }
+/** The snapshot poll's selection, so both routes read the connection the frame shows (Automatic + oMLX included). */
+const selected = ({ provider, runtime }: UsageRequest | TrendRequest): Record<string, string> => ({ ...provider ? { provider } : {}, ...runtime ? { runtime } : {} });
 export const trendQuery = (request: TrendRequest): Record<string, string> => ({
-  ...request.provider ? { provider: request.provider } : {}, ...request.runtime ? { runtime: request.runtime } : {},
-  window: String(request.windowMs / 1000), series: request.series.join(','),
+  ...selected(request), window: String(request.windowMs / 1000), series: request.series.join(','),
 });
-export const usageQuery = (request: UsageRequest): Record<string, string> => ({
-  ...request.provider ? { provider: request.provider } : {}, range: request.range,
-});
+export const usageQuery = (request: UsageRequest): Record<string, string> => ({ ...selected(request), range: request.range });
 
 /** The host's own refusal reasons in the contract's frame vocabulary; a refused grant is the needs-approval state. */
 const frameReason = (reason: string): FrameReason => reason === 'service_not_granted' ? 'needs_approval'

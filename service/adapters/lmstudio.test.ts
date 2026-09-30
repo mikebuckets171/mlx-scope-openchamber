@@ -66,7 +66,7 @@ const harness = (routes: Record<string, Route>, options: { port?: number; ports?
     activity: options.activity ?? createConnectionActivity({ lms, serverInfoPath: INFO, now: context.now, home: HOME, spawn, idleStopMs: 5_000 }) };
   const adapter = createLmstudioAdapter(context, deps);
   adapters.push(adapter);
-  const read = (tier: ReadContext['tier'] = 'full', detail = false) => adapter.read({ deadline: clock.mono + 4_000, tier, detail });
+  const read = (tier: ReadContext['tier'] = 'full', detail = false, oneShot?: boolean) => adapter.read({ deadline: clock.mono + 4_000, tier, detail, oneShot });
   const advance = (ms: number) => { clock.now += ms; clock.mono += ms; };
   const record = (content: string, level = 'info') => { spawned.at(-1)!.stdout.write(`${JSON.stringify({ timestamp: 1, data: { type: 'server.log', content, level } })}\n`); };
   return { adapter, routes, gets, execs, spawned, read, advance, record, setPs: (next: string) => { ps = next; } };
@@ -261,6 +261,19 @@ test('glance tier never runs lms one-shots; the stream still serves live state; 
   expect(h.execs).toHaveLength(1);
 });
 
+test('a one-shot read (/scope) starts no log stream, but still reads one a polling frame keeps running', async () => {
+  const h = harness(BIONIC());
+  const once = await h.read('glance', false, true);
+  expect([h.execs, h.spawned]).toEqual([[], []]);
+  expect(once.runtime.catalog).toHaveLength(5);
+  await h.read('glance');
+  h.record('[2026-09-29 12:00:00][INFO] Returning 5 models from v1 API');
+  await tick();
+  h.advance(3_000);
+  expect((await h.read('glance', false, true)).runtime.phase).toBe('idle');
+  expect(h.spawned).toHaveLength(1);
+});
+
 test('the Server tab: lms runtime ls with detail=server, cached 10 minutes, as the Engines card', async () => {
   const h = harness(BIONIC());
   const detail = await h.read('full', true);
@@ -272,13 +285,24 @@ test('the Server tab: lms runtime ls with detail=server, cached 10 minutes, as t
   expect(detail.capabilities['server.engines']).toEqual({ scope: 'server', basis: 'reported' });
   expectRoundTrip(detail);
   h.advance(5_000);
-  expect((await h.read('full', false)).runtime.engines).toEqual([]);
+  expect((await h.read('full', false)).runtime.engines).toHaveLength(5);
   h.advance(LMS_RUNTIME_CACHE_MS - 10_000);
   expect((await h.read('full', true)).runtime.engines).toHaveLength(5);
   expect(h.execs.filter(argv => argv.args[0] === 'runtime')).toHaveLength(1);
   h.advance(5_000);
   await h.read('full', true);
   expect(h.execs.filter(argv => argv.args[0] === 'runtime')).toHaveLength(2);
+});
+
+test('a glance reading keeps the last engines: inside the 450 ms floor the scheduler hands it to the Server tab', async () => {
+  const h = harness(BIONIC());
+  await h.read('full', true);
+  h.advance(3_000);
+  const glance = await h.read('glance');
+  expect(glance.runtime.engines).toHaveLength(5);
+  expect(glance.capabilities['server.engines']).toEqual({ scope: 'server', basis: 'reported' });
+  expectRoundTrip(glance);
+  expect(h.execs.filter(argv => argv.args[0] === 'runtime')).toHaveLength(1);
 });
 
 test('no greeting within 10 s: lms_unavailable, and no lms spawn of any kind', async () => {

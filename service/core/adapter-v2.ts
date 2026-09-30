@@ -22,8 +22,11 @@ export type RuntimeGet = (path: string) => Promise<RuntimeReply>;
 /** Text GET (Prometheus); `maxBytes` defaults to the 2 MB http.ts cap. */
 export type RuntimeGetText = (path: string, maxBytes?: number) => Promise<{ status: number; text: string }>;
 
-/** What the frame asked for; adapters skip reads the tier or the Server tab (`detail`) does not need. */
-export interface ReadContext { deadline: number; tier: Tier; detail: boolean }
+/**
+ * What the frame asked for; adapters skip reads the tier or the Server tab (`detail`) does not need. `oneShot` (`/scope`)
+ * reads once: it starts nothing that outlives the read.
+ */
+export interface ReadContext { deadline: number; tier: Tier; detail: boolean; oneShot?: boolean }
 /** A finished request as the adapter saw it. The completion ring assigns `seq`; verdicts and host co-factors come later. */
 export type CompletionDraft = Omit<CompletionV2, 'seq' | 'verdict' | 'host'>;
 

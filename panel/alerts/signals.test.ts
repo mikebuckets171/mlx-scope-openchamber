@@ -50,7 +50,22 @@ test('badge: the count of badge-eligible alerts, set by a leading page or status
   status.signals.apply(snapshot([alert('thermal', 'warning')], false), []);
   expect(status.badges).toEqual([2, null]);
   const panel = recorder('panel');
-  panel.signals.apply(snapshot([alert('thermal', 'warning')]), []);
   panel.signals.panelMounted();
+  panel.signals.apply(snapshot([alert('thermal', 'warning')]), []);
   expect(panel.badges).toEqual([null]);
+});
+
+test('badge: a visible panel that takes the lease over from the page clears the badge the page set', () => {
+  const badges: Array<number | null> = [], host = { toast: async () => {}, setBadge: async (count: number | null) => { badges.push(count); } };
+  const page = new Signals(host, () => 'critical', 'page'), panel = new Signals(host, () => 'critical', 'panel');
+  const thermal = [alert('thermal', 'warning')];
+  panel.panelMounted();
+  panel.apply(snapshot(thermal), []);
+  // The page opens over the still-visible rail panel and leads (SPIKES S1).
+  page.apply(snapshot(thermal), []);
+  panel.apply(snapshot(thermal, false), []);
+  // The page closes; the panel leads again and keeps the rail icon clear through the alert's end.
+  panel.apply(snapshot(thermal), []);
+  panel.apply(snapshot([]), []);
+  expect(badges).toEqual([null, 1, null]);
 });

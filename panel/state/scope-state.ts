@@ -48,7 +48,9 @@ export class ScopeState {
     // With `since`, a poll carries only newer completions; keep them until the ring restarts or rolls back.
     const kept = this.completions, same = kept?.instance === completions.instance && !completions.reset && completions.cursor >= kept.cursor;
     const fresh = completions.items.filter(item => !same || item.seq > kept!.cursor);
-    this.completions = { instance: completions.instance, cursor: completions.cursor, items: [...same ? kept!.items : [], ...fresh].slice(-KEPT_COMPLETIONS) };
+    // A full page can stop short of the ring's cursor (a frame back from hidden): the next poll pages on from its last item.
+    this.completions = { instance: completions.instance, cursor: completions.items.length < KEPT_COMPLETIONS ? completions.cursor : fresh.at(-1)?.seq ?? kept!.cursor,
+      items: [...same ? kept!.items : [], ...fresh].slice(-KEPT_COMPLETIONS) };
     return fresh;
   }
   /** The newest finished request the service reported, shown only beside an available reading. */

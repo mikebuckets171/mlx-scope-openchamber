@@ -20,7 +20,7 @@ export const toastFor = (alert: AlertV2, preference: ToastPreference): ToastRequ
 
 export class Signals {
   private seen = new Map<string, number>();    // alert id → newest toastSeq this frame accounted for
-  private badge: number | null | undefined;    // undefined: never set by this frame
+  private badge: number | null | undefined;    // undefined: not set by this frame since it last led
   private primed = false;
   constructor(private readonly host: Pick<HostClient, 'setBadge' | 'toast'>, private readonly preference: () => ToastPreference,
     private readonly surface = 'panel') {}
@@ -29,9 +29,11 @@ export class Signals {
     const alive = new Set<string>(snapshot.alerts.map(alert => alert.id));
     for (const id of this.seen.keys()) if (!alive.has(id)) this.seen.delete(id);
     if (!snapshot.lease.leader) {
-      // Not the leader: remember what is already up, so a handover never repeats the old leader's toasts.
+      // Not the leader: remember what is already up, so a handover never repeats the old leader's toasts, and forget the
+      // badge, which the leader may change meanwhile.
       for (const alert of snapshot.alerts) if (!this.seen.has(alert.id)) this.seen.set(alert.id, alert.toastSeq ?? 0);
       this.primed = true;
+      this.badge = undefined;
       return;
     }
     for (const alert of snapshot.alerts) {
@@ -44,9 +46,9 @@ export class Signals {
       if (request) void this.host.toast(request).catch(() => {});
     }
     this.primed = true;
-    // A visible rail panel shows its alerts itself; the badge is for when it is closed (page or Work Status leads).
-    if (this.surface === 'panel') return;
-    const count = badgeCount(snapshot.alerts) + (this.preference() === 'all' ? flags.length : 0), next = count > 0 ? count : null;
+    // A visible rail panel shows its alerts itself, so as leader it keeps the badge clear, also one the page set before a
+    // handover; the badge is for when it is closed (page or Work Status leads).
+    const count = badgeCount(snapshot.alerts) + (this.preference() === 'all' ? flags.length : 0), next = count > 0 && this.surface !== 'panel' ? count : null;
     if (next !== this.badge) { this.badge = next; void this.host.setBadge(next).catch(() => {}); }
   }
   /** A visible panel mounted: setBadge(null). */

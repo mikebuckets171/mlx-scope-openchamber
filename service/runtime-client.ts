@@ -15,7 +15,7 @@ import { requestReply, requestText } from './lib/http-text.ts';
 
 /** What a frame asked for: an explicit runtime is never switched away from, and an empty provider is Automatic (1.6). */
 export interface ReadSelection { provider?: string; runtime?: RuntimeKind | null }
-export interface ReadRequest { tier: Tier; detail: boolean }
+export interface ReadRequest { tier: Tier; detail: boolean; oneShot?: boolean }
 /** What a v2 body needs beyond the adapter reading. Nothing here is class A; `port` and `slot` never leave the service except as a status param. */
 export interface ReadingMeta {
   connection: ConnectionV2;
@@ -243,7 +243,7 @@ export class RuntimeClient {
           if (!context.adapter) { context.adapter = this.create(slot, context.runtime!); context.identityAt = this.monotonic(); }
         }
       }
-      reading = await context.adapter!.read({ deadline: context.deadline, tier: request.tier, detail: request.detail });
+      reading = await context.adapter!.read({ deadline: context.deadline, tier: request.tier, detail: request.detail, oneShot: request.oneShot });
     } catch (error) {
       reading = synthetic(this.now(), error instanceof UnknownRuntime ? { state: 'unconfigured', reason: 'unsupported_runtime', params: {} }
         : failing(error instanceof HttpFailure && error.reason === 'authentication_failed' ? 'authentication_failed' : 'runtime_unreachable'));
@@ -264,7 +264,7 @@ export class RuntimeClient {
     const now = this.now();
     let connections: RuntimeConnectionConfig[] = [];
     try { connections = (await this.config()).connections; } catch { /* no connection: not oMLX */ }
-    const choice = query.provider ? connections.find(item => item.id === query.provider) : this.automatic(connections, null);
+    const choice = query.provider ? connections.find(item => item.id === query.provider) : this.automatic(connections, query.runtime ?? null);
     const slot = choice ? this.scheduler.all().find(item => item.context.choice.id === choice.id && item.context.runtime === 'omlx') : undefined;
     const context = slot?.context.adapterContext;
     if (!context) return unavailableUsage(choice?.runtime === 'omlx' || slot ? 'runtime_unavailable' : 'not_omlx', query.range, now);

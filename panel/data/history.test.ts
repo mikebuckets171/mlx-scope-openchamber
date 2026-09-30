@@ -15,6 +15,8 @@ describe('History data client (/v2/trend, /v2/usage)', () => {
     expect(trendQuery({ provider: 'omlx', windowMs: 900_000, series: ['decodeTps', 'active'] })).toEqual({ provider: 'omlx', window: '900', series: 'decodeTps,active' });
     expect(trendQuery({ runtime: 'splash', windowMs: 3_600_000, series: ['decodeTps'] })).toEqual({ runtime: 'splash', window: '3600', series: 'decodeTps' });
     expect(usageQuery({ range: '30d' })).toEqual({ range: '30d' });
+    // Automatic + oMLX: the usage read follows the snapshot poll's runtime, like the trend.
+    expect(usageQuery({ runtime: 'omlx', range: '7d' })).toEqual({ runtime: 'omlx', range: '7d' });
     const { h, c } = client({ status: 200, body: JSON.stringify(fixtures.trend) });
     await c.trend({ provider: 'omlx', windowMs: 3_600_000, series: ['decodeTps'] });
     expect(h.requests).toEqual([{ method: 'GET', path: '/v2/trend', query: { provider: 'omlx', window: '3600', series: 'decodeTps' } }]);

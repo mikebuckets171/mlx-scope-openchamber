@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { RuntimeKind } from '../src/contract/runtime.ts';
 import type { RuntimeConnectionConfig, RuntimeConnections } from './config.ts';
-import type { AdapterReadingV2, DescriptorV2 } from './core/adapter-v2.ts';
+import type { AdapterReadingV2, DescriptorV2, ReadContext } from './core/adapter-v2.ts';
 import { DESCRIPTORS } from './core/registry.ts';
 import { HttpFailure } from './http.ts';
 import { RuntimeClient, type ReadSelection, type RuntimeReading } from './runtime-client.ts';
@@ -436,6 +436,19 @@ test('Automatic + an explicit runtime keeps its 1.6 meaning, tested with a selec
   expect((await named.read({ provider: long, runtime: null })).meta.connection).toMatchObject({ id: long, runtime: 'lmstudio' });
 });
 
+test('/v2/usage resolves Automatic + an explicit runtime to the connection the snapshot reads', async () => {
+  const calls: string[] = [], usage = { range: '7d', enabled: true, available: true, totals: { requests: 3, prompt_tokens: 40, completion_tokens: 2 },
+    daily: [{ date: '2026-09-29', requests: 3, prompt_tokens: 40, completion_tokens: 2 }], models: [] };
+  const client = new RuntimeClient({ descriptors: [INVENTORY, lookalike('omlx', 300_000, { count: 0 })],
+    readConfig: async () => configuration(connection('studio', 'lmstudio', 8000), connection('omlx', 'omlx', 8001)),
+    fetchImpl: async url => { calls.push(`${new URL(String(url)).port}${path(url)}`); return path(url) === '/admin/api/usage' ? json(usage) : json({ models: [] }); } });
+  expect((await client.read({ runtime: 'omlx' })).meta.connection).toMatchObject({ id: 'omlx', runtime: 'omlx' });
+  expect(await client.usage({ runtime: 'omlx', range: '7d' })).toMatchObject({ available: true, range: '7d', totals: { requests: 3, promptTokens: 40, outputTokens: 2 } });
+  expect(calls).toEqual(['8001/admin/api/usage']);
+  // Plain Automatic still means the first connection, which no frame reads as oMLX.
+  expect((await client.usage({ range: '7d' })).reason).toBe('not_omlx');
+});
+
 test('detection that finds nothing is unsupported_runtime; a locked port is authentication_failed; both retry with a backoff', async () => {
   let now = 1_000, requests = 0;
   const client = new RuntimeClient({ now: () => now, readConfig: async () => configuration(connection('local', null, 8000, 'fixture-key')),
@@ -459,4 +472,15 @@ test('a reading from a glance frame is refreshed for the Server tab once the flo
   expect(requests).toBe(2);
   now += 1_000; await client.read(undefined, { tier: 'glance', detail: false });
   expect(requests).toBe(2);
+});
+
+test('a one-shot read (/scope) reaches the adapter as one', async () => {
+  let now = 1_000;
+  const contexts: ReadContext[] = [];
+  const spy: DescriptorV2 = { ...INVENTORY, create: context => { const adapter = INVENTORY.create(context);
+    return { ...adapter, read: read => { contexts.push(read); return adapter.read(read); } }; } };
+  const client = new RuntimeClient({ now: () => now, descriptors: [spy], readConfig: async () => configuration(connection('studio', 'lmstudio')), fetchImpl: async () => json({ models: [] }) });
+  await client.read(undefined, { tier: 'glance', detail: false, oneShot: true });
+  now += 5_000; await client.read(undefined, { tier: 'glance', detail: false });
+  expect(contexts.map(read => read.oneShot)).toEqual([true, undefined]);
 });

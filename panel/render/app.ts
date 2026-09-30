@@ -119,7 +119,8 @@ export class ScopeApp {
         visible: () => this.p.visible() && (this.p.state.tab === tab || tab === 'history' && this.columns), leader: () => this.p.state.snapshot?.lease.leader ?? false };
       const copy = (text: string) => this.p.host.writeClipboard(text);
       entry = { host, handle: mountSafely(tab, host, context, tab === 'history'
-        ? historyView({ ledger: pipeline.ledger, client: new HistoryClient(this.p.host), retentionDays: () => prefs.value.retentionDays ?? 30, copy,
+        ? historyView({ ledger: pipeline.ledger, client: new HistoryClient(this.p.host), retentionDays: () => prefs.value.retentionDays ?? 30,
+          paused: () => prefs.value.history === false, copy,
           version: this.p.version, selection: () => connections.query() ?? {}, flags: flags => { pipeline.flags = flags; },
           legacyCaptures: async () => (await storage.keys()).filter(key => key.startsWith(KEYS.legacyObservationPrefix)).length })
         : capturesView({ store: new CaptureStore(storage), legacy: () => readLegacyCaptures(storage), copy, version: this.p.version,
