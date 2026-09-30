@@ -168,6 +168,13 @@ test.describe('History tab', () => {
     expect(await read(page, 'paused')).toEqual([false, true]);
     await clean(page);
   });
+  test('a stored pause shows while the ledger is stopped (the page before its first poll, or a frame that doesn’t lead)', async ({ page }) => {
+    await open(page, 'surface=page&state=recording-paused&stopped', 1160);
+    const storage = page.locator('.storage');
+    await expect(storage.locator('.section-heading .chip[data-tone="warn"]')).toHaveText('Recording paused');
+    await storage.getByRole('button', { name: 'Resume recording' }).click();
+    expect(await read(page, 'paused')).toEqual([false]);
+  });
   test('Clear asks first: focus moves to Cancel, Escape backs out, Clear history empties the list and keeps captures', async ({ page }) => {
     await open(page, 'tab=history&state=clear-confirm');
     const storage = page.locator('.storage');

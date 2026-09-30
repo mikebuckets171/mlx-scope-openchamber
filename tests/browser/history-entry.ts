@@ -20,7 +20,7 @@ const empty = state === 'history-empty';
 // A controllable service clock and recorders the tests read back.
 const harness = {
   now: MOCK_NOW, copied: '', composed: '', watched: 0, retention: [] as number[], paused: [] as boolean[], cleared: 0, trendReads: [] as number[], usageReads: [] as string[],
-  saved: [] as CaptureV2[], ledgerState: (state === 'recording-paused' ? 'paused' : 'idle') as LedgerState,
+  saved: [] as CaptureV2[], ledgerState: (params.has('stopped') ? 'stopped' : state === 'recording-paused' ? 'paused' : 'idle') as LedgerState,
   next: null as NextReplyState | null, handle: null as ViewHandle | null, snapshot: null as SnapshotV2 | null,
   push(snapshot: SnapshotV2): void { this.snapshot = snapshot; this.handle!.update(snapshot); },
   /** One decode poll `ms` after the mock's now, with `tokens` output so far (the window capture's input). */
@@ -87,7 +87,7 @@ harness.handle = tab === 'captures' && !page ? capturesView({
     trend: async request => { harness.trendReads.push(request.windowMs); return { ok: true, body: mockTrend(request.windowMs, empty) }; },
     usage: async request => { harness.usageReads.push(request.range); return { ok: true, body: mockUsage(request.range) }; },
   },
-  retentionDays: () => 30, copy: text => host.writeClipboard(text), version: '2.0.0', text: MOCK_TEXT, legacyCaptures: async () => empty ? 3 : 0,
+  retentionDays: () => 30, paused: () => state === 'recording-paused', copy: text => host.writeClipboard(text), version: '2.0.0', text: MOCK_TEXT, legacyCaptures: async () => empty ? 3 : 0,
 })(root, context);
 harness.push(base);
 document.body.dataset.ready = 'true';
