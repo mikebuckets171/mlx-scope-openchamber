@@ -189,7 +189,7 @@ export const sinceText = (at: number | undefined, now: number): string => at ===
 export const APPROVAL = {
   title: 'MLX Scope 2.0 needs one approval',
   body: 'GPU, thermal and process readings for this Mac, and the LM Studio command line without ever starting it. Per-chat labels use only the open chat’s activity, which needs no extra permission. Reply history stays on this Mac.',
-  steps: ['Open Settings → Extensions → MLX Scope.', 'Choose Review permissions, then approve.'],
+  steps: ['Open Settings → Extensions → MLX Scope.', 'Choose Needs approval, then allow and enable.'],
   grant: [
     ['GPU readings', '/usr/sbin/ioreg'], ['Thermal pressure', '/usr/bin/notifyutil'], ['oMLX process memory', '/usr/sbin/lsof, /usr/bin/footprint'],
     ['LM Studio and Bionic', '~/.lmstudio/bin/lms, ~/.cache/lm-studio/bin/lms', 'never starts either app'],
