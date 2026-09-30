@@ -436,6 +436,19 @@ test('Automatic + an explicit runtime keeps its 1.6 meaning, tested with a selec
   expect((await named.read({ provider: long, runtime: null })).meta.connection).toMatchObject({ id: long, runtime: 'lmstudio' });
 });
 
+test('/v2/usage resolves Automatic + an explicit runtime to the connection the snapshot reads', async () => {
+  const calls: string[] = [], usage = { range: '7d', enabled: true, available: true, totals: { requests: 3, prompt_tokens: 40, completion_tokens: 2 },
+    daily: [{ date: '2026-09-29', requests: 3, prompt_tokens: 40, completion_tokens: 2 }], models: [] };
+  const client = new RuntimeClient({ descriptors: [INVENTORY, lookalike('omlx', 300_000, { count: 0 })],
+    readConfig: async () => configuration(connection('studio', 'lmstudio', 8000), connection('omlx', 'omlx', 8001)),
+    fetchImpl: async url => { calls.push(`${new URL(String(url)).port}${path(url)}`); return path(url) === '/admin/api/usage' ? json(usage) : json({ models: [] }); } });
+  expect((await client.read({ runtime: 'omlx' })).meta.connection).toMatchObject({ id: 'omlx', runtime: 'omlx' });
+  expect(await client.usage({ runtime: 'omlx', range: '7d' })).toMatchObject({ available: true, range: '7d', totals: { requests: 3, promptTokens: 40, outputTokens: 2 } });
+  expect(calls).toEqual(['8001/admin/api/usage']);
+  // Plain Automatic still means the first connection, which no frame reads as oMLX.
+  expect((await client.usage({ range: '7d' })).reason).toBe('not_omlx');
+});
+
 test('detection that finds nothing is unsupported_runtime; a locked port is authentication_failed; both retry with a backoff', async () => {
   let now = 1_000, requests = 0;
   const client = new RuntimeClient({ now: () => now, readConfig: async () => configuration(connection('local', null, 8000, 'fixture-key')),
