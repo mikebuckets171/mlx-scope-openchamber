@@ -114,7 +114,10 @@ export class Ledger {
         if (epoch !== this.epoch) return;
       }
       this.load(entries);
-      this.lastFlushAt = this.options.now();
+      // A frame that led before this one may have gone without flushing (pagehide cannot finish storage round trips),
+      // so the first rows re-read from the ring through the persisted cursor are flushed at once. Idle stays write-free:
+      // `due` still needs pending rows.
+      this.lastFlushAt = 0;
       this.stateValue = this.paused ? 'paused' : 'idle';
     } catch {
       if (epoch === this.epoch) this.stateValue = 'stopped';
@@ -439,7 +442,8 @@ export class Ledger {
       if (key !== this.open?.key) for (const row of this.open?.rows ?? []) if (row[0] === 'r') this.mutable.delete(row[17]);
       this.open = { key, rows, verified: true };
       this.pending = this.pending.slice(take);
-      this.lastFlushAt = now; this.failures = 0; this.retryAt = 0; this.first = false;
+      // `first` stays for this session (the notice is dismissible and remembered); the next start sees stored chunks.
+      this.lastFlushAt = now; this.failures = 0; this.retryAt = 0;
       this.stateValue = this.paused ? 'paused' : 'idle';
       await this.writeBaselines(now);
       await this.evict(toSeconds(now), CHUNK_TARGET_CHARS, 1);
@@ -541,19 +545,22 @@ export class Ledger {
 export class LedgerRecorder {
   private leading = false;
   private starting: Promise<void> | null = null;
+  private epoch = -1;
   constructor(readonly ledger: Ledger, private readonly label: (completion: CompletionV2) => LedgerAttr = verdictAttr) {}
   get recording(): boolean { return this.leading && this.ledger.state !== 'stopped'; }
   /** The `since` the next poll must send while this frame leads; undefined otherwise. */
   since(connection: string, now?: number): number | undefined { return this.leading ? this.ledger.since(connection, now) : undefined; }
   async observe(snapshot: SnapshotV2, now: number, sentSince?: number): Promise<void> {
-    if (!snapshot.lease.leader) {
-      if (this.leading) { this.leading = false; this.starting = null; this.ledger.dispose(); }
-      return;
-    }
-    if (!this.leading) { this.leading = true; this.starting = this.ledger.start(); }
+    if (!snapshot.lease.leader) { if (this.leading) this.dispose(); return; }
+    // Leadership handed away and back while this frame was hidden (no poll saw the loss): another leader may have
+    // stored rows since, so restart from storage instead of flushing a stale ledger over them.
+    const restart = this.leading && snapshot.lease.epoch !== this.epoch;
+    if (restart) this.dispose();
+    if (!this.leading) { this.leading = true; this.epoch = snapshot.lease.epoch; this.starting = this.ledger.start(); }
     await this.starting;
     const runtime = snapshot.connection.runtime;
-    if (!this.leading || !runtime) return;
+    // The restart poll was sent with the stale cursor; the next one sends the persisted cursor.
+    if (!this.leading || !runtime || restart) return;
     this.ledger.append(snapshot.completions, this.label, { connection: snapshot.connection.id, rt: runtime, since: sentSince });
     const reason = this.ledger.due('rows', now) ? 'rows' : this.ledger.due('timer', now) ? 'timer' : null;
     if (reason) await this.ledger.flush(reason);

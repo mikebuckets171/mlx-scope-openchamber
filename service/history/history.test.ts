@@ -100,6 +100,16 @@ test('/v2/trend finds the slot its selection last polled, samples only what capa
   expect(CADENCE_MEMORY_MS).toBeGreaterThan(10_000);
 });
 
+test('a status frame under Energy saving (a reading every ~5 s) keeps one segment, so a loss still raises runtime-lost', () => {
+  const history = new ServiceHistory(INSTANCE);
+  const lost: StatusV2 = { state: 'failing', reason: 'runtime_unreachable', params: { port: 8001 } };
+  let at = T;
+  // pollMs is what the server records for a status frame: at least its 5 s Energy-saving floor.
+  for (let i = 0; i < 8; i += 1, at += 5_060) history.record('omlx', reading(at, runtime('decode', { decodeTps: 25, outputTokens: 100 + i })), host(at), { now: at, pollMs: 5_000 });
+  for (let i = 0; i < 3; i += 1, at += 5_060) history.record('omlx', reading(at, { ...runtime('unknown', null), server: { active: null, queued: null }, residency: [] }, { status: lost }), host(at), { now: at, pollMs: 5_000 });
+  expect(history.snapshot('omlx', { leader: false, now: at, verdict }).alerts.map(alert => alert.id)).toContain('runtime-lost');
+});
+
 test('alerts are evaluated on every request and shown per slot, host alerts for all', () => {
   const history = new ServiceHistory(INSTANCE);
   const lost: StatusV2 = { state: 'failing', reason: 'runtime_unreachable', params: { port: 8001 } };

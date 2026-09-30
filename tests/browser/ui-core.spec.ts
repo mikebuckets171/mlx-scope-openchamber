@@ -209,7 +209,8 @@ test('Work Status: every mock state in both themes at 280 px fits its section he
 });
 
 test('Work Status: the first-run notice shows while the leader records into an empty history, and dismissing it is kept', async ({ page }) => {
-  await page.goto('/v2');
+  // The setup page does not lead, so it records nothing and the status frame starts on an empty history.
+  await page.goto('/v2?leader=0');
   await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true })));
   const frame = await status(page, 'state=idle');
   await expect(frame.locator('#ws')).toContainText('Recording reply history locally');

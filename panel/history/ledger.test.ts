@@ -68,13 +68,21 @@ test('flush policy: at most every 5 min, at 50 rows, on hide ≥ 10 s apart; one
   await ledger.start();
   ring.add(T0 + 1_000);
   poll(ledger, ring);
+  // The first rows after a start flush at once: the frame that led before may have gone without flushing.
+  expect(ledger.due('rows', T0)).toBe(false);
+  expect(ledger.due('timer', T0)).toBe(true);
+  await ledger.flush('timer');
+  expect(storage.stats().setKeys).toEqual([KEYS.models, expect.stringMatching(CHUNK_KEY)]);
+  // Then at most every 5 min.
+  ring.add(T0 + 2_000);
+  poll(ledger, ring);
   expect(ledger.due('timer', T0 + FLUSH_EVERY_MS - 1)).toBe(false);
   expect(ledger.due('completed', T0 + FLUSH_EVERY_MS - 1)).toBe(false);
   expect(ledger.due('rows', T0 + FLUSH_EVERY_MS)).toBe(false);
   expect(ledger.due('timer', T0 + FLUSH_EVERY_MS)).toBe(true);
   time.state.now = T0 + FLUSH_EVERY_MS;
   await ledger.flush('timer');
-  expect(storage.stats().setKeys).toEqual([KEYS.models, expect.stringMatching(CHUNK_KEY)]);
+  expect(storage.stats().sets).toBe(3);
   // Same model: one set per flush from now on.
   for (let index = 0; index < FLUSH_ROWS - 1; index++) ring.add(time.state.now + index);
   poll(ledger, ring);
@@ -83,13 +91,13 @@ test('flush policy: at most every 5 min, at 50 rows, on hide ≥ 10 s apart; one
   poll(ledger, ring);
   expect(ledger.due('rows', time.state.now)).toBe(true);
   await ledger.flush('rows');
-  expect(storage.stats().sets).toBe(3);
+  expect(storage.stats().sets).toBe(4);
   // Hide: flushes at once, then not again within 10 s.
   ring.add(time.state.now + 100);
   poll(ledger, ring);
   expect(ledger.due('hidden', time.state.now)).toBe(true);
   await ledger.flush('hidden');
-  expect(storage.stats().sets).toBe(4);
+  expect(storage.stats().sets).toBe(5);
   ring.add(time.state.now + 200);
   poll(ledger, ring);
   expect(ledger.due('hidden', time.state.now + HIDE_FLUSH_GAP_MS - 1)).toBe(false);
@@ -102,7 +110,11 @@ test('flush policy: at most every 5 min, at 50 rows, on hide ≥ 10 s apart; one
   expect(storage.stats().setKeys.slice(-2)).toEqual([KEYS.models, expect.stringMatching(CHUNK_KEY)]);
   expect(storage.dump()[KEYS.models]).toEqual(['Example-27B-4bit', 'Example-35B-A3B-4bit']);
   expect(ids(storage)).toHaveLength(ring.seq);
-  expect(ledger.firstRun).toBe(false);
+  // The first-run notice lasts the session that started on an empty history; a later start sees the stored rows.
+  expect(ledger.firstRun).toBe(true);
+  const later = new Ledger({ storage, now: time.now });
+  await later.start();
+  expect(later.firstRun).toBe(false);
 });
 
 test('idempotent replay: re-delivered completions never duplicate a row, before or after a flush', async () => {
@@ -501,9 +513,8 @@ test('LedgerRecorder: records only while the lease says leader, and a lost lease
   expect(recorder.recording).toBe(false);
   await recorder.observe(snapshot(true), time.state.now);
   expect(recorder.recording).toBe(true);
-  expect(recorder.ledger.pendingRows).toBe(1);
-  time.state.now += FLUSH_EVERY_MS;
-  await recorder.observe(snapshot(true), time.state.now);
+  // The first rows after the election flush at once.
+  expect(recorder.ledger.pendingRows).toBe(0);
   expect(ids(storage)).toEqual([`${INSTANCE}.1`]);
   ring.add(time.state.now);
   await recorder.observe(snapshot(true), time.state.now);
@@ -512,6 +523,27 @@ test('LedgerRecorder: records only while the lease says leader, and a lost lease
   await recorder.hidden(time.state.now + 60_000);
   expect(storage.stats().sets).toBe(sets);
   expect(recorder.since('lmstudio')).toBeUndefined();
+});
+
+test('LedgerRecorder: a lease handed away and back while hidden restarts from storage instead of overwriting rows', async () => {
+  const storage = createFakeStorage(), time = clock(), ring = new FakeRing();
+  const a = new LedgerRecorder(new Ledger({ storage, now: time.now })), b = new LedgerRecorder(new Ledger({ storage, now: time.now }));
+  const snapshot = (recorder: LedgerRecorder, epoch: number, leader = true): SnapshotV2 => ({ lease: { leader, epoch, ttlMs: 12_000, leaderSurface: 'panel' },
+    connection: { id: 'lmstudio', runtime: 'lmstudio' }, completions: ring.response(recorder.since('lmstudio')) }) as unknown as SnapshotV2;
+  // A leads (epoch 1) and stores reply 1; then it is hidden and polls nothing.
+  ring.add(T0 + 1_000);
+  await a.observe(snapshot(a, 1), time.state.now);
+  expect(ids(storage)).toEqual([`${INSTANCE}.1`]);
+  // B leads (epoch 2) and stores replies 2 and 3.
+  ring.add(T0 + 2_000); ring.add(T0 + 3_000);
+  await b.observe(snapshot(b, 2), time.state.now);
+  expect(ids(storage)).toEqual([`${INSTANCE}.1`, `${INSTANCE}.2`, `${INSTANCE}.3`]);
+  // A comes back as leader under epoch 3 without ever seeing the loss: it restarts, so nothing B stored is lost.
+  ring.add(T0 + 4_000);
+  time.state.now += HIDE_FLUSH_GAP_MS;
+  await a.observe(snapshot(a, 3), time.state.now);
+  await a.observe(snapshot(a, 3), time.state.now);
+  expect(ids(storage)).toEqual([`${INSTANCE}.1`, `${INSTANCE}.2`, `${INSTANCE}.3`, `${INSTANCE}.4`]);
 });
 
 test('the first leader start migrates 1.x observations once; later starts write nothing', async () => {

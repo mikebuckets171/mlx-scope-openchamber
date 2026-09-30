@@ -82,6 +82,8 @@ export class Scheduler<C, T> {
 
 // Frame cadence (plan §4.3). The frame applies its own Energy-saving floor.
 export const POLL_MS = { active: 500, idle: 2_000, glanceActive: 1_000, glanceIdle: 3_000, glanceDormant: 10_000, yielded: 10_000 } as const;
+/** The slowest a frame may poll under Energy saving (panel/main.ts `monitorFor` floors), whatever `nextPollMs` says. */
+export const ENERGY_FLOOR_MS: Partial<Record<Surface, number>> = { status: 5_000, panel: 3_000, page: 3_000 };
 export const DORMANT_AFTER_MS = 300_000;
 export interface PollInput {
   surface?: Surface;

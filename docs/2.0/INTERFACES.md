@@ -567,7 +567,7 @@ resolveScope(host: Pick<HostClient, 'serviceRequest' | 'storage'>, request, now?
 
 **Storage the background reads (a contract for ledger and ui-history).** `ledger.v2.models` is a JSON `string[]` whose
 index is `modelRef`. `baseline.v2` is `BaselineStoreV2` with keys `${metric}|${rt}|${modelRef}|${bucket}`: `decodeTps` by
-`ctxB = sizeBucket(promptTokens)`, `prefillTps` and `ttftMs` by `uncB = sizeBucket(promptTokens − cachedTokens)`. p50 is
+`ctxB = sizeBucket(promptTokens + outputTokens)`, `prefillTps` and `ttftMs` by `uncB = sizeBucket(promptTokens − cachedTokens)`. p50 is
 null below n = 5. A different choice in the ledger rows needs a matching change in `background/usual.ts`
 (`background/scope.test.ts` pins the keys).
 

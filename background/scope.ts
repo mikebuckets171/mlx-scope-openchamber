@@ -1,19 +1,21 @@
 import { HostRequestError, type AttachIssueRequest, type HostClient, type ResolveRequest } from '@openchamber/sdk';
 import { version } from '../package.json';
 import { obj } from '../src/contract/guards.ts';
+import { runtimeKind } from '../src/contract/runtime.ts';
 import { CONTRACT_VERSION } from '../src/contract/version.ts';
 import { scopeItem, scopeReadme, scopeText } from '../panel/share/scope.ts';
 import { readUsual } from './usual.ts';
 
-// Owner: scope-flip. The `/scope` resolver behind background/main.ts: one /v2/snapshot?surface=background read and two
-// storage reads. Never polls, never subscribes to sessions, never a lease candidate, never writes.
+// Owner: scope-flip. The `/scope` resolver behind background/main.ts: the saved connection choice, one
+// /v2/snapshot?surface=background read of that connection, and two storage reads. Never polls, never subscribes to sessions, never a lease candidate, never writes.
 
 /** `ROUTES.snapshot`, as a literal for the bundle size; a test pins it. */
 export const SCOPE_PATH = '/v2/snapshot';
 export const SCOPE_QUERY = { surface: 'background', tier: 'glance' } as const;
+export const PROVIDER = /^[^\0-\x1f\x7f]{1,120}$/;
 export const SCOPE_ERRORS = {
-  approval: 'Approve MLX Scope in Settings → Extensions, then retry /scope.',
-  unreachable: 'MLX Scope’s service did not answer. Open MLX Scope, then retry /scope.',
+  approval: 'Approve MLX Scope in Settings → Extensions and retry /scope.',
+  unreachable: 'MLX Scope’s service did not answer. Open MLX Scope and retry /scope.',
   mismatch: 'MLX Scope’s service is out of date. Pause and resume MLX Scope in Settings → Extensions.',
 } as const;
 
@@ -30,11 +32,18 @@ const hostFailure = (error: unknown): never =>
 export const resolveScope = async (host: Pick<HostClient, 'serviceRequest' | 'storage'>, request: ResolveRequest,
   now: () => number = Date.now): Promise<AttachIssueRequest | null> => {
   void request;
-  const reading = host.serviceRequest({ method: 'GET', path: SCOPE_PATH, query: { ...SCOPE_QUERY } }).then(response => {
+  // The connection the panel and Work Status watch (`connection.selection`, validated as the service does); Automatic
+  // when unset or unreadable.
+  // The provider rule is guards.ts `isConnectionId`, restated for the bundle size; a test pins it.
+  const saved = await host.storage.get('connection.selection').catch(() => {}) as { provider?: unknown; runtime?: unknown } | null | undefined;
+  const provider = saved?.provider, runtime = runtimeKind(saved?.runtime);
+  const query = { ...SCOPE_QUERY, ...typeof provider == 'string' && PROVIDER.test(provider) && { provider }, ...runtime && { runtime } };
+  const reading = host.serviceRequest({ method: 'GET', path: SCOPE_PATH, query }).then(response => {
     if (response.status === 404) fail(SCOPE_ERRORS.mismatch);
     if (response.status !== 200) fail(SCOPE_ERRORS.unreachable);
     let body: unknown;
-    try { body = typeof response.body === 'string' ? JSON.parse(response.body) : response.body; } catch { fail(SCOPE_ERRORS.unreachable); }
+    // serviceRequest answers with the body as a string (SPIKES S1).
+    try { body = JSON.parse(response.body as string); } catch { fail(SCOPE_ERRORS.unreachable); }
     const contract = obj(body)?.contractVersion;
     return contract === CONTRACT_VERSION ? body : fail(contract === undefined ? SCOPE_ERRORS.unreachable : SCOPE_ERRORS.mismatch);
   }, hostFailure);

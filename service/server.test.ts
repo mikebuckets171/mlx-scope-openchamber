@@ -280,6 +280,17 @@ test('alerts come from the history with the lease, and reach the wire only throu
   expect(inputs).toEqual([true]);
 });
 
+test('history segments tolerate the Energy-saving floor of the frame surface', async () => {
+  const polls: Array<number | undefined> = [];
+  const history: NonNullable<Sources['history']> = { head: 0, record: (_key, _reading, _host, context) => { polls.push(context.pollMs); },
+    snapshot: () => ({ completions: { instance: INSTANCE, cursor: 0, reset: false, items: [] }, alerts: [], alertLog: [] }) };
+  const request = await launch({ ...defaults, history });
+  for (const surface of ['status', 'panel', 'page']) await snapshot(request, `/v2/snapshot?surface=${surface}&frame=00000002`);
+  // A status frame under Energy saving polls every 5 s at most, panel and page every 3 s: a segment must span that.
+  expect(polls.map(ms => (ms ?? 0) >= 5_000)).toEqual([true, false, false]);
+  expect(polls.slice(1).every(ms => (ms ?? 0) >= 3_000)).toBe(true);
+});
+
 test('the next poll follows the reading, the backoff and the surface', async () => {
   let current: RuntimeReading = offline();
   const request = await launch({ ...defaults, read: async () => current });

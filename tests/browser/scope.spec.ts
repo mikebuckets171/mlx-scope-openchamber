@@ -22,7 +22,8 @@ for (const transport of ['direct', 'relay']) {
     expect(after.transport).toBe('');
     expect(after.queries).toEqual([{ surface: 'background', tier: 'glance' }]);
     expect(after.requests).toBe(1);
-    expect(after.storage).toMatchObject({ gets: 2, keys: 0, sets: 0, deletes: 0 });
+    // The saved connection, then the baseline and the model dictionary.
+    expect(after.storage).toMatchObject({ gets: 3, keys: 0, sets: 0, deletes: 0 });
     expect([after.badges, after.toasts, after.heights, after.sends]).toEqual([[], [], [], 0]);
     const item = after.resolved[0]!.item!;
     expect(item).toMatchObject({ providerId: 'mlx-scope', id: 'mlx-scope-diagnostics', title: 'MLX Scope diagnostics', kind: 'issue' });

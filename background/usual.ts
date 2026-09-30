@@ -7,7 +7,7 @@ import { lastReply, sizeBucket } from '../panel/share/scope.ts';
 
 // Owner: scope-flip. "vs usual" for /scope (plan §5.8): the last finished reply against the persisted `baseline.v2`,
 // read-only. The keys follow the ledger rows (INTERFACES §4.5): modelRef is the index in the `ledger.v2.models`
-// string list, decode is keyed by the context bucket of the prompt, prefill and TTFT by the uncached-prompt bucket.
+// string list, decode is keyed by the context bucket of prompt + output (as `replyRow` files it), prefill and TTFT by the uncached-prompt bucket.
 // Model names are only compared here, never returned.
 
 export const MIN_BASELINE_N = 5;
@@ -25,7 +25,7 @@ export const usualFor = (snapshot: unknown, baseline: unknown, models: unknown):
   const modelRef = typeof reply.model === 'string' ? models.indexOf(reply.model) : -1;
   if (modelRef < 0 || reply.overlapped || (nonneg(reply.aggregateOf) ?? 0) > 1 || reply.basis === 'estimate') return [];
   const prompt = nonneg(reply.promptTokens), cached = nonneg(reply.cachedTokens);
-  const ctxB = sizeBucket(prompt), uncB = prompt !== null && cached !== null && cached <= prompt ? sizeBucket(prompt - cached) : null;
+  const ctxB = sizeBucket(prompt === null ? null : prompt + (nonneg(reply.outputTokens) ?? 0)), uncB = prompt !== null && cached !== null && cached <= prompt ? sizeBucket(prompt - cached) : null;
   const entries = new Map(store.entries.filter(Array.isArray).map(entry => [entry[0], entry] as const));
   const delta = (metric: BaselineMetric, value: number | null, bucket: number | null): VsUsual | null => {
     const entry = value === null || bucket === null ? undefined : entries.get(baselineKey(metric, rt, modelRef, bucket));

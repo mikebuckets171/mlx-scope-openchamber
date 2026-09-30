@@ -6,7 +6,8 @@ import { SCOPE_HEADER, SCOPE_TEXT_MAX_CHARS } from '../panel/share/scope.ts';
 import { parseSnapshotQuery } from '../src/contract/query.ts';
 import { ROUTES } from '../src/contract/version.ts';
 import { version } from '../package.json';
-import { resolveScope, SCOPE_ERRORS, SCOPE_PATH, SCOPE_QUERY } from './scope.ts';
+import { isConnectionId } from '../src/contract/guards.ts';
+import { PROVIDER, resolveScope, SCOPE_ERRORS, SCOPE_PATH, SCOPE_QUERY } from './scope.ts';
 import { baselineKey, USUAL_KEYS, usualFor } from './usual.ts';
 
 const AT = 1_790_690_700_000;
@@ -25,7 +26,7 @@ const snapshot = (item: object | null = reply()) => ({
   completions: { instance: '5c1e0a7b', cursor: 3, reset: false, items: item ? [item] : [] },
   marksHead: 0, alerts: [], alertLog: [], lease: { leader: false, epoch: 0, ttlMs: 12_000, leaderSurface: null }, nextPollMs: 3_000,
 });
-// decode keys by the prompt bucket (20,000 → 1), prefill and TTFT by the uncached bucket (4,000 → 0); modelRef = index 1.
+// decode keys by the prompt + output bucket (20,900 → 1), prefill and TTFT by the uncached bucket (4,000 → 0); modelRef = index 1.
 const STORE = { v: 2, computedAt: AT - 60_000, entries: [
   ['decodeTps|lmstudio|1|1', 40, 44, 34], ['prefillTps|lmstudio|1|0', 1_000, 1_200, 12], ['ttftMs|lmstudio|1|0', 400, 500, 4],
   ['decodeTps|lmstudio|0|1', 10, 11, 50],
@@ -48,10 +49,11 @@ const fakeHost = (response: { status: number; body: unknown } | Error, stored: R
 const ok = (body: unknown = snapshot()) => ({ status: 200, body: JSON.stringify(body) });
 
 describe('resolveScope', () => {
-  test('one /v2/snapshot?surface=background read and two storage gets: no frame, cursor, marks or verdicts, no writes', async () => {
+  test('the saved connection, one /v2/snapshot?surface=background read and two storage gets: no frame, cursor, marks or verdicts, no writes', async () => {
     const { host, calls } = fakeHost(ok());
     const item = await resolveScope(host, { command: 'scope', args: '' }, () => AT);
     expect(calls).toEqual([
+      { method: 'storage.get', args: ['connection.selection'] },
       { method: 'serviceRequest', args: [{ method: 'GET', path: '/v2/snapshot', query: { surface: 'background', tier: 'glance' } }] },
       { method: 'storage.get', args: ['baseline.v2'] }, { method: 'storage.get', args: ['ledger.v2.models'] },
     ]);
@@ -103,6 +105,23 @@ describe('resolveScope', () => {
   });
 });
 
+describe('/scope reads the connection Scope watches', () => {
+  const query = async (selection: unknown) => {
+    const { host, calls } = fakeHost(ok(), { 'connection.selection': selection, [KEYS.baseline]: STORE, [KEYS.models]: MODELS });
+    await resolveScope(host, { command: 'scope', args: '' }, () => AT);
+    return (calls.find(call => call.method === 'serviceRequest')!.args[0] as { query: Record<string, string> }).query;
+  };
+  test('the restated provider rule is guards.ts isConnectionId', () => {
+    for (const value of ['splash', 'a'.repeat(120), 'a'.repeat(121), '', 'bad\nid', 'del\u007f', 'omlx-2 (local)']) expect(PROVIDER.test(value)).toBe(isConnectionId(value));
+  });
+  test('a saved provider and runtime reach the query; Automatic, malformed or unreadable choices do not', async () => {
+    expect(await query({ provider: 'splash', runtime: null })).toEqual({ surface: 'background', tier: 'glance', provider: 'splash' });
+    expect(await query({ provider: '', runtime: 'ollama' })).toEqual({ surface: 'background', tier: 'glance', runtime: 'ollama' });
+    expect(await query({ provider: 'bad\nid', runtime: 'not-a-runtime' })).toEqual({ surface: 'background', tier: 'glance' });
+    expect(await query(undefined)).toEqual({ surface: 'background', tier: 'glance' });
+  });
+});
+
 describe('vs usual for /scope', () => {
   test('keys, storage keys and buckets are the ledger and baseline ones', () => {
     expect(USUAL_KEYS).toEqual([KEYS.baseline, KEYS.models]);
@@ -122,5 +141,11 @@ describe('vs usual for /scope', () => {
     expect(usual({ basis: 'last-observed' }, withTtft).map(item => item.metric)).toEqual(['decodeTps', 'prefillTps']);
     expect(usual({ cachedTokens: 30_000 }).map(item => item.metric)).toEqual(['decodeTps']);
     expect(usualFor(snapshot(null), STORE, MODELS)).toEqual([]);
+  });
+  test('decode is compared in the bucket the ledger files the reply under: prompt + output', () => {
+    // 30,000 + 3,000 crosses 32,768: the ledger's replyRow files it in bucket 2, so /scope reads bucket 2, not the prompt's 1.
+    const store = { ...STORE, entries: [...STORE.entries, ['decodeTps|lmstudio|1|2', 60, 66, 20]] };
+    const decode = usualFor(snapshot(reply({ promptTokens: 30_000, outputTokens: 3_000 })), store, MODELS).find(item => item.metric === 'decodeTps');
+    expect(decode).toEqual(expect.objectContaining({ ratio: 0.5, n: 20 }));
   });
 });

@@ -9,6 +9,7 @@ import type { UsageV2 } from '../src/contract/usage.ts';
 import { healthBody, NOT_FOUND_BODY, RETIRED_BODY, RETIRED_STATUS, ROUTES } from '../src/contract/version.ts';
 import { composeSnapshot, snapshotPollMs } from './core/compose.ts';
 import { Lease } from './core/lease.ts';
+import { ENERGY_FLOOR_MS } from './core/scheduler.ts';
 import { Marks, type TurnMark } from './core/marks.ts';
 import { Verdicts } from './core/verdicts.ts';
 import type { HostContext } from './host/sampler.ts';
@@ -119,8 +120,10 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
         alerts: [], alertLog: [] };
       if (sources.history) {
         const key = reading.meta.slot ?? UNSLOTTED;
-        // The slot's segments follow the slowest reader: the cadence handed to this frame or the adapter's own.
-        sources.history.record(key, historyReading(reading), host, { now: serverNow, pollMs: Math.max(pollMs, reading.meta.cadenceMs),
+        // The slot's segments follow the slowest reader: the cadence handed to this frame, the adapter's own, or the
+        // Energy-saving floor the frame may apply on top (the service cannot tell whether it does).
+        const floorMs = query.surface ? ENERGY_FLOOR_MS[query.surface] ?? 0 : 0;
+        sources.history.record(key, historyReading(reading), host, { now: serverNow, pollMs: Math.max(pollMs, reading.meta.cadenceMs, floorMs),
           selection: { ...query.provider !== undefined ? { provider: query.provider } : {}, ...query.runtime ? { runtime: query.runtime } : {} } });
         parts = sources.history.snapshot(key, { since: query.since, leader: view.leader, now: serverNow, verdict: seq => verdicts.get(seq) });
       }
