@@ -53,8 +53,12 @@ const NONE: Allowlist = {};
 export const STATUS_PARAMS: Readonly<Record<StatusReason, Allowlist>> = {
   runtime_unreachable: { port: 'port', sinceAt: 'at' }, authentication_failed: NONE, configuration_missing: NONE,
   unsupported_runtime: NONE, unsupported_contract: NONE, detecting: { port: 'port' }, redetecting: { port: 'port' },
-  runtime_changed: { detected: 'runtime', port: 'port' }, loading: NONE, recovering: { retryInMs: 'ms', crashTrace: 'boolean' },
-  status_stale: NONE, not_admitting: NONE, admin_unauthorized: NONE, lms_unavailable: NONE, metrics_required: NONE, sleeping: NONE,
+  runtime_changed: { detected: 'runtime', port: 'port' }, loading: NONE,
+  // Splash free text (transport.error, metal.failure_reason, the crash-trace path) crosses only as presence booleans.
+  recovering: { retryInMs: 'ms', crashTrace: 'boolean', transportError: 'boolean' },
+  status_stale: { staleSinceAt: 'at', transportError: 'boolean' },
+  not_admitting: { metalUnhealthy: 'boolean', memoryCritical: 'boolean', metalFailure: 'boolean' },
+  admin_unauthorized: NONE, lms_unavailable: NONE, metrics_required: NONE, sleeping: NONE,
 };
 export const ALERT_PARAMS: Readonly<Record<AlertId, Allowlist>> = {
   'runtime-lost': { runtime: 'runtime' }, 'model-unloaded': { model: 'model' },
