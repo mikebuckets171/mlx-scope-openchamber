@@ -2,11 +2,13 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import { version as packageVersion } from '../package.json';
 import type { AlertLogEntryV2, AlertV2 } from '../src/contract/alerts.ts';
+import { hostFromV1 } from '../src/contract/convert-v1.ts';
 import { assertBodyLimit } from '../src/contract/guards.ts';
 import type { HostV2 } from '../src/contract/host.ts';
 import { isBadQuery, parseSnapshotQuery, parseTrendQuery, parseUsageQuery, type TrendQuery, type UsageQuery } from '../src/contract/query.ts';
 import type { TrendV2 } from '../src/contract/trend.ts';
 import type { UsageV2 } from '../src/contract/usage.ts';
+import type { SystemSnapshot } from '../src/system.ts';
 import { healthBody, NOT_FOUND_BODY, RETIRED_BODY, RETIRED_STATUS, ROUTES } from '../src/contract/version.ts';
 import { composeSnapshot } from './core/compose.ts';
 import { Lease } from './core/lease.ts';
@@ -17,8 +19,10 @@ import { busy, type ReadRequest, type ReadSelection, type RuntimeReading } from 
 
 export type Sources = {
   read: (selection?: ReadSelection, request?: ReadRequest) => Promise<RuntimeReading>;
-  /** Host readings for this request's tier (svc-host's HostSampler.sample, or the 1.x sampler through `hostFromV1`). */
-  host: (context: HostContext) => Promise<HostV2 | null>;
+  /** Host readings for this request's tier (svc-host's HostSampler.sample). */
+  host?: (context: HostContext) => Promise<HostV2 | null>;
+  /** The 1.x sampler, kept so 2a-era callers still work; used only without `host`. */
+  system?: () => Promise<SystemSnapshot>;
   /** The newest completion seq assigned; verdicts for later seqs are dropped. */
   completionHead?: () => number;
   /** Active alerts and the alert log for this reading (svc-history's AlertBook); absent → none. */
@@ -91,8 +95,10 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       const reading = await Promise.resolve().then(() => sources.read(selection, { tier: query.tier, detail: query.detail === 'server' }))
         .catch(() => unread(serverNow));
       const { connection } = reading.meta;
-      const host = await Promise.resolve().then(() => sources.host({ tier: query.tier, active: busy(reading.runtime), generation: connection.generation,
-        omlxPort: connection.runtime === 'omlx' ? reading.meta.port : null })).catch(() => null);
+      const context: HostContext = { tier: query.tier, active: busy(reading.runtime), generation: connection.generation,
+        omlxPort: connection.runtime === 'omlx' ? reading.meta.port : null };
+      const host = await Promise.resolve().then(async () => sources.host ? sources.host(context) : sources.system ? hostFromV1(await sources.system()) : null)
+        .catch(() => null);
       const completions = reading.meta.completions?.since(query.since, seq => verdicts.get(seq))
         ?? { instance: service.instance, cursor: 0, reset: query.since !== undefined && query.since > 0, items: [] };
       json(response, 200, composeSnapshot({

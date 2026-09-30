@@ -162,6 +162,12 @@ test('host readings survive a rejected runtime read without leaking the error', 
   expect(JSON.stringify(body)).not.toContain('private');
 });
 
+test('a 2a-era 1.x host sampler still feeds the host reading when no v2 host source is given', async () => {
+  const body = await snapshot(await launch({ read: async () => offline(), system: async () => parseSystemSnapshot({ platform: 'darwin', sampledAt: NOW - 500, memoryTotalGB: 48 })! }));
+  expect(body.host).toEqual(HOST);
+  expect((await snapshot(await launch({ read: async () => offline() }))).host).toBeNull();
+});
+
 test('runtime readings survive rejected host diagnostics', async () => {
   const request = await launch({ ...defaults, host: async () => { throw Error('OS denied'); } });
   const body = await snapshot(request);

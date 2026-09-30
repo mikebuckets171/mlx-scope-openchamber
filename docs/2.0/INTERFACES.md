@@ -209,7 +209,7 @@ type RuntimeReading = AdapterReadingV2 & { meta: { connection: ConnectionV2; por
 new RuntimeClient({ fetchImpl?, readConfig?, now?, monotonicNow?, lmstudioActivity?, descriptors?, exec?, instance?, completions?(instance, next) })
   .read(selection?, request?): Promise<RuntimeReading>; .completionHead; .dispose()
 // service/server.ts
-type Sources = { read(selection?, request?); host(context: HostContext): Promise<HostV2 | null>; completionHead?();
+type Sources = { read(selection?, request?); host?(context: HostContext): Promise<HostV2 | null>; system?() /* 1.x fallback */; completionHead?();
   alerts?({ reading, host, leader, now }): { alerts; alertLog }; trend?; usage? }
 // service/core/compose.ts
 composeSnapshot({ reading, host, completions, alerts, service, serverNow, lease, marksHead, query }); hostCapabilities(host)
