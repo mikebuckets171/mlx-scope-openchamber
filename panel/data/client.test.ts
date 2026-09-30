@@ -58,11 +58,13 @@ test('the client asks GET /v2/snapshot and estimates the service clock from the 
   expect(client.offsetMs).toBe(255);
 });
 
-test('host errors keep the 1.6 diagnostics, including a service that is not running', async () => {
+test('NO_SERVICE after an update is the needs-approval state (S11); other host errors keep the 1.6 diagnostics', async () => {
   const failing = (error: unknown) => new SnapshotClient({ serviceRequest: async () => { throw error; } }, () => 7_000);
   const service = failing(new HostRequestError('NO_SERVICE', 'NO_SERVICE: Allow this extension’s local service in Settings → Extensions.'));
   const error = await service.read({ frame: 'c0ffee42', surface: 'panel' }).catch(caught => caught);
-  expect(service.failure(error)).toMatchObject({ available: false, reason: 'service_failed', sampledAt: 7_000, body: null,
+  expect(service.failure(error)).toMatchObject({ available: false, reason: 'needs_approval', sampledAt: 7_000, body: null,
+    message: 'Allow MLX Scope’s local service in Settings → Extensions.' });
+  expect(failing(null).failure(new HostRequestError('SERVICE_FAILED', 'raw detail'))).toMatchObject({ reason: 'service_failed',
     message: 'The MLX Scope service is stopped or failed. Reopen the extension or check its approval.' });
   expect(failing(null).failure(new Error('raw detail'))).toMatchObject({ reason: 'host_unavailable',
     message: 'OpenChamber did not return a service response. Reopen the panel and try again.' });

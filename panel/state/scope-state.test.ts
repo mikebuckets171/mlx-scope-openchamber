@@ -17,9 +17,9 @@ test('the newest completion survives polls that carry only newer items, and is d
   expect(state.since).toBe(1);
   state.accept(withCompletions(body, { items: [] }));
   expect(state.lastRequest?.seq).toBe(1);
-  // Unavailable readings never show it, but it returns with the next reading.
+  // A finished reply stays through a poll without a body: it carries its own time (2.0: Last reply survives offline).
   state.accept(frameReading('host_timeout', null, 2_000));
-  expect(state.lastRequest).toBeNull();
+  expect(state.lastRequest?.seq).toBe(1);
   state.accept(withCompletions(body, { items: [] }));
   expect(state.lastRequest?.seq).toBe(1);
   for (const change of [{ items: [], cursor: 0 }, { items: [], reset: true }, { items: [], instance: 'ffffffff', cursor: 1 }]) {
@@ -36,11 +36,24 @@ test('a reading from another connection asks for the observations to be cleared 
   state.accept(first);
   expect(state.last).toBe(first); expect(state.lastHost).toBeNull();
   expect(state.isNewConnection(fromSnapshot(bionic({ sampledAt: 1_500 })))).toBe(false);
-  const recreated = fromSnapshot(bionic({ connection: { selected: 'bionic', label: 'Bionic', runtime: 'lmstudio', choices: [], diagnostic: 'ready',
-    coverage: 'requests', generation: '00000000-0000-4000-8000-000000000002' } }));
+  // v2 bumps connection.generation on a connection change, re-detection or an LM Studio model state change.
+  const body = bionic(), recreated = fromSnapshot({ ...body, connection: { ...body.connection, generation: body.connection.generation + 1 } });
   expect(state.isNewConnection(recreated)).toBe(true);
   // Frame-side states name no connection and never clear anything.
   expect(state.isNewConnection(frameReading('runtime_unreachable', null, 3_000))).toBe(false);
   state.clearObservations();
   expect([state.last, state.lastHost, state.lastRequest, state.since, state.isNewConnection(recreated)]).toEqual([null, null, null, undefined, false]);
+});
+
+test('fresh completions are returned once, kept in order, and coverage needs polls without a long gap', () => {
+  const state = new ScopeState(0), body = bionic();
+  expect(state.accept(fromSnapshot(body)).map(item => item.seq)).toEqual([1]);
+  expect(state.accept(fromSnapshot(body))).toEqual([]);
+  const second = { ...body.completions.items[0]!, seq: 2, finishedAt: 1_900 };
+  expect(state.accept(fromSnapshot({ ...body, serverNow: 2_000, completions: { ...body.completions, cursor: 2, items: [second] } })).map(item => item.seq)).toEqual([2]);
+  expect(state.recent.map(item => item.seq)).toEqual([1, 2]);
+  expect(state.covered(1_000, 2_000, 2_500)).toBe(true);
+  expect(state.covered(500, 2_000, 2_500)).toBe(false);
+  state.accept(fromSnapshot({ ...body, serverNow: 9_000 }));
+  expect(state.covered(1_000, 9_000, 2_500)).toBe(false);
 });

@@ -53,7 +53,7 @@ export const parseHostV2 = (value: unknown): HostV2 | null => {
     memTotalBytes: total ? total : undefined,
     // Used above total is a broken reading, not a full machine.
     memUsedBytes: used !== null && (total === null || used <= total) ? used : undefined,
-    mac: platform === undefined || platform === 'macOS' ? part(item.mac, (mac, at): MacV2 => defined({ sampledAt: at,
+    mac: platform === null || platform === 'macOS' ? part(item.mac, (mac, at): MacV2 => defined({ sampledAt: at,
       pressureLevel: opt(pressureLevel(mac.pressureLevel)), wiredLimitBytes: bytes(mac.wiredLimitBytes),
       swapUsedBytes: bytes(mac.swapUsedBytes), swapTotalBytes: bytes(mac.swapTotalBytes),
       wiredBytes: bytes(mac.wiredBytes), compressedBytes: bytes(mac.compressedBytes) })) : undefined,

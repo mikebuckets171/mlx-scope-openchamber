@@ -1,116 +1,157 @@
-import type { CompletionV2 } from '../../src/contract/completion.ts';
-import { runtimeNames } from '../../src/contract/runtime.ts';
-import { cacheSplit } from '../insights.ts';
-import { count, decimalText, EMPTY, gibText, looseRate, percent, rate, uptime, wholeText } from './format.ts';
-import { RESIDENT_PHASES } from './messages.ts';
-import type { CatalogEntry, Reading, ReadingPhase } from './reading.ts';
-import type { Scope } from './scope.ts';
+import type { CapabilityKey } from '../../src/contract/capabilities.ts';
+import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
+import { connName, PHASE, rtName } from './copy.ts';
+import { clock, dur, int, kt, pct, size, tps } from './format.ts';
+import { callouts, tip, type Callout, type Chip, type Tip, type Val } from './parts.ts';
+import { heldBySource } from './scope.ts';
 
-/** The Server tab: runtime memory, session statistics and runtime details, all server-wide. */
-export interface ServerView {
-  memory: { title: string; processLabel: string; modelLabel: string; note: string; process: string; model: string; hidden: boolean; stale: boolean; source: string };
-  session: { title: string; labels: [string, string, string]; values: [string, string, string]; warn: boolean; stale: boolean; state: string; uptime: string };
-  details: { hidden: boolean; ssdCache: string; guard: string; lookup: string };
-}
-export interface ResidentRow { phase: ReadingPhase; name: string; title: string; label: string; reading: string; allocation: string }
-export interface CatalogRow { name: string; loaded: boolean; state: string; format: string; formatLabel: string; context: string }
-export interface InsightView {
-  cache: {
-    hidden: boolean; stale: boolean; reused: string; fresh: string; fill: number; available: boolean; barLabel: string;
-    ram: string; ssd: string; bankState: string; requestState: string; scope: string; tiersHidden: boolean;
-  };
-  advisory: string;
-  residents: { hidden: boolean; count: string; note: string; rows: ResidentRow[] };
-  catalog: { hidden: boolean; title: string; count: string; note: string; rows: CatalogRow[] };
-}
+// The Server tab (plan §5.9, G2 mock): the runtime card with its detection basis, then only the cards the runtime can
+// fill: slots, throughput, speculative decoding, native latency, memory and ceiling, cache, residency or lms instances,
+// the Engines card, the model inventory and the server session. A card without a reading is left out, never zeroed.
 
-const GUARD = ['Not reported', 'Normal', 'Elevated', 'Critical'];
+export type Block =
+  | { kind: 'kv'; rows: Array<{ label: string; value: string; chips?: Chip[] }> }
+  | { kind: 'values'; cols: 2 | 3; big?: boolean; items: Array<{ label: string; value: Val; small?: string }> }
+  | { kind: 'meter'; fraction: number }
+  | { kind: 'bar'; fraction: number }
+  | { kind: 'list'; items: Array<{ title: string; loaded: boolean; chips: Chip[]; reading: string[]; meter: number | null }> };
+export interface ServerCard { key: string; title: string; right: string; tip: Tip | null; blocks: Block[] }
+export interface ServerView { callouts: Callout[]; cards: ServerCard[] }
 
-export const presentServer = (s: Scope): ServerView => {
-  const { runtime, display, current, stale, logActivity, logRequest } = s, splash = runtime === 'splash';
-  const stats = display?.splash, process = splash ? stats?.metalBytes : display?.memory.processBytes, model = splash ? stats?.metalPeakBytes : display?.memory.modelBytes;
-  const statsState = stale ? 'stale' : current?.statsState ?? 'unavailable', uptimeMs = display?.lifetime?.uptimeMs;
-  return {
-    memory: {
-      title: splash ? 'GPU memory (Metal)' : 'Runtime memory', processLabel: splash ? 'Now' : `${s.name} process footprint`, modelLabel: splash ? 'Peak' : 'Model allocation',
-      note: splash ? 'As reported by Splash. Not the same as process memory.' : 'Reported totals can overlap; they are not per-chat memory.',
-      process: gibText(process), model: gibText(model), hidden: process == null && model == null, stale,
-      source: stale ? 'Last reading · not live' : `${s.name} · server-wide`,
-    },
-    session: {
-      title: splash ? 'Requests' : logActivity ? 'Finished responses' : 'Server session',
-      labels: [splash ? 'Server decode' : 'Decode average', splash ? 'Completed' : logActivity ? 'Last first token' : 'Prefill average',
-        splash ? 'Failed' : logActivity ? 'Input reused' : 'Cache efficiency'],
-      values: [rate(splash ? stats?.decodeTps ?? null : display?.averages?.decodeTps),
-        splash ? count(stats?.completed) : logActivity ? logRequest?.ttftMs == null ? EMPTY : `${decimalText(logRequest.ttftMs / 1000)}s` : rate(display?.averages?.prefillTps),
-        splash ? count(stats?.failed) : percent(display?.averages?.cacheFraction == null ? null : display.averages.cacheFraction * 100)],
-      warn: splash && (stats?.failed ?? 0) > 0, stale: splash ? stale : statsState !== 'fresh',
-      state: splash ? stale ? 'Last reading · not live' : 'Server decode is shared across all requests.'
-        : statsState === 'fresh' ? logActivity ? 'Exact figures for responses that finished while MLX Scope was open' : 'Completed requests across all models'
-          : statsState === 'stale' ? 'Last available totals · not live' : logActivity ? 'Figures appear after the first response finishes' : 'Session statistics unavailable',
-      uptime: splash ? 'Since Splash started' : logActivity ? 'This session' : uptimeMs == null ? 'Since start / reset' : uptime(uptimeMs),
-    },
-    details: {
-      // Runtime details list only oMLX-style internals; hidden when none are reported.
-      hidden: display?.cache == null && display?.guardLevel == null && current?.request?.outputTokens == null,
-      ssdCache: gibText(display?.cache?.ssdBytes),
-      guard: display?.guardLevel == null ? 'Not reported' : GUARD[Math.min(3, display.guardLevel)] ?? 'Not reported',
-      lookup: display?.lastMissReason?.replaceAll('_', ' ') ?? 'Not reported',
-    },
-  };
+const v = (text: string, basis: Val['basis'] = 'reported', note?: string): Val => ({ text, basis, ...note ? { note } : {} });
+const REPORTS: ReadonlyArray<readonly [CapabilityKey, string]> = [['request.decodeRate', 'per-request speed'], ['request.prefillProgress', 'prefill progress'],
+  ['server.requests', 'request counts'], ['server.cache', 'cache'], ['server.memory.model', 'model memory'], ['server.memory.metal', 'Metal memory'],
+  ['server.averages', 'server averages'], ['server.latency', 'latency percentiles'], ['server.slots', 'slots'], ['server.rates', 'throughput'],
+  ['server.speculative', 'speculative decoding'], ['server.residency', 'loaded models'], ['server.engines', 'engines'], ['server.usage', 'usage history'],
+  ['server.completions', 'replies']];
+const STATE_WORD: Record<SnapshotV2['status']['state'], string> = { ready: 'Ready', degraded: 'Limited', recovering: 'Recovering', failing: 'Not responding', detecting: 'Detecting', unconfigured: 'Not set up' };
+const RECORDED: Record<string, string> = { reported: 'Reported by the runtime', 'last-observed': 'Last observed by Scope', derived: 'Derived from counters', observed: 'Observed by Scope', estimate: 'Estimated' };
+
+const runtimeCard = (s: SnapshotV2): ServerCard => {
+  const c = s.connection, reports = REPORTS.filter(([key]) => s.capabilities[key]).map(([, text]) => ({ text })), replies = s.capabilities['server.completions'];
+  const rows: Array<{ label: string; value: string; chips?: Chip[] }> = [{ label: 'Runtime', value: connName(c) }];
+  if (c.runtime) rows.push({ label: 'Version', value: c.version ?? 'Not reported' });
+  if (c.engine) rows.push({ label: 'Engine', value: c.engine === 'splash' ? 'Splash runtime pack' : c.engine });
+  rows.push({ label: 'Detected', value: c.detection.probe ? `${c.detection.probe} answered · ${c.detection.confidence} confidence`
+    : c.detection.basis === 'explicit' ? 'Chosen under Connection' : c.detection.basis === 'hint' ? `From its connection name · ${c.detection.confidence} confidence` : `${c.detection.confidence} confidence` });
+  rows.push({ label: 'Reports', value: reports.length ? '' : 'Nothing yet', chips: reports });
+  if (c.runtime) rows.push({ label: 'Replies recorded as', value: replies ? RECORDED[replies.basis] ?? replies.basis : `None · ${rtName(c)} doesn’t report them` });
+  return { key: 'runtime', title: 'Runtime', right: s.status.reason === 'sleeping' ? 'Asleep' : STATE_WORD[s.status.state], tip: null, blocks: [{ kind: 'kv', rows }] };
+};
+const memoryCard = (s: SnapshotV2): ServerCard | null => {
+  const m = s.runtime.memory, held = heldBySource(s);
+  if (m.metalBytes != null) return { key: 'memory', title: 'Runtime memory', right: `Splash · ${held ? 'last observed' : 'reported'}`,
+    tip: tip('mem', 'Runtime memory', ['Splash’s own Metal allocation, kept separate from process memory.', 'Live → This Mac compares it with the macOS GPU wired limit.']),
+    blocks: [{ kind: 'values', cols: 2, items: [{ label: 'Metal memory', value: v(size(m.metalBytes)) }, ...m.metalPeakBytes != null ? [{ label: 'Metal peak', value: v(size(m.metalPeakBytes)) }] : []] }] };
+  if (m.modelBytes == null && m.processBytes == null) return null;
+  const items = [...m.modelBytes != null ? [{ label: 'Model memory', value: v(size(m.modelBytes)) }] : [],
+    ...m.ceilingBytes != null ? [{ label: 'Engine-pool ceiling', value: v(size(m.ceilingBytes)) }] : m.processBytes != null ? [{ label: 'Process memory', value: v(size(m.processBytes)) }] : []];
+  return { key: 'memory', title: 'Runtime memory', right: `${rtName(s.connection)} · reported`,
+    tip: tip('mem', 'Runtime memory', [`${rtName(s.connection)}’s model allocation${m.ceilingBytes != null ? ' against its engine-pool ceiling' : ''}, as it reports them. Not per-chat memory.`,
+      'The process footprint and the macOS GPU wired limit are on Live → This Mac.']),
+    blocks: [{ kind: 'values', cols: 2, items }, ...m.modelBytes != null && m.ceilingBytes ? [{ kind: 'meter' as const, fraction: Math.min(1, m.modelBytes / m.ceilingBytes) }] : []] };
+};
+const cacheCard = (s: SnapshotV2): ServerCard | null => {
+  const request = s.runtime.request, c = s.runtime.server.cache;
+  if (!c) return null;
+  const reuse = request?.promptTokens && request.cachedTokens != null ? request : null;
+  const cacheItems = [...c.ramBytes != null ? [{ label: 'RAM cache', value: v(size(c.ramBytes)), small: c.ramEntries != null ? `${int(c.ramEntries)} entries` : undefined }] : [],
+    ...c.ssdBytes != null ? [{ label: 'SSD cache', value: v(size(c.ssdBytes)), small: c.ssdEntries != null ? `${int(c.ssdEntries)} entries` : undefined }] : []];
+  return { key: 'cache', title: 'Cache & input', right: reuse ? 'Current request' : 'Server cache',
+    tip: tip('cache', 'Cache & input', ['Reused and not-reused tokens are the runtime’s counts for the current request.', 'Unreused input is not necessarily the size of a prefill stage.']),
+    blocks: [...reuse ? [{ kind: 'values' as const, cols: 2 as const, big: true, items: [{ label: 'Reused tokens', value: v(int(reuse.cachedTokens!)) },
+      { label: 'Not reused', value: v(int(reuse.promptTokens! - reuse.cachedTokens!)) }] }, { kind: 'bar' as const, fraction: reuse.cachedTokens! / reuse.promptTokens! }] : [],
+    ...cacheItems.length ? [{ kind: 'values' as const, cols: 2 as const, items: cacheItems }] : []] };
+};
+const residencyCard = (s: SnapshotV2, now: number): ServerCard | null => {
+  const list = s.runtime.residency;
+  if (!list.length) return null;
+  const source = list[0]!.source, many = list.length > 1;
+  const items = list.map(m => m.source === 'ollama-ps' ? {
+    title: m.model, loaded: true, chips: m.unloadsAt != null ? [{ text: `unloads in ${dur(Math.max(0, m.unloadsAt - now))}` }] : [],
+    reading: [...m.bytes != null ? [`${size(m.bytes)} loaded`] : [], ...m.gpuResidentBytes != null ? [`GPU-resident (Ollama-reported) ${size(m.gpuResidentBytes)}${m.bytes ? ` · ${pct(m.gpuResidentBytes / m.bytes)}` : ''}`] : []],
+    meter: m.gpuResidentBytes != null && m.bytes ? Math.min(1, m.gpuResidentBytes / m.bytes) : null,
+  } : {
+    title: m.model, loaded: true, chips: [{ text: PHASE[m.phase], ...m.phase !== 'idle' ? { tone: 'accent' as const } : {} }],
+    reading: (source === 'lms-ps' || many) && m.bytes != null ? [`${size(m.bytes)} ${source === 'lms-ps' ? 'loaded' : 'allocated'}`] : [], meter: null,
+  });
+  const title = source === 'lms-ps' ? 'Loaded instances' : 'Loaded models';
+  const count = s.runtime.residencyCount ?? list.length;
+  return { key: 'residency', title, right: source === 'lms-ps' ? 'lms ps · refreshed on load/unload' : `${count} loaded`,
+    tip: tip('resident', title, source === 'ollama-ps' ? ['Ollama reports residency only: how much of each model it holds on the GPU.', 'Apple silicon shares one memory pool, so GPU-resident is not a separate memory.']
+      : source === 'lms-ps' ? ['From LM Studio’s command line with the no-wake server path, so it never starts Bionic.', 'Context sizes and formats are in the model inventory below.']
+        : ['Models the runtime reports as loaded. Not assigned to a chat.', !many && 'With one model loaded, its memory is the Runtime memory figure.']),
+    blocks: [{ kind: 'list', items }] };
+};
+const sessionCard = (s: SnapshotV2, now: number): ServerCard | null => {
+  const a = s.runtime.server.averages;
+  if (!a) return null;
+  const held = heldBySource(s), basis = held ? 'last-observed' as const : 'reported' as const;
+  const since = held && s.status.sinceAt ? `before ${clock(s.status.sinceAt, now)}` : a.uptimeMs ? `${dur(a.uptimeMs)} · since start` : 'Since the runtime started';
+  const items = [...a.decodeTps != null ? [{ label: 'Decode average', value: v(`${tps(a.decodeTps)} tok/s`, basis) }] : [],
+    ...a.prefillTps != null ? [{ label: 'Prefill average', value: v(`${tps(a.prefillTps)} tok/s`, basis) }] : [],
+    ...a.cacheEfficiencyFraction != null ? [{ label: 'Cache efficiency', value: v(pct(a.cacheEfficiencyFraction), basis) }] : [],
+    ...a.requestsTotal != null ? [{ label: 'Completed', value: v(int(a.requestsTotal), basis), small: a.failedTotal ? `${int(a.failedTotal)} failed` : undefined }] : []];
+  return items.length ? { key: 'session', title: 'Server session', right: since, blocks: [{ kind: 'values', cols: 2, items }],
+    tip: tip('session', 'Server session', ['Across all models and apps that used this runtime, as the runtime reports them.']) } : null;
+};
+const latencyCard = (s: SnapshotV2): ServerCard | null => {
+  const h = s.runtime.server.histograms;
+  if (!h || !h.ttftMs && !h.itlMs) return null;
+  const q = (label: string, x: NonNullable<typeof h.ttftMs>) => ({ label: `${label} p50 · p95`, value: v(`${dur(x.p50)} · ${dur(x.p95)}`), small: `n ${int(x.n)}` });
+  return { key: 'latency', title: 'Latency', right: heldBySource(s) ? 'Splash native · last observed' : 'Splash native',
+    tip: tip('latency', 'Latency', ['Splash’s own percentiles over its last 4,096 samples, across all clients.', 'Splash reports p95; Scope’s own baselines use p90.']),
+    blocks: [{ kind: 'values', cols: 2, items: [...h.ttftMs ? [q('TTFT', h.ttftMs)] : [], ...h.itlMs ? [q('Between tokens', h.itlMs)] : []] }] };
+};
+const slotsCard = (s: SnapshotV2): ServerCard | null => {
+  const slots = s.runtime.slots;
+  if (!slots.length) return null;
+  const busy = slots.filter(slot => slot.busy).length;
+  return { key: 'slots', title: 'Slots', right: `${busy} of ${slots.length} busy`,
+    tip: tip('slots', 'Slots', ['Numbers only: Scope never reads prompts from /slots.', 'It polls /slots only while /metrics shows work, so a sleeping server stays asleep.']),
+    blocks: [{ kind: 'list', items: slots.map(slot => ({ title: `Slot ${slot.id}`, loaded: false, meter: null,
+      chips: [{ text: slot.busy ? 'Busy' : 'Idle', ...slot.busy ? { tone: 'accent' as const } : {} }],
+      reading: [slot.busy ? [slot.decodedTokens != null && `${int(slot.decodedTokens)} decoded`, slot.promptTokens != null && `${kt(slot.promptTokens)} prompt`].filter(Boolean).join(' · ') || 'Busy' : 'Waiting',
+        `${kt(slot.contextWindowTokens)} context`] })) }] };
+};
+const ratesCard = (s: SnapshotV2): ServerCard | null => {
+  const r = s.runtime.server.rates, server = s.runtime.server;
+  if (!r) return null;
+  return { key: 'rates', title: 'Server throughput', right: `last ${Math.round(r.windowMs / 1_000)} s`,
+    tip: tip('rates', 'Server throughput', [`Worked out from ${rtName(s.connection)}’s running totals, never its windowed gauges (every scrape resets those).`]),
+    blocks: [{ kind: 'values', cols: 3, items: [...r.promptTps != null ? [{ label: 'Prompt', value: v(`${int(r.promptTps)} tok/s`, 'derived') }] : [],
+      ...r.decodeTps != null ? [{ label: 'Decode', value: v(`${tps(r.decodeTps)} tok/s`, 'derived') }] : [],
+      ...server.active != null ? [{ label: 'Processing · deferred', value: v(`${server.active} · ${server.queued ?? 0}`) }] : []] }] };
+};
+const specCard = (s: SnapshotV2): ServerCard | null => {
+  const sp = s.runtime.server.speculative;
+  if (!sp) return null;
+  return { key: 'spec', title: 'Speculative decoding', right: `last ${Math.max(1, Math.round(sp.windowMs / 60_000))} min`,
+    tip: tip('spec', 'Speculative decoding', ['Server-wide, from llama-server’s counters.', 'Higher acceptance means the draft model guesses more tokens that the main model keeps.']),
+    blocks: [{ kind: 'values', cols: 2, items: [{ label: 'Draft acceptance', value: v(pct(sp.acceptanceFraction), 'derived') },
+      { label: 'Accepted', value: v(`${int(sp.acceptedTokens)} of ${int(sp.draftedTokens)}`) }] }, { kind: 'meter', fraction: sp.acceptanceFraction }] };
+};
+const enginesCard = (s: SnapshotV2): ServerCard | null => {
+  const engines = s.runtime.engines;
+  if (!engines.length) return null;
+  return { key: 'engines', title: 'Engines', right: 'lms runtime ls · cached 10 min',
+    tip: tip('engines', 'Engines', ['Read only while this tab is visible. Scope never installs, selects or updates engines.']),
+    blocks: [{ kind: 'list', items: engines.map(engine => ({ title: `${engine.name} ${engine.version}`, loaded: false, reading: [], meter: null,
+      chips: [{ text: engine.selected ? 'In use' : 'Installed', ...engine.selected ? { tone: 'accent' as const } : {} }] })) }] };
+};
+const catalogCard = (s: SnapshotV2): ServerCard | null => {
+  const catalog = s.runtime.catalog;
+  if (!catalog.length) return null;
+  return { key: 'catalog', title: 'Model inventory', right: `${catalog.filter(model => model.loaded).length} loaded · ${catalog.length} listed`, tip: null,
+    blocks: [{ kind: 'list', items: catalog.map(model => ({ title: model.name, loaded: model.loaded === true, meter: null,
+      chips: [...model.format ? [{ text: model.format, ...model.format === 'splash' ? { tone: 'accent' as const } : {} }] : [],
+        ...model.vision ? [{ text: `vision${model.inputModalities?.length ? ` · ${model.inputModalities.join(' + ')}` : ''}` }] : []],
+      reading: [model.loaded ? 'Loaded' : model.loaded === false ? 'Available' : 'Listed', ...model.contextWindowTokens ? [`${kt(model.contextWindowTokens)} context`] : []] })) }] };
 };
 
-// Loaded first, then Splash-format models, then everything else; order is otherwise preserved.
-const rank = (model: CatalogEntry) => model.loaded ? 0 : model.format === 'splash' ? 1 : 2;
-
-/** Cache reuse, the loaded-model roster and the model inventory, from the newest reading only. */
-export const presentInsights = (reading: Reading, lastRequest: CompletionV2 | null): InsightView => {
-  const current = reading.available ? reading : null, request = current?.request;
-  const runtimeName = current?.runtime ? runtimeNames[current.runtime] : 'Runtime';
-  const lastResponse = request?.promptTokens == null && lastRequest?.promptTokens != null && lastRequest.cachedTokens != null ? lastRequest : null;
-  const split = cacheSplit(request?.promptTokens, request?.cachedTokens) ?? (lastResponse ? cacheSplit(lastResponse.promptTokens, lastResponse.cachedTokens) : null);
-  const bank = current?.cache ?? null;
-  const models = current?.residents ?? [], reported = current?.residentCount ?? null;
-  const splashHost = current?.runtime === 'lmstudio' && current.link?.engine === 'splash';
-  const catalog = splashHost ? [...current.catalog].sort((a, b) => rank(a) - rank(b)) : current?.catalog ?? [];
-  return {
-    cache: {
-      // Hidden for runtimes that report neither request reuse nor cache totals.
-      hidden: current !== null && split === null && !bank, stale: !current,
-      reused: split ? wholeText(split.reused) : EMPTY, fresh: split ? wholeText(split.fresh) : EMPTY, fill: split?.percent ?? 0, available: split !== null,
-      barLabel: split ? `${wholeText(split.reused)} input tokens reused; ${wholeText(split.fresh)} not reused` : 'Cache reuse unavailable for the current request',
-      ram: gibText(bank?.ramBytes), ssd: gibText(bank?.ssdBytes),
-      bankState: bank ? current?.statsState === 'fresh' ? 'Server cache · categories can overlap' : 'Last cache totals · not live'
-        : current ? 'Cache totals not reported by this runtime.' : 'Cache totals not live',
-      requestState: split ? `${decimalText(split.percent)}% of input reused${lastResponse ? ' · last response' : ''}` : 'Waiting for the next request',
-      scope: lastResponse ? 'Last response' : 'Current request', tiersHidden: current !== null && !bank,
-    },
-    advisory: current?.guardLevel && current.guardLevel >= 2
-      ? `${runtimeName} memory guard elevated. This is the runtime’s guard, not macOS memory pressure.`
-      : request?.prefillStale === true ? 'Prefill progress has not advanced. The stage estimate is withheld until fresh progress arrives.' : '',
-    residents: {
-      hidden: models.length === 0 || current?.link?.coverage === 'inventory',
-      count: reported == null ? '' : `${reported} loaded`,
-      note: (reported ?? 0) > models.length ? `Showing ${models.length} of ${reported} reported models. Read-only; no model switching.`
-        : 'Reported models · not assigned to a selected chat',
-      rows: models.map(model => {
-        const fraction = model.prefillFraction;
-        const progress = model.phase === 'prefill' && fraction !== null
-          ? `${fraction < 1 && fraction > .99 ? '<1' : Math.max(0, 100 - Math.floor(fraction * 100 + Number.EPSILON * 100))}% left${model.stale ? ' · last reading' : ''}` : null;
-        return { phase: model.phase, name: model.model.split('/').at(-1) ?? model.model, title: model.model, label: RESIDENT_PHASES[model.phase] ?? 'Unavailable',
-          reading: progress ?? (model.tps !== null ? looseRate(model.tps)
-            : [model.active === null ? null : `${model.active} active`, model.queued === null ? null : `${model.queued} queued`].filter(Boolean).join(' · ')),
-          allocation: model.bytes === null ? '' : `${gibText(model.bytes)} allocated` };
-      }),
-    },
-    catalog: {
-      hidden: !current || current.runtime === 'splash' || catalog.length === 0 || (current.link?.coverage ?? 'requests') === 'requests' && !splashHost,
-      title: current?.runtime === 'mlx-lm' ? 'Available models' : splashHost ? 'Splash models' : 'Model inventory',
-      count: splashHost ? `${catalog.filter(model => model.format === 'splash').length} Splash · ${catalog.filter(model => model.loaded).length} loaded` : `${catalog.length} reported`,
-      note: splashHost ? 'Load or switch models in Bionic. MLX Scope only watches.' : 'Listed models are not necessarily in use. Context is the configured or maximum length.',
-      rows: catalog.map(model => ({ name: model.name, loaded: model.loaded === true, state: model.loaded === null ? '' : model.loaded ? 'Loaded' : 'Not loaded',
-        format: model.format ?? '', formatLabel: model.format === 'splash' ? 'Splash' : model.format?.toUpperCase() ?? '',
-        context: model.contextWindowTokens === null ? '' : `${wholeText(model.contextWindowTokens)} context` })),
-    },
-  };
+export const presentServer = (snapshot: SnapshotV2 | null, now: number, extra: readonly Callout[] = []): ServerView => {
+  if (!snapshot) return { callouts: callouts(null, now, extra), cards: [] };
+  const cards = [runtimeCard(snapshot), slotsCard(snapshot), ratesCard(snapshot), specCard(snapshot), latencyCard(snapshot), memoryCard(snapshot),
+    cacheCard(snapshot), residencyCard(snapshot, now), enginesCard(snapshot), catalogCard(snapshot), sessionCard(snapshot, now)];
+  return { callouts: callouts(snapshot, now, extra), cards: cards.filter((card): card is ServerCard => card !== null) };
 };

@@ -25,3 +25,19 @@ test('rapid writes keep click order, recover after failure, and touch no other k
   await Promise.all([first, last]);
   expect(calls).toEqual([['view.efficient', true], ['view.efficient', false]]);
 });
+
+test('pref.v2 is read once, written only on a set, keeps keys other frames or tracks wrote, and never blocks on a failure', async () => {
+  const { PrefsV2 } = await import('./preferences.ts');
+  const store = new Map<string, unknown>([['pref.v2', { retentionDays: 30, toasts: 'all' }]]), writes: unknown[] = [];
+  const prefs = new PrefsV2({ get: async key => store.get(key), set: async (key, value) => { writes.push(value); store.set(key, value); } });
+  expect(await prefs.load()).toMatchObject({ toasts: 'all', tipDismissed: undefined });
+  expect(writes).toEqual([]);
+  store.set('pref.v2', { retentionDays: 30, toasts: 'all', recordingPaused: true });
+  await prefs.set({ tipDismissed: true });
+  expect(store.get('pref.v2')).toEqual({ retentionDays: 30, toasts: 'all', recordingPaused: true, tipDismissed: true });
+  expect(prefs.value).toMatchObject({ tipDismissed: true, toasts: 'all' });
+  const broken = new PrefsV2({ get: async () => { throw Error('HOST_REJECTED'); }, set: async () => { throw Error('HOST_REJECTED'); } });
+  expect(await broken.load()).toMatchObject({ statusExpanded: undefined });
+  await broken.set({ statusExpanded: true }).catch(() => {});
+  expect(broken.value.statusExpanded).toBe(true);
+});

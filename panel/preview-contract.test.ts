@@ -59,7 +59,7 @@ test('the preview host answers /v2/snapshot with the bridge\'s v2 body as a stri
   expect(fromSnapshot(body!)).toMatchObject({ available: true, runtime: 'omlx', phase: 'prefill', model: 'Qwen3.8-27B-4bit',
     request: { prefillProcessedTokens: 5_824, prefillTotalTokens: 9_100, prefillEtaMs: 17_750 } });
   const offline = fromSnapshot(parseSnapshotV2(JSON.parse(answer('?state=offline&connections=1', '/v2/snapshot').body as string))!);
-  expect(offline).toMatchObject({ available: false, reason: 'runtime_unreachable', link: { selected: 'omlx', coverage: 'requests' } });
+  expect(offline).toMatchObject({ available: false, reason: 'runtime_unreachable', link: { selected: 'omlx' } });
 });
 
 test('the preview host retires /snapshot with 410 and can stand in for a 1.6 or a future service', () => {
