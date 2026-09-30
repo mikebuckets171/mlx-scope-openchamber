@@ -12,7 +12,7 @@ import type { SystemSnapshot } from '../src/system.ts';
 import { healthBody, NOT_FOUND_BODY, RETIRED_BODY, RETIRED_STATUS, ROUTES } from '../src/contract/version.ts';
 import { composeSnapshot } from './core/compose.ts';
 import { Lease } from './core/lease.ts';
-import { Marks } from './core/marks.ts';
+import { Marks, type TurnMark } from './core/marks.ts';
 import { Verdicts } from './core/verdicts.ts';
 import type { HostContext } from './host/sampler.ts';
 import { busy, type ReadRequest, type ReadSelection, type RuntimeReading } from './runtime-client.ts';
@@ -28,7 +28,7 @@ export type Sources = {
   /** Active alerts and the alert log for this reading (svc-history's AlertBook); absent → none. */
   alerts?: (input: { reading: RuntimeReading; host: HostV2 | null; leader: boolean; now: number }) => { alerts: AlertV2[]; alertLog: AlertLogEntryV2[] };
   /** `/v2/trend` and `/v2/usage` bodies (svc-history); absent → 501 until they are served. */
-  trend?: (query: TrendQuery) => Promise<TrendV2>;
+  trend?: (query: TrendQuery, context: { marks: readonly TurnMark[]; now: number }) => Promise<TrendV2>;
   usage?: (query: UsageQuery) => Promise<UsageV2>;
 };
 export type ServerOptions = { version?: string; instance?: string; now?: () => number; monotonic?: () => number };
@@ -45,7 +45,7 @@ const NOT_IMPLEMENTED = { error: 'not_implemented' } as const;
 const NO_ALERTS = { alerts: [], alertLog: [] };
 
 /** A reading the collector could not produce at all: nothing about the runtime is known, so nothing is claimed. */
-const unread = (at: number): RuntimeReading => ({
+export const unread = (at: number): RuntimeReading => ({
   at, status: { state: 'failing', reason: 'runtime_unreachable', params: {} }, capabilities: {}, identity: {}, completions: [],
   runtime: { phase: 'unknown', request: null, server: { active: null, queued: null }, memory: {}, residency: [], slots: [], catalog: [], engines: [] },
   meta: { connection: { id: 'auto', label: 'Automatic', runtime: null, generation: 0, choices: [], detection: { basis: 'probe', confidence: 'low' } },
@@ -84,7 +84,8 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
         if (url.pathname === ROUTES.trend) {
           const query = parseTrendQuery(url.searchParams);
           if (isBadQuery(query)) json(response, 400, query);
-          else if (sources.trend) json(response, 200, await sources.trend(query)); else json(response, 501, NOT_IMPLEMENTED);
+          else if (sources.trend) json(response, 200, await sources.trend(query, { marks: marks.entries(), now: now() }));
+          else json(response, 501, NOT_IMPLEMENTED);
         } else {
           const query = parseUsageQuery(url.searchParams);
           if (isBadQuery(query)) json(response, 400, query);

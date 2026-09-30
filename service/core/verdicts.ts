@@ -1,8 +1,8 @@
 import type { CompletionV2 } from '../../src/contract/completion.ts';
 import type { SnapshotQuery } from '../../src/contract/query.ts';
 
-/** One per completion the service ring can hold. */
-export const VERDICT_LIMIT = 128;
+/** One per completion the service can hold: 128 in each of the 8 slots' rings, which share one seq space. */
+export const VERDICT_LIMIT = 1_024;
 export type VerdictV2 = NonNullable<CompletionV2['verdict']>;
 
 /**
