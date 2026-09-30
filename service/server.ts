@@ -11,7 +11,7 @@ import type { SystemSnapshot } from '../src/system.ts';
 import { unavailableTelemetry } from '../src/telemetry.ts';
 import { composeSnapshot } from './core/compose.ts';
 import { Lease } from './core/lease.ts';
-import { Marks } from './core/marks.ts';
+import { Marks, type TurnMark } from './core/marks.ts';
 import { Verdicts } from './core/verdicts.ts';
 import type { RuntimeReading } from './runtime-client.ts';
 
@@ -21,7 +21,7 @@ export type Sources = {
   /** The newest completion seq assigned; verdicts for later seqs are dropped. */
   completionHead?: () => number;
   /** `/v2/trend` and `/v2/usage` bodies (svc-history); absent → 501 until they are served. */
-  trend?: (query: TrendQuery) => Promise<TrendV2>;
+  trend?: (query: TrendQuery, context: { marks: readonly TurnMark[]; now: number }) => Promise<TrendV2>;
   usage?: (query: UsageQuery) => Promise<UsageV2>;
 };
 export type ServerOptions = { version?: string; instance?: string; now?: () => number; monotonic?: () => number };
@@ -58,7 +58,8 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
         if (url.pathname === ROUTES.trend) {
           const query = parseTrendQuery(url.searchParams);
           if (isBadQuery(query)) json(response, 400, query);
-          else if (sources.trend) json(response, 200, await sources.trend(query)); else json(response, 501, NOT_IMPLEMENTED);
+          else if (sources.trend) json(response, 200, await sources.trend(query, { marks: marks.entries(), now: now() }));
+          else json(response, 501, NOT_IMPLEMENTED);
         } else {
           const query = parseUsageQuery(url.searchParams);
           if (isBadQuery(query)) json(response, 400, query);

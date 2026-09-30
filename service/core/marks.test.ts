@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import { MARK_DEDUPE_MS, MARK_FUTURE_MS, MARK_PAST_MS, MARK_RING, Marks } from './marks.ts';
 import { Verdicts, VERDICT_LIMIT } from './verdicts.ts';
+import { COMPLETION_RING } from '../history/completions.ts';
+import { HISTORY_SLOTS } from '../history/history.ts';
 
 const NOW = 1_790_690_700_000;
 const mark = (phase: 'started' | 'completed' | 'failure', at: number, tag = 'aaaaaaaa') => ({ phase, at, tag });
@@ -28,7 +30,7 @@ test('marks outside the trend window or ahead of the service clock are not store
   expect(marks.head).toBe(2);
 });
 
-test('verdicts: only for assigned seqs, the first stands, an armed capture replaces it, and at most 128 are kept', () => {
+test('verdicts: only for assigned seqs, the first stands, an armed capture replaces it, and one per completion the rings can hold', () => {
   const verdicts = new Verdicts();
   verdicts.record([{ seq: 3, attr: 'inferred', reason: null }, { seq: 4, attr: 'withheld', reason: 'overlap' }], NOW, 3);
   expect([verdicts.get(3), verdicts.get(4)]).toEqual([{ attr: 'inferred', at: NOW }, undefined]);
@@ -38,7 +40,8 @@ test('verdicts: only for assigned seqs, the first stands, an armed capture repla
   expect([verdicts.get(3), verdicts.get(4)]).toEqual([{ attr: 'armed', at: NOW + 2 }, { attr: 'withheld', reason: 'overlap', at: NOW + 2 }]);
   verdicts.record([{ seq: 3, attr: 'armed', reason: null }], NOW + 3, 4);
   expect(verdicts.get(3)?.at).toBe(NOW + 2);
-  verdicts.record(Array.from({ length: VERDICT_LIMIT }, (_, index) => ({ seq: 1_000 - index, attr: 'inferred' as const, reason: null })), NOW, 1_000);
+  verdicts.record(Array.from({ length: VERDICT_LIMIT }, (_, index) => ({ seq: 5_000 - index, attr: 'inferred' as const, reason: null })), NOW, 5_000);
   // The oldest completions leave first.
-  expect([verdicts.get(3), verdicts.get(4), verdicts.get(1_000 - VERDICT_LIMIT + 1)]).toEqual([undefined, undefined, { attr: 'inferred', at: NOW }]);
+  expect([verdicts.get(3), verdicts.get(4), verdicts.get(5_000 - VERDICT_LIMIT + 1)]).toEqual([undefined, undefined, { attr: 'inferred', at: NOW }]);
+  expect(VERDICT_LIMIT).toBe(COMPLETION_RING * HISTORY_SLOTS);
 });

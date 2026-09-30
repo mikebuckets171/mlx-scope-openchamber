@@ -164,28 +164,50 @@ parseMacmonLine(line, sampledAt); createPowerStream({ exec, macmon, now }): Powe
 
 ```ts
 // ring.ts
-TREND_BUCKET_MS = 2_000; TREND_CAPACITY = 1_800
-type TrendSample = Partial<Record<TrendSeries, number>>
-trendSample(runtime: RuntimeV2, host: HostV2 | null): TrendSample     // unreported → absent, never 0
-class TrendRing { constructor(cadenceMs: () => number); append(at, sample); query({ windowMs, series }, now, marks: TurnMark[]): TrendV2 }
+TREND_BUCKET_MS = 2_000; TREND_CAPACITY = 1_800; TREND_SPAN_MS; SEGMENT_BREAK_CADENCES = 2.5; HOST_FRESH_MS = 30_000
+type TrendSample = Partial<Record<TrendSeries, number>>; type TrendBases = Partial<Record<TrendSeries, Basis>>
+SERIES_CAPABILITY; trendBases(capabilities): TrendBases; HOST_SERIES_BASIS
+trendSample(runtime: RuntimeV2, host: HostV2 | null, at = runtime.sampledAt): TrendSample   // unreported → absent, never 0
+class TrendRing { constructor(cadenceMs: () => number); breakMs(); append(at, sample, bases?): boolean /* continues the segment */;
+  query({ windowMs, series }, now, marks: TurnMark[]): TrendV2 }
 // completions.ts
-COMPLETION_RING = 128
-class CompletionRing { constructor(instance); get head(); append(draft, host): CompletionV2; since(since, verdict): CompletionsV2 }
-class RequestWatch { observe(runtime: RuntimeV2, at): CompletionDraft[]; reset() }       // last-observed detector
-class HostCofactors { observe(host: HostV2 | null, at); over(startedAt, finishedAt): CompletionV2['host'] }
+COMPLETION_RING = 128; WATCH_GAP_MS = 12_500; COMPLETION_SIGNALS: Record<RuntimeKind, { basis; source: 'adapter' | 'watch' } | null>
+acceptDraft(kind, draft): CompletionDraft | null             // wire shape, and only the runtime's own basis
+class CompletionSequence { get head(); next() }              // one seq space per service instance, shared by every slot
+class CompletionRing { constructor(instance, sequence?); get head(); append(draft, host): CompletionV2; since(since, verdict): CompletionsV2 }
+class RequestWatch { constructor(gapMs?); observe(runtime: RuntimeV2, at): CompletionDraft[]; reset() }   // last-observed detector
+interface CounterRead { at; completed; abandoned?; active; queued; model; ttftCount?; ttftSumMs?; promptTokens?; cachedTokens?; outputTokens?; prefillMs?; decodeMs? }
+counterCompletion(before: CounterRead, after: CounterRead): CompletionDraft | null   // the S7 Δ rule; ad-splash maps /status to CounterRead
+class HostCofactors { constructor(energy?: (from, to) => { energyJ, coverage } | null); observe(host: HostV2 | null, at); over(startedAt, finishedAt): CompletionV2['host'] }
 // alerts.ts
-TOAST_LIMITS = { perMinute: 1, perHour: 3 }
-interface AlertInput { at; status: StatusV2; phase: Phase; loadedModels: number | null; host: HostV2 | null; covered: boolean }
-class AlertBook { evaluate(input); view(leader, now): { alerts: AlertV2[]; alertLog: AlertLogEntryV2[] } }
+TOAST_LIMITS = { perMinute: 1, perHour: 3 }; ALERT_RULES (severity, badge, toast, dwell, hysteresis, cooldown per AlertId); SWAP_GROWTH
+interface AlertInput { at; status: StatusV2; phase: Phase; loadedModels: number | null; host: HostV2 | null; covered: boolean;
+  key?; runtime?; model?; request?: { prefillStale? }; guardLevel? }
+class AlertBook { constructor(limiter?); evaluate(input); view(leader, now, key?): { alerts: AlertV2[]; alertLog: AlertLogEntryV2[] } }
 class ToastLimiter { allow(now): boolean }
 // usage-cache.ts
-USAGE_CACHE_MS = 300_000
+USAGE_CACHE_MS = 300_000; USAGE_RETRY_MS = 30_000
 class UsageCache { constructor(now, ttlMs?); get(query: UsageQuery, read: () => Promise<UsageV2>): Promise<UsageV2> }
+// history.ts (added: the one object the snapshot branch feeds and reads)
+HISTORY_SLOTS = SLOT_CAPACITY (8)
+interface HistoryReading { at; kind: RuntimeKind | null; status; capabilities; runtime: RuntimeV2; completions?: CompletionDraft[]; guardLevel? }
+class ServiceHistory { constructor(instance, { energy? }?); get head();
+  record(slotKey, reading: HistoryReading, host: HostV2 | null, { now, pollMs?, selection? }): void;   // once per /v2/snapshot request
+  snapshot(slotKey, { since?, leader, now, verdict }): { completions; alerts; alertLog };
+  trend(query: TrendQuery, now, marks): TrendV2; readonly alerts: AlertBook }
+historySources(history, { now, readUsage?, usageCacheMs? }): { trend, usage?, completionHead }   // spread into Sources
 ```
 
-Routes: `Sources` in `service/server.ts` now has optional `trend?(query: TrendQuery): Promise<TrendV2>` and
-`usage?(query: UsageQuery): Promise<UsageV2>`; absent → `501 not_implemented` (today's behaviour), present → `200` body.
-svc-history builds those two functions; svc-2b passes them in `service/main.ts` at integration.
+Wiring for svc-2b (snapshot branch, once per request after the collection):
+`history.record(slot.key, { at: reading.at, kind, status, capabilities, runtime, completions: reading.completions }, host,
+{ now: serverNow, pollMs: Math.max(nextPollMs, adapterCadence), selection: { provider, runtime } })`, then
+`history.snapshot(slot.key, { since: query.since, leader: lease.leader, now: serverNow, verdict })` for the body's
+`completions`, `alerts` and `alertLog`; `verdicts.record` takes `history.head`. `sources = { read, system, ...historySources(history, { now, readUsage }) }`, where
+`readUsage` is ad-omlx's `readOmlxUsage` for an oMLX slot and `unavailableUsage('not_omlx', …)` otherwise.
+
+Routes: `Sources` in `service/server.ts` has optional `trend?(query: TrendQuery, context: { marks; now }): Promise<TrendV2>`
+(svc-history added the `context` argument: the server's turn marks and clock) and `usage?(query: UsageQuery): Promise<UsageV2>`;
+absent → `501 not_implemented`, present → `200` body.
 
 ### 3.6 What `composeSnapshot` will take (svc-2b, target for svc-host/svc-history)
 
