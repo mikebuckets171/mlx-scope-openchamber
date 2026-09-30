@@ -87,6 +87,13 @@ describe('/scope text (plan §5.8)', () => {
     expect(label({ attr: 'armed', at: AT }, [])).toEqual(['Label: armed Next reply', 'vs usual: no baseline yet']);
     expect(label(undefined, null)).toEqual(['Label: server-wide (not labelled)', 'vs usual: reply history unavailable']);
   });
+  test('a pressure or thermal level outside the macOS scale is left out, not named', () => {
+    const mac = (pressure: number, thermal: number) => text(body(value => { value.host.mac.pressureLevel = pressure; value.host.thermal.level = thermal; }))
+      .split('\n').find(line => line.startsWith('This Mac'));
+    expect(mac(3, 2.5)).toBe('This Mac: GPU 62% busy, GPU memory 30 GiB allocated (includes other apps, not model size), GPU values driver-reported');
+    expect(mac(4, 4)).toContain('memory pressure critical');
+    expect(mac(4, 4)).toContain('thermal pressure sleeping');
+  });
   test('never says VRAM, and GPU memory is always driver-reported, not model size', () => {
     const value = text(fullSnapshot());
     expect(value).not.toMatch(/vram/i);

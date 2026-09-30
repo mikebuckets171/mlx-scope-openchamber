@@ -118,7 +118,7 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
   const alloc = value(host, 'gpu.allocBytes', 'host.gpuMemory'), busy = value(host, 'gpu.busyFraction', 'host.gpuBusy', 1);
   line('This Mac', [level !== null && PRESSURE[level] && `memory pressure ${PRESSURE[level]}`, busy !== null && `GPU ${pct(busy)} busy`,
     alloc !== null && `GPU memory ${round(alloc / 1024 ** 3)} GiB allocated (includes other apps, not model size)`,
-    (busy ?? alloc) !== null && 'GPU values driver-reported', thermal !== null && `thermal pressure ${THERMAL[thermal]}`]);
+    (busy ?? alloc) !== null && 'GPU values driver-reported', thermal !== null && THERMAL[thermal] && `thermal pressure ${THERMAL[thermal]}`]);
   line('Alerts', [list(body.alerts).map(item => code(obj(item)?.id)).filter(Boolean).join(', ') || 'none']);
   return lines;
 };
