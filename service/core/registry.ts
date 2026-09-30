@@ -1,10 +1,12 @@
 import type { RuntimeKind } from '../../src/contract/runtime.ts';
 import { llamaDescriptor } from '../adapters/llama-server.ts';
+import { lmstudioDescriptor } from '../adapters/lmstudio.ts';
 import { mlxLmDescriptor } from '../adapters/mlx-lm.ts';
 import { ollamaDescriptor } from '../adapters/ollama.ts';
+import { omlxDescriptor } from '../adapters/omlx.ts';
+import { splashDescriptor } from '../adapters/splash.ts';
 import { vllmMlxDescriptor } from '../adapters/vllm-mlx.ts';
 import { DETECT_ORDER, type DescriptorV2, type DetectProbe, type RuntimeGet, type RuntimeReply } from './adapter-v2.ts';
-import { legacyLMStudio, legacyOmlx, legacySplash, type LegacyExtras } from './legacy.ts';
 
 export type Confidence = 'high' | 'medium' | 'low';
 export interface Detection { runtime: RuntimeKind; confidence: Confidence; probe: DetectProbe }
@@ -12,13 +14,11 @@ export interface Detection { runtime: RuntimeKind; confidence: Confidence; probe
 export interface NoDetection { runtime: null; locked: boolean }
 
 /**
- * One entry per runtime: adding a runtime is one adapter file and one line here. oMLX, LM Studio and Splash still run
- * their 1.6 clients through the bridge (./legacy.ts); their tracks swap in `omlxDescriptor`, `lmstudioDescriptor` and
- * `splashDescriptor`. Registry order breaks ties between descriptors that share a probe.
+ * One entry per runtime: adding a runtime is one adapter file and one line here. Registry order breaks ties between
+ * descriptors that share a probe.
  */
-export const descriptorsWith = (extras: LegacyExtras): readonly DescriptorV2[] =>
-  [legacyOmlx, legacyLMStudio(extras), mlxLmDescriptor, vllmMlxDescriptor, legacySplash, llamaDescriptor, ollamaDescriptor];
-export const DESCRIPTORS = descriptorsWith({ activity: () => null });
+export const DESCRIPTORS: readonly DescriptorV2[] = [omlxDescriptor, lmstudioDescriptor, mlxLmDescriptor, vllmMlxDescriptor, splashDescriptor,
+  llamaDescriptor, ollamaDescriptor];
 export const descriptorOf = (descriptors: readonly DescriptorV2[], runtime: RuntimeKind): DescriptorV2 | null =>
   descriptors.find(item => item.id === runtime) ?? null;
 

@@ -101,16 +101,31 @@ export const alertToastCopy = (id: string, params: Params): string => {
 
 export interface StatusCopy { severity: Severity; title: string; detail: string; since?: number; action?: 'connection' | 'switch' }
 const port = (params: Params): string => typeof params.port === 'number' ? `:${params.port}` : 'its port';
+/** Why a connection can't be read (`configuration_missing {issue}`): the 1.6 configuration wording. */
+const CONFIG: Partial<Record<string, string>> = {
+  malformed_config: 'An existing provider configuration is malformed. Correct it in OpenChamber, then return here.',
+  unreadable_config: 'An existing provider configuration or credential file could not be read.',
+  read_failed: 'Saved runtime connections could not be read. Reopen MLX Scope after checking the provider in OpenChamber.',
+  invalid_endpoint: 'The selected connection needs an HTTP loopback URL with an explicit port, such as http://localhost:8000/v1.',
+  unsupported_config: 'A configured credential or endpoint reference could not be resolved. Reconnect this provider in OpenChamber.',
+  removed: 'This saved connection is no longer configured. Choose another connection or Automatic.',
+};
 /** A status reason as the one callout that carries it; nothing else in the view repeats it. */
 export const statusCopy = (snapshot: SnapshotV2): StatusCopy | null => {
   const { reason, params, sinceAt } = snapshot.status, rt = rtName(snapshot.connection);
   const since = typeof params.sinceAt === 'number' ? params.sinceAt : sinceAt;
   switch (reason) {
-    case 'runtime_unreachable': return { severity: 'critical', title: `${rt === 'the runtime' ? 'The runtime' : rt} stopped responding`, since,
-      detail: `Nothing answers on ${port(params)}. Scope checks again automatically, so start ${rt} and it picks up again.`, action: 'connection' };
-    case 'authentication_failed': return { severity: 'critical', title: `${rt === 'the runtime' ? 'The runtime' : rt} refused Scope’s key`,
-      detail: 'Check the key under Connection. Scope reads it from the runtime’s own config and never stores it.', action: 'connection' };
-    case 'configuration_missing': return { severity: 'warning', title: 'No runtime found', detail: 'Nothing answered on the usual local ports. Start a runtime, or choose one.', action: 'connection' };
+    // All eight connection slots are mid-read: this one waits its turn (1.6 "Earlier connection reads are finishing").
+    case 'runtime_unreachable': return params.deferred === true
+      ? { severity: 'info', title: 'Waiting for a free connection slot', detail: 'Earlier connection reads are finishing. Monitoring retries automatically.' }
+      : { severity: 'critical', title: `${rt === 'the runtime' ? 'The runtime' : rt} stopped responding`, since,
+        detail: `Nothing answers on ${port(params)}. Scope checks again automatically, so start ${rt} and it picks up again.`, action: 'connection' };
+    case 'authentication_failed': return { severity: 'critical', title: `${rt === 'the runtime' ? 'The runtime' : rt} ${params.keySaved === false ? 'needs an API key' : 'refused Scope’s key'}`,
+      detail: params.keySaved === false ? 'Connect this provider in OpenChamber, then return here. Scope never stores keys.'
+        : 'Check the key under Connection. Scope reads it from the runtime’s own config and never stores it.', action: 'connection' };
+    case 'configuration_missing': return typeof params.issue === 'string' && CONFIG[params.issue]
+      ? { severity: 'warning', title: 'This connection can’t be read', detail: CONFIG[params.issue]!, action: 'connection' }
+      : { severity: 'warning', title: 'No runtime found', detail: 'Nothing answered on the usual local ports. Start a runtime, or choose one.', action: 'connection' };
     case 'unsupported_runtime': return { severity: 'warning', title: 'Scope doesn’t recognise this runtime',
       detail: `Something answers on ${port(params)}, but not like any runtime Scope supports.`, action: 'connection' };
     case 'unsupported_contract': return { severity: 'warning', title: `${rt === 'the runtime' ? 'The runtime' : rt} answered in a shape Scope doesn’t know`,
@@ -129,15 +144,21 @@ export const statusCopy = (snapshot: SnapshotV2): StatusCopy | null => {
     case 'status_stale': return { severity: 'warning', title: 'Splash’s status is stale', since,
       detail: 'Splash says its status hasn’t refreshed, so Scope marks its readings last observed until it does.' };
     case 'not_admitting': return { severity: 'warning', title: 'Splash isn’t accepting new requests',
-      detail: 'Splash reports its Metal device as unhealthy or memory pressure as critical. New requests wait in its queue.' };
+      detail: params.cause === 'metal' || params.metalUnhealthy === true ? 'Splash reports its Metal device as unhealthy. New requests wait in its queue.'
+        : params.cause === 'memory' || params.memoryCritical === true ? 'Splash reports memory pressure as critical. New requests wait in its queue.'
+          : 'Splash reports it isn’t ready for new requests. They wait in its queue.' };
     case 'admin_unauthorized': return { severity: 'info', title: 'oMLX admin login refused', action: 'connection',
       detail: 'Scope reads oMLX’s public status instead: server-wide totals only, with no per-request speed, reply history or usage records.' };
     case 'lms_unavailable': return { severity: 'info', title: 'Bionic isn’t answering Scope’s check',
       detail: 'Scope runs lms only after Bionic answers, so lms can never start it. Loaded instances and engines come back when it answers.' };
-    case 'metrics_required': return { severity: 'info', title: 'Live slots need --metrics',
-      detail: 'This llama-server build can sleep, and reading its slots without /metrics would wake it. Start llama-server with --metrics to see slots and throughput.' };
+    // wakes: the build has --metrics, but its /metrics wakes a sleeping server (b7492–b10518), so the fix is an update (§12.9).
+    case 'metrics_required': return params.wakes === true
+      ? { severity: 'info', title: 'Live slots need a newer llama-server',
+        detail: 'This build can sleep, and its /metrics wakes it. Update llama-server to b10519 or later to see slots and throughput.' }
+      : { severity: 'info', title: 'Live slots need --metrics',
+        detail: 'This llama-server build can sleep, and reading its slots without /metrics would wake it. Start llama-server with --metrics to see slots and throughput.' };
     case 'sleeping': return { severity: 'info', title: 'llama-server is asleep',
-      detail: 'It unloads the model while idle and wakes on the next request. Scope doesn’t read slots or metrics while it sleeps, so it stays asleep.' };
+      detail: 'It unloads the model while idle and wakes on the next request. Scope doesn’t read its slots while it sleeps, so it stays asleep.' };
     default: {
       // A state without a reason still says what it means; a reason code this build doesn't know never blanks the view.
       const state = snapshot.status.state;
@@ -156,7 +177,7 @@ const GLANCE_NOTE: Partial<Record<string, string>> = {
   unsupported_contract: 'Scope shows what it can still read', detecting: 'Checking the usual local ports', redetecting: 'Checking which runtime answers',
   runtime_changed: 'Scope never switches on its own', loading: 'Readings start when it’s ready', recovering: 'Scope reads its status every 30 s',
   status_stale: 'Its readings are last observed', not_admitting: 'New requests wait in its queue', admin_unauthorized: 'Server-wide totals only',
-  lms_unavailable: 'Scope never starts Bionic', metrics_required: 'Start llama-server with --metrics', sleeping: 'Scope lets it sleep',
+  lms_unavailable: 'Scope never starts Bionic', metrics_required: 'Live slots need --metrics or an update', sleeping: 'Scope lets it sleep',
 };
 export const statusGlanceNote = (snapshot: SnapshotV2): string => (snapshot.status.reason ? GLANCE_NOTE[snapshot.status.reason] : undefined)
   ?? (snapshot.status.state === 'unconfigured' ? GLANCE_NOTE.configuration_missing! : snapshot.status.state === 'detecting' ? GLANCE_NOTE.detecting! : GLANCE_NOTE.runtime_unreachable!);

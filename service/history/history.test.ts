@@ -12,6 +12,7 @@ import type { UsageQuery } from '../../src/contract/query.ts';
 import type { RequestV2, RuntimeV2, StatusV2 } from '../../src/contract/snapshot.ts';
 import { parseTrendV2 } from '../../src/contract/trend.ts';
 import type { UsageV2 } from '../../src/contract/usage.ts';
+import { hostFromV1 } from '../../src/contract/convert-v1.ts';
 import { parseSystemSnapshot } from '../../src/system.ts';
 import type { CompletionDraft } from '../core/adapter-v2.ts';
 import { createScopeServer, unread, type Sources } from '../server.ts';
@@ -132,10 +133,11 @@ const servers: http.Server[] = [];
 afterEach(async () => {
   await Promise.all(servers.splice(0).map(server => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); })));
 });
-const offline = unread(T);
+// The snapshot below reads the slot the session filled, as a real oMLX selection would.
+const offline = { ...unread(T), meta: { ...unread(T).meta, slot: 'omlx\0auto' } };
 const launch = async (history: ServiceHistory, readUsage?: (query: UsageQuery) => Promise<UsageV2>) => {
   const now = () => T;
-  const sources: Sources = { read: async () => offline, system: async () => parseSystemSnapshot({ platform: 'darwin', sampledAt: T, memoryTotalGB: 48 })!,
+  const sources: Sources = { read: async () => offline, host: async () => hostFromV1(parseSystemSnapshot({ platform: 'darwin', sampledAt: T, memoryTotalGB: 48 })), history,
     ...historySources(history, { now, ...readUsage ? { readUsage } : {} }) };
   const server = createScopeServer('test-token', sources, { version: '2.0.0-test', instance: INSTANCE, now, monotonic: () => 1_000 });
   servers.push(server);

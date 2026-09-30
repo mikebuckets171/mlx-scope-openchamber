@@ -1,7 +1,19 @@
 import type { HostClient, SessionSnapshot } from '@openchamber/sdk';
-import { mountButton, type ButtonHandle } from '@openchamber/sdk/ui';
 
-/** View-local disclosure built from supported SDK buttons. No host DOM access. */
+interface ButtonHandle { update(props: { disabled: boolean }): void; dispose(): void }
+/**
+ * A plain button styled by the panel's own menu rules (panel/style.css `#share-actions button`). The SDK's mountButton
+ * carried 16 KB of component CSS for these three buttons, which the panel rules override anyway.
+ */
+const mountButton = (root: HTMLElement, props: { label: string; onClick: () => void }): ButtonHandle => {
+  const node = document.createElement('button');
+  node.type = 'button'; node.textContent = props.label;
+  node.addEventListener('click', props.onClick);
+  root.append(node);
+  return { update: ({ disabled }) => { node.disabled = disabled; }, dispose: () => { node.removeEventListener('click', props.onClick); node.remove(); } };
+};
+
+/** View-local disclosure of plain buttons. No host DOM access. */
 export class SharingControls {
   private session: SessionSnapshot | null = null;
   private busy = false;
@@ -16,9 +28,7 @@ export class SharingControls {
   constructor(private readonly root: HTMLElement,
     private readonly host: Pick<HostClient, 'onSession' | 'compose' | 'writeClipboard'>,
     private readonly report: () => string, private readonly status: (message: string) => void) {
-    this.triggerHandle = mountButton(root, {
-      label: 'Share', variant: 'ghost', size: 'xs', onClick: () => this.setOpen(!this.open),
-    });
+    this.triggerHandle = mountButton(root, { label: 'Share', onClick: () => this.setOpen(!this.open) });
     this.trigger = root.querySelector('button')!;
     this.trigger.setAttribute('aria-label', 'Share');
     this.trigger.setAttribute('aria-haspopup', 'menu');
@@ -32,7 +42,7 @@ export class SharingControls {
     for (const [id, label] of [['copy-stats', 'Copy stats'], ['compose-stats', 'Add to chat draft']]) {
       const holder = document.createElement('div');
       this.popup.append(holder);
-      const handle = mountButton(holder, {label, variant: 'ghost', size: 'sm', onClick: () => {
+      const handle = mountButton(holder, {label, onClick: () => {
         this.setOpen(false, true);
         void this.share(id);
       }});

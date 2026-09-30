@@ -5,7 +5,7 @@ import type { AlertLogEntryV2, AlertV2 } from './alerts.ts';
 import { capabilitiesOf, type Basis, type CapabilityDescriptor, type CapabilityKey } from './capabilities.ts';
 import { isConnectionId, type Json } from './guards.ts';
 import type { StatusReason, StatusState } from './reasons.ts';
-import { parseSnapshotV2, requiredCapabilities, type CompatV1, type ConnectionV2, type LeaseV2, type Phase, type SnapshotV2 } from './snapshot.ts';
+import { parseSnapshotV2, requiredCapabilities, type ConnectionV2, type LeaseV2, type Phase, type SnapshotV2 } from './snapshot.ts';
 import { gbToBytes, percentToFraction, secondsToMs } from './units.ts';
 import { parseHostV2 } from './host.ts';
 import { CONTRACT_VERSION } from './version.ts';
@@ -138,21 +138,6 @@ const host = (system: SystemSnapshot | null | undefined): Json | null => {
   };
 };
 
-const compat = (v1: V1Snapshot, connectionRuntime: string | null, state: ReturnType<typeof status>): CompatV1 => {
-  const available = v1.available, link = v1.connection;
-  const reason = v1Reason(state.state, state.reason) === v1.reason ? undefined : v1.reason ?? undefined;
-  return {
-    message: v1.message, ...reason ? { reason } : {},
-    ...available && FRAME_PHASES.has(v1.phase) ? { phase: v1.phase as CompatV1['phase'] } : {},
-    ...available && v1.runtime !== connectionRuntime ? { runtime: v1.runtime } : {},
-    connection: link ? { selected: link.selected, generation: link.generation ?? null, diagnostic: link.diagnostic, coverage: link.coverage } : null,
-    modelID: available ? v1.modelID : null, contextWindow: available ? v1.contextWindow : null,
-    statsState: available ? v1.sessionStatsState : 'unavailable', guardLevel: available ? v1.memoryPressureLevel : null,
-    lastMissReason: available ? v1.sessionBank?.lastMissReason as CompatV1['lastMissReason'] ?? null : null,
-    traceEpoch: available ? v1.traceEpoch : null,
-  };
-};
-
 /** The body before validation, and any capability the adapter table missed. `toSnapshotV2` parses the body. */
 const draft = (v1: V1Snapshot, extras: V1Extras): { body: Json; uncovered: CapabilityKey[] } => {
   const link = v1.connection ?? null, state = status(v1);
@@ -172,7 +157,6 @@ const draft = (v1: V1Snapshot, extras: V1Extras): { body: Json; uncovered: Capab
     marksHead: extras.marksHead ?? 0, alerts: extras.alerts ?? [], alertLog: extras.alertLog ?? [],
     lease: extras.lease ?? { leader: true, epoch: 0, ttlMs: 12_000, leaderSurface: null },
     nextPollMs: extras.nextPollMs ?? (v1.available && ACTIVE.has(v1.phase) ? 500 : 2_000),
-    compat: compat(v1, connectionRuntime, state),
   };
   const last = v1.available ? v1.lastRequest : null;
   if (last) {
@@ -198,33 +182,6 @@ export const toSnapshotV2 = (v1: V1Snapshot, extras: V1Extras): SnapshotV2 => {
   const snapshot = parseSnapshotV2(draft(v1, extras).body);
   if (!snapshot) throw new TypeError('The 1.x reading could not form a v2 snapshot; check extras.service.');
   return snapshot;
-};
-
-/** What only the 1.6 panel reads from a 1.x adapter reading; the service adds the English-free connection part. */
-export type V1Compat = Omit<CompatV1, 'message' | 'reason' | 'connection'>;
-export interface V1Parts {
-  status: { state: StatusState; reason: StatusReason | null };
-  capabilities: SnapshotV2['capabilities'];
-  runtime: SnapshotV2['runtime'];
-  /** The runtime's last finished request, without the seq, verdict and co-factors the service adds. */
-  last: Omit<SnapshotV2['completions']['items'][number], 'seq' | 'verdict' | 'host'> | null;
-  compat: V1Compat;
-}
-/**
- * Stage 2b bridge for the 1.6 adapters that have no v2 adapter yet: one 1.x runtime reading (no host, no connection) as
- * the parts of a v2 adapter reading, through the same draft and parser as `toSnapshotV2`, so nothing is withheld
- * differently. The English `message` is dropped: the service sends reason codes only.
- */
-export const v1Parts = (v1: TelemetrySnapshot): V1Parts => {
-  // The adapter table keys on 1.6's coverage tier, which runtime-client derived from the reading the same way.
-  const runtime = v1.runtime, coverage = runtime === 'omlx' ? 'requests' : runtime === 'splash' ? 'server'
-    : runtime === 'lmstudio' && v1.available && v1.phase !== 'unknown' ? 'requests' : 'inventory';
-  const connection: ConnectionInfo = { selected: null, label: null, runtime, generation: null, choices: [], diagnostic: 'ready', coverage };
-  const parsed = toSnapshotV2({ ...v1, connection, system: null }, { service: { version: 'bridge', instance: '00000000' } });
-  const { message: _message, reason: _reason, connection: _connection, ...compat } = parsed.compat!;
-  const item = parsed.completions.items.at(-1);
-  return { status: { state: parsed.status.state, reason: parsed.status.reason }, capabilities: parsed.capabilities, runtime: parsed.runtime,
-    last: item ? (({ seq: _seq, verdict: _verdict, host: _host, ...rest }) => rest)(item) : null, compat };
 };
 
 /** The 1.x host sampler's reading as `HostV2`, until svc-host's sampler replaces it (null without a valid reading). */

@@ -3,7 +3,7 @@ import { open } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { runtimeValue, type Runtime } from '../src/runtime.ts';
+import { runtimeKind as runtimeValue, type RuntimeKind as Runtime } from '../src/contract/runtime.ts';
 import { hintFor } from './core/hints.ts';
 
 type JsonObject = { readonly [key: string]: unknown };

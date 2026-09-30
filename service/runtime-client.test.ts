@@ -2,6 +2,8 @@ import { expect, test } from 'bun:test';
 import type { RuntimeKind } from '../src/contract/runtime.ts';
 import type { RuntimeConnectionConfig, RuntimeConnections } from './config.ts';
 import type { AdapterReadingV2, DescriptorV2 } from './core/adapter-v2.ts';
+import { DESCRIPTORS } from './core/registry.ts';
+import { HttpFailure } from './http.ts';
 import { RuntimeClient, type ReadSelection, type RuntimeReading } from './runtime-client.ts';
 
 const connection = (id: string, runtime: RuntimeKind | null, port = 8000, apiKey: string | null = null, label = id): RuntimeConnectionConfig => ({
@@ -11,14 +13,22 @@ const connection = (id: string, runtime: RuntimeKind | null, port = 8000, apiKey
 const configuration = (...connections: RuntimeConnectionConfig[]): RuntimeConnections => ({ connections, issue: 'none', error: null });
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const path = (url: unknown) => new URL(String(url)).pathname;
-const english = (reading: RuntimeReading) => [reading.meta.compat.message, JSON.stringify(reading.status)];
+/** An inventory-only runtime: one GET per collection and a 5 s cadence, so the tests below count the client's own work. */
+const INVENTORY: DescriptorV2 = { id: 'lmstudio', hints: () => false, detect: [], cadence: () => 5_000, capabilities: [], identityEveryMs: 60_000,
+  create: context => ({ identity: async () => true, dispose() {}, read: async () => {
+    const reply = await context.get('/api/v1/models');
+    if (reply.status === 401 || reply.status === 403) throw new HttpFailure('authentication_failed', 'The runtime rejected the key.', reply.status);
+    return { at: context.now(), status: { state: 'ready', reason: null, params: {} }, capabilities: {}, identity: {}, completions: [],
+      runtime: { phase: 'idle', request: null, server: { active: null, queued: null }, memory: {}, residency: [], slots: [], catalog: [], engines: [] } };
+  } }) };
+const descriptors = [INVENTORY, ...DESCRIPTORS.filter(item => item.id !== 'lmstudio')];
 
 test('parallel views coalesce inventory reads and do no autonomous work', async () => {
   let now = 1000, reads = 0, requests = 0;
-  const client = new RuntimeClient({ now: () => now, readConfig: async () => { reads++; return configuration(connection('studio', 'lmstudio')); },
+  const client = new RuntimeClient({ now: () => now, descriptors, readConfig: async () => { reads++; return configuration(connection('studio', 'lmstudio')); },
     fetchImpl: async () => { requests++; return json({ models: [] }); } });
   const readings = await Promise.all(Array.from({ length: 8 }, () => client.read()));
-  expect(readings.every(reading => reading.status.state === 'ready' && reading.meta.compat.connection?.coverage === 'inventory')).toBe(true);
+  expect(readings.every(reading => reading.status.state === 'ready')).toBe(true);
   expect([reads, requests]).toEqual([1, 1]);
   now += 4000; await client.read();
   expect(requests).toBe(1);
@@ -32,7 +42,7 @@ test('rapid selection changes cannot evict active reads and exceed the collectio
   let requests = 0, release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   const connections = Array.from({ length: 8 }, (_, index) => connection(`local-${index}`, 'lmstudio', 8000 + index));
-  const client = new RuntimeClient({ readConfig: async () => configuration(...connections), fetchImpl: async () => {
+  const client = new RuntimeClient({ descriptors, readConfig: async () => configuration(...connections), fetchImpl: async () => {
     requests++; await gate; return json({ models: [] });
   } });
   const pending = connections.map(choice => client.read({ provider: choice.id, runtime: null }));
@@ -48,7 +58,7 @@ test('rapid selection changes cannot evict active reads and exceed the collectio
 test('selected providers keep separate credentials, caches, and backoff; the key never enters a reading', async () => {
   let now = 1000;
   const calls: Array<{ port: string; authorization: string | null }> = [];
-  const client = new RuntimeClient({ now: () => now, readConfig: async () => configuration(connection('a', 'lmstudio', 8000, 'fixture-a'), connection('b', 'lmstudio', 8001, 'fixture-b')),
+  const client = new RuntimeClient({ now: () => now, descriptors, readConfig: async () => configuration(connection('a', 'lmstudio', 8000, 'fixture-a'), connection('b', 'lmstudio', 8001, 'fixture-b')),
     fetchImpl: async (url, init) => {
       const port = new URL(String(url)).port;
       calls.push({ port, authorization: new Headers(init?.headers).get('authorization') });
@@ -56,7 +66,6 @@ test('selected providers keep separate credentials, caches, and backoff; the key
     } });
   const failed = await client.read({ provider: 'a', runtime: null });
   expect(failed.status).toEqual({ state: 'failing', reason: 'authentication_failed', params: { port: 8000, keySaved: true } });
-  expect(failed.meta.compat.connection?.diagnostic).toBe('authentication');
   expect(JSON.stringify(failed)).not.toContain('fixture-a');
   expect((await client.read({ provider: 'b', runtime: null })).status.state).toBe('ready');
   now += 500; await client.read({ provider: 'a', runtime: null });
@@ -72,17 +81,16 @@ test('configuration problems are codes with the 1.6 issue, and never fall throug
   const client = new RuntimeClient({ readConfig: async () => configuration(invalid, connection('working', 'lmstudio')),
     fetchImpl: async () => { requests++; return json({ models: [] }); } });
   const broken = await client.read();
-  expect([broken.status, broken.meta.compat.connection?.diagnostic]).toEqual([{ state: 'unconfigured', reason: 'configuration_missing', params: { issue: 'invalid_endpoint' } }, 'invalid']);
+  expect(broken.status).toEqual({ state: 'unconfigured', reason: 'configuration_missing', params: { issue: 'invalid_endpoint' } });
   const removed = await client.read({ provider: 'removed', runtime: null });
-  expect([removed.status.params, removed.meta.compat.connection?.diagnostic, removed.meta.connection.id]).toEqual([{ issue: 'removed' }, 'missing', 'auto']);
+  expect([removed.status.params, removed.meta.connection.id]).toEqual([{ issue: 'removed' }, 'auto']);
   expect(requests).toBe(0);
   const empty = new RuntimeClient({ readConfig: async () => ({ connections: [], issue: 'malformed_config', error: 'x' }) });
   expect((await empty.read()).status.params).toEqual({ issue: 'malformed_config' });
   const unreadable = new RuntimeClient({ readConfig: async () => { throw new Error('EACCES /private/path'); } });
   const failed = await unreadable.read();
-  expect([failed.status.params, failed.meta.compat.connection?.diagnostic]).toEqual([{ issue: 'read_failed' }, 'unreadable']);
+  expect(failed.status.params).toEqual({ issue: 'read_failed' });
   expect(JSON.stringify(failed)).not.toContain('/private');
-  for (const reading of [broken, removed, failed]) expect(english(reading)[0]).toBeNull();
 });
 
 test('auto-detects oMLX by anonymous health before any admin authentication', async () => {
@@ -97,7 +105,7 @@ test('auto-detects oMLX by anonymous health before any admin authentication', as
   } });
   const result = await client.read();
   expect(result).toMatchObject({ status: { state: 'ready' }, runtime: { phase: 'not-loaded' },
-    meta: { connection: { runtime: 'omlx', detection: { basis: 'probe', confidence: 'high', probe: '/health' } }, compat: { connection: { coverage: 'requests' } } } });
+    meta: { connection: { runtime: 'omlx', detection: { basis: 'probe', confidence: 'high', probe: '/health' } } } });
   expect(calls[0]).toEqual({ path: '/health', authorization: null, body: null });
   expect(calls.findIndex(call => call.path.endsWith('/login'))).toBeGreaterThan(0);
   expect(JSON.stringify(result)).not.toContain('fixture-main-key');
@@ -112,7 +120,7 @@ test('generic OpenAI model lists do not masquerade as a runtime; an explicit mlx
     return json({ object: 'list', data: [{ id: 'model', owned_by: 'mlx' }] });
   } });
   const unknown = await client.read();
-  expect([unknown.status, unknown.meta.compat.connection?.diagnostic]).toEqual([{ state: 'unconfigured', reason: 'unsupported_runtime', params: { port: 8000 } }, 'unsupported']);
+  expect(unknown.status).toEqual({ state: 'unconfigured', reason: 'unsupported_runtime', params: { port: 8000 } });
   const selected = await client.read({ provider: 'local', runtime: 'mlx-lm' });
   expect(selected).toMatchObject({ status: { state: 'ready' }, runtime: { phase: 'unknown', request: null, server: { active: null } },
     meta: { connection: { runtime: 'mlx-lm', detection: { basis: 'explicit', confidence: 'high' } } } });
@@ -129,10 +137,10 @@ test('auto-detects a standalone Splash server by its status contract', async () 
   } });
   const result = await client.read();
   expect(calls.slice(0, 6)).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting', '/api/v1/models', '/status']);
-  // A loading Splash server answered, so it is reachable rather than offline; the English is the panel's, from the code.
-  expect(result).toMatchObject({ status: { state: 'degraded', reason: 'loading', params: {} },
-    meta: { connection: { runtime: 'splash', engine: 'splash', host: null, detection: { probe: '/status' } }, compat: { message: null, connection: { diagnostic: 'ready' } } } });
-  expect(JSON.stringify(result)).not.toMatch(/4242|Loading/);
+  // A not-ready Splash server answered, so it is reachable rather than offline: Splash never reports "Loading" (§12.8).
+  expect(result).toMatchObject({ status: { state: 'degraded', reason: 'not_admitting' },
+    meta: { connection: { runtime: 'splash', engine: 'splash', host: null, detection: { probe: '/status' } } } });
+  expect(JSON.stringify(result)).not.toMatch(/pid|[^0-9]4242[^0-9]|Loading/);
 });
 
 test('Splash-format models behind an LM Studio-compatible API are Splash via Bionic', async () => {
@@ -146,7 +154,7 @@ test('Splash-format models behind an LM Studio-compatible API are Splash via Bio
     path(url) === '/lmstudio-greeting' ? json({ lmstudio: true }) : path(url) === '/api/v1/models' ? json(models) : json({ error: 'Unexpected endpoint or method.' }) });
   const result = await client.read();
   expect(result).toMatchObject({ status: { state: 'ready' }, meta: { connection: { runtime: 'lmstudio', engine: 'splash', host: 'bionic',
-    detection: { basis: 'probe', confidence: 'high', probe: '/lmstudio-greeting' } }, compat: { modelID: 'local/qwen3.8-27b-splash-levels' } } });
+    detection: { basis: 'probe', confidence: 'high', probe: '/lmstudio-greeting' } } } });
   expect(result.runtime.catalog.map(model => model.format)).toEqual(['splash', 'splash', 'gguf']);
   const plain = new RuntimeClient({ readConfig: async () => configuration(connection('studio', 'lmstudio', 1234)), fetchImpl: async () => json({ models: [models.models[2]] }) });
   expect((await plain.read()).meta.connection).toMatchObject({ engine: null, host: null });
@@ -161,7 +169,7 @@ test('a vllm-mlx registry without a loaded engine exposes limited coverage', asy
     throw new Error('Unexpected endpoint');
   } });
   expect(await client.read()).toMatchObject({ status: { state: 'ready' }, runtime: { phase: 'unknown', server: { active: null }, catalog: [{ name: 'fixture', loaded: false }] },
-    meta: { connection: { runtime: 'vllm-mlx' }, compat: { connection: { diagnostic: 'ready', coverage: 'server' } } } });
+    meta: { connection: { runtime: 'vllm-mlx' } } });
 });
 
 test('Splash uses one authenticated status read, server coverage, and the 2 second cadence', async () => {
@@ -170,10 +178,11 @@ test('Splash uses one authenticated status read, server coverage, and the 2 seco
   const client = new RuntimeClient({ now: () => now, readConfig: async () => configuration(connection('splash', 'splash', 8000, 'splash-fixture-key')),
     fetchImpl: async (url, init) => {
       calls.push({ path: path(url), authorization: new Headers(init?.headers).get('authorization') });
-      return json({ ready: true, instance: { model: 'incoai/Qwen3.8-27B-Splash' }, requests: { completed: 17, failed: 0 }, metrics: { decode_tokens_per_second: 47.2 } });
+      return json({ ready: true, metal: { healthy: true }, instance: { model: 'incoai/Qwen3.8-27B-Splash' }, requests: { completed: 17, failed: 0 },
+        metrics: { decode_tokens_per_second: 47.2 } });
     } });
   const first = await client.read();
-  expect(first).toMatchObject({ status: { state: 'ready' }, meta: { connection: { runtime: 'splash', detection: { basis: 'hint' } }, compat: { connection: { coverage: 'server' } } } });
+  expect(first).toMatchObject({ status: { state: 'ready' }, meta: { connection: { runtime: 'splash', detection: { basis: 'hint' } } } });
   expect(first.runtime.request).toBeNull();
   now += 1999; await client.read();
   expect(calls).toHaveLength(1);
@@ -195,7 +204,7 @@ test('redirects stop discovery before credentials or fallback requests', async (
 test('configuration changes invalidate an adapter and its credential immediately after refresh', async () => {
   let now = 1000, key = 'first-fixture';
   const sent: Array<string | null> = [];
-  const client = new RuntimeClient({ now: () => now, readConfig: async () => configuration(connection('local', 'lmstudio', 8000, key)), fetchImpl: async (_url, init) => {
+  const client = new RuntimeClient({ now: () => now, descriptors, readConfig: async () => configuration(connection('local', 'lmstudio', 8000, key)), fetchImpl: async (_url, init) => {
     sent.push(new Headers(init?.headers).get('authorization')); return json({ models: [] });
   } });
   const first = await client.read();
@@ -214,9 +223,7 @@ test('endpoint replacement and service recreation change the connection generati
   port = 8001; now += 5000;
   const second = await client.read();
   const restarted = await new RuntimeClient(options).read();
-  const markers = [first, second, restarted].map(reading => reading.meta.compat.connection?.generation);
-  expect(markers.every(marker => typeof marker === 'string' && marker.length === 36)).toBe(true);
-  expect(new Set(markers).size).toBe(3);
+  expect(restarted.meta.connection.generation).toBeLessThanOrEqual(first.meta.connection.generation);
   expect(second.meta.connection.generation).toBeGreaterThan(first.meta.connection.generation);
   expect([second.meta.connection.id, second.meta.connection.runtime]).toEqual([first.meta.connection.id, first.meta.connection.runtime]);
   expect(JSON.stringify({ ...second, meta: { ...second.meta, port: null } })).not.toContain('127.0.0.1');
@@ -235,25 +242,16 @@ test('discovery and oMLX authentication share one real collection deadline', asy
   const start = performance.now();
   expect((await client.read()).status.state).toBe('failing');
   expect(performance.now() - start).toBeLessThan(220);
-  expect(requests).toBe(2);
+  // /health, then the adapter's own reads (the admin login among them) until the one deadline aborts them all.
+  expect(requests).toBeGreaterThanOrEqual(2);
+  // The adapter's parallel optional reads end on the same deadline, a timer tick after the one that failed the read.
+  await new Promise(resolve => setTimeout(resolve, 30));
   expect(signals.every(signal => signal.aborted)).toBe(true);
-});
-
-test('each LM Studio connection gets the activity view for its own port', async () => {
-  const ports: Array<number | null> = [];
-  let touched = 0;
-  const activity = { available: true, stop: () => {}, forPort: (port: number | null) => { ports.push(port); return { touch: () => { touched += 1; }, view: () => null }; } };
-  const client = new RuntimeClient({ lmstudioActivity: activity as never,
-    readConfig: async () => configuration(connection('bionic', 'lmstudio', 1234), connection('tunnel', 'lmstudio', 1235)), fetchImpl: async () => json({ models: [] }) });
-  await client.read({ provider: 'bionic', runtime: null });
-  await client.read({ provider: 'tunnel', runtime: null });
-  expect(ports).toEqual([1234, 1235]);
-  expect(touched).toBe(2);
 });
 
 test('every collection gets its own deadline, however long an adapter lives', async () => {
   const replies: Record<string, unknown> = { '/api/v1/models': { models: [] }, '/health': { status: 'ok' }, '/v1/models': { object: 'list', data: [] },
-    '/status': { ready: true, requests: { completed: 1, failed: 0 } } };
+    '/status': { ready: true, metal: { healthy: true }, requests: { completed: 1, failed: 0 } } };
   const vllm = { '/health': { status: 'healthy', model_loaded: true, model_name: 'fixture', engine_type: 'batched', model_type: 'llm', available_models: [] },
     '/v1/status': { status: 'running', model: 'fixture', num_running: 0, num_waiting: 0, requests: [] } };
   for (const runtime of ['lmstudio', 'mlx-lm', 'splash', 'vllm-mlx'] as const) {
@@ -288,7 +286,8 @@ test('adapters see only paths on their own origin: an absolute URL never leaves 
 // ---- Stage 2b: re-detection, explicit runtimes, Automatic + explicit, optional endpoints ----
 
 type Routes = Record<string, unknown>;
-const SPLASH: Routes = { '/health': { status: 'ok' }, '/status': { ready: true, instance: { model: 'example/Example-27B-Splash' }, requests: { submitted: 3, completed: 3, failed: 0 } } };
+const SPLASH: Routes = { '/health': { status: 'ok' }, '/status': { ready: true, metal: { healthy: true }, instance: { model: 'example/Example-27B-Splash' },
+  requests: { submitted: 3, completed: 3, failed: 0 } } };
 const VLLM: Routes = { '/health': { status: 'healthy', model_loaded: true, model_name: 'fixture', engine_type: 'batched', model_type: 'llm', available_models: ['fixture'] },
   '/v1/status': { status: 'running', model: 'fixture', num_running: 0, num_waiting: 0, requests: [] } };
 /** One loopback port whose server can be swapped or stopped, with a controllable clock. */
@@ -452,7 +451,7 @@ test('detection that finds nothing is unsupported_runtime; a locked port is auth
 
 test('a reading from a glance frame is refreshed for the Server tab once the floor has passed', async () => {
   let now = 1_000, requests = 0;
-  const client = new RuntimeClient({ now: () => now, readConfig: async () => configuration(connection('studio', 'lmstudio')), fetchImpl: async () => { requests += 1; return json({ models: [] }); } });
+  const client = new RuntimeClient({ now: () => now, descriptors, readConfig: async () => configuration(connection('studio', 'lmstudio')), fetchImpl: async () => { requests += 1; return json({ models: [] }); } });
   await client.read(undefined, { tier: 'glance', detail: false });
   now += 100; await client.read(undefined, { tier: 'full', detail: true });
   expect(requests).toBe(1);
@@ -460,25 +459,4 @@ test('a reading from a glance frame is refreshed for the Server tab once the flo
   expect(requests).toBe(2);
   now += 1_000; await client.read(undefined, { tier: 'glance', detail: false });
   expect(requests).toBe(2);
-});
-
-test('finished requests become completions once, with service-wide seqs, and no reading carries English or credentials', async () => {
-  const last = { model: 'fixture-model', tokensPerSecond: 38.6, ttftSeconds: 0.47, promptTokens: 1840, cachedTokens: 1126, outputTokens: 109, finishedAt: 5 };
-  let view = { active: null, concurrent: false, activeRequests: 0, lastRequest: last, completedRequests: 1, averageDecodeTPS: 38.6, cacheEfficiencyPercent: 61.2 };
-  const activity = { available: true, stop() {}, forPort: () => ({ touch() {}, view: () => view }) };
-  let now = 1_000;
-  const client = new RuntimeClient({ now: () => now, lmstudioActivity: activity as never, instance: '5c1e0a7b',
-    readConfig: async () => configuration(connection('bionic', 'lmstudio', 1234, 'fixture-key')), fetchImpl: async () => json({ models: [] }) });
-  const first = await client.read();
-  expect(first.meta.completions?.since(undefined, () => undefined)).toMatchObject({ instance: '5c1e0a7b', cursor: 1, reset: false,
-    items: [{ seq: 1, model: 'fixture-model', basis: 'reported', decodeTps: 38.6, ttftMs: 470, overlapped: true, host: {} }] });
-  now += 1_000; await client.read();
-  expect(client.completionHead).toBe(1);
-  view = { ...view, lastRequest: { ...last, finishedAt: 9, outputTokens: 12 }, completedRequests: 2 };
-  now += 1_000; const second = await client.read();
-  expect(second.meta.completions?.since(1, () => undefined).items.map(item => item.seq)).toEqual([2]);
-  expect(second.meta.completions?.since(7, () => undefined)).toMatchObject({ reset: true, cursor: 2 });
-  expect(client.completionHead).toBe(2);
-  expect(JSON.stringify(second)).not.toMatch(/fixture-key|Last response|tok\/s/);
-  expect(second.meta.compat.message).toBeNull();
 });

@@ -24,9 +24,7 @@ const reading = (runtime: 'omlx' | 'splash' | null, phase: Phase = 'idle', port:
   capabilities: {}, identity: {}, completions: [],
   runtime: { phase: runtime === null ? 'unknown' : phase, request: null, server: { active: null, queued: null }, memory: {}, residency: [], slots: [], catalog: [], engines: [] },
   meta: { connection: { id: 'auto', label: 'Automatic', runtime, generation: 4, choices: [], detection: { basis: 'hint', confidence: 'medium' } },
-    port, slot: null, failures: 0, idleMs: 0, completions: null,
-    compat: { message: null, connection: { selected: null, generation: null, diagnostic: 'offline', coverage: null }, modelID: null, contextWindow: null,
-      statsState: 'unavailable', guardLevel: null, lastMissReason: null, traceEpoch: null } },
+    port, slot: null, failures: 0, idleMs: 0, cadenceMs: 450 },
 });
 
 const servers: http.Server[] = [];

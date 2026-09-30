@@ -45,15 +45,11 @@ test('a reading from another connection asks for the observations to be cleared 
   expect([state.last, state.lastHost, state.lastRequest, state.since, state.isNewConnection(recreated)]).toEqual([null, null, null, undefined, false]);
 });
 
-test('fresh completions are returned once, kept in order, and coverage needs polls without a long gap', () => {
+test('fresh completions are returned once and kept in order (coverage is attribution\'s ActivityTrack)', () => {
   const state = new ScopeState(0), body = bionic();
   expect(state.accept(fromSnapshot(body)).map(item => item.seq)).toEqual([1]);
   expect(state.accept(fromSnapshot(body))).toEqual([]);
   const second = { ...body.completions.items[0]!, seq: 2, finishedAt: 1_900 };
   expect(state.accept(fromSnapshot({ ...body, serverNow: 2_000, completions: { ...body.completions, cursor: 2, items: [second] } })).map(item => item.seq)).toEqual([2]);
   expect(state.recent.map(item => item.seq)).toEqual([1, 2]);
-  expect(state.covered(1_000, 2_000, 2_500)).toBe(true);
-  expect(state.covered(500, 2_000, 2_500)).toBe(false);
-  state.accept(fromSnapshot({ ...body, serverNow: 9_000 }));
-  expect(state.covered(1_000, 9_000, 2_500)).toBe(false);
 });

@@ -60,7 +60,7 @@ export class ServiceHistory {
     this.empty = this.create();
   }
 
-  /** The newest completion seq assigned in any slot: `Sources.completionHead`, the bound for `attr=` verdicts. */
+  /** The newest completion seq assigned in any slot: the bound for `attr=` verdicts (server.ts reads it as `Sources.history.head`). */
   get head(): number { return this.sequence.head; }
 
   /** Once per `/v2/snapshot` request, after the collection: new readings fill the rings; every request evaluates alerts. */
@@ -126,13 +126,12 @@ export class ServiceHistory {
 export interface TrendContext { marks: readonly TurnMark[]; now: number }
 /**
  * The `Sources` entries svc-history serves: `/v2/trend` from the rings, `/v2/usage` through the 5 min cache around the
- * adapter's read (absent until one is given, so the route stays 501), and the completion head for verdicts.
+ * adapter's read (absent until one is given, so the route stays 501). The history itself is `Sources.history`.
  */
 export const historySources = (history: ServiceHistory, options: { now: () => number; readUsage?: (query: UsageQuery) => Promise<UsageV2>; usageCacheMs?: number }) => {
   const cache = new UsageCache(options.now, options.usageCacheMs), read = options.readUsage;
   return {
     trend: async (query: TrendQuery, context?: TrendContext): Promise<TrendV2> => history.trend(query, context?.now ?? options.now(), context?.marks ?? []),
     ...read ? { usage: (query: UsageQuery): Promise<UsageV2> => cache.get(query, () => read(query)) } : {},
-    completionHead: (): number => history.head,
   };
 };

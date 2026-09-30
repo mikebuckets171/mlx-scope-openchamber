@@ -2,7 +2,7 @@ import { accessSync, constants } from 'node:fs';
 import { defined, obj, opt } from '../../src/contract/guards.ts';
 import type { PowerV2 } from '../../src/contract/host.ts';
 import { createStreamSpawn, MACMON_LINE_BYTES, MACMON_PATHS, macmonArgv, type StreamChild, type StreamSpawn } from '../lib/argv.ts';
-import { BoundedLines } from '../lmstudio-activity.ts';
+import { BoundedLines } from '../adapters/lmstudio-activity.ts';
 
 // Owner: svc-host. `macmon pipe -i 1000`, streamed with BoundedLines and a 60 s idle-stop; absent without macmon.
 // Label (SPIKES S9): "Chip power (CPU+GPU+ANE, macmon estimate) · includes all apps · not wall power". Scope never installs it.

@@ -1,20 +1,24 @@
 import { v1Reason } from '../../src/contract/convert-v1.ts';
 import type { RuntimeKind } from '../../src/contract/runtime.ts';
-import type { RequestV2, SnapshotV2, V1_DIAGNOSTICS, V1_LOOKUP_REASONS, V1_REASONS, V1_STATS_STATES } from '../../src/contract/snapshot.ts';
-import { statusMessage } from './reasons.ts';
+import type { RequestV2, SnapshotV2 } from '../../src/contract/snapshot.ts';
+
+// The 1.6 vocabulary the kept modules (report, captures, the Live chart) still speak.
+type V1Reason = 'feature_disabled' | 'runtime_unreachable' | 'authentication_failed' | 'unparseable_snapshot' | 'unsupported_contract'
+  | 'host_unavailable' | 'host_timeout' | 'service_not_granted' | 'service_failed' | 'host_disconnected' | 'host_rejected';
+type V1Diagnostic = 'ready' | 'missing' | 'invalid' | 'unreadable' | 'authentication' | 'offline' | 'unsupported';
 
 /**
  * What the presenters read: one validated `/v2/snapshot` body flattened to the values the panel shows, or a
  * frame-side state (a host error, a contract mismatch, a missed deadline) that has no body. Units stay v2 (bytes,
  * ms, fractions); only the vocabulary is the panel's. Nothing is read from `compat`: the 2.0 panel consumes v2 natively.
  */
-export type PanelReason = typeof V1_REASONS[number] | 'contract_mismatch' | 'needs_approval';
+export type PanelReason = V1Reason | 'contract_mismatch' | 'needs_approval';
 export type ReadingPhase = 'connecting' | 'reconnecting' | 'offline' | 'notLoaded' | 'idle' | 'queued' | 'prefill' | 'decode' | 'processing' | 'unknown';
 export type Coverage = 'requests' | 'inventory' | 'server';
 export type Choice = { id: string; label: string; runtime: RuntimeKind | null };
 export interface Link {
   selected: string | null; label: string | null; runtime: RuntimeKind | null; generation: string | number | null;
-  choices: Choice[]; diagnostic: typeof V1_DIAGNOSTICS[number]; coverage: Coverage | null;
+  choices: Choice[]; diagnostic: V1Diagnostic; coverage: Coverage | null;
   engine: 'splash' | null; host: 'bionic' | null;
 }
 export interface SplashStats { ready: boolean; decodeTps: number | null; completed: number | null; failed: number | null; metalBytes: number | null; metalPeakBytes: number | null }
@@ -36,10 +40,10 @@ export interface Reading {
   phase: ReadingPhase;
   model: string | null;                      // the headline model, also while idle
   contextWindowTokens: number | null;
-  statsState: typeof V1_STATS_STATES[number];
+  statsState: 'fresh' | 'stale' | 'unavailable';
   guardLevel: number | null;                 // oMLX process memory guard, not macOS pressure
   traceEpoch: number | null;
-  lastMissReason: typeof V1_LOOKUP_REASONS[number] | null;
+  lastMissReason: 'empty_prompt' | 'no_recent_store_probe' | 'closest_recent_store' | null;
   request: RequestV2 | null;
   active: number | null;
   queued: number | null;
@@ -90,10 +94,8 @@ const host = (body: SnapshotV2): HostReading | null => {
 export const fromSnapshot = (body: SnapshotV2): Reading => {
   const available = AVAILABLE.has(body.status.state), runtime = body.runtime;
   const reading: Reading = {
-    // The service sends codes only; the 1.6 line the kept modules show comes from the code.
-    ...frameReading(v1Reason(body.status.state, body.status.reason) ?? 'unparseable_snapshot', body.status.reason
-      ? statusMessage(body.status.reason, body.status.params, body.connection.runtime, { model: runtime.request?.model }) : null,
-      runtime.sampledAt ?? body.serverNow),
+    // The service sends codes only; the views word a body's status from the code (present/copy.ts statusCopy).
+    ...frameReading(v1Reason(body.status.state, body.status.reason) ?? 'unparseable_snapshot', null, runtime.sampledAt ?? body.serverNow),
     body, link: link(body), host: host(body),
     catalog: runtime.catalog.map(entry => ({ name: entry.name, loaded: entry.loaded, format: entry.format, contextWindowTokens: entry.contextWindowTokens })),
   };

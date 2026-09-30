@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { toSnapshotV2 } from '../../src/contract/convert-v1.ts';
 import { parseSnapshotV2 } from '../../src/contract/snapshot.ts';
 import { fullSnapshot } from '../../src/contract/testing/full.ts';
-import { hostStates, serviceStates } from '../../src/contract/testing/v1-states.ts';
+import { hostStates } from '../../src/contract/testing/v1-states.ts';
+import { MOCK_STATES, mockBody } from '../testing/mock-states.ts';
 import { sizeBucket as ledgerBucket } from '../history/ledger-schema.ts';
 import * as report from './report.ts';
 import { lastReply, SCOPE_HEADER, SCOPE_TEXT_MAX_CHARS, scopeItem, scopeReadme, scopeText, sizeBucket } from './scope.ts';
@@ -131,8 +132,8 @@ describe('/scope privacy canaries (plan §8.7)', () => {
     expect(value).toContain('phase unknown');
     expect(value).not.toContain('CANARY');
   });
-  test('every preview and service state: no model name, and the same text from the raw body as from parseSnapshotV2', async () => {
-    const states = [...hostStates(), ...await serviceStates()];
+  test('every preview and approved-mock state: no model name, and the same text from the raw body as from parseSnapshotV2', async () => {
+    const states = hostStates();
     expect(states.length).toBeGreaterThan(100);
     const names = (value: any): string[] => [value.runtime?.request?.model, value.compat?.modelID, ...(value.runtime?.residency ?? []).map((item: any) => item.model),
       ...(value.runtime?.catalog ?? []).map((item: any) => item.name), ...(value.completions?.items ?? []).map((item: any) => item.model)]
@@ -144,6 +145,14 @@ describe('/scope privacy canaries (plan §8.7)', () => {
       const output = text(raw);
       expect(text(parsed), state.name).toBe(output);
       for (const name of names(raw)) expect(output, `${state.name}: ${name}`).not.toContain(name);
+    }
+    // The approved mock's v2 bodies (every runtime, attribution and alert state the 2.0 views render).
+    for (const state of MOCK_STATES) {
+      const raw = JSON.parse(JSON.stringify(mockBody(state))), parsed = parseSnapshotV2(raw);
+      if (!parsed) continue;
+      const output = text(raw);
+      expect(text(parsed), state).toBe(output);
+      for (const name of names(raw)) expect(output, `${state}: ${name}`).not.toContain(name);
     }
     const full = fullSnapshot();
     expect(text(parseSnapshotV2(JSON.parse(JSON.stringify(full))))).toBe(text(full));

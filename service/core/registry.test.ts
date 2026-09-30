@@ -4,7 +4,7 @@ import type { Runtime } from '../../src/runtime.ts';
 import { HttpFailure } from '../http.ts';
 import { DETECT_ORDER, type RuntimeGet, type RuntimeReply } from './adapter-v2.ts';
 import { hintFor } from './hints.ts';
-import { DESCRIPTORS, descriptorOf, descriptorsWith, detect, type Detection } from './registry.ts';
+import { DESCRIPTORS, descriptorOf, detect, type Detection } from './registry.ts';
 
 type Reply = RuntimeReply | 'network';
 const ok = (body: unknown): RuntimeReply => ({ status: 200, body: body as RuntimeReply['body'], routeMissing: false });
@@ -55,7 +55,7 @@ test('one pass fetches each path at most once, in plan §5.1 order, and stops at
   expect(splash.calls).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting', '/api/v1/models', '/status']);
   const bionic = server(RUNTIMES.bionic);
   await detect(DESCRIPTORS, bionic.get);
-  expect(bionic.calls).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting']);
+  expect(bionic.calls).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting', '/api/v1/models']);
 });
 
 test('the hinted descriptor goes first, and a wrong hint costs nothing but its own probes', async () => {
@@ -135,16 +135,11 @@ test('provider hints keep their 1.6 precedence, and splish (the owner\'s Splash 
   for (const item of DESCRIPTORS.filter(entry => !['llama-server', 'ollama'].includes(entry.id))) expect(item.hints('x', `${item.id} server`), item.id).toBe(true);
 });
 
-test('the registry lists every runtime once, with the 1.6 cadences and the identity intervals', () => {
+test('the registry lists every runtime once, with its cadences and the identity intervals', () => {
   expect(DESCRIPTORS.map(item => item.id)).toEqual(['omlx', 'lmstudio', 'mlx-lm', 'vllm-mlx', 'splash', 'llama-server', 'ollama']);
   const cadence = (id: RuntimeKind, activity = false) => descriptorOf(DESCRIPTORS, id)!.cadence({ activity, tier: 'full', recovering: false });
   expect([cadence('omlx'), cadence('lmstudio'), cadence('lmstudio', true), cadence('mlx-lm'), cadence('vllm-mlx'), cadence('splash')])
-    .toEqual([450, 5_000, 1_000, 2_000, 450, 2_000]);
+    .toEqual([450, 2_000, 1_000, 2_000, 450, 2_000]);
   expect(DESCRIPTORS.map(item => [item.id, item.identityEveryMs])).toEqual([['omlx', 300_000], ['lmstudio', 60_000], ['mlx-lm', 60_000],
     ['vllm-mlx', 60_000], ['splash', 60_000], ['llama-server', 60_000], ['ollama', 60_000]]);
-  // The LM Studio bridge gets the service's log stream per port.
-  const ports: number[] = [];
-  const lmstudio = descriptorOf(descriptorsWith({ activity: port => { ports.push(port); return null; } }), 'lmstudio')!;
-  lmstudio.create({ connection: { id: 'bionic', port: 1234 } } as never);
-  expect(ports).toEqual([1234]);
 });

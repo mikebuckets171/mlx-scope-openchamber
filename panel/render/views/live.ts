@@ -37,7 +37,7 @@ const heroBody = (body: HeroBody | null, open: Open): Raw | string => {
 const nextRow = (next: NextView | null, open: Open): Raw | string => {
   if (!next) return '';
   switch (next.kind) {
-    case 'watch': return html`<div class="next-row"><button class="btn quiet" type="button" data-action="connection">Watch ${next.runtime}</button><span>Next reply needs this chat’s runtime</span></div>`;
+    case 'watch': return html`<div class="next-row"><button class="btn quiet" type="button" data-action="watch">Watch ${next.runtime}</button><span>Next reply needs this chat’s runtime</span></div>`;
     case 'armed': { const t = tipParts(P, next.tip, open);
       return html`<div class="next-row">${chip({ text: 'Next reply · armed', attr: 'armed', outline: true })}${t.btn}<span><time>${next.left}</time> left</span><button class="btn quiet" type="button" data-action="next-cancel">Cancel</button></div>${t.pop}`; }
     case 'measuring': return html`<div class="next-row"><span class="pulse" aria-hidden="true"></span><span>Measuring next reply · <time>${next.elapsed}</time></span><button class="btn quiet" type="button" data-action="next-cancel">Cancel</button></div>`;

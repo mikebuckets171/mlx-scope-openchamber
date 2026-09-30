@@ -57,9 +57,6 @@ export const fullSnapshot = () => ({
   alertLog: Array.from({ length: 20 }, (_, index) => ({ id: 'model-unloaded', severity: 'warning', since: AT - index * 1_000, until: AT, params: { model: model(index) } })),
   lease: { leader: false, epoch: 9_999_999, ttlMs: 12_000, leaderSurface: 'status' },
   nextPollMs: 10_000,
-  compat: { message: 'x'.repeat(1_000), reason: 'host_unavailable', phase: 'reconnecting', runtime: 'omlx',
-    connection: { selected: 's'.repeat(120), generation: '00000000-0000-4000-8000-000000000000', diagnostic: 'unsupported', coverage: 'inventory' },
-    modelID: model(98), contextWindow: 99_999_999, statsState: 'stale', guardLevel: 3, lastMissReason: 'no_recent_store_probe', traceEpoch: 9_999_999 },
 });
 
 const bucket = (index: number) => [123_456.789_012 + index, 923_456.789_012 + index, 523_456.789_012 + index];

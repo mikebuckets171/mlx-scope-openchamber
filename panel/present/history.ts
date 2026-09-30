@@ -9,14 +9,15 @@ import type { GapRow, LedgerAttr, LedgerRow, ReplyRow, SizeBucket, TurnRow } fro
 import type { RegressionFlag } from '../history/regress.ts';
 import { SIZE_LABELS } from '../history/summary.ts';
 import { trendGaps, trendGeometry, type TrendGeometry } from '../render/trend-chart.ts';
-import { alertMessage, withholdMessage } from './reasons.ts';
+import { alertCopy, withheldWhy } from './copy.ts';
 
 // Owner: ui-history. Pure History tab presenter: trend, replies (each with its attr chip), turn summaries, baselines,
 // oMLX usage ("Recorded by oMLX"), storage, alert log. Header "Observed while Scope was open" with counts per basis.
 
-/** The English this tab borrows: withhold reasons and alert titles live in panel/present/reasons.ts (one source). */
+/** The English this tab borrows: withhold reasons and alert titles live in panel/present/copy.ts (one source). */
 export interface HistoryText { withheld(reason: WithholdReason | 'all-requests'): string; alert(id: AlertId, params: ReasonParams): string }
-export const HISTORY_TEXT: HistoryText = { withheld: reason => withholdMessage(reason, null), alert: alertMessage };
+/** The mock's chip and alert wording, from the one copy table the other views use (present/copy.ts). */
+export const HISTORY_TEXT: HistoryText = { withheld: reason => `Server-wide · ${withheldWhy(reason)}`, alert: (id, params) => alertCopy(id, params)[0] };
 
 export interface HistoryInput {
   now: number;

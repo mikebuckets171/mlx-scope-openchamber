@@ -3,6 +3,9 @@ import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { ConnectionsView } from '../connections-view.ts';
 import { CaptureStore } from '../captures/store.ts';
 import type { SnapshotClient } from '../data/client.ts';
+import { HistoryClient } from '../data/history.ts';
+import { KEYS } from '../history/ledger-schema.ts';
+import type { PrefsV2 } from '../preferences.ts';
 import { FRAME_TITLE, NO_FRESH, NO_FRESH_DETAIL } from '../present/copy.ts';
 import { frameCard, presentHeader } from '../present/header.ts';
 import { presentLive, weightedTps } from '../present/live.ts';
@@ -15,6 +18,8 @@ import type { ScopeState } from '../state/scope-state.ts';
 import { html, morph } from './html.ts';
 import { frameCardMarkup, PAGE_TABS, renderHeader, TABS, tabsMarkup } from './shell.ts';
 import { liveMarkup } from './views/live.ts';
+import { capturesView, readLegacyCaptures } from './views/captures.ts';
+import { historyView } from './views/history.ts';
 import { mountSafely } from './views/registry.ts';
 import { serverMarkup } from './views/server.ts';
 import { statusMarkup } from './views/status.ts';
@@ -25,7 +30,7 @@ import type { Tab, ViewHandle } from './views/types.ts';
 
 export interface AppParts {
   shell: HTMLElement; host: HostClient; state: ScopeState; client: SnapshotClient; pipeline: Pipeline; version: string;
-  connections: ConnectionsView; visible: () => boolean; status: (message: string) => void;
+  connections: ConnectionsView; prefs: PrefsV2; visible: () => boolean; status: (message: string) => void;
 }
 export class ScopeApp {
   private columns = false;
@@ -53,7 +58,7 @@ export class ScopeApp {
     return {
       now: client.now(), version, snapshot, fresh: snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh, frame: state.frame, stale: state.stale,
       paused: state.userPaused, attribution: pipeline.liveLabel(snapshot), chatRuntime: pipeline.chatRuntime(),
-      last: last ? { completion: last, label: pipeline.label(last), vsUsual: null, flag: null } : null,
+      last: last ? { completion: last, label: pipeline.label(last), ...pipeline.usualFor(last, snapshot?.connection.runtime ?? null) } : null,
       next: pipeline.nextState, samples: state.signal.points, turnStartAt: pipeline.window()?.startedAt ?? null,
     };
   }
@@ -78,7 +83,7 @@ export class ScopeApp {
     glance.hidden = !compact;
     if (compact) {
       morph(glance, statusMarkup(presentStatusSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution, turn: null,
-        vsUsual: null, sparkline: null, chatIsLocal: null, expanded: false, tipDismissed: true, fresh: s.fresh, paused: s.paused, next: s.next,
+        vsUsual: s.last?.vsUsual ?? null, sparkline: null, chatIsLocal: null, expanded: false, tipDismissed: true, fresh: s.fresh, paused: s.paused, next: s.next,
         last: s.last && { completion: s.last.completion, label: s.last.label } }), true));
       return;
     }
@@ -97,20 +102,38 @@ export class ScopeApp {
     }
     if (active === 'server') morph(this.node('panel-server'), serverMarkup(presentServer(s.snapshot, s.now, this.extra(s)), open));
     if (active === 'history' || this.columns && active === 'live') this.view('history', this.columns ? this.node('col-history') : this.node('panel-history'), s.snapshot);
-    if (active === 'captures') this.view('captures', this.node('panel-captures'), s.snapshot);
+    // Captures is fed by every poll, even while another tab shows.
+    this.view('captures', this.node('panel-captures'), s.snapshot);
   }
-  /** History and Captures are other tracks' views: mounted once into a stable host that moves between layouts. */
-  private view(tab: 'history' | 'captures', container: HTMLElement, snapshot: SnapshotV2 | null): void {
+  /**
+   * History and Captures are ui-history's views, given this frame's one Ledger, its Next reply control and the poll's
+   * selection (INTERFACES §4.4). Mounted once into a stable host that moves between layouts; Captures is mounted from
+   * the first render and updated on every poll, hidden or not, because its 30/60 s window is fed by polls.
+   */
+  private view(tab: 'history' | 'captures', container: HTMLElement | null, snapshot: SnapshotV2 | null): void {
     let entry = this.views.get(tab);
     if (!entry) {
-      const host = document.createElement('div');
+      const host = document.createElement('div'), { pipeline, connections, prefs } = this.p, storage = this.p.host.storage;
       host.className = 'view-host';
-      entry = { host, handle: mountSafely(tab, host, { host: this.p.host, surface: this.p.state.surface === 'page' ? 'page' : 'panel', now: () => this.p.client.now(),
-        visible: () => this.p.visible() && (this.p.state.tab === tab || tab === 'history' && this.columns), leader: () => this.p.state.snapshot?.lease.leader ?? false }) };
+      const context = { host: this.p.host, surface: this.p.state.surface === 'page' ? 'page' as const : 'panel' as const, now: () => this.p.client.now(),
+        visible: () => this.p.visible() && (this.p.state.tab === tab || tab === 'history' && this.columns), leader: () => this.p.state.snapshot?.lease.leader ?? false };
+      const copy = (text: string) => this.p.host.writeClipboard(text);
+      entry = { host, handle: mountSafely(tab, host, context, tab === 'history'
+        ? historyView({ ledger: pipeline.ledger, client: new HistoryClient(this.p.host), retentionDays: () => prefs.value.retentionDays ?? 30, copy,
+          version: this.p.version, selection: () => connections.query() ?? {}, flags: flags => { pipeline.flags = flags; },
+          legacyCaptures: async () => (await storage.keys()).filter(key => key.startsWith(KEYS.legacyObservationPrefix)).length })
+        : capturesView({ store: new CaptureStore(storage), legacy: () => readLegacyCaptures(storage), copy, version: this.p.version,
+          compose: text => this.p.host.compose({ text, mode: 'append' }), forbidden: () => pipeline.ledgerModels,
+          next: { state: () => pipeline.nextState, arm: () => pipeline.arm(), cancel: () => pipeline.cancel(), watch: () => this.watch() } })) };
       this.views.set(tab, entry);
     }
-    if (entry.host.parentElement !== container) container.append(entry.host);
+    if (container && entry.host.parentElement !== container) container.append(entry.host);
     try { entry.handle.update(snapshot); } catch { /* another track's view never stops this one */ }
+  }
+  /** "Watch …": monitor the open chat's connection; without one Scope knows, open the chooser. */
+  private watch(): void {
+    const provider = this.p.pipeline.watchable();
+    if (provider) this.p.connections.watch(provider); else this.p.connections.openSetup();
   }
 
   private select(tab: Tab, focus: boolean): void {
@@ -143,6 +166,7 @@ export class ScopeApp {
     if (action === 'connection') connections.openSetup();
     else if (action === 'switch') { const detected = state.snapshot?.status.params.detected; if (typeof detected === 'string') connections.switchRuntime(detected as never); }
     else if (action === 'next-arm') pipeline.arm(state.snapshot);
+    else if (action === 'watch') this.watch();
     else if (action === 'next-cancel') pipeline.cancel();
     else if (action === 'next-save') void this.saveNext();
     else if (action === 'expand') { state.compact = false; this.onCompact(false); }

@@ -225,7 +225,8 @@ class LmstudioAdapter implements AdapterV2 {
       ps: port !== null && this.lastPs?.port === port ? this.lastPs.rows : null, engines, activity: this.activity.view(), lmsBlocked: bound && !greeted });
   }
 
-  async identity(): Promise<boolean> { return this.greet(true); }
+  /** The greeting, or on builds without one the inventory route, still answers as LM Studio. */
+  async identity(): Promise<boolean> { return await this.greet(true) || modelsList(this.context.get); }
 
   dispose(): void { this.activity.dispose(); }
 
@@ -287,6 +288,10 @@ export const createLmstudioAdapter = (context: AdapterContextV2, deps: LmstudioD
   return new LmstudioAdapter(context, lms, cli, activity, serverInfoPath, deps.readPorts ?? readLmsPorts);
 };
 
+const modelsList = async (follow: RuntimeGet): Promise<boolean> => {
+  const reply = await settle(follow('/api/v1/models')).catch(() => null);
+  return reply !== null && reply.status === 200 && Array.isArray(obj(reply.body)?.models);
+};
 /** Detection follow-up: the greeting's server also answers the inventory route (or says it has none, or wants a key). */
 const inventoryRoute = async (follow: RuntimeGet): Promise<boolean> => {
   const reply = await settle(follow('/api/v1/models')).catch(() => null);
@@ -296,7 +301,11 @@ const hint = HINTS.find(([id]) => id === 'lmstudio')![1];
 
 export const lmstudioDescriptor: DescriptorV2 = {
   id: 'lmstudio', hints: hint,
-  detect: [{ probe: '/lmstudio-greeting', confidence: 'high', match: async (reply, follow) => isGreeting(reply) && inventoryRoute(follow) }],
+  detect: [
+    { probe: '/lmstudio-greeting', confidence: 'high', match: async (reply, follow) => isGreeting(reply) && inventoryRoute(follow) },
+    // Builds without the greeting: the 1.6 inventory route is the fingerprint (plan §5.1 row 4). lms stays off for them.
+    { probe: '/lmstudio-greeting', confidence: 'medium', match: async (reply, follow) => missing(reply) && modelsList(follow) },
+  ],
   // The log stream is live; a read only snapshots it, so idle reads can be slower. Status frames poll slower still.
   cadence: ({ activity, tier }) => activity ? 1_000 : tier === 'glance' ? 3_000 : 2_000,
   capabilities: LMSTUDIO_CAPABILITIES, identityEveryMs: 60_000,

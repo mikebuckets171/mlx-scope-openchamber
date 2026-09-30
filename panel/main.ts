@@ -1,5 +1,5 @@
 import { connectHost, type HostReadyContext } from '@openchamber/sdk';
-import { applyHostReady } from '@openchamber/sdk/ui';
+import { applyHostReady } from './sdk-theme.ts';
 import { version } from '../package.json';
 import { ConnectionHelp } from './connection-help.ts';
 import { ConnectionsView, readSelection } from './connections-view.ts';
@@ -91,7 +91,7 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
     monitor.apply(frameReading('runtime_unreachable', 'Waiting for the selected connection. Existing observations were cleared.', client.now()));
     if (state.mounted) monitor.poller.start();
   }, actionStatus);
-  const app = new ScopeApp({ shell, host, state, client, pipeline, version, connections, visible: () => visibility.visible, status: actionStatus });
+  const app = new ScopeApp({ shell, host, state, client, pipeline, version, connections, prefs, visible: () => visibility.visible, status: actionStatus });
   render = () => app.render();
   monitor = monitorFor(pipeline, 'full', 3_000, () => connections.query(), link => connections.update(link),
     () => { refresh.disabled = state.userPaused; refresh.removeAttribute('aria-busy'); });

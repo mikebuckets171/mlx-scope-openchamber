@@ -435,7 +435,7 @@ footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--scope-
 .share-actions { position: relative; margin: 0; }
 .share-actions > button::after { content: "⌄"; margin-left: 3px; }
 .share-menu { position: static; margin: 2px 0 4px 22px; padding: 0; border-left: 1px solid var(--scope-line); }
-.share-menu .oc-sdk-btn:focus-visible { outline-offset: -2px; }
+.share-menu button:focus-visible { outline-offset: -2px; }
 .menu-about { display: grid; gap: 2px; margin: 4px 2px 0; padding: 8px 6px 2px; border-top: 1px solid var(--scope-line); color: var(--scope-muted); font-size: 11px; line-height: 1.5; }
 .action-status { position: fixed; z-index: 100; inset: auto 16px 16px; margin-left: auto; max-width: 460px; padding: 10px 14px; border: 1px solid var(--scope-line-strong); border-radius: var(--scope-radius); background: var(--oc-elevated, var(--scope-bg)); color: var(--scope-fg); box-shadow: 0 8px 26px #0003; font-size: 11px; line-height: 1.6; pointer-events: none; }
 

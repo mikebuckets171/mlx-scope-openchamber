@@ -20,7 +20,13 @@ export interface ComposeInput {
   lease: LeaseView;
   marksHead: number;
   query: Pick<SnapshotQuery, 'surface'>;
+  nextPollMs?: number;                       // computed once per request by the server (snapshotPollMs); else here
 }
+
+/** The frame's next poll delay for this reading: the service's one backoff and cadence table (scheduler.ts). */
+export const snapshotPollMs = ({ reading, host, lease, query }: Pick<ComposeInput, 'reading' | 'host' | 'lease' | 'query'>): number =>
+  nextPollMs({ surface: query.surface, active: busy(reading.runtime), idleMs: reading.meta.idleMs, failures: reading.meta.failures,
+    hostLive: host !== null, yielded: lease.yielded });
 
 /** The host capabilities as a map: exactly the parts the reading filled (svc-host's `hostCapabilities`, P3). */
 export const hostCapabilities = (host: HostV2 | null): Capabilities =>
@@ -31,7 +37,8 @@ export const hostCapabilities = (host: HostV2 | null): Capabilities =>
  * lease, cadence, marks, alerts). Nothing is spread from the reading, so bridge fields and service-only meta never reach the
  * wire, and the parser then withholds any value its capability does not cover. A body that breaks the contract throws.
  */
-export const composeSnapshot = ({ reading, host, completions, alerts, service, serverNow, lease, marksHead, query }: ComposeInput): SnapshotV2 => {
+export const composeSnapshot = (input: ComposeInput): SnapshotV2 => {
+  const { reading, host, completions, alerts, service, serverNow, lease, marksHead } = input;
   const { yielded, ...wireLease } = lease, meta = reading.meta, { status } = reading;
   const capabilities: Capabilities = { ...hostCapabilities(host), ...reading.capabilities };
   // Completions came through this pipeline, so it can report them; each item keeps its own basis.
@@ -43,8 +50,7 @@ export const composeSnapshot = ({ reading, host, completions, alerts, service, s
     status: { ...status, params: status.reason ? parseParams(status.params, STATUS_PARAMS[status.reason]) : {} },
     runtime: { ...reading.runtime, sampledAt: reading.at }, host, completions: { ...completions, instance: service.instance }, marksHead,
     alerts: alerts.alerts, alertLog: alerts.alertLog, lease: wireLease satisfies LeaseV2,
-    nextPollMs: nextPollMs({ surface: query.surface, active: busy(reading.runtime), idleMs: meta.idleMs, failures: meta.failures, hostLive: host !== null, yielded }),
-    compat: meta.compat,
+    nextPollMs: input.nextPollMs ?? snapshotPollMs(input),
   };
   const snapshot = parseSnapshotV2(JSON.parse(JSON.stringify(body)));
   if (!snapshot) throw new TypeError('The reading could not form a v2 snapshot.');

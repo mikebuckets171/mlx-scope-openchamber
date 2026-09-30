@@ -97,7 +97,13 @@ const expectRoundTrip = (reading: AdapterReadingV2, name = 'reading'): SnapshotV
 
 test('descriptor: greeting plus the inventory route identifies LM Studio; hints, cadence and capabilities', async () => {
   const d = lmstudioDescriptor, step = d.detect[0]!;
-  expect([d.id, d.detect.length, step.probe, step.confidence, d.identityEveryMs]).toEqual(['lmstudio', 1, '/lmstudio-greeting', 'high', 60_000]);
+  expect([d.id, d.detect.length, step.probe, step.confidence, d.identityEveryMs]).toEqual(['lmstudio', 2, '/lmstudio-greeting', 'high', 60_000]);
+  // Builds without the greeting: a missing greeting route plus the v1 inventory list (medium confidence).
+  const older = d.detect[1]!;
+  expect([older.probe, older.confidence]).toEqual(['/lmstudio-greeting', 'medium']);
+  expect(await older.match(reply(null, 404), async () => V1)).toBe(true);
+  expect(await older.match(GREETING, async () => V1)).toBe(false);
+  expect(await older.match(reply(null, 404), async () => reply({ data: [] }))).toBe(false);
   expect([d.hints('bionic', ''), d.hints('x', 'LM Studio'), d.hints('omlx', 'Local oMLX')]).toEqual([true, true, false]);
   const follow = (answer: Route) => async () => { if (answer === 'down') throw new HttpFailure('runtime_unreachable', 'down'); if (answer instanceof Error) throw answer; return answer; };
   expect(await step.match(GREETING, follow(V1))).toBe(true);
@@ -374,11 +380,13 @@ test('stock LM Studio: no Splash engine, so no reply capability until a summary 
   expectRoundTrip(stock);
 });
 
-test('identity() is the greeting; dispose stops the stream', async () => {
+test('identity() is the greeting, or the inventory route on builds without one; dispose stops the stream', async () => {
   const h = harness(BIONIC());
   expect(await h.adapter.identity()).toBe(true);
   await h.read();
   h.routes['/lmstudio-greeting'] = reply({ error: 'Unexpected endpoint or method. (GET /lmstudio-greeting)' });
+  expect(await h.adapter.identity()).toBe(true);
+  h.routes['/api/v1/models'] = reply({ error: 'Unexpected endpoint or method. (GET /api/v1/models)' });
   expect(await h.adapter.identity()).toBe(false);
   h.routes['/lmstudio-greeting'] = 'down';
   await expect(h.adapter.identity()).rejects.toThrow();

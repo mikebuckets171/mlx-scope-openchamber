@@ -41,7 +41,8 @@ export class StatusApp {
     if (state.disposed || !state.mounted) return;
     this.refreshTrend();
     const view = presentStatusSection({
-      now: client.now(), reading: state.latest, snapshot, attribution: pipeline.liveLabel(snapshot), turn: pipeline.turn(), vsUsual: null,
+      now: client.now(), reading: state.latest, snapshot, attribution: pipeline.liveLabel(snapshot), turn: pipeline.turn(),
+      vsUsual: last ? pipeline.usualFor(last, snapshot?.connection.runtime ?? null).vsUsual : null,
       sparkline: this.trend, chatIsLocal: chatIsLocal(this.session, snapshot?.connection ?? null), expanded: pref.statusExpanded === true,
       tipDismissed: pref.tipDismissed === true, fresh: snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh, paused: state.userPaused,
       last: last ? { completion: last, label: pipeline.label(last) } : null, next: pipeline.nextState, window: pipeline.window(),

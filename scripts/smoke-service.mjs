@@ -5,7 +5,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { createServer as createHTTPServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 // Test the extracted install, not TypeScript or a checkout with node_modules.
@@ -15,6 +17,9 @@ const home = await mkdtemp(join(tmpdir(), 'mlx-scope-smoke-'));
 const token = randomBytes(24).toString('hex');
 const children = [];
 let mockRuntime = null;
+const fixtures = join(dirname(fileURLToPath(import.meta.url)), '../tests/fixtures');
+/** A scrubbed corpus body (tests/fixtures/<runtime>/<version>/…), parsed unless it is Prometheus text. */
+const fixture = async (name) => { const text = await readFile(join(fixtures, name), 'utf8'); return name.endsWith('.txt') ? text : JSON.parse(text); };
 
 function start(port, overrides = {}) {
   const child = spawn(process.execPath, [join(root, 'service/main.js')], {
@@ -75,6 +80,17 @@ function assertContract(snapshot) {
   return snapshot;
 }
 
+/** Every file under a directory, relative, sorted. */
+async function files(root, prefix = '') {
+  const { readdir } = await import('node:fs/promises');
+  const out = [];
+  for (const entry of await readdir(join(root, prefix), { withFileTypes: true })) {
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) out.push(...await files(root, path)); else out.push(path);
+  }
+  return out.sort();
+}
+
 async function unusedPort() {
   const probe = createServer();
   await new Promise((resolveListen, reject) => {
@@ -126,7 +142,6 @@ try {
   const bad = await get('/v2/snapshot?provider=not%0Aan%20id');
   assert.equal(bad.status, 400);
   assert.deepEqual(await bad.json(), { error: 'bad_query', param: 'provider' });
-  assert.equal((await get('/v2/trend')).status, 501);
   const response = await get('/v2/snapshot');
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('cache-control'), 'no-store');
@@ -136,10 +151,27 @@ try {
   assert(Number.isInteger(snapshot.status.params.port), 'An unreachable runtime names its port.');
   assert.equal(snapshot.connection?.id, 'omlx', 'JSONC must select the configured provider.');
   assert.equal(snapshot.connection?.runtime, 'omlx');
-  assert.equal(snapshot.compat?.connection?.diagnostic, 'offline');
-  // The service sends reason codes only; the panel words them (panel/present/reasons.ts).
-  assert.equal(snapshot.compat?.message, null);
+  // The service sends reason codes only; the panel words them (panel/present/copy.ts). The 1.6 bridge is gone.
+  assert.equal(snapshot.compat, undefined);
+  assert(!/[a-z]{3,} [a-z]{3,} [a-z]{3,}/i.test(JSON.stringify(snapshot.status)), 'A status carried English.');
   assertHostReadings(snapshot);
+  // The history routes are served: the trend for this selection (one gap: nothing was watched), and oMLX usage, which
+  // an unreachable oMLX cannot give (a 200 body that hides the card, never an error page).
+  const trendResponse = await get('/v2/trend?window=900&series=decodeTps,cpuFraction');
+  assert.equal(trendResponse.status, 200);
+  assert.equal(trendResponse.headers.get('cache-control'), 'no-store');
+  const trend = await trendResponse.json();
+  assert.equal(trend.contractVersion, 2);
+  assert.equal(trend.windowMs, 900_000);
+  assert(Array.isArray(trend.gaps) && Array.isArray(trend.marks) && typeof trend.series === 'object');
+  assert.equal((await get('/v2/trend?window=600')).status, 400);
+  const usageResponse = await get('/v2/usage?range=7d');
+  assert.equal(usageResponse.status, 200);
+  const usage = await usageResponse.json();
+  assert.equal(usage.contractVersion, 2);
+  assert.equal(usage.available, false);
+  assert(['runtime_unavailable', 'not_omlx'].includes(usage.reason), `Unexpected usage reason ${usage.reason}.`);
+  assert.equal((await get('/v2/usage?range=1y')).status, 400);
   const leader = assertContract(await (await get('/v2/snapshot?frame=0badc0de&surface=panel')).json());
   assert.deepEqual(leader.lease, { leader: true, epoch: 1, ttlMs: 12_000, leaderSurface: 'panel' });
 
@@ -202,9 +234,24 @@ try {
     } else if (runtimeKind === 'omlx' && path === '/v1/models/status') {
       if (request.headers.authorization !== `Bearer ${runtimeKey}`) { rejectAuth('Model metadata must use the configured key.'); return; }
       body = { models: [] };
-    } else if (runtimeKind === 'omlx' && (path === '/admin/api/activity' || path === '/admin/api/stats')) {
+    } else if (runtimeKind === 'omlx' && path === '/api/status') {
+      if (request.headers.authorization !== `Bearer ${runtimeKey}`) { rejectAuth('Session totals must use the configured key.'); return; }
+      body = await fixture('omlx/0.7.0rc1/api-status.idle.json');
+    } else if (runtimeKind === 'omlx' && path === '/admin/api/usage') {
+      if (request.headers.cookie !== 'omlx_admin_session=smoke') { rejectAuth('Usage requires the authenticated oMLX session.'); return; }
+      body = await fixture('omlx/0.7.0rc1/admin-api-usage.7d-details.json');
+    } else if (runtimeKind === 'splash' && path === '/status') {
+      body = await fixture('splash/1.1.0/status.decoding.json');
+    } else if (runtimeKind === 'llama-server' && ['/health', '/props', '/slots', '/metrics'].includes(path)) {
+      body = await fixture({ '/health': 'llama-server/b10519/health.ok.json', '/props': 'llama-server/b10519/props.normal.json',
+        '/slots': 'llama-server/b10519/slots.one-busy.json', '/metrics': 'llama-server/b10519/metrics.scrape-1.txt' }[path]);
+      if (typeof body === 'string') { response.setHeader('Content-Type', 'text/plain; version=0.0.4'); response.end(body); return; }
+    } else if (runtimeKind === 'ollama' && (path === '/api/version' || path === '/api/ps')) {
+      body = await fixture(path === '/api/version' ? 'ollama/0.40.0/api-version.default.json' : 'ollama/0.40.0/api-ps.one-model.json');
+    } else if (runtimeKind === 'omlx' && path === '/admin/api/activity') {
       if (request.headers.cookie !== 'omlx_admin_session=smoke') { rejectAuth('Monitoring requires the authenticated oMLX session.'); return; }
-      body = { engines: {}, active_models: { models: [{ id: 'fixture', active_requests: 1, prefilling: primary ? [] : [flight], activities: primary ? [flight] : [] }] } };
+      body = { engines: {}, active_models: { models: [{ id: 'fixture', active_requests: flight ? 1 : 0, prefilling: primary || !flight ? [] : [flight],
+        activities: primary && flight ? [flight] : [] }] } };
     } else { response.writeHead(404); response.end(); return; }
     if (path !== '/admin/api/login' && request.method !== 'GET') { response.writeHead(405); response.end(); return; }
     response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(body));
@@ -248,7 +295,6 @@ try {
   assert.equal(dflash.runtime.request.outputTokens, 64);
   assert.equal(dflash.runtime.request.decodeTps, undefined, 'Activity elapsed time is not a decode average.');
   assert.equal(dflash.runtime.request.prefillFraction, undefined, 'Primary DFlash has no reported prefill fraction.');
-  assert(Number.isFinite(dflash.compat.traceEpoch));
   assert(!JSON.stringify(dflash).includes('private-primary-request'));
   primary = false;
   flight = {request_id: 'private-fallback', processed: 25, total: 100, speed: 100, eta: 0.75};
@@ -256,12 +302,31 @@ try {
   const fallback = await v2('/v2/snapshot');
   assert.equal(fallback.runtime.phase, 'prefill');
   assert.equal(fallback.runtime.request.prefillFraction, 0.25);
-  assert.notEqual(fallback.compat.traceEpoch, dflash.compat.traceEpoch);
+  // The request leaves: the service's history turns what it watched into one last-observed completion (svc-history).
+  flight = null;
+  await delay(550);
+  const finished = await v2('/v2/snapshot');
+  assert.equal(finished.runtime.request, null);
+  assert(finished.completions.items.length >= 1, 'A request that left view must become a completion.');
+  assert(finished.completions.items.every(item => item.basis === 'last-observed' && Number.isSafeInteger(item.seq)));
+  assert.equal(finished.capabilities['server.completions']?.basis, 'last-observed');
+  const watched = await (await get('/v2/trend?window=900&series=prefillTps,active')).json();
+  assert(watched.series.active?.buckets.some(bucket => Array.isArray(bucket)), 'The trend must hold the readings the frames saw.');
+  // /v2/usage reads oMLX's records through the adapter's own admin login, allowlisted and cached.
+  const records = await (await get('/v2/usage?range=7d')).json();
+  assert.equal(records.available, true);
+  assert(records.buckets.length > 0 && records.models.length <= 50);
+  const again = await (await get('/v2/usage?range=7d')).json();
+  assert.deepEqual({ ...again, serverNow: 0 }, { ...records, serverNow: 0 }, 'The usage read is cached for 5 min.');
+  assert.equal(again.cachedAt, records.cachedAt);
+  assert.equal(runtimeCalls.filter(call => call.path === '/admin/api/usage').length, 1);
   assert.deepEqual(authFailures, []);
   assert.equal(runtimeCalls.filter(call => call.path === '/admin/api/login').length, 1, 'The package must authenticate once and reuse its session.');
-  for (const path of ['/health', '/v1/models/status', '/admin/api/activity', '/admin/api/stats']) {
+  for (const path of ['/health', '/v1/models/status', '/admin/api/activity', '/api/status']) {
     assert(runtimeCalls.some(call => call.path === path), `The package did not exercise ${path}.`);
   }
+  // G1: the stats route (it echoes the api_key) is never read; /v2/usage now reads through the same admin login.
+  assert(!runtimeCalls.some(call => call.path === '/admin/api/stats'), 'The package read /admin/api/stats.');
   await stop(activeService);
 
   // Use only isolated HTTP fixtures; this checks that every adapter ships in the ZIP.
@@ -282,7 +347,6 @@ try {
   const studio = await v2('/v2/snapshot?provider=studio');
   assert.equal(studio.status.state, 'ready');
   assert.equal(studio.connection.runtime, 'lmstudio');
-  assert.equal(studio.compat.connection.coverage, 'inventory');
   assert.equal(studio.runtime.catalog[0].name, 'studio-fixture');
   assert.equal(studio.runtime.catalog[0].contextWindowTokens, 8192);
   assert.equal(studio.runtime.residencyCount, 1);
@@ -309,7 +373,6 @@ try {
   assert.equal(vllm.runtime.request.outputTokens, 20);
   assert.equal(vllm.runtime.request.cachedTokens, 50);
   assert.equal(vllm.runtime.request.prefillFraction, undefined);
-  assert.equal(vllm.compat.connection.coverage, 'requests');
   // One service instance serves every read until it restarts.
   assert(![studio, mlx, pending, vllm].some(result => result.service.instance === instance), 'A restarted service must announce a new instance.');
   assert.equal(new Set([studio, mlx, pending, vllm].map(result => result.service.instance)).size, 1);
@@ -322,12 +385,56 @@ try {
   }
   assert(runtimeCalls.filter(call => call.runtime !== 'omlx').every(call => call.method === 'GET'));
   await stop(multiService);
+
+  // Splash 1.1, llama-server and Ollama from their scrubbed corpora, selected by provider name hints.
+  await writeFile(join(config, 'opencode.jsonc'), JSON.stringify({ provider: {
+    splash: { name: 'Splash', options: { baseURL: runtimeBase } },
+    'llama-cpp': { name: 'llama.cpp server', options: { baseURL: runtimeBase } },
+    ollama: { name: 'Ollama', options: { baseURL: runtimeBase } },
+  } }));
+  const fixtureService = start(port);
+  ready = false;
+  const fixtureDeadline = performance.now() + 5000;
+  while (performance.now() < fixtureDeadline && !fixtureService.closed) {
+    try { ready = (await get('/health')).status === 200; if (ready) break; } catch {}
+    await delay(50);
+  }
+  assert(ready, `Packaged fixture-runtime service did not become ready: ${fixtureService.log}`);
+  runtimeKind = 'splash';
+  const splash = await v2('/v2/snapshot?provider=splash');
+  assert.equal(splash.connection.runtime, 'splash');
+  assert.equal(splash.status.state, 'ready');
+  // Splash reports server-wide work, not a request's phase.
+  assert.equal(splash.runtime.phase, 'processing');
+  assert(splash.runtime.server.active >= 1);
+  runtimeKind = 'llama-server';
+  const llama = await v2('/v2/snapshot?provider=llama-cpp');
+  assert.equal(llama.connection.runtime, 'llama-server');
+  assert.equal(llama.status.state, 'ready');
+  assert(llama.runtime.slots.length >= 1, 'llama-server slots must come through as numbers.');
+  runtimeKind = 'ollama';
+  const ollama = await v2('/v2/snapshot?provider=ollama');
+  assert.equal(ollama.connection.runtime, 'ollama');
+  assert.equal(ollama.status.state, 'ready');
+  assert(ollama.runtime.residency.length >= 1, 'Ollama residency must come through.');
+  for (const result of [splash, llama, ollama]) {
+    const encoded = JSON.stringify(result);
+    for (const forbidden of ['"pid"', 'last_crash_trace', '"prompt"', 'digest', 'model_path']) assert(!encoded.includes(forbidden), `${forbidden} crossed the service boundary.`);
+  }
+  assert(runtimeCalls.filter(call => ['splash', 'llama-server', 'ollama'].includes(call.runtime)).every(call => call.method === 'GET'));
+  await stop(fixtureService);
+  // The service writes nothing (P5): the temporary HOME holds only what this script wrote.
+  const written = await files(home);
+  assert.deepEqual(written, ['.config/opencode/opencode.jsonc'], `The service created files: ${written.join(', ')}`);
   if (process.platform === 'darwin') {
     console.log('PASS: packaged Node service returned real macOS wired, compressed, and swap readings.');
   }
   console.log('PASS: packaged DFlash output and fallback transition use reported counters without inventing speed or prefill.');
   console.log('PASS: packaged prefill counters and invalid-progress rejection verified against loopback fixture.');
   console.log('PASS: packaged LM Studio, mlx-lm, and vllm-mlx adapters preserve credentials, telemetry boundaries, and output freshness with synthetic fixtures.');
+  console.log('PASS: packaged Splash 1.1, llama-server and Ollama adapters read their scrubbed corpora with GET only.');
+  console.log('PASS: packaged history: a watched oMLX request becomes a last-observed completion, /v2/trend holds the readings, /v2/usage reads through the admin login once (cached).');
+  console.log('PASS: the packaged service wrote no files under its HOME.');
   console.log('PASS: packaged Node service starts without node_modules; /health, /v2/snapshot, the retired /snapshot 410, JSONC, authentication, startup errors, and shutdown verified.');
 } finally {
   await Promise.all(children.map(stop));

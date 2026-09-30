@@ -1,3 +1,6 @@
+import type { HostClient } from '@openchamber/sdk';
+import { PrefStore, type PrefPatch } from './history/prefs.ts';
+
 export type PreferenceKey = 'compact' | 'efficient';
 type Storage = { get(key: string): Promise<unknown>; set(key: string, value: boolean): Promise<void> };
 
@@ -23,43 +26,32 @@ export class Preferences {
   }
 }
 
-/** `pref.v2` (plan §5.6): one small object, read once, written only on a click. Keys other tracks add are kept. */
+/**
+ * `pref.v2` (plan §5.6) for the shell: the ledger's PrefStore (one schema, parsed field by field, one write per real
+ * change) with this frame's choices applied at once, so a click re-renders before the write lands.
+ */
 export interface PrefV2 {
   statusExpanded?: boolean;                  // Work Status shows Turn stats instead of the glance
   tipDismissed?: boolean;                    // "Replace Turn stats" tip
-  firstRunDismissed?: boolean;               // "Recording reply history locally"
+  firstRunDismissed?: boolean;               // "Recording reply history locally" (stored as noticeDismissed)
   toasts?: 'critical' | 'all' | 'off';       // alerts.toasts (default critical)
   autoLabel?: boolean;                       // attribution.auto (default on)
+  retentionDays?: number;                    // ledger retention, 1–90 days (default 30)
+  history?: boolean;                         // false: recording paused
 }
-type Stored = { get(key: string): Promise<unknown>; set(key: string, value: never): Promise<void> };
-const PREF_KEY = 'pref.v2';
-const TOASTS = ['critical', 'all', 'off'] as const;
-const clean = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 export class PrefsV2 {
-  private stored: Record<string, unknown> = {};
-  private writes: Promise<void> = Promise.resolve();
-  private revision = 0;
-  constructor(private readonly storage: Stored) {}
+  private readonly store: PrefStore;
+  private overlay: PrefPatch = {};
+  constructor(storage: HostClient['storage']) { this.store = new PrefStore(storage); }
   get value(): PrefV2 {
-    const s = this.stored, bool = (key: string) => typeof s[key] === 'boolean' ? s[key] as boolean : undefined;
-    return { statusExpanded: bool('statusExpanded'), tipDismissed: bool('tipDismissed'), firstRunDismissed: bool('firstRunDismissed'),
-      toasts: TOASTS.find(item => item === s.toasts), autoLabel: bool('autoLabel') };
+    const v = { ...this.store.value, ...this.overlay };
+    return { statusExpanded: v.statusExpanded, tipDismissed: v.tipDismissed, firstRunDismissed: v.noticeDismissed, toasts: v.toasts,
+      autoLabel: v.autoLabel, retentionDays: v.retentionDays, history: v.history };
   }
-  async load(): Promise<PrefV2> {
-    const revision = this.revision;
-    try { const value = clean(await this.storage.get(PREF_KEY)); if (revision === this.revision) this.stored = value; } catch { /* never blocks monitoring */ }
-    return this.value;
-  }
-  /** Applies at once; the write re-reads the stored object first, so another frame's keys survive. */
+  async load(): Promise<PrefV2> { await this.store.load(); return this.value; }
   set(patch: PrefV2): Promise<void> {
-    this.revision += 1;
-    this.stored = { ...this.stored, ...patch };
-    const next = this.writes.catch(() => {}).then(async () => {
-      let current: Record<string, unknown> = {};
-      try { current = clean(await this.storage.get(PREF_KEY)); } catch { /* write what this frame knows */ }
-      await this.storage.set(PREF_KEY, { ...current, ...patch } as never);
-    });
-    this.writes = next;
-    return next;
+    const { firstRunDismissed, ...rest } = patch, next: PrefPatch = { ...rest, ...firstRunDismissed !== undefined ? { noticeDismissed: firstRunDismissed } : {} };
+    this.overlay = { ...this.overlay, ...next };
+    return this.store.update(next).then(() => undefined);
   }
 }

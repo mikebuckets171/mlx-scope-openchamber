@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { RuntimeClient } from './runtime-client.ts';
-import { LMStudioActivityStream } from './lmstudio-activity.ts';
 import { HostSampler } from './host/sampler.ts';
+import { historySources, ServiceHistory } from './history/history.ts';
 import { createExec } from './lib/argv.ts';
 import { createScopeServer } from './server.ts';
 
@@ -12,14 +12,17 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535 || token.length === 0) 
   console.error('OpenChamber service port and token are required.');
   process.exit(1);
 }
-// One instance id per service start: the completion rings and the snapshot's service identity share it.
+// One instance id per service start: the completion seqs, the frames' tags and the snapshot's service identity share it.
 const instance = randomBytes(4).toString('hex');
-const client = new RuntimeClient({ lmstudioActivity: new LMStudioActivityStream(), instance });
 const home = homedir();
-const host = new HostSampler({ exec: createExec(home), now: Date.now, home });
+const exec = createExec(home);
+const client = new RuntimeClient({ exec });
+const host = new HostSampler({ exec, now: Date.now, home });
+// Everything the service remembers lives in memory and is filled only by view-driven reads (P5).
+const history = new ServiceHistory(instance, { energy: (from, to) => host.energy(from, to) });
 const server = createScopeServer(token, {
-  read: (selection, request) => client.read(selection, request), host: context => host.sample(context),
-  completionHead: () => client.completionHead,
+  read: (selection, request) => client.read(selection, request), host: context => host.sample(context), history,
+  ...historySources(history, { now: Date.now, readUsage: query => client.usage(query) }),
 }, { instance });
 server.on('error', (error: NodeJS.ErrnoException) => {
   console.error('MLX Scope could not start its local service.', error);

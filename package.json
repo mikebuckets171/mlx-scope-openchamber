@@ -86,7 +86,7 @@
   "scripts": {
     "build": "bun run build:panel && bun run build:service && bun run build:background",
     "build:panel": "openchamber-guest-bundle panel/main.ts panel/main.js",
-    "build:service": "bun build service/main.ts --target=node --format=esm --minify-whitespace --outfile=service/main.js",
+    "build:service": "bun build service/main.ts --target=node --format=esm --minify --outfile=service/main.js",
     "build:background": "openchamber-guest-bundle background/main.ts background/main.js",
     "type-check": "tsc --noEmit",
     "test": "bun test ./service ./src ./panel ./background ./scripts ./tests/fixtures",

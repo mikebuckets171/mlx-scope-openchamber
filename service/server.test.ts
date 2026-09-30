@@ -7,6 +7,7 @@ import { honestyViolations, parseSnapshotV2, type SnapshotV2, type StatusV2 } fr
 import { parseSystemSnapshot } from '../src/system.ts';
 import type { RuntimeConnectionConfig } from './config.ts';
 import type { HostContext } from './host/sampler.ts';
+import { ServiceHistory } from './history/history.ts';
 import { RuntimeClient, type ReadingMeta, type RuntimeReading } from './runtime-client.ts';
 import { createScopeServer, encode, type ServerOptions, type Sources } from './server.ts';
 
@@ -18,9 +19,7 @@ afterEach(async () => {
 const HOST = hostFromV1(parseSystemSnapshot({ platform: 'darwin', sampledAt: NOW - 500, memoryTotalGB: 48 }))!;
 const meta = (overrides: Partial<ReadingMeta> = {}): ReadingMeta => ({
   connection: { id: 'auto', label: 'Automatic', runtime: null, generation: 3, choices: [], detection: { basis: 'hint', confidence: 'medium' } },
-  port: null, slot: null, failures: 0, idleMs: 0, completions: null,
-  compat: { message: null, connection: { selected: null, generation: null, diagnostic: 'offline', coverage: null }, modelID: null, contextWindow: null,
-    statsState: 'unavailable', guardLevel: null, lastMissReason: null, traceEpoch: null }, ...overrides,
+  port: null, slot: null, failures: 0, idleMs: 0, cadenceMs: 2_000, ...overrides,
 });
 const reading = (status: StatusV2, overrides: Partial<RuntimeReading> = {}): RuntimeReading => ({
   at: NOW - 400, status, capabilities: {}, identity: {}, completions: [],
@@ -147,13 +146,13 @@ test('a v2 snapshot is canonical, honest, English-free and carries the service i
     completions: { instance: INSTANCE, cursor: 0, reset: false, items: [] }, marksHead: 0, alerts: [], alertLog: [],
     lease: { leader: false, epoch: 0, ttlMs: 12_000, leaderSurface: null }, nextPollMs: 2_000,
     host: { platform: 'macOS', memTotalBytes: 48_000_000_000 }, capabilities: { 'host.memory': { basis: 'reported' } },
-    compat: { message: null },
   });
+  expect(body.compat).toBeUndefined();
 });
 
 test('status params are allowlisted per reason; nothing else a reading carries reaches the wire', async () => {
   const leaky = reading({ state: 'failing', reason: 'authentication_failed', params: { port: 8000, keySaved: false, key: 'fixture-secret', message: 'rejected' } }, {
-    compat: { modelID: 'x', contextWindow: 1, statsState: 'fresh', guardLevel: null, lastMissReason: null, traceEpoch: null }, generationKey: 'private-key',
+    generationKey: 'private-key',
     meta: meta({ port: 8000, slot: 'provider\0auto' }) });
   const body = await snapshot(await launch({ ...defaults, read: async () => leaky }));
   expect(body.status).toEqual({ state: 'failing', reason: 'authentication_failed', params: { port: 8000, keySaved: false } });
@@ -164,15 +163,8 @@ test('host readings survive a rejected runtime read without leaking the error', 
   const request = await launch({ ...defaults, read: async () => { throw Error('private api key'); } });
   const body = await snapshot(request);
   expect(body.status).toEqual({ state: 'failing', reason: 'runtime_unreachable', params: {} });
-  expect(body.compat?.message).toBeNull();
   expect(body.host).toMatchObject({ memTotalBytes: 48_000_000_000 });
   expect(JSON.stringify(body)).not.toContain('private');
-});
-
-test('a 2a-era 1.x host sampler still feeds the host reading when no v2 host source is given', async () => {
-  const body = await snapshot(await launch({ read: async () => offline(), system: async () => parseSystemSnapshot({ platform: 'darwin', sampledAt: NOW - 500, memoryTotalGB: 48 })! }));
-  expect(body.host).toEqual(HOST);
-  expect((await snapshot(await launch({ read: async () => offline() }))).host).toBeNull();
 });
 
 test('runtime readings survive rejected host diagnostics', async () => {
@@ -238,22 +230,16 @@ test('turn marks are deduplicated into marksHead and their tags never leave the 
   expect(JSON.stringify(body)).not.toMatch(/aaaaaaaa|bbbbbbbb/);
 });
 
-const studio = (port = 1234): RuntimeConnectionConfig => ({ id: 'studio', label: 'LM Studio', runtime: 'lmstudio', config: { baseURL: new URL(`http://127.0.0.1:${port}/`),
-  apiKey: null, preferredModel: null, issue: 'missing_credential', source: 'opencode', configStatus: 'present', authStatus: 'present', error: null } });
-/** A real client over a fake LM Studio whose log stream reports one finished request per `finished` value. */
-const bionic = (finished: () => number) => {
-  const view = () => ({ active: null, concurrent: false, activeRequests: 0, completedRequests: 1, averageDecodeTPS: 38.6, cacheEfficiencyPercent: 61.2,
-    lastRequest: { model: 'fixture-model', tokensPerSecond: 38.6, ttftSeconds: 0.47, promptTokens: 1840, cachedTokens: 1126, outputTokens: 109, finishedAt: finished() } });
-  return new RuntimeClient({ now: () => clock.now, monotonicNow: () => clock.monotonic, instance: INSTANCE,
-    lmstudioActivity: { available: true, stop() {}, forPort: () => ({ touch() {}, view }) } as never,
-    readConfig: async () => ({ connections: [studio()], issue: 'none', error: null }),
-    fetchImpl: async () => new Response(JSON.stringify({ models: [{ type: 'llm', key: 'fixture-model', format: 'mlx', max_context_length: 8192,
-      loaded_instances: [{ id: 'fixture-model', config: { context_length: 8192 } }] }] })) });
-};
-
+/** A Bionic reading whose log stream reported one finished request; the history numbers it (seq 1) and keeps it. */
+const bionic = (): RuntimeReading => reading({ state: 'ready', reason: null, params: {} }, {
+  capabilities: { 'server.completions': { scope: 'server', basis: 'reported' }, 'server.requests': { scope: 'server', basis: 'observed' } },
+  completions: [{ finishedAt: NOW - 42_000, startedAt: null, model: 'fixture-model', basis: 'reported', promptTokens: 1840, cachedTokens: 1126,
+    outputTokens: 109, ttftMs: 470, decodeTps: 38.6, overlapped: true }],
+  meta: meta({ connection: { id: 'studio', label: 'LM Studio', runtime: 'lmstudio', generation: 1, choices: [], detection: { basis: 'hint', confidence: 'medium' } },
+    port: 1234, slot: 'studio\0auto' }),
+});
 test('attribution verdicts are kept next to their completion; the first stands unless an armed capture replaces it', async () => {
-  const client = bionic(() => NOW - 42_000);
-  const request = await launch({ read: (selection, tier) => client.read(selection, tier), host: async () => HOST, completionHead: () => client.completionHead });
+  const request = await launch({ read: async () => bionic(), host: async () => HOST, history: new ServiceHistory(INSTANCE) });
   const first = await snapshot(request);
   expect(first.completions).toMatchObject({ instance: INSTANCE, cursor: 1, reset: false });
   expect(first.completions.items).toHaveLength(1);
@@ -281,13 +267,14 @@ test('a selection no slot serves has an empty ring: any cursor is a reset', asyn
   expect((await snapshot(request, '/v2/snapshot?since=0')).completions).toEqual({ instance: INSTANCE, cursor: 0, reset: false, items: [] });
 });
 
-test('alerts come from their source with the lease, and reach the wire only through the contract parser', async () => {
+test('alerts come from the history with the lease, and reach the wire only through the contract parser', async () => {
   const inputs: boolean[] = [];
-  const request = await launch({ ...defaults, alerts: ({ leader }) => {
+  const history: NonNullable<Sources['history']> = { head: 0, record() {}, snapshot: (_key, { leader }) => {
     inputs.push(leader);
-    return { alerts: [{ id: 'runtime-lost', severity: 'critical', since: NOW - 5_000, params: { runtime: 'omlx', note: 'x' }, badge: true, ...leader ? { toastSeq: 1 } : {} }],
-      alertLog: [] };
-  } });
+    return { completions: { instance: INSTANCE, cursor: 0, reset: false, items: [] }, alertLog: [],
+      alerts: [{ id: 'runtime-lost', severity: 'critical', since: NOW - 5_000, params: { runtime: 'omlx', note: 'x' } as never, badge: true, ...leader ? { toastSeq: 1 } : {} }] };
+  } };
+  const request = await launch({ ...defaults, history });
   const body = await snapshot(request, '/v2/snapshot?surface=panel&frame=00000001');
   expect(body.alerts).toEqual([{ id: 'runtime-lost', severity: 'critical', since: NOW - 5_000, params: { runtime: 'omlx' }, badge: true, toastSeq: 1 }]);
   expect(inputs).toEqual([true]);

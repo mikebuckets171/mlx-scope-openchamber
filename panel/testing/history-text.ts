@@ -2,7 +2,7 @@ import type { AlertId, ReasonParams, WithholdReason } from '../../src/contract/r
 import type { HistoryText } from '../present/history.ts';
 
 // Test support only (ui-history): the mock's copy table (docs/design/2.0-mock.html WITHHOLD and ALERT) standing in for
-// panel/present/reasons.ts until svc-2b's messages land, so History and Captures tests don't depend on a stub.
+// panel/present/copy.ts, so History and Captures tests pin the mock's own table.
 const WITHHOLD: Record<WithholdReason | 'all-requests', string> = {
   'other-provider': 'this chat uses another runtime',
   'model-differs': 'chat model differs', 'model-unknown': 'chat model unknown', 'cannot-count': 'runtime can’t count requests', overlap: 'overlapping requests',

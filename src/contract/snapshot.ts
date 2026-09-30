@@ -31,7 +31,6 @@ export interface SnapshotV2 {
   alertLog: AlertLogEntryV2[];               // ≤ 20, newest first, service memory only
   lease: LeaseV2;
   nextPollMs: number;
-  compat?: CompatV1;                         // 2a amendment: the 1.6 bridge, deleted in 2b
 }
 export interface StatusV2 { state: StatusState; reason: StatusReason | null; params: ReasonParams; sinceAt?: number }
 
@@ -108,34 +107,6 @@ export interface CatalogV2 {
 }
 export interface EngineV2 { name: string; version: string; selected: boolean; format?: string }   // format: lms runtime ls model format, e.g. 'yuzu' (§12.3)
 export interface LeaseV2 { leader: boolean; epoch: number; ttlMs: number; leaderSurface: 'page' | 'panel' | 'status' | null }
-
-// The 1.6 vocabulary the bridge keeps verbatim.
-export const V1_REASONS = ['feature_disabled', 'runtime_unreachable', 'authentication_failed', 'unparseable_snapshot', 'unsupported_contract',
-  'host_unavailable', 'host_timeout', 'service_not_granted', 'service_failed', 'host_disconnected', 'host_rejected'] as const;
-export const V1_DIAGNOSTICS = ['ready', 'missing', 'invalid', 'unreadable', 'authentication', 'offline', 'unsupported'] as const;
-export const V1_COVERAGES = ['requests', 'inventory', 'server'] as const;
-export const V1_STATS_STATES = ['fresh', 'stale', 'unavailable'] as const;
-export const V1_LOOKUP_REASONS = ['empty_prompt', 'no_recent_store_probe', 'closest_recent_store'] as const;
-export const V1_FRAME_PHASES = ['connecting', 'reconnecting', 'offline'] as const;
-const UUID4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-/**
- * Stage 2a bridge (contract §11): what the 1.6 panel renders that v2 has no field for. Stage 2b moves the English to
- * panel/present/messages.ts and each value to a v2 field, then deletes this block. It is outside the honesty map.
- */
-export interface CompatV1 {
-  message: string | null;                    // the 1.6 English line
-  reason?: typeof V1_REASONS[number];        // only when `status` cannot say the 1.6 reason
-  phase?: typeof V1_FRAME_PHASES[number];    // only for a 1.6 phase v2 does not have
-  runtime?: RuntimeKind | null;              // only when the 1.6 top-level runtime differs from connection.runtime
-  connection: { selected: string | null; generation: string | null; diagnostic: typeof V1_DIAGNOSTICS[number];
-                coverage: typeof V1_COVERAGES[number] | null } | null;   // null: the 1.6 body had no connection
-  modelID: string | null;                    // the headline model, also while idle
-  contextWindow: number | null;              // that model's context limit, also while idle
-  statsState: typeof V1_STATS_STATES[number];
-  guardLevel: number | null;                 // oMLX process memory guard 0–3, not macOS pressure
-  lastMissReason: typeof V1_LOOKUP_REASONS[number] | null;
-  traceEpoch: number | null;                 // service-local continuity counter, never a request id
-}
 
 /** Field → capability (P3). A present value without its capability is removed by `parseSnapshotV2`. */
 export const HONESTY: ReadonlyArray<readonly [string, CapabilityKey]> = [
@@ -311,21 +282,6 @@ const lease = (value: unknown): LeaseV2 | null => {
   return leader !== null && epoch !== null && ttl !== null && (surface !== null || item?.leaderSurface === null)
     ? { leader, epoch, ttlMs: ttl, leaderSurface: surface } : null;
 };
-const compat = (value: unknown): CompatV1 | undefined => {
-  const item = obj(value);
-  if (!item) return undefined;
-  const link = obj(item.connection), guard = nonneg(item.guardLevel), message = typeof item.message === 'string' ? item.message.trim().slice(0, 1_000) : '';
-  return defined({
-    message: message || null, reason: opt(oneOf(V1_REASONS)(item.reason)), phase: opt(oneOf(V1_FRAME_PHASES)(item.phase)),
-    runtime: item.runtime === null ? null : opt(runtimeKind(item.runtime)),
-    connection: link ? { selected: label(link.selected), generation: typeof link.generation === 'string' && UUID4.test(link.generation) ? link.generation : null,
-      diagnostic: oneOf(V1_DIAGNOSTICS)(link.diagnostic) ?? 'unsupported', coverage: oneOf(V1_COVERAGES)(link.coverage) } : null,
-    modelID: modelLabel(item.modelID), contextWindow: nonneg(item.contextWindow),
-    statsState: oneOf(V1_STATS_STATES)(item.statsState) ?? 'unavailable',
-    guardLevel: guard === null ? null : Math.min(3, Math.trunc(guard)), lastMissReason: oneOf(V1_LOOKUP_REASONS)(item.lastMissReason),
-    traceEpoch: nonneg(item.traceEpoch),
-  });
-};
 
 /**
  * Validate a `/v2/snapshot` body before any value reaches the DOM. Returns null for a body that breaks the contract:
@@ -347,7 +303,7 @@ export const parseSnapshotV2 = (value: unknown): SnapshotV2 | null => {
   const snapshot: SnapshotV2 = defined({
     contractVersion: CONTRACT_VERSION, serverNow, service: { version, instance }, connection: parsedConnection, status: parsedStatus,
     capabilities: parseCapabilities(item.capabilities), runtime: parsedRuntime, host, completions, marksHead,
-    alerts: parseAlerts(item.alerts), alertLog: parseAlertLog(item.alertLog), lease: parsedLease, nextPollMs, compat: compat(item.compat),
+    alerts: parseAlerts(item.alerts), alertLog: parseAlertLog(item.alertLog), lease: parsedLease, nextPollMs,
   });
   withhold(snapshot);
   return snapshot;

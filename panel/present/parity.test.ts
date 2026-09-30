@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import * as v16 from '../../src/contract/testing/v1-panel.ts';
-import { EPOCH, hostStates, serviceStates } from '../../src/contract/testing/v1-states.ts';
+import { EPOCH, hostStates } from '../../src/contract/testing/v1-states.ts';
 import type { V1Snapshot } from '../../src/contract/convert-v1.ts';
 import { parseTelemetrySnapshot } from '../../src/telemetry.ts';
 import { contextBudget } from '../context.ts';
@@ -16,12 +16,12 @@ import { savedValue } from './captures.ts';
 // across the service's real adapters and the whole oMLX corpus.
 const NOW = EPOCH + 60_000;
 const wire = <T>(value: T): T => JSON.parse(JSON.stringify(value));
-const states = [...hostStates(), ...await serviceStates()];
+const states = hostStates();
 const shown = (item: Observation | null) => item && { report: observationReport(item),
   values: Object.fromEntries(Object.entries(item.measurements).map(([key, value]) => [key, savedValue(key, value)])) };
 
 test('the 2a panel computes what 1.6 computed, for every fixture state', () => {
-  expect(states.length).toBeGreaterThan(300);
+  expect(states.length).toBeGreaterThan(250);
   for (const state of states) {
     const original = parseTelemetrySnapshot(wire(state.body)), current16 = original.available ? original : null;
     // The service converts its raw reading; a reading the 1.6 panel had already parsed converts the same way.

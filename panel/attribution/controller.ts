@@ -42,7 +42,7 @@ const verdictOf = (verdict: JoinVerdict, at: number): NonNullable<CompletionV2['
 const trim = <T>(map: Map<number, T>): void => { for (const key of map.keys()) { if (map.size <= KEEP) break; map.delete(key); } };
 /** Every model the runtime names right now. */
 export const runtimeModels = (body: SnapshotV2): string[] => [...new Set([body.runtime.request?.model, ...body.runtime.residency.map(item => item.model),
-  ...body.runtime.catalog.filter(item => item.loaded).map(item => item.name), body.compat?.modelID].filter((model): model is string => !!model))];
+  ...body.runtime.catalog.filter(item => item.loaded).map(item => item.name)].filter((model): model is string => !!model))];
 
 export class Attribution {
   readonly feed: SessionFeed;

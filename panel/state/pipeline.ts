@@ -1,5 +1,6 @@
 import type { HostClient } from '@openchamber/sdk';
 import type { CompletionV2 } from '../../src/contract/completion.ts';
+import type { RuntimeKind } from '../../src/contract/runtime.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { Signals, type ToastPreference } from '../alerts/signals.ts';
 import { Attribution, type TurnView } from '../attribution/controller.ts';
@@ -7,8 +8,9 @@ import type { AttributionLabel } from '../attribution/join.ts';
 import type { NextReplyState } from '../attribution/next-reply.ts';
 import type { FrameSessionState, TurnWindow } from '../attribution/sessions.ts';
 import type { TurnSummary } from '../attribution/turn.ts';
-import type { RegressionFlag } from '../history/regress.ts';
-import { cofactorBits, turnRowOf, type LedgerAttr } from '../history/ledger-schema.ts';
+import { baselineKey, replyMetric, type Baselines } from '../history/baselines.ts';
+import { vsUsual, type RegressionFlag, type VsUsual } from '../history/regress.ts';
+import { cofactorBits, KEYS, parseModels, replyRow, turnRowOf, type LedgerAttr } from '../history/ledger-schema.ts';
 import { Ledger, LedgerRecorder } from '../history/ledger.ts';
 import { RT } from '../present/copy.ts';
 import { SERVER_WIDE } from '../present/scope.ts';
@@ -23,6 +25,8 @@ export interface PipelineOptions { host: Host; state: ScopeState; now: () => num
 
 export const ledgerAttr = (label: AttributionLabel): LedgerAttr => label.kind === 'inferred' ? 'inferred' : label.kind === 'armed' ? 'armed'
   : label.reason === 'not-observed' || label.reason === 'all-requests' ? 'not-observed' : `withheld:${label.reason}`;
+/** baseline.v2 changes at most every 10 min (the leader's write), so a frame re-reads it no more often. */
+export const USUAL_EVERY_MS = 600_000;
 /** Another track's module that throws must not take monitoring down with it. */
 const safe = <T>(run: () => T, fallback: T): T => { try { return run(); } catch { return fallback; } };
 
@@ -35,6 +39,10 @@ export class Pipeline {
   private visible = true;
   private turnKey = '';
   flags: readonly RegressionFlag[] = [];
+  /** The ledger dictionary's model names (class B), kept out of every share this frame makes. */
+  ledgerModels: readonly string[] = [];
+  private usual: { baselines: Baselines; models: readonly string[] } | null = null;
+  private usualAt = -Infinity;
   constructor(private readonly o: PipelineOptions) {
     this.attribution = new Attribution({ host: o.host, now: o.now, auto: o.auto });
     this.ledger = new Ledger({ storage: o.host.storage, now: o.now });
@@ -56,6 +64,7 @@ export class Pipeline {
   }
   /** After a 200: acknowledge what was sent, observe the body, then the leader's signals and ledger. */
   received(snapshot: SnapshotV2, _fresh: readonly CompletionV2[], visible: boolean, cadenceMs = 0): void {
+    if (visible && this.o.now() - this.usualAt >= USUAL_EVERY_MS) void this.readUsual();
     safe(() => this.attribution.acknowledge(), undefined);
     safe(() => this.attribution.observe(snapshot, cadenceMs), undefined);
     safe(() => this.signals.apply(snapshot, this.flags), undefined);
@@ -68,7 +77,27 @@ export class Pipeline {
     try {
       await this.recorder.observe(snapshot, this.o.now(), this.sent);
       this.recordTurn(snapshot);
+      if (this.recorder.recording) this.ledgerModels = await this.ledger.models();
     } catch { /* Storage trouble never stops monitoring; the ledger backs off on its own. */ }
+  }
+  /** baseline.v2 and the model dictionary: two reads, at most every 10 min, only while visible. */
+  private async readUsual(): Promise<void> {
+    this.usualAt = this.o.now();
+    try {
+      const [baselines, models] = await Promise.all([this.ledger.storedBaselines(), this.o.host.storage.get(KEYS.models)]);
+      this.usual = baselines ? { baselines, models: parseModels(models) } : null;
+    } catch { this.usual = null; }
+  }
+  /**
+   * A reply's decode speed against its usual (p50 with n) and the regression flag that covers it, from the stored
+   * baselines; null without a baseline for this runtime, model and context bucket.
+   */
+  usualFor(completion: CompletionV2, runtime: RuntimeKind | null): { vsUsual: VsUsual | null; flag: RegressionFlag | null } {
+    const usual = this.usual, index = usual && completion.model ? usual.models.indexOf(completion.model) : -1;
+    if (!usual || !runtime || index < 0) return { vsUsual: null, flag: null };
+    const row = replyRow(completion, '00000000', runtime, index, 'not-observed'), reading = replyMetric(row, 'decodeTps');
+    const key = reading ? baselineKey('decodeTps', reading.key) : null;
+    return { vsUsual: safe(() => vsUsual(row, usual.baselines, 'decodeTps'), null), flag: this.flags.find(flag => flag.key === key) ?? null };
   }
   /** A settled, fully attributed turn becomes one `t` row, once. */
   private recordTurn(snapshot: SnapshotV2): void {

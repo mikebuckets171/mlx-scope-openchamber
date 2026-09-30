@@ -8,8 +8,6 @@ import { SignalHistory } from '../signal.ts';
 type Completions = { instance: string; cursor: number; items: CompletionV2[] };
 /** Completions kept in the frame for Last reply, turn steps and Next reply: the service ring's size per response. */
 export const KEPT_COMPLETIONS = 64;
-/** Poll times kept for coverage: a reading span is covered when no gap in it exceeds the allowed one. */
-const KEPT_POLLS = 1_200;
 
 /** The panel's one mutable state. Presenters only read it; the monitor and the shell's handlers change it. */
 export class ScopeState {
@@ -31,7 +29,6 @@ export class ScopeState {
   readonly open = new Set<string>();         // disclosures the reader opened, by element id
   private monitored: string | null = null;
   private completions: Completions | null = null;
-  private polls: number[] = [];
   constructor(now: number) { this.latest = frameReading('runtime_unreachable', null, now); }
 
   /** True when the reading is from another connection than the observations so far, which must be cleared first. */
@@ -44,7 +41,7 @@ export class ScopeState {
     this.latest = reading;
     if (reading.available) this.last = reading;
     if (reading.host) this.lastHost = reading.host;
-    if (reading.body) { this.snapshot = reading.body; this.frame = null; this.stale = false; this.polls = [...this.polls, reading.body.serverNow].slice(-KEPT_POLLS); }
+    if (reading.body) { this.snapshot = reading.body; this.frame = null; this.stale = false; }
     else this.frame = { reason: reading.reason ?? 'host_unavailable', message: reading.message };
     const completions = reading.body?.completions;
     if (!completions) return [];
@@ -60,14 +57,8 @@ export class ScopeState {
   get recent(): readonly CompletionV2[] { return this.completions?.items ?? []; }
   /** The completion cursor for the next poll's `since`. */
   get since(): number | undefined { return this.completions?.cursor; }
-  /** Whether this frame's polls covered [from, to] without a gap longer than `gapMs` (attribution condition 7). */
-  covered(from: number, to: number, gapMs: number): boolean {
-    const inside = this.polls.filter(at => at >= from - gapMs && at <= to + gapMs);
-    if (!inside.length || inside[0]! > from || inside.at(-1)! < to) return false;
-    return inside.every((at, index) => index === 0 || at - inside[index - 1]! <= gapMs);
-  }
   clearObservations(): void {
-    this.last = null; this.lastHost = null; this.monitored = null; this.completions = null; this.snapshot = null; this.polls = [];
+    this.last = null; this.lastHost = null; this.monitored = null; this.completions = null; this.snapshot = null;
     this.signal = new SignalHistory();
   }
 }
