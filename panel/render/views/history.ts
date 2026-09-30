@@ -20,7 +20,7 @@ export interface HistoryDeps {
   ledger: Pick<Ledger, 'state' | 'read' | 'models' | 'accounting' | 'setRetention' | 'setPaused' | 'clear'>;
   client: Pick<HistoryClient, 'trend' | 'usage'>;
   retentionDays(): number;                   // pref.v2
-  paused(): boolean;                         // pref.v2, not the ledger's state: that stays 'stopped' until this frame leads
+  paused(): boolean;                         // the running ledger's state; pref.v2 while it is 'stopped' (until this frame leads)
   copy(text: string): Promise<void>;
   version: string;
   /** The same provider/runtime the frame's snapshot poll uses; default: the snapshot's connection id. */
