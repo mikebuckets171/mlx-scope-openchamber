@@ -76,8 +76,6 @@ test('malformed parameters are 400 bad_query naming only the parameter, and neve
   const cases: Array<[string, string]> = [
     ['/v2/snapshot?provider=my%20provider', 'provider'], [`/v2/snapshot?provider=${'x'.repeat(65)}`, 'provider'],
     ['/v2/snapshot?provider=a&provider=b', 'provider'], ['/v2/snapshot?runtime=secret-runtime', 'runtime'],
-    // Stage 2a serves the 1.6 runtimes only.
-    ['/v2/snapshot?runtime=ollama', 'runtime'], ['/v2/snapshot?runtime=llama-server', 'runtime'],
     ['/v2/snapshot?tier=deep', 'tier'], ['/v2/snapshot?detail=server&tier=glance', 'detail'], ['/v2/snapshot?surface=status&detail=server', 'detail'],
     ['/v2/snapshot?frame=NOTHEX00', 'frame'], ['/v2/snapshot?surface=window', 'surface'], ['/v2/snapshot?since=-1', 'since'],
     ['/v2/snapshot?since=1.5', 'since'], ['/v2/snapshot?mark=started.1.zzzzzzzz', 'mark'],
@@ -92,6 +90,20 @@ test('malformed parameters are 400 bad_query naming only the parameter, and neve
     expect(body, path).toEqual({ error: 'bad_query', param });
     expect(JSON.stringify(body)).not.toMatch(/secret|zzzz|NOTHEX|window=|1y/);
   }
+  expect(reads).toBe(0);
+});
+
+test('runtime=llama-server and runtime=ollama are accepted, and say unsupported until the v2 adapters are wired', async () => {
+  let reads = 0;
+  const request = await launch({ ...defaults, read: async () => { reads += 1; return offline(); } });
+  for (const runtime of ['llama-server', 'ollama']) {
+    const body = await snapshot(request, `/v2/snapshot?runtime=${runtime}&provider=local`);
+    expect(parseSnapshotV2(body), runtime).not.toBeNull();
+    expect(body.status, runtime).toMatchObject({ state: 'failing', reason: 'unsupported_contract' });
+    expect(body.connection.detection, runtime).toEqual({ basis: 'explicit', confidence: 'high' });
+    expect(body.host, runtime).not.toBeNull();
+  }
+  // The 1.6 reader never sees a selection it cannot serve.
   expect(reads).toBe(0);
 });
 

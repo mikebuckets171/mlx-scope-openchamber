@@ -54,7 +54,9 @@ export const STATUS_PARAMS: Readonly<Record<StatusReason, Allowlist>> = {
   runtime_unreachable: { port: 'port', sinceAt: 'at' }, authentication_failed: NONE, configuration_missing: NONE,
   unsupported_runtime: NONE, unsupported_contract: NONE, detecting: { port: 'port' }, redetecting: { port: 'port' },
   runtime_changed: { detected: 'runtime', port: 'port' }, loading: NONE, recovering: { retryInMs: 'ms', crashTrace: 'boolean' },
-  status_stale: NONE, not_admitting: NONE, admin_unauthorized: NONE, lms_unavailable: NONE, metrics_required: NONE, sleeping: NONE,
+  status_stale: NONE, not_admitting: NONE, admin_unauthorized: NONE, lms_unavailable: NONE, sleeping: NONE,
+  // wakes: the build has --metrics, but its /metrics wakes a sleeping server (b7492–b10518), so the fix is an update.
+  metrics_required: { wakes: 'boolean' },
 };
 export const ALERT_PARAMS: Readonly<Record<AlertId, Allowlist>> = {
   'runtime-lost': { runtime: 'runtime' }, 'model-unloaded': { model: 'model' },

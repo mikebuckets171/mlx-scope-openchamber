@@ -5,7 +5,7 @@ import { assertBodyLimit } from '../src/contract/guards.ts';
 import { isBadQuery, parseSnapshotQuery, parseTrendQuery, parseUsageQuery, type TrendQuery, type UsageQuery } from '../src/contract/query.ts';
 import type { TrendV2 } from '../src/contract/trend.ts';
 import type { UsageV2 } from '../src/contract/usage.ts';
-import { badQuery, NOT_FOUND_BODY, RETIRED_BODY, RETIRED_STATUS, ROUTES } from '../src/contract/version.ts';
+import { NOT_FOUND_BODY, RETIRED_BODY, RETIRED_STATUS, ROUTES } from '../src/contract/version.ts';
 import { runtimeValue, type RuntimeSelection } from '../src/runtime.ts';
 import type { SystemSnapshot } from '../src/system.ts';
 import { unavailableTelemetry } from '../src/telemetry.ts';
@@ -36,6 +36,8 @@ const json = (response: http.ServerResponse, status: number, body: unknown): voi
 const digest = (value: string): Buffer => createHash('sha256').update(value).digest();
 const NOT_IMPLEMENTED = { error: 'not_implemented' } as const;
 const FALLBACK: RuntimeReading['meta'] = { generation: 0, detection: { basis: 'probe', confidence: 'low' }, failures: 0, idleMs: 0, completionSeq: null };
+const UNSERVED = (at: number): RuntimeReading => ({ snapshot: unavailableTelemetry('unsupported_contract', null, at),
+  meta: { ...FALLBACK, detection: { basis: 'explicit', confidence: 'high' } } });
 
 /** Exact read-only route allowlist (contract §2). Host and inference failures are independent. */
 export const createScopeServer = (token: string, sources: Sources, options: ServerOptions = {}): http.Server => {
@@ -69,16 +71,17 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       if (url.pathname !== ROUTES.snapshot) { json(response, 404, NOT_FOUND_BODY); return; }
       const query = parseSnapshotQuery(url.searchParams);
       if (isBadQuery(query)) { json(response, 400, query); return; }
-      // 2a serves the 1.6 runtimes; llama-server and Ollama arrive with their adapters.
+      // Every runtime kind is a valid selection. The 2a reader serves the 1.6 runtimes; until llama-server and Ollama
+      // are wired to their v2 adapters, their reading says so (unsupported contract) instead of a 400.
       const runtime = query.runtime === undefined ? null : runtimeValue(query.runtime);
-      if (query.runtime !== undefined && runtime === null) { json(response, 400, badQuery('runtime')); return; }
+      const unserved = query.runtime !== undefined && runtime === null;
       const serverNow = now();
       marks.record(query.marks, serverNow);
       verdicts.record(query.attrs, serverNow, sources.completionHead?.() ?? 0);
       const view = lease.observe(query.frame, query.surface, monotonic());
       const selection = query.provider || runtime ? { provider: query.provider ?? '', runtime } : undefined;
       const [reading, system] = await Promise.allSettled([
-        Promise.resolve().then(() => sources.read(selection)), Promise.resolve().then(sources.system),
+        Promise.resolve().then(() => unserved ? UNSERVED(serverNow) : sources.read(selection)), Promise.resolve().then(sources.system),
       ]);
       json(response, 200, composeSnapshot({
         reading: reading.status === 'fulfilled' ? reading.value

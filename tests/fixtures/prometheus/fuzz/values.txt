@@ -1,0 +1,16 @@
+# TYPE fx_value gauge
+fx_value{v="nan"} NaN
+fx_value{v="pinf"} +Inf
+fx_value{v="ninf"} -Inf
+fx_value{v="inf"} Inf
+fx_value{v="exp"} 3.21457e+06
+fx_value{v="negzero"} -0
+fx_value{v="leading-dot"} .5
+fx_value{v="trailing-dot"} 5.
+fx_value{v="timestamp"} 42 1790690700000
+fx_value{v="negative-timestamp"} 43 -1
+fx_value{v="hex"} 0x10
+fx_value{v="empty"} 
+fx_value{v="word"} Infinity-and-beyond
+fx_value{v="bad-timestamp"} 44 soon
+fx_value{v="three-tokens"} 45 1 2
