@@ -8,7 +8,7 @@ import { expect, test, type Page } from '@playwright/test';
 test.use({ timezoneId: 'UTC', locale: 'en-US' });
 
 type Harness = { now: number; copied: string; composed: string; watched: number; retention: number[]; paused: boolean[]; cleared: number; trendReads: number[];
-  usageReads: string[]; saved: Array<Record<string, unknown>>; decode(ms: number, tokens: number): void; setNext(next: unknown): void; push(snapshot: unknown): void; snapshot: unknown };
+  usageReads: string[]; saved: Array<Record<string, unknown>>; ledgerState: string; decode(ms: number, tokens: number): void; setNext(next: unknown): void; push(snapshot: unknown): void; snapshot: unknown };
 const harness = <T>(page: Page, read: (h: Harness) => T): Promise<T> => page.evaluate(read as never, undefined) as Promise<T>;
 const read = (page: Page, key: keyof Harness) => page.evaluate(k => (window as unknown as { harness: Record<string, unknown> }).harness[k], key);
 const open = async (page: Page, query: string, width = 320) => {
@@ -174,6 +174,18 @@ test.describe('History tab', () => {
     await expect(storage.locator('.section-heading .chip[data-tone="warn"]')).toHaveText('Recording paused');
     await storage.getByRole('button', { name: 'Resume recording' }).click();
     expect(await read(page, 'paused')).toEqual([false]);
+  });
+  test('a view mounted on a stopped ledger follows the ledger once it runs (another frame resumed recording meanwhile)', async ({ page }) => {
+    await open(page, 'tab=history&state=recording-paused&stopped');
+    const storage = page.locator('.storage');
+    await expect(storage.locator('.section-heading .chip[data-tone="warn"]')).toHaveText('Recording paused');
+    // This frame starts leading: its ledger re-read pref.v2, which another frame set back to recording.
+    await page.evaluate(() => { const h = (window as unknown as { harness: Harness }).harness; h.ledgerState = 'idle'; h.push(h.snapshot); });
+    await expect(storage.getByRole('button', { name: 'Pause recording' })).toBeVisible();
+    await expect(storage.locator('.section-heading .chip[data-tone="warn"]')).toHaveCount(0);
+    // And back: a running ledger that turns paused shows it on the next update.
+    await page.evaluate(() => { const h = (window as unknown as { harness: Harness }).harness; h.ledgerState = 'paused'; h.push(h.snapshot); });
+    await expect(storage.getByRole('button', { name: 'Resume recording' })).toBeVisible();
   });
   test('Clear asks first: focus moves to Cancel, Escape backs out, Clear history empties the list and keeps captures', async ({ page }) => {
     await open(page, 'tab=history&state=clear-confirm');

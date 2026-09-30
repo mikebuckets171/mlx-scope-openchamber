@@ -20,7 +20,7 @@ export interface HistoryDeps {
   ledger: Pick<Ledger, 'state' | 'read' | 'models' | 'accounting' | 'setRetention' | 'setPaused' | 'clear'>;
   client: Pick<HistoryClient, 'trend' | 'usage'>;
   retentionDays(): number;                   // pref.v2
-  paused(): boolean;                         // the running ledger's state; pref.v2 while it is 'stopped' (until this frame leads)
+  paused(): boolean;                         // pref.v2: shown until this frame's ledger runs, which then decides
   copy(text: string): Promise<void>;
   version: string;
   /** The same provider/runtime the frame's snapshot poll uses; default: the snapshot's connection id. */
@@ -148,10 +148,14 @@ class HistoryViewHandle implements ViewHandle {
     // Another connection has another trend and usage: drop what was read for the previous one.
     if (connection(snapshot) !== connection(this.snapshot)) { this.trend = null; this.usage = null; this.trendAt = this.usageAt = -Infinity; }
     this.snapshot = snapshot;
+    // A running ledger holds the stored pause (it re-reads pref.v2 at start and on each flush); a stopped one keeps
+    // what this view shows (the stored pref, or the user's own toggle).
+    const state = this.deps.ledger.state;
+    if (state !== 'stopped') this.paused = state === 'paused';
     this.refresh();
-    // Polls come up to twice a second; the view only needs the connection, alert log and the minute (clock labels).
-    const s = snapshot, stamp = JSON.stringify([s?.connection.id, s?.connection.runtime, s?.connection.engine, s?.connection.host, !!s?.capabilities['server.usage'],
-      s?.runtime.request?.model ?? s?.runtime.residency[0]?.model, s?.alertLog, Math.floor(this.context.now() / 60_000)]);
+    // Polls come up to twice a second; the view only needs the connection, alert log, pause state and the minute (clock labels).
+    const s = snapshot, stamp = JSON.stringify([connection(s), s?.connection.engine, s?.connection.host, !!s?.capabilities['server.usage'],
+      s?.runtime.request?.model ?? s?.runtime.residency[0]?.model, s?.alertLog, this.paused, Math.floor(this.context.now() / 60_000)]);
     if (stamp !== this.stamp) { this.stamp = stamp; this.render(); }
   }
   dispose(): void {
