@@ -103,8 +103,12 @@ Adapter helpers (pure, fixture-tested):
   `OMLX_CAPABILITIES`, `OMLX_PATHS`, `ADMIN_RETRY_MS`, `adminSession(context)`, `requestOf(normalized)`;
   `normalizeOmlx(session, activity, contextWindows, preferredModel, sampledAt, state)` and `normalizeSession(body)` in
   `omlx-normalize.ts`. Contract amendments: §12.3 (usage buckets), §12.4 (`memory.guard`).
-- Splash: `SPLASH_RECOVERING_CACHE_MS = 30_000`, `splashStatus(body): StatusV2`,
-  `splashCompletion(before, after, at): CompletionDraft | null` (Δ=1 rule, else `aggregateOf`).
+- Splash: `SPLASH_RECOVERING_CACHE_MS = 30_000`, `splashStatus(body, at?): StatusV2` (`at` dates a stale or recovering
+  body from `status_age_ms`), `splashCompletion(before, after, at): CompletionDraft | null` (Δ=1 rule, else
+  `aggregateOf`). Added by ad-splash: `splashReading(body, at)` (one body → reading without completions),
+  `SplashCompletions` (`observe(body, at, monotonicAt)`, `reset()`: brackets requests between idle reads),
+  `isSplash11(body)`, `SPLASH_GAP_MS = 60_000`, `SPLASH_CADENCE_MS = { active: 1_000, idle: 2_000 }`. The adapter
+  itself holds a recovering reading for 30 s (no GET, identity included); svc-2b still passes `recovering` to `cadence`.
 - LM Studio: `modelsGenerationKey(body): string | null`; `parseServerRecord(line, at): ServerLineEvent | null`;
   `createConnectionActivity({ lms, serverInfoPath, now }): ConnectionActivity` (`touch(port)`, `view()`, `dispose()`);
   `parseLmsPs(text): ResidencyV2[]`, `parseRuntimeLs(text): EngineV2[]`,
