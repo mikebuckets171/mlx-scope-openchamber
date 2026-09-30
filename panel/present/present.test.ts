@@ -137,7 +137,7 @@ test('needs approval and version skew replace every view with the S11 copy, and 
   expect(copy).toContain('MLX Scope 2.0 needs one approval');
   expect(copy).not.toMatch(/sessions|project names|folders|chat titles/i);
   for (const path of ['/usr/sbin/ioreg', '/usr/bin/notifyutil', '/usr/sbin/lsof', '/usr/bin/footprint', '~/.lmstudio/bin/lms', '~/.cache/lm-studio/bin/lms',
-    '/opt/homebrew/bin/macmon', '/usr/local/bin/macmon', '/usr/bin/vm_stat', '/usr/sbin/sysctl']) expect(copy).toContain(path);
+    '/opt/homebrew/bin/macmon', '/usr/local/bin/macmon', 'vm_stat, sysctl']) expect(copy).toContain(path);
   expect(RESTART.steps).toEqual(['Open Settings → Extensions → MLX Scope.', 'Pause it, then resume it.']);
 });
 
@@ -180,9 +180,12 @@ test('Work Status glance: 56 px, 80 with an alert, 24 for a non-local chat, 96 w
   expect(statusOf('decode')).toMatchObject({ mode: 'glance', height: HEIGHTS.glance, line1: { model: 'Example-27B', rate: '26.4', attribution: 'This chat · inferred' } });
   expect(statusOf('pressure')).toMatchObject({ height: HEIGHTS.alert, glance: { alert: { severity: 'warning', text: 'macOS memory pressure: warning', more: 1 } } });
   expect(statusOf('decode', { chatIsLocal: false })).toMatchObject({ mode: 'non-local', height: 24 });
-  expect(statusOf('decode', { tipDismissed: false })).toMatchObject({ height: 96, glance: { line2: { kind: 'notice', text: TIP } } });
+  expect(statusOf('decode', { tipDismissed: false })).toMatchObject({ height: 96, tip: TIP, glance: { line2: null, notice: { text: TIP, dismiss: 'tip' } } });
+  // A server-wide chip is short and needs its reason line, so the reason stays beside the tip.
+  expect(statusOf('decode', { tipDismissed: false, attribution: { kind: 'server-wide', reason: 'not-observed' } }))
+    .toMatchObject({ height: 120, glance: { line1: { chip: { text: 'Server-wide' }, describedBy: true }, line2: { reason: 'not observed' }, notice: { dismiss: 'tip' } } });
   expect(TIP).toBe('Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place');
-  expect(statusOf('idle', { firstRun: true })).toMatchObject({ height: 80, glance: { line2: { kind: 'notice', text: 'Recording reply history locally' } } });
+  expect(statusOf('idle', { firstRun: true })).toMatchObject({ height: 80, glance: { notice: { text: 'Recording reply history locally', action: 'Open Scope to manage' } } });
   expect(statusOf('prefill').glance!.line2).toEqual({ kind: 'prefill', percent: '64%', eta: '18 s', toggle: true });
   expect(statusOf('offline').glance!.line1).toMatchObject({ dot: 'bad', title: 'oMLX stopped responding' });
   expect(statusOf('splash-recovering').glance!.line2).toEqual({ kind: 'note', text: 'Scope reads its status every 30 s' });

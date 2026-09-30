@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-// The 1.6 goldens run only when named (`bun run test:goldens`), in Chromium, and stay out of `test:browser`.
+// The 2.0 goldens run only when named (`bun run test:goldens`), in Chromium, and stay out of `test:browser`.
 // The flag is exported so worker processes load the same configuration. GOLDENS_UPDATE=1 regenerates them.
 const GOLDENS = /goldens\.spec\.ts$/;
 const goldens = process.env.GOLDENS_RUN === '1' || process.argv.some(arg => GOLDENS.test(arg));
@@ -24,6 +24,6 @@ export default defineConfig({
   projects: [{ name: 'chromium', testIgnore: GOLDENS, use: { browserName: 'chromium' } },
     { name: 'webkit', testIgnore: GOLDENS, use: { browserName: 'webkit' } },
     { name: 'goldens', testMatch: GOLDENS, testIgnore: goldens ? [] : GOLDENS, use: { browserName: 'chromium' },
-      snapshotPathTemplate: '{testDir}/../goldens/1.6/{arg}{ext}',
+      snapshotPathTemplate: '{testDir}/../goldens/2.0/{arg}{ext}',
       expect: { timeout: 10_000, toHaveScreenshot: { threshold: 0, maxDiffPixels: 0, animations: 'disabled', caret: 'hide', scale: 'css' } } }],
 });

@@ -149,10 +149,17 @@ export const statusCopy = (snapshot: SnapshotV2): StatusCopy | null => {
     }
   }
 };
-/** Short line 2 for the glance while a status message holds it. */
-export const statusGlanceNote = (snapshot: SnapshotV2): string =>
-  snapshot.status.reason === 'recovering' ? 'Scope reads its status every 30 s'
-    : snapshot.status.state === 'failing' ? 'Scope checks again automatically' : statusCopy(snapshot)?.detail ?? '';
+/** Line 2 of the 280 px glance while a status message holds it: one short phrase; the callout in Scope has the rest. */
+const GLANCE_NOTE: Partial<Record<string, string>> = {
+  runtime_unreachable: 'Scope checks again automatically', authentication_failed: 'Check the key under Connection',
+  configuration_missing: 'Start a runtime, or choose one', unsupported_runtime: 'Choose a connection in MLX Scope',
+  unsupported_contract: 'Scope shows what it can still read', detecting: 'Checking the usual local ports', redetecting: 'Checking which runtime answers',
+  runtime_changed: 'Scope never switches on its own', loading: 'Readings start when it’s ready', recovering: 'Scope reads its status every 30 s',
+  status_stale: 'Its readings are last observed', not_admitting: 'New requests wait in its queue', admin_unauthorized: 'Server-wide totals only',
+  lms_unavailable: 'Scope never starts Bionic', metrics_required: 'Start llama-server with --metrics', sleeping: 'Scope lets it sleep',
+};
+export const statusGlanceNote = (snapshot: SnapshotV2): string => (snapshot.status.reason ? GLANCE_NOTE[snapshot.status.reason] : undefined)
+  ?? (snapshot.status.state === 'unconfigured' ? GLANCE_NOTE.configuration_missing! : snapshot.status.state === 'detecting' ? GLANCE_NOTE.detecting! : GLANCE_NOTE.runtime_unreachable!);
 
 export const SEVERITY_WORD: Record<Severity, string> = { critical: 'Critical', warning: 'Warning', info: 'Notice' };
 export const sinceText = (at: number | undefined, now: number): string => at === undefined ? '' : `since ${clock(at, now)}`;
@@ -166,7 +173,8 @@ export const APPROVAL = {
     ['GPU readings', '/usr/sbin/ioreg'], ['Thermal pressure', '/usr/bin/notifyutil'], ['oMLX process memory', '/usr/sbin/lsof, /usr/bin/footprint'],
     ['LM Studio and Bionic', '~/.lmstudio/bin/lms, ~/.cache/lm-studio/bin/lms', 'never starts either app'],
     ['Chip power (optional)', '/opt/homebrew/bin/macmon, /usr/local/bin/macmon', 'only if you installed macmon'],
-    ['Memory (as in 1.x)', '/usr/bin/vm_stat, /usr/sbin/sysctl'],
+    // By name: the panel bundle never carries the service's own exec paths (scripts/verify-package.ts leak check).
+    ['Memory (as in 1.x)', 'vm_stat, sysctl', 'the two commands 1.x already ran'],
   ] as ReadonlyArray<readonly [string, string, string?]>,
   note: 'Nothing is read until you approve. Your saved 1.6 captures are kept. No sudo, osascript or powermetrics.',
   glance: 'Settings → Extensions → MLX Scope',

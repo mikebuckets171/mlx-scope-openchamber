@@ -20,6 +20,7 @@ test('the panel runs on a plain HTTP host without secure-context APIs, and its p
   expect(query!.frame).toMatch(/^[0-9a-f]{8}$/);
   await frame.locator('#monitor-menu > summary').click();
   await frame.locator('#efficiency').click();
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('view.efficient'))).toBe('true');
   await page.reload();
   await expect(frame.locator('#prefill-percent')).toHaveText('64%');
   await expect(frame.locator('#efficiency')).toHaveAttribute('aria-pressed', 'true');

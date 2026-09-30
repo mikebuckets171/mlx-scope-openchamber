@@ -1,0 +1,35 @@
+# needs-approval · /v2?state=needs-approval
+
+## live · 320 dark panel
+main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="tabs" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Needs approval
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#approval-card {aria-labelledby="approval-title"}: GPU, thermal and process readings for this Mac, and the LM Studio command line without ever starting it. Per-chat labels use only the open chat’s activity, which needs no extra permission. Reply history stays on this Mac. Open Settings → Extensions → MLX Scope. Choose Review permissions, then approve. | Nothing is read until you approve. Your saved 1.6 captures are kept. No sudo, osascript or powermetrics.
+#approval-title: MLX Scope 2.0 needs one approval
+#grant {open=""}: What the approval lists, and why | GPU readings | /usr/sbin/ioreg | Thermal pressure | /usr/bin/notifyutil | oMLX process memory | /usr/sbin/lsof, /usr/bin/footprint | LM Studio and Bionic | ~/.lmstudio/bin/lms, ~/.cache/lm-studio/bin/lms · never starts either app | Chip power (optional) | /opt/homebrew/bin/macmon, /usr/local/bin/macmon · only if you installed macmon | Memory (as in 1.x) | vm_stat, sysctl · the two commands 1.x already ran
+#scope-version: <version>
+#freshness: No reading yet
+live #connection (hidden): 
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+
+## live · 1160 dark page
+main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="columns" data-paused="false" data-phase="detecting" data-stale="false" data-surface="page"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Needs approval
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#approval-card {aria-labelledby="approval-title"}: GPU, thermal and process readings for this Mac, and the LM Studio command line without ever starting it. Per-chat labels use only the open chat’s activity, which needs no extra permission. Reply history stays on this Mac. Open Settings → Extensions → MLX Scope. Choose Review permissions, then approve. | Nothing is read until you approve. Your saved 1.6 captures are kept. No sudo, osascript or powermetrics.
+#approval-title: MLX Scope 2.0 needs one approval
+#grant {open=""}: What the approval lists, and why | GPU readings | /usr/sbin/ioreg | Thermal pressure | /usr/bin/notifyutil | oMLX process memory | /usr/sbin/lsof, /usr/bin/footprint | LM Studio and Bionic | ~/.lmstudio/bin/lms, ~/.cache/lm-studio/bin/lms · never starts either app | Chip power (optional) | /opt/homebrew/bin/macmon, /usr/local/bin/macmon · only if you installed macmon | Memory (as in 1.x) | vm_stat, sysctl · the two commands 1.x already ran
+#scope-version: <version>
+#freshness: No reading yet
+live #connection (hidden): 
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 

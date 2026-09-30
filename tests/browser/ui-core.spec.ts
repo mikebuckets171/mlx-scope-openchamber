@@ -161,8 +161,9 @@ const status = async (page: Page, query: string) => {
 const lastHeight = (page: Page) => host(page, w => w.previewHeights.at(-1));
 
 test('Work Status: 56 / 80 / 24 px glance and the one-time tip, sized with setHeight on the glance tier', async ({ page }) => {
+  // Until the attribution join labels it, the live reading is server-wide: its reason line stays beside the tip (56 + 64).
   let frame = await status(page, 'state=decode');
-  await expect.poll(() => lastHeight(page)).toBe(96);
+  await expect.poll(() => lastHeight(page)).toBe(120);
   await expect(frame.locator('#ws .connection-diagnosis')).toHaveText('Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place');
   expect((await host(page, w => w.previewQueries))[0]).toMatchObject({ surface: 'status', tier: 'glance' });
   await frame.getByRole('button', { name: 'Dismiss tip' }).click();
@@ -188,13 +189,18 @@ test('Work Status: 56 / 80 / 24 px glance and the one-time tip, sized with setHe
   expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(80);
 });
 
-test('Work Status: every mock state in both themes at 280 px is one of the section heights and passes the checks', async ({ page }) => {
+test('Work Status: every mock state in both themes at 280 px fits its section height, ≤ 200 px, and passes the checks', async ({ page }) => {
   const errors = errorsOf(page);
-  for (const theme of ['dark', 'light']) for (const state of STATES) {
+  for (const theme of ['dark', 'light']) for (const [state, tip] of STATES.flatMap(state => [[state, true], [state, false]] as const)) {
+    await page.goto('/v2');
+    await page.evaluate(dismissed => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: dismissed })), !tip);
     await status(page, `state=${state}&theme=${theme}`);
     await expect.poll(() => lastHeight(page), `${state} ${theme}`).toBeDefined();
-    expect([24, 56, 80, 96], `${state} ${theme}`).toContain(await lastHeight(page));
-    expect(await problems(page), `${state} ${theme}`).toEqual([]);
+    const height = await lastHeight(page);
+    // 24 for a non-local chat, else padding + 24 px lines (+ 64 for the tip), never taller than Turn stats' 200.
+    expect((height - 8) % 8, `${state} ${theme}`).toBe(0);
+    expect(height, `${state} ${theme}`).toBeLessThanOrEqual(200);
+    expect(await problems(page), `${state} ${theme} ${tip ? 'tip' : ''}`).toEqual([]);
   }
   expect(errors).toEqual([]);
 });

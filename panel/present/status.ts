@@ -48,8 +48,8 @@ export type GlanceLine2 =
   | { kind: 'prefill'; percent: string; eta: string | null; toggle: boolean }
   | { kind: 'note'; text: string }
   | { kind: 'armed'; left: string }
-  | { kind: 'measuring'; elapsed: string }
-  | { kind: 'notice'; text: string; action: string | null; dismiss: 'tip' | 'first-run'; severity: 'info' };
+  | { kind: 'measuring'; elapsed: string };
+export interface GlanceNotice { text: string; action: string | null; dismiss: 'tip' | 'first-run' }
 export interface StatusSectionView {
   mode: StatusMode;
   height: number;                            // setHeight: 24 | 56 | 80 | ≤ 200
@@ -58,12 +58,15 @@ export interface StatusSectionView {
   rows: StatusRow[];                         // turn-stats mode only
   tip: string | null;
   // Additions (ui-core): the structure the markup draws.
-  glance: { line1: GlanceLine1; line2: GlanceLine2 | null; alert: { severity: Severity; text: string; more: number } | null } | null;
+  glance: { line1: GlanceLine1; line2: GlanceLine2 | null; notice: GlanceNotice | null; alert: { severity: Severity; text: string; more: number } | null } | null;
   turn: { dot: DotTone; title: string; sub: string | null; chip: Chip; reason: string | null; spark: Spark | null; chips: Chip[] } | null;
 }
 
-/** The status frame's heights (G2): padding 4 + 24 px lines; Turn stats rows are 16 px. */
+/** The status frame's heights (G2): padding 4 + 24 px lines; the tip adds 64, the first-run notice 48; Turn stats rows are 16 px. */
 export const HEIGHTS = { nonLocal: 24, glance: 56, alert: 80, firstRun: 80, tip: 96, max: 200 } as const;
+const NOTICE_PX = { tip: 64, 'first-run': 48 } as const;
+const glanceHeight = (line2: boolean, notice: GlanceNotice | null, alert: boolean): number =>
+  8 + 24 + (line2 ? 24 : 0) + (notice ? NOTICE_PX[notice.dismiss] : 0) + (alert ? 24 : 0);
 const turnHeight = (rows: number, reason: boolean): number => Math.min(HEIGHTS.max, 8 + 24 + (reason ? 16 : 0) + rows * 16 + 24);
 
 /** The 15 min decode sparkline: a line only where buckets hold readings. Fewer than 2 readings → no chart. */
@@ -110,7 +113,7 @@ const usualRow = (usual: VsUsual | null): StatusRow[] => usual ? [{ label: 'vs u
 const blank = (line1: GlanceLine1, line2: GlanceLine2 | null, height: number, extra: Partial<StatusSectionView> = {}): StatusSectionView => ({
   mode: 'glance', height, line1: { phase: line1.word ?? line1.title ?? '', model: line1.model, rate: line1.rate, attribution: line1.chip?.text ?? '' },
   line2: line2 && line2.kind === 'spark' ? { chips: line2.chips.map(chip => chip.text), alert: null } : null, rows: [], tip: null,
-  glance: { line1, line2, alert: null }, turn: null, ...extra,
+  glance: { line1, line2, notice: null, alert: null }, turn: null, ...extra,
 });
 const L1 = (partial: Partial<GlanceLine1>): GlanceLine1 => ({ dot: 'idle', word: null, model: null, rate: null, unit: null, chip: null, describedBy: false, title: null, since: null, muted: false, ...partial });
 
@@ -172,8 +175,6 @@ export const presentStatusSection = (input: StatusSectionInput): StatusSectionVi
   if (input.fresh === false) return blank(L1({ dot: 'warn', title: 'No fresh readings' }), { kind: 'note', text: 'Retained readings are not live' }, HEIGHTS.glance);
 
   const alert = alertLine(snapshot), spark = sparkline(input.sparkline), request = snapshot.runtime.request, phase = snapshot.runtime.phase;
-  const withAlert = (view: StatusSectionView): StatusSectionView => !alert || !view.glance ? view
-    : { ...view, height: view.height + 24, line2: view.line2 && { ...view.line2, alert: alert.text }, glance: { ...view.glance, alert } };
   // Turn stats replacement, when chosen and there is a turn or a reply to show.
   if (input.expanded) {
     const turn = turnRows(input);
@@ -185,36 +186,37 @@ export const presentStatusSection = (input: StatusSectionInput): StatusSectionVi
           chips: glanceChips(snapshot, { gpu: turn.title === 'This turn', skip: alert?.skip }) } };
     }
   }
-  const model = glanceOr(snapshot), label = input.attribution, next = input.next;
-  const serverWide = label.kind === 'server-wide';
-  const notice = (): GlanceLine2 | null => !input.tipDismissed ? { kind: 'notice', text: TIP, action: null, dismiss: 'tip', severity: 'info' }
-    : input.firstRun && !input.firstRunDismissed ? { kind: 'notice', text: FIRST_RUN, action: 'Open Scope to manage', dismiss: 'first-run', severity: 'info' } : null;
-  const noticeHeight = (line: GlanceLine2): number => line.kind === 'notice' && line.dismiss === 'tip' ? HEIGHTS.tip : HEIGHTS.firstRun;
+  const model = glanceOr(snapshot), next = input.next, last = input.last, chips = glanceChips(snapshot, { skip: alert?.skip });
+  const notice: GlanceNotice | null = !input.tipDismissed ? { text: TIP, action: null, dismiss: 'tip' }
+    : input.firstRun && !input.firstRunDismissed ? { text: FIRST_RUN, action: 'Open Scope to manage', dismiss: 'first-run' } : null;
+  /** One glance: a server-wide chip is short and names its reason on line 2, which then stays even beside a notice. */
+  const glance = (line1: GlanceLine1, line2: GlanceLine2 | null, reasonOnLine2 = false): StatusSectionView => {
+    const keep = line2 && (!notice || reasonOnLine2) ? line2 : null;
+    return { ...blank(line1, keep, glanceHeight(keep !== null, notice, alert !== null)), tip: notice?.dismiss === 'tip' ? notice.text : null,
+      line2: keep?.kind === 'spark' ? { chips: keep.chips.map(chip => chip.text), alert: alert?.text ?? null } : alert ? { chips: [], alert: alert.text } : null,
+      glance: { line1, line2: keep, notice, alert: alert && { severity: alert.severity, text: alert.text, more: alert.more } } };
+  };
+  const described = (label: AttributionLabel, line: Partial<GlanceLine1>, rest: Omit<Extract<GlanceLine2, { kind: 'spark' }>, 'kind' | 'reason'>): StatusSectionView => {
+    const reason = label.kind === 'server-wide' ? withheldWhy(label.reason) : null;
+    return glance(L1({ ...line, chip: attrChip(label, reason !== null), describedBy: reason !== null }), { kind: 'spark', ...rest, reason }, reason !== null);
+  };
   if (phase === 'prefill' && request?.prefillFraction != null) {
-    const line1 = L1({ dot: 'prefill', model, chip: attrChip(label), describedBy: false });
-    const shown = notice();
-    if (shown) return blank(line1, shown, noticeHeight(shown));
-    return withAlert(blank(line1, { kind: 'prefill', percent: pct(request.prefillFraction), eta: request.prefillEtaMs != null && !request.prefillStale ? dur(request.prefillEtaMs) : null, toggle: true }, HEIGHTS.glance));
+    const label = input.attribution;
+    if (label.kind === 'server-wide') return described(label, { dot: 'prefill', model }, { spark: null, size: 'sm', last: null, chips, toggle: true });
+    return glance(L1({ dot: 'prefill', model, chip: attrChip(label) }),
+      { kind: 'prefill', percent: pct(request.prefillFraction), eta: request.prefillEtaMs != null && !request.prefillStale ? dur(request.prefillEtaMs) : null, toggle: true });
   }
   if (request?.decodeTps != null) {
-    const armedRun = next?.kind === 'measuring', shown = notice();
-    // A short "Server-wide" chip points at its reason on line 2; with a notice in that line, the chip says it itself.
-    const short = serverWide && !armedRun && !shown;
-    const chip = armedRun ? attrChip({ kind: 'armed' }) : attrChip(label, short);
-    const line1 = L1({ dot: 'live', model, rate: tps(request.decodeTps), unit: 'tok/s', chip, describedBy: short });
-    if (shown) return blank(line1, shown, noticeHeight(shown));
-    if (armedRun) return withAlert(blank(line1, { kind: 'measuring', elapsed: dur(Math.max(0, now - next.startedAt)) }, HEIGHTS.glance));
-    return withAlert(blank(line1, { kind: 'spark', spark, size: serverWide ? 'sm' : '', reason: serverWide && label.kind === 'server-wide' ? withheldWhy(label.reason) : null,
-      last: null, chips: glanceChips(snapshot, { skip: alert?.skip }), toggle: true }, HEIGHTS.glance));
+    const line = { dot: 'live' as const, model, rate: tps(request.decodeTps), unit: 'tok/s' };
+    if (next?.kind === 'measuring') return glance(L1({ ...line, chip: attrChip({ kind: 'armed' }) }), { kind: 'measuring', elapsed: dur(Math.max(0, now - next.startedAt)) });
+    return described(input.attribution, line, { spark, size: input.attribution.kind === 'server-wide' ? 'sm' : '', last: null, chips, toggle: true });
   }
   // Idle, queued or inventory: the last reply keeps its label; an armed Next reply waits for a message.
-  const last = input.last, word = phase === 'queued' ? 'Queued' : phase === 'not-loaded' ? 'No model' : ['decode', 'prefill', 'processing'].includes(phase) ? 'Working' : 'Idle';
-  if (next?.kind === 'armed') return withAlert(blank(L1({ word, model, chip: attrChip({ kind: 'armed' }) }), { kind: 'armed', left: mmss(Math.max(0, 120_000 - (now - next.at))) }, HEIGHTS.glance));
-  const line1 = L1({ word, model, chip: last ? attrChip(last.label) : null });
-  const shown = notice();
-  if (shown) return blank(line1, shown, noticeHeight(shown));
-  return withAlert(blank(line1, { kind: 'spark', spark, size: 'sm', reason: null, chips: glanceChips(snapshot, { skip: alert?.skip }), toggle: true,
-    last: last?.completion.decodeTps != null ? { rate: tps(last.completion.decodeTps), basis: basisOf(last.completion.basis) } : null }, HEIGHTS.glance));
+  const word = phase === 'queued' ? 'Queued' : phase === 'not-loaded' ? 'No model' : ['decode', 'prefill', 'processing'].includes(phase) ? 'Working' : 'Idle';
+  if (next?.kind === 'armed') return glance(L1({ word, model, chip: attrChip({ kind: 'armed' }) }), { kind: 'armed', left: mmss(Math.max(0, 120_000 - (now - next.at))) });
+  if (last && last.label.kind === 'server-wide') return described(last.label, { word, model }, { spark, size: 'sm', last: null, chips, toggle: true });
+  return glance(L1({ word, model, chip: last ? attrChip(last.label) : null }), { kind: 'spark', spark, size: 'sm', reason: null, chips, toggle: true,
+    last: last?.completion.decodeTps != null ? { rate: tps(last.completion.decodeTps), basis: basisOf(last.completion.basis) } : null });
 };
 const glanceOr = (snapshot: SnapshotV2): string | null => { const model = modelOf(snapshot); return model ? glanceModel(model) : null; };
 export { SERVER_WIDE, SEVERITY_WORD };

@@ -317,6 +317,31 @@ redact(text, forbidden); clamp(text, max); toastText(text, forbidden); scopeText
 // background/main.ts (scope-flip): resolveScope(host, request): Promise<AttachIssueRequest | null>
 ```
 
+### 4.6 ui-core additions (Stage 8)
+
+Additive: the frozen signatures above are unchanged; these are the exports the 2.0 shell adds.
+
+```ts
+// present/status.ts: StatusSectionInput gains optional fresh, paused, last, next, window, firstRun, firstRunDismissed;
+// StatusSectionView gains glance { line1, line2, notice, alert } | null and turn { dot, title, sub, chip, reason, spark, chips } | null.
+HEIGHTS = { nonLocal: 24, glance: 56, alert: 80, firstRun: 80, tip: 96, max: 200 }   // + 24 per extra line, + 64 tip, + 48 first run
+sparkline(trend): Spark | null; glanceChips(snapshot, options): Chip[]; alertLine(snapshot)
+// present/scope.ts: the one input every 2.0 presenter reads
+interface ScopeInput { now; version; snapshot; fresh; stale?; frame; paused; attribution; chatRuntime; last; next; samples; turnStartAt }
+// present/copy.ts: the mock's copy table: statusCopy(snapshot), alertCopy(id, params), alertToastCopy (no model name),
+//   withheldWhy(reason, chatRuntime), whyCopy(key, rt, live, chatRuntime), APPROVAL, RESTART, TIP, FRAME_TITLE
+// present/{live,server,header,parts}.ts: presentLive(input, extra), presentServer(snapshot, now, extra), presentHeader(input), frameCard(input)
+// render/html.ts: html`` (escapes), raw, morph(target, markup)   (patch-in-place; `data-mount` hosts are left to their view)
+// render/views/registry.ts: VIEWS { history: mountHistory, captures: <placeholder until ui-history exports mountCaptures> }
+// alerts/signals.ts: new Signals(host, preference, surface = 'panel'); toasts once per toastSeq, badge only from a leading page/status frame
+// state/pipeline.ts: Pipeline: the frame's calls into attribution (SessionFeed, join, NextReply, WireQueue, summarizeTurn),
+//   the ledger (leader only) and Signals; every call is guarded so a stub or a failure never stops monitoring
+// preferences.ts: PrefsV2 (pref.v2: statusExpanded, tipDismissed, firstRunDismissed, toasts, autoLabel; other keys kept)
+// connections-view.ts: readSelection(storage), ConnectionsView.switchRuntime(runtime), .openSetup()
+// data/poller.ts: pollDelay({ failures, nextPollMs, efficient, floorMs }) (no 2 s cap), freshnessDeadline(delay) = max(6 s, 2 × delay + 1 s)
+// testing/mock-states.ts: MOCK_STATES, mockBody(state, { now, since, lease, nextPollMs }), mockView(state)
+```
+
 ## 5. Shared files with additive exceptions
 
 | File | Owner | Others may |
