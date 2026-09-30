@@ -264,7 +264,7 @@ export const presentHistory = (input: HistoryInput): HistoryView => {
     : row[0] === 't' ? turnEntry(row, replies, input, text) : gapEntry(row, input.now));
   const basisCounts = BASIS_ORDER.map(basis => ({ basis: BASIS_WORD[basis], n: replies.filter(row => row[12] === basis).length })).filter(entry => entry.n);
   const gaps = input.rows.filter(row => row[0] === 'g').length;
-  const oldest = input.rows.length ? Math.min(...input.rows.map(row => row[1])) : null;
+  const oldest = input.rows.reduce<number | null>((min, row) => min === null || row[1] < min ? row[1] : min, null);
   const shown = entries.filter((entry): entry is HistoryEntry & { kind: 'reply' } => entry.kind === 'reply');
   return {
     header: HISTORY_HEADER, basisCounts,

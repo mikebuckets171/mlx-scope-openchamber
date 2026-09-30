@@ -28,7 +28,9 @@ export interface HistoryDeps {
   flags?(flags: readonly RegressionFlag[]): void;   // for panel/alerts/signals.ts
   text?: HistoryText;
 }
-const TREND_MIN_MS = 5_000, USAGE_EVERY_MS = 300_000, READ_MIN_MS = 5_000, READ_EVERY_MS = 60_000;
+// Each storage read makes the host re-read the whole namespace file (S5): the ledger is read on mount, after a new
+// reply (at most every 5 s) and otherwise only as often as another frame can flush (5 min).
+const TREND_MIN_MS = 5_000, USAGE_EVERY_MS = 300_000, READ_MIN_MS = 5_000, READ_EVERY_MS = 300_000;
 const REASON: Readonly<Record<string, string>> = {
   not_served: 'The trend isn’t served by this version of the service yet.', contract_mismatch: 'The trend needs the updated service. Pause and resume MLX Scope in Settings → Extensions.',
   unparseable: 'The trend arrived in a shape Scope doesn’t know, so it isn’t shown.',
@@ -126,7 +128,7 @@ class HistoryViewHandle implements ViewHandle {
   private busy = { trend: false, usage: false, read: false };
   private focus: string | null = null;
   private disposed = false;
-  private last = '';
+  private stamp = '';                       // what of the snapshot this view shows; a poll that changes none of it renders nothing
 
   constructor(private readonly root: HTMLElement, private readonly context: ViewContext, private readonly deps: HistoryDeps) {
     this.prefix = `history-${Math.random().toString(36).slice(2, 8)}`;
@@ -146,7 +148,10 @@ class HistoryViewHandle implements ViewHandle {
     if (connection(snapshot) !== connection(this.snapshot)) { this.trend = null; this.usage = null; this.trendAt = this.usageAt = -Infinity; }
     this.snapshot = snapshot;
     this.refresh();
-    this.render();
+    // Polls come up to twice a second; the view only needs the connection, alert log and the minute (clock labels).
+    const s = snapshot, stamp = JSON.stringify([s?.connection.id, s?.connection.runtime, s?.connection.engine, s?.connection.host, !!s?.capabilities['server.usage'],
+      s?.runtime.request?.model ?? s?.runtime.residency[0]?.model, s?.alertLog, Math.floor(this.context.now() / 60_000)]);
+    if (stamp !== this.stamp) { this.stamp = stamp; this.render(); }
   }
   dispose(): void {
     this.disposed = true; this.undelegate(); this.root.removeEventListener('keydown', this.escape); this.root.replaceChildren();
@@ -171,7 +176,9 @@ class HistoryViewHandle implements ViewHandle {
   private async readTrend(): Promise<void> {
     if (this.busy.trend) return;
     this.busy.trend = true; this.trendAt = this.context.now();
-    const windowMs = this.windowMs, result = await this.deps.client.trend({ ...this.query(), windowMs, series: ['decodeTps'] }).finally(() => { this.busy.trend = false; });
+    const windowMs = this.windowMs;
+    const result: HistoryResult<TrendV2> = await this.deps.client.trend({ ...this.query(), windowMs, series: ['decodeTps'] })
+      .catch(() => ({ ok: false as const, reason: 'host_unavailable' as const })).finally(() => { this.busy.trend = false; });
     if (this.disposed || windowMs !== this.windowMs) return;
     this.trend = result.ok ? result.body : this.trend?.windowMs === windowMs ? this.trend : null;
     this.trendError = result.ok ? null : REASON[result.reason] ?? 'The trend couldn’t be read. Scope tries again shortly.';
@@ -180,7 +187,8 @@ class HistoryViewHandle implements ViewHandle {
   private async readUsage(): Promise<void> {
     if (this.busy.usage) return;
     this.busy.usage = true; this.usageAt = this.context.now();
-    const range = this.usageRange, result: HistoryResult<UsageV2> = await this.deps.client.usage({ ...this.query(), range }).finally(() => { this.busy.usage = false; });
+    const range = this.usageRange, result: HistoryResult<UsageV2> = await this.deps.client.usage({ ...this.query(), range })
+      .catch(() => ({ ok: false as const, reason: 'host_unavailable' as const })).finally(() => { this.busy.usage = false; });
     if (this.disposed || range !== this.usageRange) return;
     // The card hides when oMLX can't give its records (401, 404, 503) rather than showing an error.
     this.usage = result.ok ? result.body : null;
@@ -250,9 +258,6 @@ class HistoryViewHandle implements ViewHandle {
   private render(): void {
     if (this.disposed) return;
     const view = this.view(), page = this.context.surface === 'page';
-    const key = JSON.stringify([view, [...this.tips.open], this.status, page]);
-    if (key === this.last && !this.focus) return;
-    this.last = key;
     const tips = this.tips, tip = (name: string, title: string, paras: readonly string[]) => tips.make(name, title, paras);
     const next = el('div', {},
       page ? el('div', { class: 'col-title' }, el('h2', {}, 'History'), el('span', {}, `${view.header} · stored on this Mac`)) : null,

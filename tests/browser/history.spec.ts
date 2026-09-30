@@ -210,7 +210,9 @@ test.describe('History tab', () => {
     await page.keyboard.press('Enter');
     await expect(info).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByRole('note').filter({ hasText: 'p50 needs 5 replies and p90 needs 10' })).toBeVisible();
-    await page.evaluate(() => { const h = (window as unknown as { harness: Harness }).harness; h.push(h.snapshot); });
+    // A poll a minute later re-renders the whole view (clock labels move); the tree is patched, not replaced.
+    await page.evaluate(() => { const h = (window as unknown as { harness: Harness }).harness; h.now += 60_000; h.push(h.snapshot); });
+    await expect(page.locator('.pop').filter({ hasText: 'Refreshed' })).toContainText('Refreshed 4 min ago');
     await expect(info).toHaveAttribute('aria-expanded', 'true');
     await expect(info).toBeFocused();
   });
