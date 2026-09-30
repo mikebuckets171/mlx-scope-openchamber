@@ -54,12 +54,13 @@ const STATUS: Array<{ name: string; query: string; theme?: Theme; shot?: boolean
 ];
 
 // Runs in every frame before page scripts. The host answers each panel ping after handling everything the panel sent
-// before it; the pong reports how many SDK messages the host had received by then. `pref` seeds pref.v2.
+// before it; the pong reports how many SDK messages the host had received by then. `pref` seeds pref.v2 (the first-run
+// notice dismissed, so each glance case shows its own state).
 const barrier = (pref: string | null): void => {
   const scope = window as unknown as Record<string, unknown>;
   if (window === window.top) {
-    if (pref === 'tip') sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true }));
-    if (pref === 'turn') sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true, statusExpanded: true }));
+    if (pref === 'tip') sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true, noticeDismissed: true }));
+    if (pref === 'turn') sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true, noticeDismissed: true, statusExpanded: true }));
     let received = 0;
     addEventListener('message', event => {
       const frame = document.querySelector('iframe');

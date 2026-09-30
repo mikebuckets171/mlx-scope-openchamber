@@ -18,7 +18,7 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
 #panels
 #panel-live {aria-labelledby="tab-live"}
-[callout-live] {data-severity="info"}: Notice: | llama-server is asleep | It unloads the model while idle and wakes on the next request. Scope doesn’t read slots or metrics while it sleeps, so it stays asleep.
+[callout-live] {data-severity="info"}: Notice: | llama-server is asleep | It unloads the model while idle and wakes on the next request. Scope doesn’t read its slots while it sleeps, so it stays asleep.
 #machine {aria-label="This Mac" data-stale="false"}: i | CPU 22% RAM 21.8 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
 [mac-pressure]: macOS memory pressure (kernel) | Normal
@@ -29,7 +29,7 @@ h2.machine-title: This Mac
 live #connection: llama-server
 live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
 live #action-status (hidden): 
-live [callout-live]: Notice: llama-server is asleepIt unloads the model while idle and wakes on the next request. Scope doesn’t read slots or metrics while it sleeps, so it stays asleep.
+live [callout-live]: Notice: llama-server is asleepIt unloads the model while idle and wakes on the next request. Scope doesn’t read its slots while it sleeps, so it stays asleep.
 
 ## server · 320 dark panel
 main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: MLX Scope
@@ -49,7 +49,7 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
 #panels
 #panel-server {aria-labelledby="tab-server"}
-[callout-server] {data-severity="info"}: Notice: | llama-server is asleep | It unloads the model while idle and wakes on the next request. Scope doesn’t read slots or metrics while it sleeps, so it stays asleep.
+[callout-server] {data-severity="info"}: Notice: | llama-server is asleep | It unloads the model while idle and wakes on the next request. Scope doesn’t read its slots while it sleeps, so it stays asleep.
 [server-runtime]: Asleep Runtime llama-server Version b10542 Detected /props answered · high confidence Reports Replies recorded as Observed by Scope
 h2: Runtime
 span.chip: request counts
@@ -65,5 +65,5 @@ span.chip: gguf
 live #connection: llama-server
 live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
 live #action-status (hidden): 
-live [callout-live] (hidden): Notice: llama-server is asleepIt unloads the model while idle and wakes on the next request. Scope doesn’t read slots or metrics while it sleeps, so it stays asleep.
-live [callout-server]: Notice: llama-server is asleepIt unloads the model while idle and wakes on the next request. Scope doesn’t read slots or metrics while it sleeps, so it stays asleep.
+live [callout-live] (hidden): Notice: llama-server is asleepIt unloads the model while idle and wakes on the next request. Scope doesn’t read its slots while it sleeps, so it stays asleep.
+live [callout-server]: Notice: llama-server is asleepIt unloads the model while idle and wakes on the next request. Scope doesn’t read its slots while it sleeps, so it stays asleep.

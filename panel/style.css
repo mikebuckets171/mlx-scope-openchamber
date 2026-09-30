@@ -80,6 +80,8 @@ h1 span { font-weight: 400; color: var(--scope-muted); }
 .tab { min-height: 28px; padding: 4px 10px; border: 0; border-radius: calc(var(--scope-radius) - 2px); background: transparent; color: var(--scope-muted); font: 500 12px var(--oc-font, sans-serif); white-space: nowrap; cursor: pointer; }
 .tab[aria-selected="true"] { color: var(--scope-fg); background: var(--scope-bg); box-shadow: 0 0 0 1px var(--scope-line), 0 1px 2px #0000001f; }
 .view { display: grid; gap: 8px; align-content: start; margin-top: 16px; }
+/* History and Captures mount their cards inside a host element: the same 8 px rhythm as Live and Server (G2 mock). */
+.view-host { display: grid; gap: 8px; align-content: start; }
 .link-btn { margin: 4px 0 0 -6px; padding: 3px 6px; border: 0; border-radius: var(--scope-radius); background: transparent; color: var(--oc-primary-text, var(--scope-accent)); font: inherit; cursor: pointer; white-space: nowrap; }
 .notice { padding-left: 10px; border-left: 2px solid var(--scope-warn); color: var(--scope-muted); font-size: 11px; line-height: 1.6; }
 
