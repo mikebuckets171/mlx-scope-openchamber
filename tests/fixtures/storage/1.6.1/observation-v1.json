@@ -1,0 +1,90 @@
+{
+  "observation.v1.0001790600061000.864a0493f2d797c26fd6e4e30ef1052b": {
+    "savedAt": 1790600061000,
+    "sampledAt": 1790600060000,
+    "kind": "snapshot",
+    "state": "observed",
+    "phase": "prefill",
+    "measurements": {
+      "generation": null,
+      "recentOutput": null,
+      "prefillRemaining": 37.5,
+      "processed": 20480,
+      "total": 32768,
+      "stageEstimate": null,
+      "active": 1,
+      "queued": 1,
+      "cpu": 22.25,
+      "memory": 29.999999999999996,
+      "footprint": 16,
+      "swap": 2
+    }
+  },
+  "observation.v1.0001790600121000.8096e83799008086fcd5345207899b55": {
+    "savedAt": 1790600121000,
+    "sampledAt": 1790600120000,
+    "kind": "snapshot",
+    "state": "held",
+    "phase": "unknown",
+    "measurements": {
+      "generation": null,
+      "recentOutput": 58.2,
+      "prefillRemaining": null,
+      "processed": null,
+      "total": null,
+      "stageEstimate": null,
+      "active": null,
+      "queued": null,
+      "splashDecode": 61.3,
+      "splashCompleted": 17,
+      "splashFailed": 1,
+      "splashMetalCurrent": 11.641532182693481,
+      "splashMetalPeak": 12.10719347000122,
+      "cpu": 9.75,
+      "memory": 27,
+      "footprint": null,
+      "swap": 0
+    }
+  },
+  "observation.v1.0001790600180000.afc7f168e3817cf1ef6b11110fb8a0fb": {
+    "savedAt": 1790600180000,
+    "sampledAt": 1790600030000,
+    "kind": "comparison",
+    "state": "finished",
+    "phase": "unknown",
+    "measurements": {
+      "observedGeneration": 25,
+      "generationSeconds": 29,
+      "tokenIncrements": 725,
+      "duration": 30,
+      "meanCPU": 18.5,
+      "meanMemory": 28,
+      "peakMemory": 28,
+      "cpuSamples": 31,
+      "memorySamples": 31,
+      "processSamples": 31,
+      "requestCountChange": null,
+      "samples": 31,
+      "peakCPU": 18.5,
+      "peakFootprint": 16
+    },
+    "reference": {
+      "observedGeneration": 22,
+      "generationSeconds": 29,
+      "tokenIncrements": 638,
+      "duration": 30,
+      "meanCPU": 18.5,
+      "meanMemory": 28,
+      "peakMemory": 28,
+      "cpuSamples": 31,
+      "memorySamples": 31,
+      "processSamples": 31,
+      "requestCountChange": null,
+      "samples": 31,
+      "peakCPU": 18.5,
+      "peakFootprint": 16
+    },
+    "referenceSampledAt": 1790600030000,
+    "referenceState": "finished"
+  }
+}

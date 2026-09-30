@@ -411,20 +411,63 @@ type ReplyRow = ['r', finishedS, rt, modelRef, ctxB, uncB, prompt, cached, outpu
 type TurnRow  = ['t', startedS, endedS, rt, modelRef, steps, output, firstTtftMs, wDecodeTps10, waitMs, attr, cofactors]
 type GapRow   = ['g', fromS, toS]
 sizeBucket(tokens); chunkKey(startS, rand4); parseRow(value): LedgerRow | null
+// added by the ledger track
+COFACTOR = { pressure: 1, swap: 2, thermal: 4, overlapped: 8, aggregate: 16 }; HOST_COFACTORS; SWAP_GREW_BYTES = 64 MiB
+verdictAttr(completion): LedgerAttr                    // the default label: the service's stored verdict, else 'not-observed'
+replyRow(completion, instance, rt, modelRef, attr): ReplyRow   // ctxB = bucket(prompt + output); uncB only with both counts
+turnRowOf({ startedAt, endedAt, rt, modelRef, steps, outputTokens, firstTtftMs, decodeTps, waitMs, attr, cofactors }): TurnRow
+rowTimeS(row); rowIdentity(row); parseChunk(value); parseMeta(value); parseModels(value)
+interface PrefV2 { v: 2; history; retentionDays; toasts: ToastPreference; autoLabel; tipDismissed; noticeDismissed }
+DEFAULT_PREF; parsePref(value): PrefV2 (field by field, never throws); RETENTION_LIMITS = { min: 1, default: 30, max: 90 }
+interface LedgerMeta { schema: 2; migratedAt; accounting: { bytes; keys }; clearedAt? }
+// prefs.ts (new, ledger): class PrefStore { load(): Promise<PrefV2>; value; update(patch): Promise<PrefV2> }  // one write per real change
 // accounting.ts
 STORAGE_LIMITS = { valueBytes: 64 KiB, totalBytes: 2 MiB, keys: 2_000 }; LEDGER_CAP_BYTES = 1_280 KiB; HEADROOM_BYTES = 128 KiB
-entryBytes(key, value); class Accounting { recompute(entries); apply(key, before, after); fits(bytes) }
+entryBytes(key, value); class Accounting { recompute(entries); apply(key, before, after); fits(bytes, keys?); hostFits(bytes, keys?); view() }
 // ledger.ts
 FLUSH_EVERY_MS = 300_000; FLUSH_ROWS = 50; HIDE_FLUSH_GAP_MS = 10_000; RETENTION_DAYS = { default: 30, max: 90 }
-class Ledger { constructor({ storage, now, retentionDays? }); state; firstRun; start(); append(completions, label); appendTurn(row);
-  due(reason, now); flush(reason); read(fromS?, toS?); models(); accounting(); setRetention(days); setPaused(paused); clear(); dispose() }
-// migrate-v1.ts: captureFromObservation(value): CaptureV2 | null; migrateV1(storage, now): Promise<MigrationResult>
-// captures/store.ts: CAPTURE_LIMIT = 12; interface CaptureV2; class CaptureStore { list(); save(capture); remove(key) }
-// testing/storage.ts: createFakeStorage({ reject? }) → host.storage + stats() + dump()   (shared by every panel track)
+VERDICT_HOLD_MS = 30_000; CHUNK_SPAN_S = 86_400
+interface LedgerSource { connection: string; rt: RuntimeKind; since?: number }   // since = what the poll actually sent
+class Ledger { constructor({ storage, now, retentionDays?, random? }); state; firstRun; pendingRows; start();
+  append(completions, label, source);                  // CHANGED: third argument (the rows need rt; cursors are per connection)
+  appendTurn(row); modelRef(name); since(connection, now?);
+  due(reason, now); flush(reason); read(fromS?, toS?); models(); accounting(); usage(); inspect();
+  storedBaselines(); computeBaselines(now?); setRetention(days); setPaused(paused); clear(); dispose() }
+class LedgerRecorder { constructor(ledger, label = verdictAttr); recording; since(connection, now?);
+  observe(snapshot, now, sentSince?); hidden(now); dispose() }
+interface LedgerUsage { ledgerBytes; capBytes; namespaceBytes; keys; replies; days; retentionDays; paused; oldestS }
+// migrate-v1.ts: captureFromObservation(value): CaptureV2 | null; migrateV1(storage, now): Promise<MigrationResult>;
+//   V1_MEASUREMENTS (every 1.x key → v2 key + unit rule); migratedKey(v1Key, savedAt)
+// captures/store.ts: CAPTURE_LIMIT = 12; interface CaptureV2 (+ optional origin: 'v1', sampledAt, held, phase,
+//   referenceSampledAt, referenceState); CAPTURE_MEASUREMENTS; parseCapture(value); class CaptureStore { list(); save(capture); remove(key) }
+//   list() → StoredCapture[] (CaptureV2 & { key }), newest first, migrated ones included
+// testing/storage.ts: createFakeStorage({ reject?, initial?, limits? }) → host.storage + stats() + dump()   (shared by every panel track)
+// testing/completions.ts: FakeRing (the /v2/snapshot completion page: seq > since, ≤ 64, reset), completion(seq, at, extra)
 ```
 
 Only the leader calls `start`, `append`, `flush` (`snapshot.lease.leader`); a handover restarts from the persisted
 cursor. `id = ${instance}.${seq}` is the (instance, seq) dedupe key; no session tag is stored.
+
+**Wiring (ui-core, `panel/main.ts`).** The leader frame's poll must send `since: recorder.since(connection.id)` (the
+ledger's cursor, held back over the last 30 s so a verdict another frame posts still relabels the row), then call
+`recorder.observe(snapshot, now, sentSince)`; on `visibilitychange`/IntersectionObserver hidden and on `pagehide` call
+`recorder.hidden(now)`. A frame that is not the leader sends its own `since` and never touches the ledger. Pass a label
+function when the frame's own attribution (`join`/`NextReply`) has a verdict the service does not have yet.
+
+**What a chunk holds.** `{ v: 2, c: { [connectionId]: [instance, seq, atS] }, r: rows }`: `c` is the acknowledged cursor
+(written in the same `set` as the rows), so one flush is one `set`. A chunk closes at 56 KiB or after a day, so retention
+deletes whole chunks within a day of their rows expiring. A new leader adopts the newest open chunk and re-reads it once
+before its first rewrite.
+
+**Needs from svc-history.** `seq` must be unique per service instance across all slots (contract §6.2 "monotonic per
+service instance"): a per-slot counter restarting at 1 would make `${instance}.${seq}` collide between connections.
+
+**Baselines and regressions (§4.4) were built by the ledger track** (its track brief asked for them); the §4.4 signatures
+are unchanged. Added exports: `BASELINE_MIN_N`, `BASELINE_WRITE_MS`, `BASELINE_METRICS`, `bucketFor`, `rowKey`,
+`metricValue`, `eligible`, `percentile` (R-7), `baselineOf`, `toBaselineStore`, `parseBaselineStore`, `sameBaselines`;
+`REGRESSION`, `FLAG_METRICS` (tok/J gets a "vs usual" chip labelled estimate, never a flag). The leader writes
+`baseline.v2` right after a successful flush, at most every 10 min and only when it changed; any frame reads it with
+`Ledger.storedBaselines()`.
 
 ### 4.4 Baselines, regressions, history fetch — ui-history
 

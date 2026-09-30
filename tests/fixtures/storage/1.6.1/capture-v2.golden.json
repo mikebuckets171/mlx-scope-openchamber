@@ -1,0 +1,89 @@
+{
+  "capture.v2.mul91ljc.3cbe": {
+    "v": 2,
+    "savedAt": 1790600061000,
+    "kind": "snapshot",
+    "runtime": null,
+    "label": "server-wide",
+    "measurements": {
+      "prefillRemainingFraction": 0.375,
+      "prefillProcessedTokens": 20480,
+      "prefillTotalTokens": 32768,
+      "activeRequests": 1,
+      "queuedRequests": 1,
+      "cpuFraction": 0.2225,
+      "memUsedBytes": 32212254720,
+      "footprintBytes": 17179869184,
+      "swapUsedBytes": 2147483648
+    },
+    "state": "finished",
+    "origin": "v1",
+    "sampledAt": 1790600060000,
+    "phase": "prefill"
+  },
+  "capture.v2.mul92vu0.4df0": {
+    "v": 2,
+    "savedAt": 1790600121000,
+    "kind": "snapshot",
+    "runtime": "splash",
+    "label": "server-wide",
+    "measurements": {
+      "recentOutputTps": 58.2,
+      "splashDecodeTps": 61.3,
+      "splashCompletedRequests": 17,
+      "splashFailedRequests": 1,
+      "splashMetalBytes": 12500000000,
+      "splashMetalPeakBytes": 13000000000,
+      "cpuFraction": 0.0975,
+      "memUsedBytes": 28991029248,
+      "swapUsedBytes": 0
+    },
+    "state": "finished",
+    "origin": "v1",
+    "sampledAt": 1790600120000,
+    "held": true,
+    "phase": "unknown"
+  },
+  "capture.v2.mul945cw.52eb": {
+    "v": 2,
+    "savedAt": 1790600180000,
+    "kind": "comparison",
+    "runtime": null,
+    "label": "server-wide",
+    "measurements": {
+      "decodeMs": 29000,
+      "windowMs": 30000,
+      "samples": 31,
+      "observedDecodeTps": 25,
+      "observedOutputTokens": 725,
+      "meanCpuFraction": 0.185,
+      "peakCpuFraction": 0.185,
+      "cpuSamples": 31,
+      "meanMemUsedBytes": 30064771072,
+      "peakMemUsedBytes": 30064771072,
+      "memorySamples": 31,
+      "peakFootprintBytes": 17179869184,
+      "footprintSamples": 31
+    },
+    "reference": {
+      "decodeMs": 29000,
+      "windowMs": 30000,
+      "samples": 31,
+      "observedDecodeTps": 22,
+      "observedOutputTokens": 638,
+      "meanCpuFraction": 0.185,
+      "peakCpuFraction": 0.185,
+      "cpuSamples": 31,
+      "meanMemUsedBytes": 30064771072,
+      "peakMemUsedBytes": 30064771072,
+      "memorySamples": 31,
+      "peakFootprintBytes": 17179869184,
+      "footprintSamples": 31
+    },
+    "state": "finished",
+    "origin": "v1",
+    "sampledAt": 1790600030000,
+    "referenceSampledAt": 1790600030000,
+    "referenceState": "finished"
+  }
+}
