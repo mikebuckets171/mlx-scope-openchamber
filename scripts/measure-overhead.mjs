@@ -171,7 +171,10 @@ async function measure({ kind, macmon }) {
       }
       throw new Error('The service did not report its CPU time.');
     };
-    const poll = async (duration, interval, path = '/v2/snapshot') => {
+    // Each view polls as its frame does (panel/data/client.ts snapshotQuery): its own frame id, surface and tier.
+    const view = (surface, tier) => `/v2/snapshot?frame=${randomBytes(4).toString('hex')}&surface=${surface}&tier=${tier}`;
+    const panel = view('panel', 'full'), status = view('status', 'glance');
+    const poll = async (duration, interval, path = panel) => {
       const until = performance.now() + duration * 1000, latencies = [];
       while (performance.now() < until) {
         const start = performance.now();
@@ -205,17 +208,17 @@ async function measure({ kind, macmon }) {
     edges.activeEnd = await probe();
     // One transition read keeps the active runtime state out of the idle measurement.
     state.active = false;
-    assert.equal((await get('/v2/snapshot')).status.state, 'ready');
+    assert.equal((await get(panel)).status.state, 'ready');
     await delay(500);
     edges.idle = await probe();
     const idleLatency = await poll(seconds.idle, 2_000);
     edges.idleEnd = await probe();
     // The Work Status section alone, while the runtime decodes: glance tier, status cadence.
     state.active = true;
-    assert.equal((await get('/v2/snapshot?surface=status&tier=glance')).status.state, 'ready');
+    assert.equal((await get(status)).status.state, 'ready');
     await delay(500);
     edges.glance = await probe();
-    const glanceLatency = await poll(seconds.glance, 1_000, '/v2/snapshot?surface=status&tier=glance'), lastRequestAt = lastRead;
+    const glanceLatency = await poll(seconds.glance, 1_000, status), lastRequestAt = lastRead;
     edges.glanceEnd = edges.paused = await probe();
     await delay(seconds.paused * 1000);
     edges.pausedEnd = await probe();
@@ -430,7 +433,7 @@ const receipt = {
   runs,
   limitations: [
     'Synthetic loopback runtimes; no inference was started or measured.',
-    'The fake lms is a shell stand-in that idles like lms log stream; real lms CPU and RSS (docs/2.0/SPIKES.md S8) are not reproduced.',
+    'The fake lms is a shell stand-in: ps and runtime ls answer at once and log stream idles; real lms CPU and RSS (docs/2.0/SPIKES.md S8) are not reproduced.',
     'The fake macmon is a node process printing one fixture line per second; real macmon CPU and RSS are not reproduced.',
     'On macOS, lsof and footprint read the harness\'s own loopback listener; elsewhere no host probe runs, so host spawns and their CPU are not measured.',
     'The service runs under Node, not OpenChamber\'s Electron runtime, where RSS reads higher (S13: 89–92 MiB live).',
