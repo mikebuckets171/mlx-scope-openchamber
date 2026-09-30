@@ -97,7 +97,12 @@ Each adapter file exports its descriptor; svc-2b's `DESCRIPTORS` imports them on
 
 Adapter helpers (pure, fixture-tested):
 - oMLX: `usagePath(range | 'today' | 'yesterday', details): string`, `normalizeOmlxUsage(body, range, now): UsageV2 | null`,
-  `unavailableUsage(reason, range, now): UsageV2`, `readOmlxUsage(context, range): Promise<UsageV2>`.
+  `unavailableUsage(reason, range, now): UsageV2`, `readOmlxUsage(context, range): Promise<UsageV2>` (never throws; shares
+  the adapter's admin login through `adminSession(context)`, so pass the slot's own context), `usageDetails(range)`,
+  `usageDays(body)`, `dayKey(date)`; `isOmlxHealth(body, status)` (accepts 0.7's `engine_pool: null`), `OmlxAdapter`,
+  `OMLX_CAPABILITIES`, `OMLX_PATHS`, `ADMIN_RETRY_MS`, `adminSession(context)`, `requestOf(normalized)`;
+  `normalizeOmlx(session, activity, contextWindows, preferredModel, sampledAt, state)` and `normalizeSession(body)` in
+  `omlx-normalize.ts`. Contract amendments: §12.3 (usage buckets), §12.4 (`memory.guard`).
 - Splash: `SPLASH_RECOVERING_CACHE_MS = 30_000`, `splashStatus(body): StatusV2`,
   `splashCompletion(before, after, at): CompletionDraft | null` (Δ=1 rule, else `aggregateOf`).
 - LM Studio: `modelsGenerationKey(body): string | null`; `parseServerRecord(line, at): ServerLineEvent | null`;

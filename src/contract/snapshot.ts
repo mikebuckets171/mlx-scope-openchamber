@@ -64,13 +64,17 @@ export interface RuntimeV2 {
     speculative?: { draftedTokens: number; acceptedTokens: number; acceptanceFraction: number; windowMs: number };
     rates?: { promptTps?: number; decodeTps?: number; windowMs: number };
   };
-  memory: { processBytes?: number; modelBytes?: number; metalBytes?: number; metalPeakBytes?: number; ceilingBytes?: number };
+  memory: { processBytes?: number; modelBytes?: number; metalBytes?: number; metalPeakBytes?: number; ceilingBytes?: number;
+            guard?: MemoryGuard };           // §12.4: the oMLX process memory guard, not macOS pressure
   residency: ResidencyV2[];                  // ≤ 12
   residencyCount?: number;                   // 2a amendment: models the runtime reports, when it can count them (can exceed 12)
   slots: SlotV2[];                           // ≤ 16, llama-server numeric allowlist
   catalog: CatalogV2[];                      // ≤ 12
   engines: EngineV2[];                       // ≤ 8
 }
+/** oMLX's memory guard tier (`memory_pressure.pressure_level`): `hard` pauses admission. Present only while the guard runs. */
+export const MEMORY_GUARDS = ['ok', 'soft', 'hard'] as const;
+export type MemoryGuard = typeof MEMORY_GUARDS[number];
 export interface RequestV2 {
   model: string | null;
   decodeTps?: number; prefillTps?: number;
@@ -147,7 +151,7 @@ export const HONESTY: ReadonlyArray<readonly [string, CapabilityKey]> = [
   ['runtime.server.cache', 'server.cache'], ['runtime.server.speculative', 'server.speculative'], ['runtime.server.rates', 'server.rates'],
   ['runtime.memory.processBytes', 'server.memory.process'], ['runtime.memory.modelBytes', 'server.memory.model'],
   ['runtime.memory.metalBytes', 'server.memory.metal'], ['runtime.memory.metalPeakBytes', 'server.memory.metal'],
-  ['runtime.memory.ceilingBytes', 'server.memory.ceiling'],
+  ['runtime.memory.ceilingBytes', 'server.memory.ceiling'], ['runtime.memory.guard', 'server.memory.process'],
   ['runtime.residency', 'server.residency'], ['runtime.residencyCount', 'server.residency'], ['runtime.slots', 'server.slots'],
   ['runtime.catalog', 'server.catalog'], ['runtime.engines', 'server.engines'], ['completions.items', 'server.completions'],
   ['host.cpuFraction', 'host.cpu'], ['host.memUsedBytes', 'host.memory'], ['host.memTotalBytes', 'host.memory'],
@@ -261,7 +265,8 @@ const memory = (value: unknown): RuntimeV2['memory'] => {
   const item = obj(value) ?? {}, metal = count(item.metalBytes), peak = count(item.metalPeakBytes);
   return defined({ processBytes: int(item.processBytes), modelBytes: int(item.modelBytes), metalBytes: opt(metal),
     // A peak below the current allocation is not a peak.
-    metalPeakBytes: peak !== null && (metal === null || peak >= metal) ? peak : undefined, ceilingBytes: int(item.ceilingBytes) });
+    metalPeakBytes: peak !== null && (metal === null || peak >= metal) ? peak : undefined, ceilingBytes: int(item.ceilingBytes),
+    guard: opt(oneOf(MEMORY_GUARDS)(item.guard)) });
 };
 const runtime = (value: unknown): RuntimeV2 | null => {
   const item = obj(value);

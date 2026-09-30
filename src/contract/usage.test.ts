@@ -28,3 +28,13 @@ test('rows are allowlisted, model paths trimmed and lists capped', () => {
   expect(parsed.models[0]).toEqual({ model: 'm0', requests: 1, promptTokens: 2, outputTokens: 3 });
   expect(parseUsageV2(edit(body => { body.reason = 'not_omlx'; }))).not.toHaveProperty('reason');
 });
+
+test('§12.3: heatmap days carry a token total only; a bucket needs a total or both halves, and a present count must be valid', () => {
+  const parsed = parseUsageV2(edit(body => {
+    body.range = '90d';
+    body.buckets = [{ at: 1, totalTokens: 7 }, { at: 2, promptTokens: 1, outputTokens: 2 }, { at: 3, requests: 4, totalTokens: 9 },
+      { at: 4, promptTokens: 1 }, { at: 5 }, { at: 6, totalTokens: 1, requests: null }, { at: 7, totalTokens: 1.5 }, { at: 8, totalTokens: 3, cachedTokens: -1 }];
+  }))!;
+  expect(parsed.buckets).toEqual([{ at: 1, totalTokens: 7 }, { at: 2, promptTokens: 1, outputTokens: 2 }, { at: 3, requests: 4, totalTokens: 9 }]);
+  expect(parseUsageV2(edit(body => { body.available = false; body.reason = 'disabled'; }))).toMatchObject({ available: false, reason: 'disabled' });
+});
