@@ -418,6 +418,8 @@ footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--scope-
 .tab:hover { color: var(--scope-fg); }
 .view[hidden] { display: none; }
 .machine[data-stale="true"] :is(.machine-line, .mac-rows) { opacity: .55; }
+.link-btn { min-height: 24px; }
+.scope[data-compact="true"] :is(footer, .status-pill) { display: none; }
 .view-unavailable { padding: 14px 16px; color: var(--scope-muted); font-size: 11px; line-height: 1.6; }
 
 /* ---------- ⋯ menu (1.6). Opaque even when the host's elevated token is translucent. ---------- */

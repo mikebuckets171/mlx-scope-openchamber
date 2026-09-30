@@ -11,7 +11,7 @@ import { clock, dur, size } from './format.ts';
 export const RT: Record<RuntimeKind, string> = {
   omlx: 'oMLX', lmstudio: 'LM Studio', splash: 'Splash', 'vllm-mlx': 'vllm-mlx', 'mlx-lm': 'mlx-lm', 'llama-server': 'llama-server', ollama: 'Ollama',
 };
-type Named = Pick<ConnectionV2, 'runtime' | 'host' | 'engine' | 'label'>;
+type Named = Pick<ConnectionV2, 'runtime' | 'host' | 'engine' | 'label'> & { id?: string };
 /** The runtime as a sentence subject: "Bionic" rather than "LM Studio" when Bionic hosts it. */
 export const rtName = (connection: Named | null): string =>
   connection?.host === 'bionic' ? 'Bionic' : connection?.runtime ? RT[connection.runtime] : 'the runtime';
@@ -20,7 +20,8 @@ export const connName = (connection: Named | null): string => {
   if (!connection) return 'Local runtime';
   if (connection.runtime === 'lmstudio' && connection.engine === 'splash') return connection.host === 'bionic' ? 'Splash via Bionic' : 'Splash via LM Studio';
   if (connection.host === 'bionic') return 'Bionic';
-  return connection.label;
+  // "Automatic" names the choice, not the runtime; once one is detected, say which.
+  return connection.id === 'auto' && connection.runtime ? RT[connection.runtime] : connection.label;
 };
 
 export const PHASE: Record<Phase, string> = {
@@ -121,7 +122,8 @@ export const statusCopy = (snapshot: SnapshotV2): StatusCopy | null => {
       return { severity: 'warning', title: `Looks like ${detected} now`, action: 'switch',
         detail: `${connName(snapshot.connection)} is chosen, but ${detected} answers on ${port(params)}. Scope never switches on its own.` };
     }
-    case 'loading': return { severity: 'info', title: 'llama-server is loading a model', detail: 'Its health check answers 503 until the model is ready.' };
+    case 'loading': return { severity: 'info', title: `${rt === 'the runtime' ? 'The runtime' : rt} is loading a model`,
+      detail: snapshot.connection.runtime === 'llama-server' ? 'Its health check answers 503 until the model is ready.' : 'Readings start when the model is ready.' };
     case 'recovering': return { severity: 'warning', title: 'Splash is recovering', since,
       detail: `It’s restarting its engine after a fault. Scope reads its status every 30 s, so it doesn’t add to the restart.${params.crashTrace === true ? ' Splash recorded a crash trace; Scope doesn’t show or send it.' : ''}` };
     case 'status_stale': return { severity: 'warning', title: 'Splash’s status is stale', since,
@@ -136,7 +138,15 @@ export const statusCopy = (snapshot: SnapshotV2): StatusCopy | null => {
       detail: 'This llama-server build can sleep, and reading its slots without /metrics would wake it. Start llama-server with --metrics to see slots and throughput.' };
     case 'sleeping': return { severity: 'info', title: 'llama-server is asleep',
       detail: 'It unloads the model while idle and wakes on the next request. Scope doesn’t read slots or metrics while it sleeps, so it stays asleep.' };
-    default: return null;
+    default: {
+      // A state without a reason still says what it means; a reason code this build doesn't know never blanks the view.
+      const state = snapshot.status.state;
+      if (state === 'failing') return { severity: 'critical', title: `${rt === 'the runtime' ? 'The runtime' : rt} isn’t answering`, since,
+        detail: 'Scope checks again automatically.', action: 'connection' };
+      if (state === 'unconfigured') return { severity: 'warning', title: 'No runtime found', detail: 'Nothing answered on the usual local ports. Start a runtime, or choose one.', action: 'connection' };
+      if (state === 'detecting') return { severity: 'info', title: 'Looking for a runtime', detail: 'Checking the usual local ports.' };
+      return null;
+    }
   }
 };
 /** Short line 2 for the glance while a status message holds it. */

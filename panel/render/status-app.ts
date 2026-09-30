@@ -43,7 +43,7 @@ export class StatusApp {
     const view = presentStatusSection({
       now: client.now(), reading: state.latest, snapshot, attribution: pipeline.liveLabel(snapshot), turn: pipeline.turn(), vsUsual: null,
       sparkline: this.trend, chatIsLocal: chatIsLocal(this.session, snapshot?.connection ?? null), expanded: pref.statusExpanded === true,
-      tipDismissed: pref.tipDismissed === true, fresh: snapshot !== null && !state.stale && !state.frame && !state.interrupted, paused: state.userPaused,
+      tipDismissed: pref.tipDismissed === true, fresh: snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh, paused: state.userPaused,
       last: last ? { completion: last, label: pipeline.label(last) } : null, next: pipeline.nextState, window: pipeline.window(),
       firstRun: pipeline.firstRun, firstRunDismissed: pref.firstRunDismissed === true,
     });

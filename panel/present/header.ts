@@ -21,7 +21,7 @@ export const presentHeader = (s: ScopeInput): HeaderView => {
   if (!snapshot || !status) return { ...base, phase: s.frame ? 'Reconnecting' : 'Connecting', connection: connName(null), data: { ...base.data, phase: s.frame ? 'reconnecting' : 'detecting' } };
   const connection = connName(snapshot.connection);
   if (s.paused) return { ...base, phase: 'Paused', connection, data: { ...base.data, phase: snapshot.runtime.phase } };
-  if (s.frame || !s.fresh) return { ...base, phase: 'Reconnecting', connection, data: { ...base.data, phase: 'reconnecting', stale: true } };
+  if (s.frame || !s.fresh) return { ...base, phase: s.frame || s.stale ? 'Reconnecting' : 'Refreshing', connection, data: { ...base.data, phase: 'reconnecting', stale: true } };
   const phase = status.state === 'recovering' || status.reason === 'status_stale' ? 'reconnecting' : status.state === 'failing' ? 'offline'
     : status.state === 'detecting' || status.state === 'unconfigured' ? 'detecting' : snapshot.runtime.phase;
   return { ...base, phase: phaseLabel(snapshot), connection, data: { ...base.data, phase, stale: status.state === 'failing' } };

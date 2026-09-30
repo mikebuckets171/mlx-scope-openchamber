@@ -27,6 +27,7 @@ window.previewOpenedURL = '';
 window.previewHold = false;
 window.previewTransportError = '';
 window.previewQueries = [];
+window.previewBodies = [];
 window.previewDelay = false;
 window.previewDeferred = [];
 function theme(name) {
@@ -200,6 +201,10 @@ if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
     : path !== '/v2/snapshot' || contract === '1.6' ? {status:404,body:{error:'not_found'}}
       : contract === '3' ? {status:200,body:{contractVersion:3}}
         : {status:200,body:ScopeConvert.toSnapshotV2(payload,{service:{version:'2.0.0-preview',instance:'5c1e0a7b'},serverNow:Date.now()})};
+  // Like the service, answer only completions newer than the frame's `since` cursor (contract §7); the cursor stays.
+  const completions = response.status === 200 ? response.body.completions : null;
+  if (completions && /^\d+$/.test(selection.since ?? '')) completions.items = completions.items.filter(item => item.seq > Number(selection.since));
+  if (completions) window.previewBodies.push({since: selection.since, items: completions.items.length});
   const reply = {type:'result',id:m.id,ok:true,payload:{status:response.status,body:JSON.stringify(response.body)}};
   if (window.previewDelay) window.previewDeferred.push(() => post(reply));
   else post(reply);

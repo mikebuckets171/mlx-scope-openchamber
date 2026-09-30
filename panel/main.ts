@@ -63,6 +63,7 @@ const mountStatus = async (ready: HostReadyContext): Promise<void> => {
   void readSelection(host.storage).then(next => { selection = next; });
   state.mounted = true;
   render();
+  monitor.sync();
   monitor.poller.start();
 };
 
@@ -151,6 +152,8 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
   refresh.disabled = state.userPaused;
   render();
   if (ready.surface === 'panel' && visibility.visible) pipeline.panelMounted();
+  // The gate decides before the first poll: a display:none rail tab starts paused and never asks.
+  monitor.sync();
   monitor.poller.start();
 };
 

@@ -17,6 +17,7 @@ export interface ScopeInput {
   version: string;
   snapshot: SnapshotV2 | null;               // the newest body, retained through a missed poll
   fresh: boolean;                            // the body is the newest poll's and inside the no-fresh-reading deadline
+  stale?: boolean;                           // the no-fresh-reading deadline passed (otherwise a not-fresh body is refreshing)
   frame: FrameIssue | null;                  // the newest poll had no body
   paused: boolean;
   attribution: AttributionLabel;             // the live reading's label (attribution join)

@@ -124,7 +124,8 @@ test('paused, stale and frame states never show a live rate', () => {
   expect(stale.hero?.body ?? null).toBeNull();
   expect(stale.tiles).toEqual([]);
   expect(stale.mac?.stale).toBe(true);
-  expect(presentHeader(inputOf('decode', { fresh: false })).phase).toBe('Reconnecting');
+  expect(presentHeader(inputOf('decode', { fresh: false })).phase).toBe('Refreshing');
+  expect(presentHeader(inputOf('decode', { fresh: false, stale: true })).phase).toBe('Reconnecting');
 });
 
 test('needs approval and version skew replace every view with the S11 copy, and never mention a sessions grant', () => {

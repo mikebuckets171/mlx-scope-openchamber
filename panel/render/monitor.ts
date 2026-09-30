@@ -73,7 +73,7 @@ export class Monitor {
       this.clearFreshness(); state.signal.break(); this.p.hidden(); this.p.render();
       return;
     }
-    if (state.interrupted) { state.interrupted = false; state.stale = state.snapshot !== null; this.p.render(); }
+    if (state.interrupted) { state.interrupted = false; this.p.render(); }
     this.armFreshness();
   }
 }

@@ -51,7 +51,7 @@ export class ScopeApp {
   input(): ScopeInput {
     const { state, pipeline, client, version } = this.p, snapshot = state.snapshot, last = state.lastRequest;
     return {
-      now: client.now(), version, snapshot, fresh: snapshot !== null && !state.stale && !state.frame && !state.interrupted, frame: state.frame,
+      now: client.now(), version, snapshot, fresh: snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh, frame: state.frame, stale: state.stale,
       paused: state.userPaused, attribution: pipeline.liveLabel(snapshot), chatRuntime: pipeline.chatRuntime(),
       last: last ? { completion: last, label: pipeline.label(last), vsUsual: null, flag: null } : null,
       next: pipeline.nextState, samples: state.signal.points, turnStartAt: pipeline.window()?.startedAt ?? null,
@@ -60,7 +60,8 @@ export class ScopeApp {
   /** Frame-side callouts: a poll without a body, or no fresh reading before the deadline. */
   private extra(s: ScopeInput): Callout[] {
     if (s.frame) return [{ key: 'frame', severity: 'warning', title: FRAME_TITLE[s.frame.reason] ?? 'Scope can’t read its service right now', detail: s.frame.message ?? '', since: '', action: null }];
-    return s.snapshot && !s.fresh && !s.paused ? [{ key: 'stale', severity: 'warning', title: NO_FRESH, detail: NO_FRESH_DETAIL, since: '', action: null }] : [];
+    // Only a missed deadline says so; a frame that was just shown again is merely refreshing.
+    return this.p.state.stale && !s.paused ? [{ key: 'stale', severity: 'warning', title: NO_FRESH, detail: NO_FRESH_DETAIL, since: '', action: null }] : [];
   }
 
   render(): void {
