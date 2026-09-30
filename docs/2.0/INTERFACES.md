@@ -38,7 +38,7 @@ K kept, edited in place · C contract file (`src/contract/*`).
 | **ad-splash** | R `service/adapters/splash.ts` (from `service/splash.ts`; no `splash-metrics.ts`: G1 dropped `/metrics`) |
 | **ad-lmstudio** | R `service/adapters/lmstudio.ts`, R `service/adapters/lmstudio-activity.ts`, N `service/adapters/lmstudio-cli.ts` |
 | **ad-llama-ollama** | N `service/lib/prometheus.ts`, N `service/adapters/llama-server.ts`, N `service/adapters/ollama.ts` |
-| **attribution** | N `panel/attribution/sessions.ts`, `join.ts`, `next-reply.ts`, `turn.ts`, `wire.ts` |
+| **attribution** | N `panel/attribution/sessions.ts`, `join.ts`, `next-reply.ts`, `turn.ts`, `wire.ts`; added `coverage.ts`, `why.ts`, `controller.ts`, `testing.ts` (test support), `tests/browser/attribution.spec.ts` |
 | **ledger** | N `panel/history/ledger.ts`, `ledger-schema.ts`, `accounting.ts`, `migrate-v1.ts`, N `panel/captures/store.ts` (successor of `panel/saved.ts`), N `panel/testing/storage.ts` |
 | **ui-core** | K `panel/main.ts` (bootstrap ≤ 250 lines), K `panel/state/scope-state.ts`, K `panel/data/client.ts`, K `panel/data/poller.ts`, K `panel/data/visibility.ts`, K `panel/present/{header,live,server,glance,captures,scope,reading,format,messages}.ts`, N `panel/present/status.ts`, `panel/present/alerts.ts`, N `panel/alerts/signals.ts`, N `panel/render/views/types.ts` and every other `panel/render/views/*` except `history.ts`, K `panel/render/*`, `panel/style.css`, `panel/index.html` |
 | **ui-history** | N `panel/data/history.ts`, `panel/history/baselines.ts`, `regress.ts`, `summary.ts`, `panel/present/history.ts`, `panel/render/trend-chart.ts`, `panel/render/views/history.ts` |
@@ -212,31 +212,65 @@ encodeAttrs(attrs: SnapshotQuery['attrs']): string | undefined   // '58.withheld
 
 ```ts
 // sessions.ts
-LIFECYCLE_HOLD_MS = 1_000
-interface TurnWindow { tag: string; startedAt: number | null; endedAt: number | null; outcome: 'completed' | 'failure' | null }
-interface FrameSessionState { connected: boolean; chat: { tag; provider: string | null; model: string | null; busy } | null; windows: readonly TurnWindow[] }
-class SessionFeed { constructor(host: Pick<HostClient, 'onSession' | 'onSessionLifecycle'>, now, instance: () => string | null);
-  state(): FrameSessionState; drainMarks(): SnapshotQuery['marks']; onChange(listener): () => void; dispose() }
+LIFECYCLE_HOLD_MS = 1_000; WINDOW_LIMIT = 16
+interface TurnWindow { tag: string; startedAt: number | null; endedAt: number | null; outcome: 'completed' | 'failure' | null;
+  provider?: string | null; model?: string | null; joinedAt?: number }    // endedAt + outcome null = observation cut
+interface FrameSessionState { connected: boolean; observedFrom: number | null; chat: { tag; provider: string | null; model: string | null; busy } | null;
+  windows: readonly TurnWindow[] }
+class SessionFeed { constructor(host: Pick<HostClient, 'onSession' | 'onSessionLifecycle'>, now, instance: () => string | null, options?: { active?: boolean });
+  get active(); setActive(active); state(): FrameSessionState; drainMarks(): SnapshotQuery['marks']; onChange(listener): () => void; dispose() }
+splitModel(model?: string): { provider; model }                            // `providerID/modelID`
+// coverage.ts (new): this frame's readings
+SEGMENT_BREAK_FACTOR = 2.5; STREAM_GAP_MS = 60_000
+class ActivityTrack { observe(body: SnapshotV2 | null, at, cadenceMs?); break(at); reset(); latest();
+  covered(from, to): boolean; activeMax(from, to): number | null; idleBefore(at): number | null }
 // join.ts
-CLOCK_TOLERANCE_MS = 1_500
+CLOCK_TOLERANCE_MS = 1_000                                                 // S2 (was 1_500)
 type JoinVerdict = { attr: 'inferred' } | { attr: 'withheld'; reason: WithholdReason }
 type AttributionLabel = { kind: 'inferred' } | { kind: 'armed' } | { kind: 'server-wide'; reason: WithholdReason | 'all-requests' | 'not-observed' }
-interface JoinContext { connection: { id; runtime; model }; canCount: boolean; covered(from, to): boolean; auto: boolean }
-join(completion: CompletionV2, frame: FrameSessionState, context: JoinContext): JoinVerdict
-sameModel(chat, runtime): boolean; labelOf(completion): AttributionLabel
+interface JoinContext { connection: { id; runtime; model; models?: readonly string[]; choices?: readonly string[] }; canCount: boolean;
+  covered(from, to): boolean; auto: boolean; activeMax?(from, to): number | null; idleBefore?(at): number | null }
+join(completion: Span, frame, context): JoinVerdict; joinLive(frame, context, at, model): JoinVerdict
+sameModel(chat, runtime): boolean; labelOf(completion); labelOfVerdict(verdict); chatMismatch; stepReason; inside; windowAt
 // next-reply.ts
 REPLY_WAIT_MS = 120_000; REPLY_LIMIT_MS = 600_000
-class NextReply { get state(): NextReplyState; arm(now, frame, context); observe(completions, frame, now); cancel(reason); drainAttrs() }
+type NextReplyCancel = 'switched' | 'unavailable' | 'hidden' | 'timeout' | 'limit' | 'clock' | 'user'
+type NextReplyState = idle | offer-watch {runtime} | refused {reason} | armed {at} | measuring {startedAt, steps}
+  | result {startedAt, endedAt, steps, attributed, summary} | cancelled {reason}
+class NextReply { get state(); get active(); arm(now, frame, context); observe(completions, frame, now, extra?: { context?; sampledAt? });
+  cancel(reason); drainAttrs() }; armRefusal(chat, context)
 // turn.ts
 interface TurnSummary { wallMs; modelMs; toolMs; steps; firstTtftMs; promptTokens; cachedTokens; outputTokens; decodeTps; cacheFraction }
-summarizeTurn(window: TurnWindow, steps: readonly CompletionV2[]): TurnSummary | null
+summarizeTurn(window: TurnWindow, steps: readonly CompletionV2[], now?): TurnSummary | null   // steps carry their verdicts
 // wire.ts
-class WireQueue { mark(items); attr(items); query(): { mark?: string; attr?: string }; acknowledge() }
+QUEUE_LIMIT = 32
+class WireQueue { mark(items); attr(items); query(): { mark?: string; attr?: string }; acknowledge(); clear(); get pending() }
+// why.ts (new): the ⓘ
+ALTERNATING; attributionWhy(label, runtimeName, live, { provider? }): readonly [title, first, second]
+// controller.ts (new): one frame's attribution, driven by its polls
+class Attribution { constructor({ host, now: () => number /* SnapshotClient.now */, auto?: () => boolean });
+  read(client, query, cadenceMs?): Promise<Reading>; query(); acknowledge(); observe(body: SnapshotV2 | null, cadenceMs?);
+  setVisible(visible); label(completion); isPending(seq);
+  live(): AttributionLabel | null; turn(): TurnView | null; nextReply; arm(); cancel(); watchable(): string | null;
+  chatIsLocal(): boolean | null; frame(); context(body); dispose() }
+interface TurnView { window; label: AttributionLabel; summary: TurnSummary | null; steps; live: boolean }
 ```
 
 Session ids and titles never leave `sessions.ts`: the tag is `tag8(id, service.instance)` (`src/contract/hash.ts`).
-S2 rules: ignore lifecycle replays (×3 on mount and switch), dedupe on (session, phase) changes, 1 s hold; no
-`sessions` capability, so the "several chats / subagent" reasons are never produced.
+S2 rules: the first event after mount, switch or hide (from `onSession` or `onSessionLifecycle`) is a replay that sets
+the baseline; repeats are deduped on (session, running); 1 s hold and tolerance; no `sessions` capability, so the
+"several chats / subagent / projects" reasons are never produced.
+
+**Wiring (ui-core).** One `Attribution` per frame, created with `now: () => client.now()` (the service clock) and the
+`attribution.auto` preference:
+- each poll: `const reading = await attribution.read(client, query, frameDelayMs)` in place of `client.read(query)` (it
+  adds `mark`/`attr`, acknowledges on a parsed body and observes the result; a host error is observed and rethrown). By
+  hand: `query()` → `client.read({ ...query, ...extra })` → `acknowledge()` on a body → `observe(body | null, frameDelayMs)`;
+- `attribution.setVisible(visibility.visible && !userPaused)` from `monitor.sync()`; `dispose()` on unmount;
+- presenters: `live()` (hero, status line 1), `label(completion)` (reply strip, History rows), `turn()` (Turn stats:
+  `summary` or the withheld `label`), `nextReply` / `arm()` / `cancel()` (Next reply), `watchable()` ("Watch …"),
+  `chatIsLocal()` (24 px line) and `attributionWhy(...)` for every ⓘ;
+- the leader's ledger appends with `label(completion)` and a `t` row for a settled `turn()` with a `summary`.
 
 ### 4.3 Ledger store — `panel/history/*`, `panel/captures/store.ts` (ledger)
 
@@ -351,8 +385,8 @@ Open, for the named track:
   LM Studio prints no `Done ·` line, so its completions exist only on Splash-engine Bionic.
 - **ad-llama-ollama:** b10519 clears an idle slot's `n_decoded`; keep the last busy read. Windowed gauges differ by
   build (b10519 reads 0 mid-request, b6700 never resets): never use them for rates.
-- **attribution:** `SessionSnapshot.model` format for local providers decides `sameModel`; the ⓘ must carry "Another chat
-  alternating requests on the same runtime during this turn can't be ruled out."
+- **attribution:** done on `mb/attribution`: `sameModel` matches the last path segment, case-folded (S2); the ⓘ
+  (`why.ts`) carries "Another chat alternating requests on the same runtime during this turn can't be ruled out."
 - **ui-core / svc-2b:** `compat` removal order (§3.6). `snapshotQuery` still sends `tier=full` unless told otherwise;
   the status surface must pass `tier: 'glance'`.
 - **scope-flip:** `ui/tokens.css` (a Stage 1 item) was never extracted; `background/index.html`, build script, `files`,
