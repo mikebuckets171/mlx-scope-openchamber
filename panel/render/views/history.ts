@@ -20,6 +20,7 @@ export interface HistoryDeps {
   ledger: Pick<Ledger, 'state' | 'read' | 'models' | 'accounting' | 'setRetention' | 'setPaused' | 'clear'>;
   client: Pick<HistoryClient, 'trend' | 'usage'>;
   retentionDays(): number;                   // pref.v2
+  paused(): boolean;                         // pref.v2, not the ledger's state: that stays 'stopped' until this frame leads
   copy(text: string): Promise<void>;
   version: string;
   /** The same provider/runtime the frame's snapshot poll uses; default: the snapshot's connection id. */
@@ -134,7 +135,7 @@ class HistoryViewHandle implements ViewHandle {
     this.prefix = `history-${Math.random().toString(36).slice(2, 8)}`;
     this.tips = new Tips(this.prefix);
     this.retention = deps.retentionDays();
-    this.paused = deps.ledger.state === 'paused';
+    this.paused = deps.paused();
     this.undelegate = delegate(root, (action, arg, target) => void this.act(action, arg, target));
     root.addEventListener('keydown', this.escape);
     void deps.legacyCaptures?.().then(count => { this.legacy = count; this.render(); }).catch(() => {});
@@ -296,7 +297,7 @@ export const historyView = (deps: HistoryDeps): MountView => (root, context) => 
 /** Without an injected ledger the view reads storage itself; unflushed rows of the frame's own ledger are then missing. */
 export const defaultHistoryDeps = (context: ViewContext): HistoryDeps => ({
   ledger: new Ledger({ storage: context.host.storage, now: context.now }), client: new HistoryClient(context.host),
-  retentionDays: () => RETENTION_DAYS.default, copy: text => context.host.writeClipboard(text), version: packageVersion,
+  retentionDays: () => RETENTION_DAYS.default, paused: () => false, copy: text => context.host.writeClipboard(text), version: packageVersion,
   legacyCaptures: async () => (await context.host.storage.keys()).filter(key => key.startsWith(KEYS.legacyObservationPrefix)).length,
 });
 
