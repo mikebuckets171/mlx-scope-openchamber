@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0 (unreleased)
+## 2.0.0
 
 MLX Scope 2.0 follows OpenChamber 2 into the chat: a Work Status section that can replace Turn stats, per-chat labels,
 a local reply history with baselines, alerts while you watch, two more runtimes, deeper Mac readings and `/scope`.
