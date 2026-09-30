@@ -3,6 +3,7 @@ import type { TelemetryPhase, TelemetrySnapshot } from '../telemetry.ts';
 import type { AlertLogEntryV2, AlertV2 } from './alerts.ts';
 import { capabilitiesOf, type Basis, type CapabilityDescriptor, type CapabilityKey } from './capabilities.ts';
 import { CONNECTION_ID, type Json } from './guards.ts';
+import { hostCapabilities, type HostV2 } from './host.ts';
 import type { StatusReason, StatusState } from './reasons.ts';
 import { parseSnapshotV2, requiredCapabilities, type CompatV1, type ConnectionV2, type LeaseV2, type Phase, type SnapshotV2 } from './snapshot.ts';
 import { gbToBytes, percentToFraction, secondsToMs } from './units.ts';
@@ -26,6 +27,8 @@ export interface V1Extras {
   alertLog?: AlertLogEntryV2[];
   lease?: LeaseV2;
   nextPollMs?: number;                       // default: the 1.6 cadence, 500 ms while active, else 2 s
+  /** Stage 5 host reading (service/host/sampler.ts). When given, it replaces the 1.x `system` bridge and its capabilities. */
+  host?: HostV2 | null;
 }
 
 const R: Basis = 'reported', D: Basis = 'derived', O: Basis = 'observed', E: Basis = 'estimate';
@@ -160,7 +163,7 @@ const draft = (v1: V1Snapshot, extras: V1Extras): { body: Json; uncovered: Capab
       detection: extras.detection ?? { basis: 'probe', confidence: 'low' },
     },
     status: { ...state, params: {} },
-    runtime: runtime(v1), host: host(v1.system),
+    runtime: runtime(v1), host: extras.host !== undefined ? extras.host && { ...extras.host } : host(v1.system),
     completions: { instance: extras.service.instance, cursor: 0, reset: false, items: [] },
     marksHead: extras.marksHead ?? 0, alerts: extras.alerts ?? [], alertLog: extras.alertLog ?? [],
     lease: extras.lease ?? { leader: true, epoch: 0, ttlMs: 12_000, leaderSurface: null },
@@ -178,7 +181,8 @@ const draft = (v1: V1Snapshot, extras: V1Extras): { body: Json; uncovered: Capab
   const table: Table = {
     ...v1.available ? adapterCapabilities(v1.runtime ?? connectionRuntime, link?.coverage) : {},
     ...v1.catalog?.length ? { 'server.catalog': R } : {},
-    ...body.host ? { 'host.cpu': R, 'host.memory': R, ...(body.host as Json).mac ? { 'host.swap': R } : {} } : {},
+    ...extras.host !== undefined ? Object.fromEntries(hostCapabilities(extras.host).map(({ key, basis }) => [key, basis]))
+      : body.host ? { 'host.cpu': R, 'host.memory': R, ...(body.host as Json).mac ? { 'host.swap': R } : {} } : {},
   };
   // A value the adapter sent without a table entry was still reported by the runtime (1.6 labelled everything else).
   const uncovered = requiredCapabilities(body).filter(key => !table[key]);

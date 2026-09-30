@@ -1,5 +1,6 @@
 import { toSnapshotV2 } from '../../src/contract/convert-v1.ts';
 import type { SnapshotQuery } from '../../src/contract/query.ts';
+import type { HostV2 } from '../../src/contract/host.ts';
 import type { LeaseV2, SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { SystemSnapshot } from '../../src/system.ts';
 import { busy, type RuntimeReading } from '../runtime-client.ts';
@@ -10,6 +11,8 @@ import type { VerdictV2 } from './verdicts.ts';
 export interface ComposeInput {
   reading: RuntimeReading;
   system: SystemSnapshot | null;
+  /** Stage 5 host reading; when present (even null) it replaces `system`. */
+  host?: HostV2 | null;
   service: { version: string; instance: string };
   serverNow: number;
   lease: LeaseView;
@@ -22,11 +25,11 @@ export interface ComposeInput {
  * The `/v2/snapshot` body: the 1.x reading through the 2a bridge, plus what only the service knows (identity, lease,
  * cadence, turn marks and verdicts). The converter validates it, so a body that breaks the contract never leaves.
  */
-export const composeSnapshot = ({ reading: { snapshot: reading, meta }, system, service, serverNow, lease, marksHead, verdict, query }: ComposeInput): SnapshotV2 => {
+export const composeSnapshot = ({ reading: { snapshot: reading, meta }, system, host, service, serverNow, lease, marksHead, verdict, query }: ComposeInput): SnapshotV2 => {
   const { yielded, ...wireLease } = lease;
   const pollMs = nextPollMs({ surface: query.surface, active: busy(reading), idleMs: meta.idleMs,
-    failures: meta.failures, hostLive: system !== null, yielded });
-  const snapshot = toSnapshotV2({ ...reading, system }, { service, serverNow, generation: meta.generation, detection: meta.detection,
+    failures: meta.failures, hostLive: (host === undefined ? system : host) !== null, yielded });
+  const snapshot = toSnapshotV2({ ...reading, system }, { service, serverNow, generation: meta.generation, detection: meta.detection, host,
     completionSeq: meta.completionSeq ?? undefined, marksHead, lease: wireLease satisfies LeaseV2, nextPollMs: pollMs });
   const { completions } = snapshot, since = query.since;
   // A cursor past this ring's newest seq was not issued by it: an earlier service start, or another connection. The frame

@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import { version as packageVersion } from '../package.json';
 import { assertBodyLimit } from '../src/contract/guards.ts';
+import type { HostV2 } from '../src/contract/host.ts';
 import { isBadQuery, parseSnapshotQuery, parseTrendQuery, parseUsageQuery, type TrendQuery, type UsageQuery } from '../src/contract/query.ts';
 import type { TrendV2 } from '../src/contract/trend.ts';
 import type { UsageV2 } from '../src/contract/usage.ts';
@@ -13,11 +14,14 @@ import { composeSnapshot } from './core/compose.ts';
 import { Lease } from './core/lease.ts';
 import { Marks } from './core/marks.ts';
 import { Verdicts } from './core/verdicts.ts';
-import type { RuntimeReading } from './runtime-client.ts';
+import type { HostContext } from './host/sampler.ts';
+import { busy, type RuntimeReading } from './runtime-client.ts';
 
 export type Sources = {
   read: (selection?: RuntimeSelection) => Promise<RuntimeReading>;
-  system: () => Promise<SystemSnapshot>;
+  system?: () => Promise<SystemSnapshot>;
+  /** Stage 5 host telemetry on the query's probe tier (service/host/sampler.ts); when present it replaces `system`. */
+  host?: (context: HostContext) => Promise<HostV2 | null>;
   /** The newest completion seq assigned; verdicts for later seqs are dropped. */
   completionHead?: () => number;
   /** `/v2/trend` and `/v2/usage` bodies (svc-history); absent → 501 until they are served. */
@@ -36,6 +40,15 @@ const json = (response: http.ServerResponse, status: number, body: unknown): voi
 const digest = (value: string): Buffer => createHash('sha256').update(value).digest();
 const NOT_IMPLEMENTED = { error: 'not_implemented' } as const;
 const FALLBACK: RuntimeReading['meta'] = { generation: 0, detection: { basis: 'probe', confidence: 'low' }, failures: 0, idleMs: 0, completionSeq: null };
+
+/**
+ * What the host sampler rides along with: the frame's tier, whether the runtime is working, and the oMLX loopback port
+ * only while oMLX itself answered on it, so lsof and footprint never read whatever else holds that port.
+ */
+export const hostContextOf = (tier: HostContext['tier'], { snapshot, meta }: RuntimeReading): HostContext => ({
+  tier, active: busy(snapshot), generation: meta.generation,
+  omlxPort: snapshot.available && (snapshot.runtime ?? snapshot.connection?.runtime) === 'omlx' ? meta.port ?? null : null,
+});
 
 /** Exact read-only route allowlist (contract §2). Host and inference failures are independent. */
 export const createScopeServer = (token: string, sources: Sources, options: ServerOptions = {}): http.Server => {
@@ -77,13 +90,15 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       verdicts.record(query.attrs, serverNow, sources.completionHead?.() ?? 0);
       const view = lease.observe(query.frame, query.surface, monotonic());
       const selection = query.provider || runtime ? { provider: query.provider ?? '', runtime } : undefined;
-      const [reading, system] = await Promise.allSettled([
-        Promise.resolve().then(() => sources.read(selection)), Promise.resolve().then(sources.system),
+      const [read, system] = await Promise.allSettled([
+        Promise.resolve().then(() => sources.read(selection)), Promise.resolve().then(() => sources.host ? null : sources.system?.() ?? null),
       ]);
+      const reading = read.status === 'fulfilled' ? read.value
+        : { snapshot: unavailableTelemetry('runtime_unreachable', 'Local inference telemetry is unavailable.', serverNow), meta: FALLBACK };
+      // After the reading: its activity sets the probe cadence and only an answering oMLX enables the footprint probe.
+      const host = sources.host ? await sources.host(hostContextOf(query.tier, reading)).catch(() => null) : undefined;
       json(response, 200, composeSnapshot({
-        reading: reading.status === 'fulfilled' ? reading.value
-          : { snapshot: unavailableTelemetry('runtime_unreachable', 'Local inference telemetry is unavailable.', serverNow), meta: FALLBACK },
-        system: system.status === 'fulfilled' ? system.value : null, service, serverNow, lease: view, marksHead: marks.head,
+        reading, system: system.status === 'fulfilled' ? system.value : null, host, service, serverNow, lease: view, marksHead: marks.head,
         verdict: seq => verdicts.get(seq), query,
       }));
     };

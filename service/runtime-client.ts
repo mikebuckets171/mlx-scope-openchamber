@@ -14,6 +14,9 @@ const urlPort = (url: URL): number | null => {
   const port = url.port ? Number(url.port) : url.protocol === 'https:' ? 443 : url.protocol === 'http:' ? 80 : Number.NaN;
   return Number.isInteger(port) ? port : null;
 };
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
+/** The port a local process listens on for this connection; a remote host's port says nothing about this Mac. */
+const loopbackPort = (url: URL): number | null => LOOPBACK.has(url.hostname) ? urlPort(url) : null;
 
 type SlotContext = {
   runtime: Runtime | null; client: Adapter | null; detection: Detection | null;
@@ -37,6 +40,7 @@ export interface ReadingMeta {
   failures: number;
   idleMs: number;
   completionSeq: number | null;              // seq of the reading's last finished request
+  port?: number | null;                      // the connection's loopback port (host footprint probe); service memory only
 }
 export interface RuntimeReading { snapshot: TelemetrySnapshot; meta: ReadingMeta }
 
@@ -138,7 +142,7 @@ export class RuntimeClient {
         coverage: runtime ? descriptor(runtime).capabilities(snapshot) : null } },
       meta: { generation: slot.generation, failures: failuresOf(slot.state), idleMs: Math.max(0, this.monotonic() - slot.activeAt),
         detection: current.detection ? probed(current.detection) : detection,
-        completionSeq: this.completionSeq(slot, snapshot) },
+        completionSeq: this.completionSeq(slot, snapshot), port: loopbackPort(choice.config.baseURL) },
     };
   }
 

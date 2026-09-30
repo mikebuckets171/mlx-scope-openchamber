@@ -109,23 +109,32 @@ Adapter helpers (pure, fixture-tested):
   `llamaRates(previous, next)`, `llamaSpeculative(previous, next)` (both `PromParse`).
 - Ollama: `parseOllamaVersion(body): string | null`, `parseOllamaPs(body): ResidencyV2[]`.
 
-### 3.2 Exec allowlist — `service/lib/argv.ts` (svc-host; builders implemented, `allowed` stub)
+### 3.2 Exec allowlist — `service/lib/argv.ts` (svc-host; implemented)
 
 ```ts
 const EXEC_PATHS: { vmStat, sysctl, ioreg, notifyutil, lsof, footprint };   // absolute
 const LMS_HOME_PATHS = ['.lmstudio/bin/lms', '.cache/lm-studio/bin/lms'];    // under HOME
 const MACMON_PATHS = ['/opt/homebrew/bin/macmon', '/usr/local/bin/macmon'];
+const IOREG_MAX_BYTES = 128 KiB; MACMON_LINE_BYTES = 16 KiB
 interface Argv { file: string; args: readonly string[]; timeoutMs: number; maxBytes: number; env?: Readonly<Record<string, string>> }
 type Exec = (argv: Argv) => Promise<string | null>;
 loopbackPort(value): number | null; processId(value): number | null;
 vmStatArgv(); sysctlArgv(); ioregArgv(); notifyutilArgv();                    // Argv
-lsofListenArgv(port); footprintArgv(pid); macmonArgv(macmon);                // Argv | null
+lsofListenArgv(port); footprintArgv(pid); macmonArgv(macmon);                // Argv | null; footprint = --noCategories -f bytes -p <pid>
 lmsArgv(lms, 'ps' | 'runtime-ls' | 'log-stream', port, serverInfoPath): Argv | null   // always --port + LMS_API_SERVER_INFO_PATH
-allowed(argv, home): boolean                                                 // the P1 test oracle
+allowed(argv, home): boolean      // exactly the argv the builders produce (file, args, limits, env); lms only under HOME with
+                                  // env = { LMS_API_SERVER_INFO_PATH: <abs>/.internal/http-server.json }
+createExec(home, read = readCommand): Exec              // the one-shot gate: allowlisted, env-free argv only; else null, no spawn
+type StreamChild; type StreamSpawn = (argv: Argv) => StreamChild | null
+createStreamSpawn(home, spawn?): StreamSpawn            // the streaming gate (macmon): allowlisted only, no shell, stderr ignored,
+                                                        // env {LANG, LC_ALL, ...argv.env}
 ```
 
 `native-command.ts` stays byte-identical at `service/native-command.ts` (not moved) and passes only `{LANG, LC_ALL}`,
-so an `Argv` with `env` (lms) runs through the LM Studio adapter's own bounded spawner, never through `readCommand`.
+so an `Argv` with `env` (lms) runs through the LM Studio adapter's own bounded spawner, never through `readCommand`; that
+spawner must check `allowed(argv, home)` first. `service/lib/argv.test.ts` fails when any service file other than
+`lib/argv.ts` and `native-command.ts` imports `node:child_process` (the 1.6 `lmstudio-activity.ts` and `mac-memory.ts` are
+named exceptions until their rewrites retire them), and when `main.ts` reaches `mac-memory.ts`.
 
 ### 3.3 Prometheus parser — `service/lib/prometheus.ts` (ad-llama-ollama)
 
@@ -141,7 +150,7 @@ histogram(parse, name): { buckets: [le, count][]; sum; count } | null
 Label values never reach the wire. Counters ≥ 1e6 arrive in exponent form; token counters move only at request end, so a
 Δ of 0 mid-request is "no rate yet", and rates divide by Δ`*_seconds_total`, not wall time (fixture report).
 
-### 3.4 Host telemetry — `service/host/*` (svc-host)
+### 3.4 Host telemetry — `service/host/*` (svc-host; implemented)
 
 Fields already in `SnapshotV2.host` (`src/contract/host.ts`), each part with its own `sampledAt`, absent without a reading:
 `platform?`, `cpuModel?`, `logicalCores?`, `cpuFraction?`, `memTotalBytes?`, `memUsedBytes?`;
@@ -152,13 +161,36 @@ Fields already in `SnapshotV2.host` (`src/contract/host.ts`), each part with its
 
 ```ts
 PROBE_CADENCE = { memory, gpu, thermal, listener, footprint }: [fullIdle, fullActive, glance | null]
-SPAWN_BUDGET_PER_MIN = { idle: 24, active: 36, glance: 18 }
+SPAWN_BUDGET_PER_MIN = { idle: 24, active: 36, glance: 18 }       // enforced over any 60 s window, whatever tiers read
+probeCadence(probe, { tier, active }): number | null; spawnBudget({ tier, active }): number; cpuFraction(previous, current)
 interface HostContext { tier: Tier; active: boolean; generation: number; omlxPort: number | null }
-class HostSampler { constructor({ exec, now, platform?, home? }); sample(context): Promise<HostV2 | null>; dispose() }
+class HostSampler { constructor({ exec, now, platform?, home?, monotonic?, macmon?, spawn?, os? });
+  sample(context): Promise<HostV2 | null>; energy(from, to): { energyJ, coverage } | null; dispose() }
 parseVmStat(out); parseSysctl(out); parseIoreg(out, sampledAt); parseNotifyutil(out); parseLsofPids(out); parseFootprint(out)
-parseMacmonLine(line, sampledAt); createPowerStream({ exec, macmon, now }): PowerStream
+parseFootprintReport(out): { name, pid, footprintBytes, peakBytes } | null      // exact `-f bytes` only; name/pid stay in memory
+sameProcess(first, next): boolean                                               // the PID-reuse guard (no /bin/ps, see §6)
+parseMacmonLine(line, sampledAt); findMacmon(access?): string | null            // a stat of MACMON_PATHS, never a spawn
+createPowerStream({ macmon, now, spawn?, idleStopMs?, restartBaseMs? }): PowerStream   // `spawn` replaced the stub's `exec`
   // PowerStream: touch(); view(now): PowerV2 | undefined; energy(from, to): { energyJ, coverage } | null; dispose()
+POWER_IDLE_STOP_MS = 60_000; POWER_VIEW_WINDOW_MS = 10_000; POWER_STALE_MS = 3_000; POWER_MIN_COVERAGE = 0.8; POWER_RING = 900
+// src/contract/host.ts
+hostCapabilities(host: HostV2 | null): CapabilityDescriptor[]   // exactly the parts present; host.power is 'estimate', the rest 'reported'
 ```
+
+Wiring (additive, reported for svc-2b): `Sources.host?(context: HostContext): Promise<HostV2 | null>` in
+`service/server.ts` replaces `Sources.system` (now optional) when present, and runs after the runtime read with
+`hostContextOf(query.tier, reading)`: `active` = the reading is busy, `omlxPort` = `meta.port` only while an available oMLX
+answered on it. `ReadingMeta.port?` (`service/runtime-client.ts`) is the connection's loopback port (null for a remote
+host). `ComposeInput.host?` and `V1Extras.host?` carry the reading to the body; when present the bridge drops the 1.x
+`system` host and takes `hostCapabilities(host)`; `hostLive` follows it. `service/main.ts` builds
+`new HostSampler({ exec: createExec(homedir()), now: Date.now, home })` and disposes it on stop. svc-history's
+`HostCofactors` gets `energyJ`/`powerCoverage` from `HostSampler.energy(startedAt, finishedAt)`.
+
+Behaviour: macOS only (other platforms return the CPU/memory base with no spawn). A glance read never spawns lsof,
+footprint or macmon and never extends the macmon idle-stop, but serves their fresh parts. A part outlives failed or
+skipped reads for 3× its longest cadence, then it is a gap. lsof runs on a new port or generation, at once after the
+listener disappears or fails the reuse guard, else every 120 s; two listening PIDs mean no footprint. macmon is
+re-looked-up at most every 5 min while absent.
 
 ### 3.5 Service history — `service/history/*` (svc-history)
 
@@ -338,9 +370,11 @@ Decided here (listed in contract §12):
    bundled or declared yet (scope-flip).
 
 Open, for the named track:
-- **svc-host:** the plan re-checks a PID's start time with `ps -o lstart`, but `/bin/ps` is **not** in the G1 exec freeze.
-  Either re-run `lsof` right before `footprint` and require the same single PID, or ask the owner to add `/bin/ps`.
-  `footprint -f bytes` is exact but is a different argv; allowlist it or parse the rounded form.
+- **svc-host (resolved, for owner review):** `/bin/ps` stays outside the G1 exec freeze. A `ps -o lstart=` or an extra
+  `lsof` before every footprint read would also break the active budget (31.5 → 37.5 spawns/min > 36). The reuse guard
+  instead compares each `footprint --noCategories -f bytes` report with the first one after the lsof lookup: same PID, same
+  process name, and a lifetime peak (`phys_footprint_peak`) that never shrinks. A reused PID starts a new peak. Adding
+  `/bin/ps` later is one manifest entry plus a `psArgv` builder; the `ps.*` fixtures stay for that.
 - **ad-omlx:** `/admin/api/usage` has `daily` only with `include_details`, so 30d/90d have no per-day request counts;
   `UsageV2.buckets[].requests` is required today. Propose the contract change (optional `requests`, or token-only
   buckets) with the parser. 1.6's health check rejects a healthy `engine_pool: null` body. `cache_efficiency` is a
