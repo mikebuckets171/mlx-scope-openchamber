@@ -272,13 +272,24 @@ test('the Server tab: lms runtime ls with detail=server, cached 10 minutes, as t
   expect(detail.capabilities['server.engines']).toEqual({ scope: 'server', basis: 'reported' });
   expectRoundTrip(detail);
   h.advance(5_000);
-  expect((await h.read('full', false)).runtime.engines).toEqual([]);
+  expect((await h.read('full', false)).runtime.engines).toHaveLength(5);
   h.advance(LMS_RUNTIME_CACHE_MS - 10_000);
   expect((await h.read('full', true)).runtime.engines).toHaveLength(5);
   expect(h.execs.filter(argv => argv.args[0] === 'runtime')).toHaveLength(1);
   h.advance(5_000);
   await h.read('full', true);
   expect(h.execs.filter(argv => argv.args[0] === 'runtime')).toHaveLength(2);
+});
+
+test('a glance reading keeps the last engines: inside the 450 ms floor the scheduler hands it to the Server tab', async () => {
+  const h = harness(BIONIC());
+  await h.read('full', true);
+  h.advance(3_000);
+  const glance = await h.read('glance');
+  expect(glance.runtime.engines).toHaveLength(5);
+  expect(glance.capabilities['server.engines']).toEqual({ scope: 'server', basis: 'reported' });
+  expectRoundTrip(glance);
+  expect(h.execs.filter(argv => argv.args[0] === 'runtime')).toHaveLength(1);
 });
 
 test('no greeting within 10 s: lms_unavailable, and no lms spawn of any kind', async () => {
