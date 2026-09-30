@@ -103,6 +103,13 @@ test('malformed parameters are 400 bad_query naming only the parameter, and neve
   expect(reads).toBe(0);
 });
 
+test('runtime=llama-server and runtime=ollama are accepted and reach the reader as that runtime', async () => {
+  const selections: unknown[] = [];
+  const request = await launch({ ...defaults, read: async selection => { selections.push(selection); return offline(); } });
+  for (const runtime of ['llama-server', 'ollama']) expect(parseSnapshotV2(await snapshot(request, `/v2/snapshot?runtime=${runtime}&provider=local`)), runtime).not.toBeNull();
+  expect(selections).toEqual([{ provider: 'local', runtime: 'llama-server' }, { provider: 'local', runtime: 'ollama' }]);
+});
+
 test('/v2/trend and /v2/usage validate, then answer 501 until their rings exist', async () => {
   const request = await launch();
   for (const path of ['/v2/trend', '/v2/trend?window=3600&series=decodeTps,cpuFraction&provider=omlx', '/v2/usage', '/v2/usage?range=90d']) {

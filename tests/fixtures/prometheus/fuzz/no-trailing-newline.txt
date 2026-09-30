@@ -1,0 +1,2 @@
+fx_no_newline_total 1
+fx_no_newline_total{last="line"} 2

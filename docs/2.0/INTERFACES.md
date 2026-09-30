@@ -129,8 +129,22 @@ Adapter helpers (pure, fixture-tested):
   - LM Studio never uses `AdapterContextV2.exec`: native-command.ts drops env, and lms without the no-wake env can launch
     the app. Both lms spawners live in the adapter and check `isLmsArgv` first.
 - llama-server: `LLAMA_METRICS`, `parseSlots(body): SlotV2[]`, `slotCompletion(previous, next, at)`,
-  `llamaRates(previous, next)`, `llamaSpeculative(previous, next)` (both `PromParse`).
-- Ollama: `parseOllamaVersion(body): string | null`, `parseOllamaPs(body): ResidencyV2[]`.
+  `llamaRates(previous, next, windowMs?)`, `llamaSpeculative(previous, next, windowMs?)` (both `PromParse`; the third
+  argument is additive: the parses carry no time, so without a window both return undefined).
+  Added by ad-llama-ollama: `LLAMA_BUILDS` ({ slots 6337, sleep 7492, cachedMetrics 10519 }), cadence constants
+  `LLAMA_PROPS_EVERY_MS` (60 s), `LLAMA_METRICS_EVERY_MS` (5 s), `LLAMA_SLOTS_EVERY_MS` (1 s), `LLAMA_IDLE_EVERY_MS`,
+  `LLAMA_SLOT_GAP_MS`, `LLAMA_RATE_WINDOW_MS` (60 s), `LLAMA_SPECULATIVE_WINDOW_MS` (10 min); `parseLlamaProps(body):
+  LlamaProps | null`, `isLlamaProps(body)`, `llamaBuild(buildInfo)`, `llamaPolicy(props): LlamaPolicy` (the S7b truth
+  table: `{ sleepCapable, metrics, slots, wakes }`), `readSlots(body): LlamaSlot[]` (numeric allowlist, internal shape),
+  `class SlotWatch` (`observe(slots, at, mono, model)`, `following(mono)`, `reset()`), `llamaRestarted(previous, next)`,
+  `LLAMA_CAPABILITIES`.
+- Ollama: `parseOllamaVersion(body): string | null`, `parseOllamaPs(body): ResidencyV2[]` (every valid row; the adapter
+  keeps 12 and sets `residencyCount`). Added: `rfc3339(value): number | null`, `OLLAMA_VERSION_EVERY_MS` (60 s),
+  `OLLAMA_PS_EVERY_MS` (5 s, also the descriptor cadence), `OLLAMA_CAPABILITIES`.
+- Both adapters read through `RuntimeGet` / `RuntimeGetText` and accept either a reply carrying a non-2xx `status` or an
+  `HttpFailure` with a status (1.6 `requestJSON` throws); a network failure is rethrown for the slot. llama-server `/slots`
+  is an array body, which `RuntimeReply.body` (objects only) cannot carry, so it is read with `getText` (2 MiB) and parsed
+  in the adapter: svc-2b's `requestText` must pass non-2xx statuses through the same way.
 
 ### 3.2 Exec allowlist — `service/lib/argv.ts` (svc-host; implemented)
 
@@ -169,7 +183,11 @@ interface PromParse { samples: PromSample[]; types: ReadonlyMap<string, PromType
 parsePrometheus(text, { allow(name): boolean; maxBytes?; maxSamples? }): PromParse
 sampleValue(parse, name, labels?): number | null
 histogram(parse, name): { buckets: [le, count][]; sum; count } | null
+promNumber(token): number | null   // added: Go ParseFloat as the format uses it (NaN, ±Inf, exponent; no hex, no "")
 ```
+
+Lenient per line (a malformed line is skipped, never fatal); the byte bound is UTF-8 and keeps whole lines; `truncated`
+is set by either bound, and the llama adapter ignores a truncated scrape. Fuzz seeds: `tests/fixtures/prometheus/fuzz/`.
 
 Label values never reach the wire. Counters ≥ 1e6 arrive in exponent form; token counters move only at request end, so a
 Δ of 0 mid-request is "no rate yet", and rates divide by Δ`*_seconds_total`, not wall time (fixture report).

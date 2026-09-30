@@ -48,15 +48,14 @@ test('each runtime is identified by its own fingerprint, with the probe and conf
 test('one pass fetches each path at most once, in plan §5.1 order, and stops at the first identification', async () => {
   const nothing = server({});
   expect(await detect(DESCRIPTORS, nothing.get)).toEqual({ runtime: null, locked: false });
-  expect(nothing.calls).toEqual(['/health', '/lmstudio-greeting', '/api/v1/models', '/status', '/v1/models']);
-  // Probes with no descriptor step yet (/props, /api/version) are sent only once their adapters declare them.
+  expect(nothing.calls).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting', '/api/v1/models', '/status', '/v1/models']);
   expect(DETECT_ORDER).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting', '/status', '/v1/models']);
   const splash = server(RUNTIMES.splash);
   await detect(DESCRIPTORS, splash.get);
-  expect(splash.calls).toEqual(['/health', '/lmstudio-greeting', '/api/v1/models', '/status']);
+  expect(splash.calls).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting', '/api/v1/models', '/status']);
   const bionic = server(RUNTIMES.bionic);
   await detect(DESCRIPTORS, bionic.get);
-  expect(bionic.calls).toEqual(['/health', '/lmstudio-greeting']);
+  expect(bionic.calls).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting']);
 });
 
 test('the hinted descriptor goes first, and a wrong hint costs nothing but its own probes', async () => {
@@ -78,7 +77,7 @@ test('401/403 means an authenticated runtime is present; a request that cannot c
   expect(await detect(DESCRIPTORS, server({ '/lmstudio-greeting': status(401), ...RUNTIMES.splash }).get)).toMatchObject({ runtime: 'splash' });
   // LM Studio with authentication: the greeting is public, so it is identified even though its models need the key.
   expect(await detect(DESCRIPTORS, server({ '/lmstudio-greeting': ok({ lmstudio: true }), '/api/v1/models': status(401) }).get)).toMatchObject({ runtime: 'lmstudio' });
-  for (const [failing, calls] of [['/health', ['/health']], ['/status', ['/health', '/lmstudio-greeting', '/api/v1/models', '/status']]] as const) {
+  for (const [failing, calls] of [['/health', ['/health']], ['/status', ['/health', '/props', '/api/version', '/lmstudio-greeting', '/api/v1/models', '/status']]] as const) {
     const down = server({ [failing]: 'network' });
     await expect(detect(DESCRIPTORS, down.get)).rejects.toMatchObject({ reason: 'runtime_unreachable' });
     expect(down.calls).toEqual([...calls]);
@@ -104,7 +103,7 @@ test('every combination of probe replies: one GET per path, and the answer the f
     const is = (path: string, reply: Reply) => routes[path] === reply;
     const absent = (path: string) => [MISSING, status(404)].some(reply => JSON.stringify(reply) === JSON.stringify(routes[path]));
     // What a full pass must have fetched: every probe, plus the LM Studio follow-up only when there is no greeting.
-    const fetched = ['/health', '/lmstudio-greeting', '/status', '/v1/models', ...absent('/lmstudio-greeting') ? ['/api/v1/models'] : []];
+    const fetched = ['/health', '/props', '/api/version', '/lmstudio-greeting', '/status', '/v1/models', ...absent('/lmstudio-greeting') ? ['/api/v1/models'] : []];
     const expected = is('/health', replies['/health']!.network!) ? 'unreachable'
       : is('/health', replies['/health']!.omlx!) ? 'omlx' : is('/health', replies['/health']!.vllm!) ? 'vllm-mlx'
         : is('/lmstudio-greeting', replies['/lmstudio-greeting']!.greeting!) ? 'lmstudio'

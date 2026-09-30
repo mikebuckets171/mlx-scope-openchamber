@@ -68,7 +68,9 @@ export const STATUS_PARAMS: Readonly<Record<StatusReason, Allowlist>> = {
   recovering: { retryInMs: 'ms', crashTrace: 'boolean', transportError: 'boolean' },
   status_stale: { staleSinceAt: 'at', transportError: 'boolean' },
   not_admitting: { cause: 'cause', metalUnhealthy: 'boolean', memoryCritical: 'boolean', metalFailure: 'boolean' },
-  admin_unauthorized: NONE, lms_unavailable: NONE, metrics_required: NONE, sleeping: NONE,
+  admin_unauthorized: NONE, lms_unavailable: NONE, sleeping: NONE,
+  // wakes: the build has --metrics, but its /metrics wakes a sleeping server (b7492–b10518), so the fix is an update.
+  metrics_required: { wakes: 'boolean' },
 };
 export const ALERT_PARAMS: Readonly<Record<AlertId, Allowlist>> = {
   'runtime-lost': { runtime: 'runtime' }, 'model-unloaded': { model: 'model' },

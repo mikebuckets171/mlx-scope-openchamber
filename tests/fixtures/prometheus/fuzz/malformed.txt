@@ -1,0 +1,22 @@
+{} 1
+fx_malformed{ 1
+fx_malformed{a=b} 1
+fx_malformed{a="unterminated} 1
+fx_malformed{a="x"} 
+fx_malformed{a="x",a="y"} 2
+fx_malformed{1a="x"} 3
+1fx_malformed 4
+fx_malformed-dash 5
+fx_malformed.dot 6
+fx_malformed1 2 3 4
+fx_malformed 7 notatimestamp
+# TYPE
+# TYPE fx_malformed
+# TYPE fx_malformed bogus
+# TYPE fx_malformed gauge extra
+#TYPE fx_malformed counter
+# random comment with { braces } and "quotes"
+fx_malformed_ok 8
+# TYPE fx_malformed_ok gauge
+# TYPE fx_malformed_ok counter
+fx_malformed_ok 9

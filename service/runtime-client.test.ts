@@ -116,7 +116,7 @@ test('generic OpenAI model lists do not masquerade as a runtime; an explicit mlx
   const selected = await client.read({ provider: 'local', runtime: 'mlx-lm' });
   expect(selected).toMatchObject({ status: { state: 'ready' }, runtime: { phase: 'unknown', request: null, server: { active: null } },
     meta: { connection: { runtime: 'mlx-lm', detection: { basis: 'explicit', confidence: 'high' } } } });
-  expect(calls).toEqual(['/health', '/lmstudio-greeting', '/api/v1/models', '/status', '/v1/models', '/health', '/v1/models']);
+  expect(calls).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting', '/api/v1/models', '/status', '/v1/models', '/health', '/v1/models']);
 });
 
 test('auto-detects a standalone Splash server by its status contract', async () => {
@@ -128,7 +128,7 @@ test('auto-detects a standalone Splash server by its status contract', async () 
     return json({}, 404);
   } });
   const result = await client.read();
-  expect(calls.slice(0, 4)).toEqual(['/health', '/lmstudio-greeting', '/api/v1/models', '/status']);
+  expect(calls.slice(0, 6)).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting', '/api/v1/models', '/status']);
   // A loading Splash server answered, so it is reachable rather than offline; the English is the panel's, from the code.
   expect(result).toMatchObject({ status: { state: 'degraded', reason: 'loading', params: {} },
     meta: { connection: { runtime: 'splash', engine: 'splash', host: null, detection: { probe: '/status' } }, compat: { message: null, connection: { diagnostic: 'ready' } } } });
