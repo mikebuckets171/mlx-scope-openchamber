@@ -194,6 +194,36 @@ completions: CompletionsV2, alerts: { alerts, alertLog }, service, serverNow, le
 stays on the wire until ui-core stops reading it (contract §11.1); ui-core deletes the `compat` reads, then svc-2b
 deletes `CompatV1`.
 
+### 3.7 As built by svc-2b (Stage 2b)
+
+```ts
+// service/core/registry.ts
+descriptorsWith({ activity(port) }): readonly DescriptorV2[]   // the list; DESCRIPTORS = descriptorsWith({ activity: () => null })
+descriptorOf(descriptors, runtime): DescriptorV2 | null
+detect(descriptors, get, hinted?): Promise<Detection | { runtime: null; locked: boolean }>   // throws HttpFailure when a GET cannot complete
+// service/core/legacy.ts (bridge, deleted as tracks land): legacyOmlx, legacyLMStudio(extras), legacySplash
+// service/runtime-client.ts
+interface ReadSelection { provider?: string; runtime?: RuntimeKind | null }; interface ReadRequest { tier: Tier; detail: boolean }
+interface CompletionSink { head; append(draft, host): CompletionV2; since(since, verdict): CompletionsV2 }   // CompletionRing fits
+type RuntimeReading = AdapterReadingV2 & { meta: { connection: ConnectionV2; port; slot; failures; idleMs; completions: CompletionSink | null; compat: CompatV1 } }
+new RuntimeClient({ fetchImpl?, readConfig?, now?, monotonicNow?, lmstudioActivity?, descriptors?, exec?, instance?, completions?(instance, next) })
+  .read(selection?, request?): Promise<RuntimeReading>; .completionHead; .dispose()
+// service/server.ts
+type Sources = { read(selection?, request?); host(context: HostContext): Promise<HostV2 | null>; completionHead?();
+  alerts?({ reading, host, leader, now }): { alerts; alertLog }; trend?; usage? }
+// service/core/compose.ts
+composeSnapshot({ reading, host, completions, alerts, service, serverNow, lease, marksHead, query }); hostCapabilities(host)
+// service/lib/http-text.ts
+requestText({ url, fetchImpl, timeoutMs?, maxBytes?, init? }): { status, text }; requestReply(...): RuntimeReply; isRouteMissingBody(body)
+// src/contract/convert-v1.ts (bridge): v1Parts(v1): V1Parts; hostFromV1(system): HostV2 | null
+```
+
+Wiring for the integrator: `RuntimeGet` returns every status (it throws only when a GET cannot complete) and sends the key to
+every path but `/health`; paths must be origin-relative. `AdapterReadingV2.completions` are appended to the slot's sink once
+per fresh reading; `generationKey` changes bump `connection.generation`. Swap `legacy*` for the ad-* descriptors in
+`descriptorsWith`, pass svc-host's exec and `HostSampler.sample` (`Sources.host`), svc-history's `CompletionRing` (as
+`completions`), `RequestWatch` (last-observed drafts for oMLX and vllm-mlx) and `AlertBook` (`Sources.alerts`).
+
 ## 4. Panel interfaces
 
 ### 4.1 Wire query encoding (scaffold, in `src/contract/query.ts`)
@@ -309,8 +339,9 @@ presentStatusSection(input): StatusSectionView        // heights 24 / 56 / 80 / 
 type Tab = 'live' | 'server' | 'history' | 'captures'
 interface ViewContext { host; surface; now(); visible(); leader() }; interface ViewHandle { update(snapshot | null); dispose() }
 type MountView = (root: HTMLElement, context: ViewContext) => ViewHandle
-// present/reasons.ts (svc-2b): statusMessage(reason, params, runtime); frameMessage(reason);
-//   withholdMessage(reason | 'all-requests', chatRuntime); alertMessage(id, params)
+// present/reasons.ts (svc-2b): statusMessage(reason, params, runtime, context?); statusCopy(...) → { severity, title, detail, action? };
+//   frameMessage(reason); withholdMessage(reason | 'all-requests', chatRuntime); WITHHOLD_PHRASES;
+//   alertMessage(id, params); alertCopy(id, params) → { title, detail }   (model-unloaded names the model: in-view only)
 // share/report.ts (scope-flip; redact/clamp/toastText/scopeItem implemented, scopeText stub)
 TOAST_MAX_CHARS = 500; SCOPE_TEXT_MAX_CHARS = 16_000; SCOPE_HEADER
 redact(text, forbidden); clamp(text, max); toastText(text, forbidden); scopeText(input): string; scopeItem(text, readmeUrl): AttachIssueRequest

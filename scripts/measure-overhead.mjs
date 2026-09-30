@@ -172,7 +172,7 @@ async function measure(kind) {
     };
     let ready = false;
     for (const deadline = performance.now() + 5_000; !ready && performance.now() < deadline;) {
-      try { ready = (await get('/health')).status === 'healthy'; } catch {}
+      try { ready = (await get('/health')).ok === true; } catch {}
       if (!ready) await delay(50);
     }
     assert(ready, `Service did not become ready: ${stderr}`);
