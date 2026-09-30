@@ -1,49 +1,33 @@
-import type { ChartInspector } from '../chart-inspector.ts';
-import { count, rate } from '../present/format.ts';
-import type { ReadingPhase } from '../present/reading.ts';
-import { traceGeometry, type SignalHistory } from '../signal.ts';
-import type { Dom } from './dom.ts';
+import { tps } from '../present/format.ts';
+import { SIGNAL_WINDOW_MS, type SignalPoint } from '../signal.ts';
 
-// Reuse path elements when the segment count is unchanged.
-const drawPaths = (group: Element, paths: string[]): void => {
-  while (group.childElementCount > paths.length) group.lastElementChild!.remove();
-  paths.forEach((path, index) => {
-    let target = group.children[index];
-    if (!target) {
-      target = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      group.append(target);
-    }
-    target.setAttribute('d', path);
-  });
-};
+// The Live hero's 90 s chart (G2): the panel's own readings, one point per poll, drawn only where readings exist. A break
+// in the line is a gap, never a zero, and the chart appears only after 2 readings.
 
-/** The 90 s throughput trace: one phase and one basis at a time, gaps left open. */
-export const drawSignal = (dom: Dom, signal: SignalHistory, inspector: ChartInspector, now: number, live: boolean, phase: ReadingPhase): void => {
-  signal.prune(now);
-  const tracePhase = phase === 'prefill' ? 'prefill' : phase === 'decode' ? 'decode' : signal.points.at(-1)?.phase ?? 'decode';
-  const basis = signal.points.filter(point => point.phase === tracePhase).at(-1)?.basis;
-  const points = signal.points.filter(point => point.phase === tracePhase && point.basis === basis);
-  const geometry = traceGeometry(points, now);
-  drawPaths(dom.node('trace-area'), geometry.areas);
-  drawPaths(dom.node('trace'), geometry.paths);
-  const cursor = dom.node('cursor');
-  if (geometry.latest) {
-    cursor.removeAttribute('hidden');
-    cursor.setAttribute('cx', String(geometry.latest.x)); cursor.setAttribute('cy', String(geometry.latest.y));
-  } else cursor.setAttribute('hidden', '');
-  dom.hidden('chart-empty', points.length > 0);
-  const figure = dom.node('signal');
-  figure.dataset.points = String(points.length);
-  dom.text('chart-title', tracePhase === 'prefill' ? 'Prefill · reported speed' : basis === 'observed' ? 'Generation · recent output' : 'Generation · request average');
-  dom.text('ceiling', `${count(geometry.upper)} tok/s`);
-  inspector.update(points, now, geometry.upper);
-  dom.text('chart-state', points.length ? live ? 'Live observations' : 'Recent observations · not live' : 'Observed samples only');
-  figure.dataset.live = String(live);
-  figure.setAttribute('aria-label', points.length ? `${tracePhase} throughput over 90 seconds. ${points.length} observations. Latest ${rate(points.at(-1)?.rate)}. Gaps are not zero.` : 'No observed throughput in the last 90 seconds.');
-};
+export interface ChartView { title: string; ceiling: string; label: string; line: string; area: string; mark: number | null; points: number }
+/** A round ceiling a little above the peak, in steps of 5, never below 20 tok/s (the mock's scale). */
+export const niceCeil = (value: number): number => Math.ceil(Math.max(20, value) * 1.05 / 5) * 5;
+const W = 600, H = 120, x = (at: number, now: number): number => 4 + (1 - (now - at) / SIGNAL_WINDOW_MS) * (W - 8);
 
-/** Clear both host traces, as when observations are discarded. */
-export const clearHostTraces = (dom: Dom): void => {
-  dom.node('cpu-history').setAttribute('d', '');
-  dom.node('ram-history').setAttribute('d', '');
+export const liveChart = (samples: readonly SignalPoint[], now: number, turnStartAt: number | null): ChartView | null => {
+  const points = samples.filter(point => point.phase === 'decode' && point.basis === undefined && point.at >= now - SIGNAL_WINDOW_MS && point.at <= now);
+  if (points.length < 2) return null;
+  const peak = Math.max(...points.map(point => point.rate)), ceiling = niceCeil(peak);
+  const y = (rate: number): number => H - 4 - rate / ceiling * (H - 8);
+  const segments: SignalPoint[][] = [];
+  for (const point of points) {
+    if (segments.at(-1)?.at(-1)?.segment === point.segment) segments.at(-1)!.push(point);
+    else segments.push([point]);
+  }
+  const path = (segment: SignalPoint[]): string => segment.map((point, index) => `${index ? 'L' : 'M'}${x(point.at, now).toFixed(1)} ${y(point.rate).toFixed(1)}`).join(' ');
+  const base = (H - 4).toFixed(1);
+  const low = Math.min(...points.map(point => point.rate)), latest = points.at(-1)!.rate;
+  return {
+    title: 'Decode · request average', ceiling: `${ceiling} tok/s`, points: points.length,
+    label: `Decode · request average, last ${Math.round((now - points[0]!.at) / 1_000)} s: ${tps(low)} to ${tps(peak)} tokens per second, now ${tps(latest)}`,
+    line: segments.map(path).join(' '),
+    area: segments.filter(segment => segment.length > 1)
+      .map(segment => `${path(segment)} L${x(segment.at(-1)!.at, now).toFixed(1)} ${base} L${x(segment[0]!.at, now).toFixed(1)} ${base}Z`).join(' '),
+    mark: turnStartAt !== null && now - turnStartAt < SIGNAL_WINDOW_MS && turnStartAt <= now ? Number(x(turnStartAt, now).toFixed(1)) : null,
+  };
 };

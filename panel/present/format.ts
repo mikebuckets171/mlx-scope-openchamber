@@ -44,3 +44,31 @@ export const uptime = (ms: number): string => {
   const s = ms / 1000;
   return `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m · since start`;
 };
+
+// 2.0 view formats (the approved mock). Every duration, size and rate on the 2.0 surfaces goes through these.
+const grouped = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+/** A rate: one decimal below 100, whole above. */
+export const tps = (value: number): string => value >= 100 ? grouped.format(Math.round(value)) : value.toFixed(1);
+/** Whole numbers with grouping: `1,104`. */
+export const int = (value: number): string => grouped.format(Math.round(value));
+/** Token counts: `52.7K`, `1.31M`, `612`. */
+export const kt = (value: number): string => value >= 1e6 ? `${(value / 1e6).toFixed(value >= 1e7 ? 1 : 2)}M`
+  : value >= 1e5 ? `${Math.round(value / 1e3)}K` : value >= 1e4 ? `${(value / 1e3).toFixed(1)}K` : int(value);
+export const pct = (value: number): string => `${Math.round(value * 100)}%`;
+/** A signed change: `+2%`, `−17%`, `±0%`. */
+export const delta = (value: number): string => `${value > 0.004 ? '+' : value < -0.004 ? '−' : '±'}${Math.abs(Math.round(value * 100))}%`;
+/** Bytes as GiB with one decimal: `17.1 GiB`. */
+export const size = (bytes: number): string => `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
+export const dur = (ms: number): string => ms < 1_000 ? `${(ms / 1_000).toFixed(2)} s` : ms < 10_000 ? `${(ms / 1_000).toFixed(1)} s`
+  : ms < 60_000 ? `${Math.round(ms / 1_000)} s`
+    : ms < 3_600_000 ? ms % 60_000 === 0 ? `${ms / 60_000} min` : `${Math.floor(ms / 60_000)} m ${String(Math.floor(ms % 60_000 / 1_000)).padStart(2, '0')} s`
+      : `${Math.floor(ms / 3_600_000)} h ${Math.floor(ms % 3_600_000 / 60_000)} m`;
+export const ago = (at: number, now: number): string => {
+  const d = Math.max(0, now - at);
+  return d < 5_000 ? 'just now' : d < 60_000 ? `${Math.round(d / 1_000)} s ago` : d < 3_600_000 ? `${Math.round(d / 60_000)} min ago` : `${Math.round(d / 3_600_000)} h ago`;
+};
+const time = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const day = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+/** A wall-clock time today (`14:01`), otherwise the day (`Sep 28`). */
+export const clock = (at: number, now: number): string => new Date(at).toDateString() === new Date(now).toDateString() ? time.format(at) : day.format(at);
+export const mmss = (ms: number): string => `${Math.floor(ms / 60_000)}:${String(Math.floor(ms % 60_000 / 1_000)).padStart(2, '0')}`;

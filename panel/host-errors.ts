@@ -11,10 +11,11 @@ const diagnosticForCode = (code: string): Diagnostic => {
   switch (code) {
     case 'DISCONNECTED':
       return { reason: 'host_disconnected', message: 'OpenChamber disconnected this extension. Reopen the panel to reconnect.' };
+    // An update that changed the permission set leaves every request NO_SERVICE until the owner approves (SPIKES S11).
+    case 'NO_SERVICE':
     case 'DISABLED':
     case 'NOT_GRANTED':
-      return { reason: 'service_not_granted', message: 'Approve the extension’s local service in Settings → Extensions.' };
-    case 'NO_SERVICE':
+      return { reason: 'needs_approval', message: 'Allow MLX Scope’s local service in Settings → Extensions.' };
     case 'SERVICE_FAILED':
       return { reason: 'service_failed', message: 'The MLX Scope service is stopped or failed. Reopen the extension or check its approval.' };
     case 'HOST_TIMEOUT':

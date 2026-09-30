@@ -1,21 +1,20 @@
 import { v1Reason } from '../../src/contract/convert-v1.ts';
 import type { RuntimeKind } from '../../src/contract/runtime.ts';
-import type { CompatV1, RequestV2, SnapshotV2, V1_REASONS } from '../../src/contract/snapshot.ts';
+import type { RequestV2, SnapshotV2, V1_DIAGNOSTICS, V1_LOOKUP_REASONS, V1_REASONS, V1_STATS_STATES } from '../../src/contract/snapshot.ts';
 import { statusMessage } from './reasons.ts';
 
 /**
  * What the presenters read: one validated `/v2/snapshot` body flattened to the values the panel shows, or a
  * frame-side state (a host error, a contract mismatch, a missed deadline) that has no body. Units stay v2 (bytes,
- * ms, fractions); only the vocabulary is the panel's. Stage 2a reads the 1.6 meanings the service still sends in
- * `compat`; Stage 2b replaces each with its v2 field.
+ * ms, fractions); only the vocabulary is the panel's. Nothing is read from `compat`: the 2.0 panel consumes v2 natively.
  */
-export type PanelReason = typeof V1_REASONS[number] | 'contract_mismatch';
+export type PanelReason = typeof V1_REASONS[number] | 'contract_mismatch' | 'needs_approval';
 export type ReadingPhase = 'connecting' | 'reconnecting' | 'offline' | 'notLoaded' | 'idle' | 'queued' | 'prefill' | 'decode' | 'processing' | 'unknown';
 export type Coverage = 'requests' | 'inventory' | 'server';
 export type Choice = { id: string; label: string; runtime: RuntimeKind | null };
 export interface Link {
   selected: string | null; label: string | null; runtime: RuntimeKind | null; generation: string | number | null;
-  choices: Choice[]; diagnostic: NonNullable<CompatV1['connection']>['diagnostic']; coverage: Coverage | null;
+  choices: Choice[]; diagnostic: typeof V1_DIAGNOSTICS[number]; coverage: Coverage | null;
   engine: 'splash' | null; host: 'bionic' | null;
 }
 export interface SplashStats { ready: boolean; decodeTps: number | null; completed: number | null; failed: number | null; metalBytes: number | null; metalPeakBytes: number | null }
@@ -37,10 +36,10 @@ export interface Reading {
   phase: ReadingPhase;
   model: string | null;                      // the headline model, also while idle
   contextWindowTokens: number | null;
-  statsState: CompatV1['statsState'];
+  statsState: typeof V1_STATS_STATES[number];
   guardLevel: number | null;                 // oMLX process memory guard, not macOS pressure
   traceEpoch: number | null;
-  lastMissReason: CompatV1['lastMissReason'];
+  lastMissReason: typeof V1_LOOKUP_REASONS[number] | null;
   request: RequestV2 | null;
   active: number | null;
   queued: number | null;
@@ -66,18 +65,11 @@ export const frameReading = (reason: PanelReason, message: string | null, at: nu
 const phase = (value: string): ReadingPhase => value === 'not-loaded' ? 'notLoaded' : value === 'loading' ? 'unknown' : value as ReadingPhase;
 const AVAILABLE = new Set(['ready', 'degraded']);
 
-const link = (body: SnapshotV2): Link | null => {
-  const connection = body.connection, compat = body.compat;
-  const shared = { runtime: connection.runtime, choices: connection.choices, engine: connection.engine ?? null, host: connection.host ?? null };
-  if (compat) {
-    const known = compat.connection;
-    return known && { ...shared, selected: known.selected, label: known.selected === null ? null : connection.label, generation: known.generation,
-      diagnostic: known.diagnostic, coverage: known.coverage };
-  }
-  // A v2 body without the 1.6 bridge: describe what v2 says, with coverage from the declared capabilities.
-  const can = body.capabilities, selected = connection.id === 'auto' ? null : connection.id;
+const link = (body: SnapshotV2): Link => {
+  const connection = body.connection, can = body.capabilities, selected = connection.id === 'auto' ? null : connection.id;
   const coverage: Coverage = can['request.decodeRate'] || can['request.prefillProgress'] ? 'requests' : can['server.catalog'] && !can['server.requests'] ? 'inventory' : 'server';
-  return { ...shared, selected, label: selected === null ? null : connection.label, generation: connection.generation,
+  return { runtime: connection.runtime, choices: connection.choices, engine: connection.engine ?? null, host: connection.host ?? null,
+    selected, label: selected === null ? null : connection.label, generation: connection.generation,
     diagnostic: AVAILABLE.has(body.status.state) ? 'ready' : 'offline', coverage };
 };
 
@@ -93,26 +85,29 @@ const host = (body: SnapshotV2): HostReading | null => {
   };
 };
 
-/** The body's values with 1.6 availability rules: an unavailable reading keeps only its connection, catalog and host. */
+/** The body's values for the modules kept from 1.6 (report, capture, signal): an unavailable reading keeps only its connection,
+ *  catalog and host. The 2.0 views read the body itself. */
 export const fromSnapshot = (body: SnapshotV2): Reading => {
-  const compat = body.compat, available = AVAILABLE.has(body.status.state), runtime = body.runtime;
+  const available = AVAILABLE.has(body.status.state), runtime = body.runtime;
   const reading: Reading = {
-    // Since 2b the service sends codes only; the 1.6 line comes from the code unless a 1.x fixture still carries its own.
-    ...frameReading(compat?.reason ?? v1Reason(body.status.state, body.status.reason) ?? 'unparseable_snapshot', compat?.message ?? (body.status.reason
-      ? statusMessage(body.status.reason, body.status.params, body.connection.runtime, { model: compat?.modelID ?? runtime.request?.model }) : null),
+    // The service sends codes only; the 1.6 line the kept modules show comes from the code.
+    ...frameReading(v1Reason(body.status.state, body.status.reason) ?? 'unparseable_snapshot', body.status.reason
+      ? statusMessage(body.status.reason, body.status.params, body.connection.runtime, { model: runtime.request?.model }) : null,
       runtime.sampledAt ?? body.serverNow),
     body, link: link(body), host: host(body),
     catalog: runtime.catalog.map(entry => ({ name: entry.name, loaded: entry.loaded, format: entry.format, contextWindowTokens: entry.contextWindowTokens })),
   };
   if (!available) return reading;
-  const which = compat && compat.runtime !== undefined ? compat.runtime : body.connection.runtime;
+  const which = body.connection.runtime, held = body.status.state === 'recovering' || body.status.reason === 'status_stale';
   const splash = which === 'splash', averages = runtime.server.averages, cache = runtime.server.cache, memory = runtime.memory;
+  const loaded = runtime.catalog.find(model => model.loaded);
   return {
-    ...reading, available: true, reason: null, runtime: which,
-    phase: compat?.phase ?? phase(runtime.phase), model: compat ? compat.modelID : runtime.request?.model ?? null,
-    contextWindowTokens: compat ? compat.contextWindow : runtime.request?.contextWindowTokens ?? null,
-    statsState: compat?.statsState ?? (averages ? 'fresh' : 'unavailable'), guardLevel: compat?.guardLevel ?? null,
-    traceEpoch: compat?.traceEpoch ?? null, lastMissReason: compat?.lastMissReason ?? null,
+    ...reading, available: true, reason: null, runtime: which, phase: phase(runtime.phase),
+    model: runtime.request?.model ?? runtime.residency[0]?.model ?? loaded?.name ?? null,
+    contextWindowTokens: runtime.request?.contextWindowTokens ?? runtime.residency.find(model => model.contextWindowTokens)?.contextWindowTokens ?? loaded?.contextWindowTokens ?? null,
+    statsState: averages ? held ? 'stale' : 'fresh' : 'unavailable', guardLevel: body.alerts.some(alert => alert.id === 'omlx-memory-guard') ? 1 : null,
+    // The connection generation is v2's continuity counter: a change means a new stream of readings.
+    traceEpoch: body.connection.generation, lastMissReason: null,
     request: runtime.request, active: runtime.server.active, queued: runtime.server.queued,
     averages: splash ? null : { decodeTps: averages?.decodeTps ?? null, prefillTps: averages?.prefillTps ?? null, cacheFraction: averages?.cacheEfficiencyFraction ?? null },
     lifetime: !splash && (averages?.requestsTotal != null || averages?.uptimeMs != null)
@@ -120,7 +115,7 @@ export const fromSnapshot = (body: SnapshotV2): Reading => {
     splash: splash ? { ready: body.status.reason !== 'loading', decodeTps: averages?.decodeTps ?? null, completed: averages?.requestsTotal ?? null,
       failed: averages?.failedTotal ?? null, metalBytes: memory.metalBytes ?? null, metalPeakBytes: memory.metalPeakBytes ?? null } : null,
     memory: { processBytes: memory.processBytes ?? null, modelBytes: memory.modelBytes ?? null },
-    cache: [cache?.ramBytes, cache?.ramEntries, cache?.ssdBytes, cache?.ssdEntries, compat?.lastMissReason].some(value => value != null)
+    cache: [cache?.ramBytes, cache?.ramEntries, cache?.ssdBytes, cache?.ssdEntries].some(value => value != null)
       ? { ramBytes: cache?.ramBytes ?? null, ssdBytes: cache?.ssdBytes ?? null } : null,
     residents: runtime.residency.map(model => ({ model: model.model, phase: phase(model.phase), active: model.active ?? null, queued: model.queued ?? null,
       bytes: model.bytes ?? null, tps: model.decodeTps ?? model.prefillTps ?? null, prefillFraction: model.prefillFraction ?? null, stale: model.prefillStale === true })),

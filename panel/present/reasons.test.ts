@@ -79,14 +79,14 @@ test('frame, withhold and alert English covers every code; the sessions-era reas
   expect(alertCopy('omlx-prefill-stall', { stalledMs: 45_000 }).detail).toBe('No change for 45 s · reported by oMLX');
 });
 
-test('the panel words a code-only body; a 1.x fixture that still carries its own line keeps it', () => {
+test('the panel words a code-only body from its status code alone (it never reads compat)', () => {
   const full = fullSnapshot() as ReturnType<typeof fullSnapshot> & { compat: Record<string, unknown>; connection: Record<string, unknown> };
   const body = parseSnapshotV2({ ...full, status: { state: 'failing', reason: 'authentication_failed', params: { keySaved: false } },
     connection: { ...full.connection, runtime: 'omlx' }, compat: { ...full.compat, message: null, reason: undefined } })!;
   expect(fromSnapshot(body).message).toBe(V16.noKey('oMLX'));
-  const fixture = parseSnapshotV2({ ...full, status: { state: 'failing', reason: 'authentication_failed', params: {} },
-    compat: { ...full.compat, message: 'The saved credential was rejected by oMLX.' } })!;
-  expect(fromSnapshot(fixture).message).toBe('The saved credential was rejected by oMLX.');
+  const fixture = parseSnapshotV2({ ...full, status: { state: 'failing', reason: 'authentication_failed', params: { keySaved: false } },
+    connection: { ...full.connection, runtime: 'omlx' }, compat: { ...full.compat, message: 'A 1.x line the panel no longer reads.' } })!;
+  expect(fromSnapshot(fixture).message).toBe(V16.noKey('oMLX'));
   const ready = parseSnapshotV2({ ...full, status: { state: 'ready', reason: null, params: {} }, compat: { ...full.compat, message: null } })!;
   expect(fromSnapshot(ready).message).toBeNull();
 });

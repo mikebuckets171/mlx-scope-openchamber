@@ -1,25 +1,24 @@
-import { connectHost } from '@openchamber/sdk';
+import { connectHost, type HostReadyContext } from '@openchamber/sdk';
 import { applyHostReady } from '@openchamber/sdk/ui';
 import { version } from '../package.json';
-import { CaptureView } from './capture-view.ts';
-import { ChartInspector } from './chart-inspector.ts';
 import { ConnectionHelp } from './connection-help.ts';
-import { ConnectionsView } from './connections-view.ts';
+import { ConnectionsView, readSelection } from './connections-view.ts';
 import { frameId, SnapshotClient } from './data/client.ts';
 import { Visibility } from './data/visibility.ts';
-import { InsightView } from './insights-view.ts';
 import { SharingControls } from './openchamber-view.ts';
-import { Preferences, type PreferenceKey } from './preferences.ts';
-import { CONNECTION_CLEARED } from './present/messages.ts';
+import { Preferences, PrefsV2, type PreferenceKey } from './preferences.ts';
 import { frameReading } from './present/reading.ts';
-import { measurementReport } from './report.ts';
-import { Dom } from './render/dom.ts';
-import { scopeMarkup } from './render/markup.ts';
+import { ScopeApp } from './render/app.ts';
 import { Monitor } from './render/monitor.ts';
-import { SavedView } from './saved-view.ts';
-import { captureObservation, snapshotObservation } from './saved.ts';
+import { shellMarkup } from './render/shell.ts';
+import { StatusApp } from './render/status-app.ts';
+import { ICON } from './render/views/parts.ts';
+import { measurementReport } from './report.ts';
+import { Pipeline } from './state/pipeline.ts';
 import { ScopeState } from './state/scope-state.ts';
-import { WorkspaceTabs } from './workspace.ts';
+
+// Bootstrap only (plan §4.1): one bundle for the rail panel, the page and the Work Status section; `ready.surface` picks
+// the renderer. The visibility gate exists before anything can poll, so a hidden rail tab never makes a request.
 
 const root = document.querySelector<HTMLElement>('#root');
 if (!root) throw new Error('MLX Scope is missing its root element.');
@@ -36,185 +35,155 @@ const showStartupFailure = (): void => {
 window.addEventListener('error', () => showStartupFailure(), true);
 window.addEventListener('unhandledrejection', () => showStartupFailure());
 const host = connectHost();
-
-root.innerHTML = scopeMarkup;
-root.prepend(startupFallback);
-const dom = new Dom(root);
-const text = (id: string, value: string): void => dom.text(id, value);
-const hidden = (id: string, value: boolean): void => dom.hidden(id, value);
-const button = dom.node('refresh') as HTMLButtonElement;
-const shell = root.querySelector<HTMLElement>('.scope')!;
-shell.hidden = true;
-const inspector = new ChartInspector(dom.node('history-inspector'), dom.node('history-reading'));
-const connectionHelp = new ConnectionHelp(shell, host, version);
-text('scope-version', version);
-const insightView = new InsightView(root);
-const pauseButton = dom.node('pause') as HTMLButtonElement;
-const preferences = new Preferences(host.storage);
 const client = new SnapshotClient(host);
-let visibility: Visibility;
-const monitor = new Monitor({ dom, shell, state, client, frame: frameId(), visibility: () => visibility, inspector, insights: insightView,
-  captures: () => captureView, connections: () => connections, refreshButton: button });
-const { poller } = monitor;
-
-pauseButton.addEventListener('click', () => {
-  const paused = state.userPaused = !state.userPaused;
-  shell.dataset.paused = String(paused);
-  pauseButton.setAttribute('aria-pressed', String(paused));
-  pauseButton.title = paused ? 'Resume monitoring' : 'Pause this monitor, not inference';
-  text('pause-label', paused ? 'Resume' : 'Pause');
-  dom.node('pause-symbol').setAttribute('d', paused ? 'M7 4l8 6-8 6z' : 'M7 5v10M13 5v10');
-  button.disabled = !state.mounted || paused || state.manualRefresh;
-  text('connection', paused ? 'Monitoring paused' : 'Resuming monitoring');
-  text('phase', paused ? 'Paused' : 'Refreshing');
-  text('unit', paused ? 'Frozen observation' : 'Waiting for a fresh observation');
-  if (!paused) text('rate', '—');
-  text('notice', paused ? 'Only this monitor is paused. Your model keeps running; these readings are frozen.' : 'Resuming live observations…');
-  hidden('notice', false);
-  text('chart-end', paused ? 'paused' : 'now');
-  text('resource-state', paused ? 'Frozen observations' : 'Waiting for fresh observations');
-  text('machine-freshness', paused ? 'Frozen reading' : 'Refreshing');
-  text('freshness', paused ? 'Monitoring paused' : 'Refreshing');
-  monitor.drawSignal();
-  monitor.progress(paused ? 'paused' : 'refreshing');
-  monitor.sync();
+let monitor: Monitor | null = null, pipeline: Pipeline | null = null, render = (): void => {}, disposeSurface = (): void => {};
+const visibility = new Visibility(document, window, () => monitor?.sync());
+const prefs = new PrefsV2(host.storage), preferences = new Preferences(host.storage);
+const pipelineFor = (surface: string): Pipeline => pipeline = new Pipeline({ host, state, now: () => client.now(), surface,
+  toasts: () => prefs.value.toasts ?? 'critical', auto: () => prefs.value.autoLabel ?? true });
+const monitorFor = (pipeline: Pipeline, tier: 'glance' | 'full', floorMs: number, query: () => Record<string, string> | undefined,
+  update: (link: ReturnType<typeof frameReading>['link']) => void, refreshed: () => void): Monitor => new Monitor({
+  state, client, frame: frameId(), visibility: () => visibility, tier, floorMs,
+  query: () => ({ ...query(), ...pipeline.query(), ...state.tab === 'server' && tier === 'full' ? { detail: 'server' as const } : {} }),
+  since: frame => pipeline.since(frame),
+  received: (reading, fresh, cadenceMs) => {
+    update(reading.link);
+    if (reading.body) pipeline.received(reading.body, fresh, visibility.visible, cadenceMs); else pipeline.failed();
+  },
+  live: live => pipeline.setVisible(live), hidden: () => pipeline.hidden(), render: () => render(), refreshed,
 });
 
-const actionStatus = (message: string): void => {
-  if (state.statusTimer !== null) clearTimeout(state.statusTimer);
-  text('action-status', message); hidden('action-status', !message);
-  state.statusTimer = message ? setTimeout(() => { hidden('action-status', true); state.statusTimer = null; }, 8_000) : null;
-};
-const captureView = new CaptureView(shell, value => host.writeClipboard(value), actionStatus, version);
-const savedView = new SavedView(shell, host, actionStatus);
-const connections = new ConnectionsView(shell, host.storage, () => {
-  if (state.disposed) return;
-  poller.stop(); monitor.clearFreshness(); state.generation += 1;
-  monitor.clearObservations(); state.failures = 0;
-  state.awaitingFresh = true; state.interrupted = true;
-  monitor.apply(frameReading('runtime_unreachable', CONNECTION_CLEARED, client.now()));
+/** The Work Status section: the glance or Turn stats, sized with setHeight, on the glance tier with a 5 s energy floor. */
+const mountStatus = async (ready: HostReadyContext): Promise<void> => {
+  await prefs.load();
+  let selection: Record<string, string> | undefined = await readSelection(host.storage);
+  root.innerHTML = '<main class="scope" id="scope" data-surface="status" aria-label="MLX Scope"></main>';
+  const pipeline = pipelineFor('status');
+  const app = new StatusApp({ root: root.querySelector<HTMLElement>('#scope')!, host, state, client, pipeline, prefs, visible: () => visibility.visible }, ready.session);
+  render = () => app.render();
+  monitor = monitorFor(pipeline, 'glance', 5_000, () => selection, () => {}, () => {});
+  preferences.load((key, value) => { if (key === 'efficient') state.efficient = value; }).catch(() => {});
+  disposeSurface = () => { app.dispose(); pipeline.dispose(); };
+  void readSelection(host.storage).then(next => { selection = next; });
+  state.mounted = true;
+  render();
   monitor.sync();
-  if (state.userPaused) { text('connection', 'Monitoring paused'); text('phase', 'Paused'); }
-  if (state.view === 'saved') { text('connection', 'Viewing saved observations'); text('cadence', 'Monitoring suspended'); }
-  if (state.mounted) poller.start();
-}, actionStatus);
-dom.node('save-snapshot').addEventListener('click', () => {
-  if (state.awaitingFresh && !state.userPaused) { actionStatus('Wait for a fresh observation before saving.'); return; }
-  const latest = state.latest;
-  void savedView.save(snapshotObservation(latest, state.userPaused || latest.available && latest.request?.prefillStale === true,
-    state.userPaused ? null : insightView.history.speed?.tokensPerSecond ?? null, client.now()));
-});
-const saveCapture = document.createElement('button'); saveCapture.id = 'capture-save'; saveCapture.type = 'button'; saveCapture.textContent = 'Save observation'; saveCapture.title = 'Keep the 12 newest observations; the oldest is replaced when full';
-dom.node('capture-copy').after(saveCapture);
-saveCapture.addEventListener('click', () => {
-  const capture = captureView.capture;
-  if (!capture.current || capture.recording) { actionStatus('Finish or stop the capture before saving.'); return; }
-  void savedView.save(captureObservation(capture.current, capture.baseline));
-});
-new WorkspaceTabs(shell, view => {
-  state.view = view; shell.dataset.workspace = view;
-  dom.node('share-actions').hidden = view === 'saved';
-  dom.node('compact').hidden = view !== 'live'; dom.node('save-snapshot').hidden = view !== 'live' && view !== 'server';
-  if (view === 'saved') {
-    text('connection', 'Viewing saved observations'); text('cadence', 'Monitoring suspended');
-    button.disabled = true; void savedView.load();
-  } else {
-    button.disabled = state.userPaused || !state.mounted;
-    text('cadence', state.efficient ? 'Energy saving · 3s+' : 'Adaptive updates');
-  }
-  monitor.sync();
-  if (view !== 'saved' && !state.awaitingFresh && !state.userPaused) monitor.apply(state.latest);
-});
-// The ⋯ menu closes after an action, on Escape, and on an outside click. Share keeps it open for its own submenu.
-const monitorMenu = dom.node('monitor-menu') as HTMLDetailsElement;
-monitorMenu.addEventListener('click', event => {
-  const target = (event.target as HTMLElement).closest('button');
-  if (target && target.closest('.monitor-menu-content') && (!target.closest('#share-actions') || target.closest('[role="menuitem"]'))) {
-    // Closing hides the focused item; keep keyboard focus on the ⋯ button instead of losing it.
-    const hadFocus = monitorMenu.contains(document.activeElement);
-    monitorMenu.open = false;
-    if (hadFocus) monitorMenu.querySelector('summary')?.focus({preventScroll:true});
-  }
-});
-monitorMenu.addEventListener('keydown', event => { if (event.key === 'Escape' && monitorMenu.open) { monitorMenu.open = false; monitorMenu.querySelector('summary')?.focus(); } });
-document.addEventListener('pointerdown', event => { if (monitorMenu.open && !monitorMenu.contains(event.target as Node)) monitorMenu.open = false; }, true);
-const sharing = new SharingControls(dom.node('share-actions'), host, () => [measurementReport(state.latest, state.lastHost,
-  state.userPaused ? true : state.awaitingFresh ? 'refreshing' : false, version, client.now(), state.lastRequest), captureView.report()].filter(Boolean).join('\n\n'), actionStatus);
-const applyPreference = (key: PreferenceKey, value: boolean): void => {
-  if (state.disposed) return;
-  if (key === 'efficient') {
-    state.efficient = value; shell.dataset.efficient = String(value);
-    dom.node('efficiency').setAttribute('aria-pressed', String(value));
-    text('cadence', value ? 'Energy saving · 3s+' : 'Adaptive updates');
-    state.signal.break(); monitor.armFreshness();
-  } else {
-    state.compact = value; shell.dataset.compact = String(value);
-    dom.node('compact').setAttribute('aria-pressed', String(value));
-    if (!value && !state.userPaused) {
-      if (state.awaitingFresh) monitor.drawSignal();
-      else monitor.apply(state.latest);
-    }
-  }
+  monitor.poller.start();
 };
-const savePreference = (key: PreferenceKey, value: boolean): void => {
-  applyPreference(key, value);
-  actionStatus('');
-  void preferences.set(key, value).catch(() => {
-    if (!state.disposed) actionStatus('View changed here, but this host could not save the preference.');
+
+/** The rail panel and the page. */
+const mountScope = async (ready: HostReadyContext): Promise<void> => {
+  root.innerHTML = shellMarkup().markup;
+  const shell = root.querySelector<HTMLElement>('#scope')!, node = (id: string) => shell.querySelector<HTMLElement>(`#${id}`)!;
+  shell.dataset.surface = ready.surface;
+  node('scope-version').textContent = version;
+  const actionStatus = (message: string): void => {
+    if (state.statusTimer !== null) clearTimeout(state.statusTimer);
+    node('action-status').textContent = message; node('action-status').hidden = !message;
+    state.statusTimer = message ? setTimeout(() => { node('action-status').hidden = true; state.statusTimer = null; }, 8_000) : null;
+  };
+  const pipeline = pipelineFor(ready.surface);
+  const refresh = node('refresh') as HTMLButtonElement;
+  const connections: ConnectionsView = new ConnectionsView(shell, host.storage, () => {
+    if (state.disposed || !monitor) return;
+    monitor.poller.stop(); monitor.clearFreshness(); state.generation += 1;
+    state.clearObservations(); state.failures = 0; state.awaitingFresh = true; state.interrupted = true;
+    monitor.apply(frameReading('runtime_unreachable', 'Waiting for the selected connection. Existing observations were cleared.', client.now()));
+    if (state.mounted) monitor.poller.start();
+  }, actionStatus);
+  const app = new ScopeApp({ shell, host, state, client, pipeline, version, connections, visible: () => visibility.visible, status: actionStatus });
+  render = () => app.render();
+  monitor = monitorFor(pipeline, 'full', 3_000, () => connections.query(), link => connections.update(link),
+    () => { refresh.disabled = state.userPaused; refresh.removeAttribute('aria-busy'); });
+  app.onRefreshNeeded = () => monitor!.poller.refresh();
+  const help = new ConnectionHelp(shell, host, version);
+  const sharing = new SharingControls(node('share-actions'), host, () => measurementReport(state.latest, state.lastHost,
+    state.userPaused ? true : state.awaitingFresh ? 'refreshing' : false, version, client.now(), state.lastRequest), actionStatus);
+
+  const pause = node('pause');
+  pause.addEventListener('click', () => {
+    const paused = state.userPaused = !state.userPaused;
+    pause.setAttribute('aria-pressed', String(paused)); pause.setAttribute('aria-label', paused ? 'Resume monitoring' : 'Pause monitoring');
+    pause.innerHTML = (paused ? ICON.play : ICON.pause).markup;
+    refresh.disabled = paused || state.manualRefresh;
+    monitor!.sync();
   });
-};
-dom.node('efficiency').addEventListener('click', () => savePreference('efficient', !state.efficient));
-dom.node('compact').addEventListener('click', () => savePreference('compact', !state.compact));
-dom.node('clear-recent').addEventListener('click', () => { insightView.clear(); actionStatus('Observation history cleared here. Runtime statistics were not changed.'); });
-dom.node('copy-recent').addEventListener('click', async () => {
-  try {
-    await host.writeClipboard(insightView.report(version));
-    if (!state.disposed) actionStatus('Recent observations copied without model names or request data.');
-  } catch { if (!state.disposed) actionStatus('Could not copy observations. The clipboard was not confirmed.'); }
-});
+  refresh.addEventListener('click', () => {
+    if (state.disposed || !monitor!.live) return;
+    state.manualRefresh = true; refresh.disabled = true; refresh.setAttribute('aria-busy', 'true');
+    void monitor!.poller.refresh();
+  });
+  const applyPreference = (key: PreferenceKey, value: boolean): void => {
+    if (key === 'efficient') { state.efficient = value; node('cadence').textContent = value ? 'Energy saving · 3s+' : 'Adaptive updates'; monitor!.armFreshness(); }
+    else state.compact = value;
+    node(key === 'efficient' ? 'efficiency' : 'compact').setAttribute('aria-pressed', String(value));
+    render();
+  };
+  const savePreference = (key: PreferenceKey, value: boolean): void => {
+    applyPreference(key, value);
+    void preferences.set(key, value).catch(() => { if (!state.disposed) actionStatus('View changed here, but this host could not save the preference.'); });
+  };
+  app.onCompact = value => savePreference('compact', value);
+  node('efficiency').addEventListener('click', () => savePreference('efficient', !state.efficient));
+  node('compact').addEventListener('click', () => savePreference('compact', !state.compact));
+  const TOASTS = { critical: 'critical only', all: 'all alerts', off: 'off' } as const;
+  const showToasts = (): void => { node('toasts-state').textContent = TOASTS[prefs.value.toasts ?? 'critical']; };
+  node('toasts').addEventListener('click', () => {
+    const next = ({ critical: 'all', all: 'off', off: 'critical' } as const)[prefs.value.toasts ?? 'critical'];
+    void prefs.set({ toasts: next }).catch(() => actionStatus('Changed here, but this host could not save the preference.'));
+    showToasts();
+  });
+  // The ⋯ menu closes after an action, on Escape, and on an outside click. Share keeps it open for its own submenu.
+  const menu = node('monitor-menu') as HTMLDetailsElement, summary = menu.querySelector('summary')!;
+  menu.addEventListener('click', event => {
+    const target = (event.target as HTMLElement).closest('button');
+    if (target && target.closest('.monitor-menu-content') && (!target.closest('#share-actions') || target.closest('[role="menuitem"]'))) {
+      const hadFocus = menu.contains(document.activeElement);
+      menu.open = false;
+      if (hadFocus) summary.focus({ preventScroll: true });
+    }
+  });
+  menu.addEventListener('keydown', event => { if (event.key === 'Escape' && menu.open) { menu.open = false; summary.focus(); } });
+  const outside = (event: PointerEvent): void => { if (menu.open && !menu.contains(event.target as Node)) menu.open = false; };
+  document.addEventListener('pointerdown', outside, true);
+  disposeSurface = () => { app.dispose(); pipeline.dispose(); sharing.dispose(); help.dispose(); document.removeEventListener('pointerdown', outside, true); };
 
-button.addEventListener('click', () => {
-  if (!state.mounted || state.disposed || !monitor.live) return;
-  state.manualRefresh = true;
-  button.disabled = true;
-  button.setAttribute('aria-busy', 'true');
-  void poller.refresh();
-});
-const readyDeadline = setTimeout(() => {
-  if (state.mounted || state.disposed || state.startupFailed) return;
-  text('connection', 'Waiting for OpenChamber');
-  text('activity', 'Open this monitor from the extension panel in OpenChamber.');
-  text('notice', 'If it is already open there, reload the extension in Settings → Extensions.');
-  hidden('notice', false);
-  startupFallback.remove();
-  shell.hidden = false;
-}, 6_000);
-host.onReady((ready) => {
-  clearTimeout(readyDeadline);
-  applyHostReady(ready, document.documentElement);
-  document.documentElement.style.colorScheme = ready.theme.mode;
-  shell.dataset.surface = state.surface = ready.surface;
-  if (state.mounted) return;
-  void preferences.load(applyPreference);
-  void connections.load();
-  monitor.sync();
-  button.disabled = state.userPaused;
-  poller.start();
+  await Promise.all([preferences.load(applyPreference), prefs.load().then(showToasts), connections.load()]);
+  if (state.disposed) return;
   state.mounted = true;
   startupFallback.remove();
   shell.hidden = false;
+  refresh.disabled = state.userPaused;
+  render();
+  if (ready.surface === 'panel' && visibility.visible) pipeline.panelMounted();
+  // The gate decides before the first poll: a display:none rail tab starts paused and never asks.
+  monitor.sync();
+  monitor.poller.start();
+};
+
+const readyDeadline = setTimeout(() => {
+  if (state.mounted || state.disposed || state.startupFailed) return;
+  startupStatus.textContent = 'Waiting for OpenChamber. Open this monitor from the extension panel in OpenChamber. If it is already open there, reload the extension in Settings → Extensions.';
+}, 6_000);
+let started = false;
+host.onReady(ready => {
+  clearTimeout(readyDeadline);
+  applyHostReady(ready, document.documentElement);
+  document.documentElement.style.colorScheme = ready.theme.mode;
+  if (started) { render(); return; }
+  started = true;
+  state.surface = ready.surface;
+  (ready.surface === 'status' ? mountStatus(ready) : mountScope(ready)).catch(() => showStartupFailure());
 });
-// Hidden rail tabs keep `document.hidden` false; the visibility gate also watches the frame's intersection.
-visibility = new Visibility(document, window, () => monitor.sync());
-window.addEventListener('pagehide', (event) => {
-  poller.stop(); monitor.clearFreshness(); state.resources.break(); state.signal.break();
-  insightView.suspend(); captureView.suspend(); state.generation += 1;
+window.addEventListener('pagehide', event => {
+  pipeline?.hidden();
+  monitor?.poller.stop(); monitor?.clearFreshness(); state.signal.break(); state.generation += 1;
   state.interrupted = true; state.awaitingFresh = true;
   if (!event.persisted) {
     state.disposed = true; clearTimeout(readyDeadline);
-    sharing.dispose(); inspector.dispose(); connectionHelp.dispose(); visibility.dispose();
+    disposeSurface(); visibility.dispose();
     if (state.statusTimer !== null) clearTimeout(state.statusTimer);
     host.dispose();
   }
 });
-window.addEventListener('pageshow', (event) => { if (event.persisted && state.mounted) { monitor.sync(); poller.start(); } });
+window.addEventListener('pageshow', event => { if (event.persisted && state.mounted && monitor) { monitor.sync(); monitor.poller.start(); } });

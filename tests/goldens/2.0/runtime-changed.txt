@@ -1,0 +1,32 @@
+# runtime-changed · /v2?state=runtime-changed
+
+## live · 320 dark panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="unknown" data-stale="false" data-surface="panel"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Runtime changed
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
+#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
+#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
+#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#panels
+#panel-live {aria-labelledby="tab-live"}
+[callout-live] {data-severity="warning"}: Warning: | Looks like Splash now | Local oMLX is chosen, but Splash answers on :8000. Scope never switches on its own. | Switch to Splash
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 6% RAM 35.2 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+live [callout-live]: Warning: Looks like Splash nowLocal oMLX is chosen, but Splash answers on :8000. Scope never switches on its own.Switch to Splash

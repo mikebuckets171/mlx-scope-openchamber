@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { Poller, pollDelay } from './poller.ts';
+import { freshnessDeadline, Poller, pollDelay } from './poller.ts';
 
 test('coalesces refreshes and never schedules after pause/stop during a request', async () => {
   let resolve!: (delay: number) => void;
@@ -52,12 +52,18 @@ test('a resumed in-flight request remains single flight', async () => {
   poller.stop();
 });
 
-test('polling follows the service cadence, backs off failures, and keeps host readings useful', () => {
-  const at = (failures: number, nextPollMs: number | null, host = false, efficient = false) => pollDelay({ failures, nextPollMs, host, efficient });
+test('polling follows the service cadence uncapped, backs off failures, and honours the energy-saving floor', () => {
+  const at = (failures: number, nextPollMs: number | null, efficient = false, floorMs?: number) => pollDelay({ failures, nextPollMs, efficient, floorMs });
   expect(at(0, 500)).toBe(500);
   expect(at(0, null)).toBe(2_000);
+  // A lower-priority frame while a higher-priority one leads: the service asks for ≥ 10 s, and gets it (no 2 s cap).
+  expect(at(0, 10_000)).toBe(10_000);
   expect([1, 2, 3, 4, 5, 10].map(failures => at(failures, 500))).toEqual([1_000, 2_000, 4_000, 8_000, 15_000, 15_000]);
-  expect(at(10, 500, true)).toBe(2_000);
-  expect(at(0, 500, false, true)).toBe(3_000);
-  expect(at(10, 500, false, true)).toBe(15_000);
+  expect(at(0, 500, true)).toBe(3_000);
+  expect(at(0, 1_000, true, 5_000)).toBe(5_000);
+  expect(at(10, 500, true)).toBe(15_000);
+});
+
+test('the no-fresh-reading deadline is max(6 s, 2 × the delay + 1 s)', () => {
+  expect([500, 2_000, 2_500, 3_000, 10_000].map(freshnessDeadline)).toEqual([6_000, 6_000, 6_000, 7_000, 21_000]);
 });

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>MLX Scope · 2.0 fixture host</title><style>html,body{margin:0;background:#10151b;font:11px -apple-system,sans-serif}aside{height:24px;display:grid;place-items:center;background:#203044;color:#c4d6e9}iframe{display:block;width:100%;height:calc(100vh - 24px);border:0}iframe.status{width:280px;height:120px;margin:0}</style></head>
+<body><aside>2.0 fixture host · approved mock states · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script src="/v2-states.js"></script><script>
+// Emulates OpenChamber 2.0.4 for the 2.0 panel: surfaces panel/page/status, setHeight (clamped 24–320 on status),
+// setBadge and toast recorders, whole-namespace storage in sessionStorage, the session feed, and `/v2/snapshot` answered
+// from the G2 mock's v2 states with the `since` cursor honoured. Bodies are sent as strings, like the real host (S1).
+const frame = document.querySelector('iframe');
+const params = new URLSearchParams(location.search);
+const surface = ['page', 'status'].includes(params.get('surface')) ? params.get('surface') : 'panel';
+if (surface === 'status') frame.className = 'status';
+window.setPreviewFrameHidden = value => { frame.style.display = value ? 'none' : ''; };
+if (params.get('frame') === 'hidden') window.setPreviewFrameHidden(true);
+let state = params.get('state') || 'decode';
+window.setPreviewState = value => { state = value; };
+window.previewRequests = 0; window.previewQueries = []; window.previewToasts = []; window.previewBadges = []; window.previewHeights = [];
+window.previewWrites = 0; window.previewCopied = ''; window.previewComposed = null; window.previewUnexpectedSends = 0; window.previewHold = false;
+window.previewError = params.get('error');
+window.setPreviewError = value => { window.previewError = value; };
+window.previewLease = { leader: params.get('leader') !== '0', epoch: 1, ttlMs: 12000, leaderSurface: params.get('leader') === '0' ? 'page' : surface };
+window.setPreviewLease = value => { window.previewLease = { ...window.previewLease, ...value }; };
+window.previewNextPollMs = params.has('poll') ? Number(params.get('poll')) : null;
+window.previewPatch = {};
+window.setPreviewPatch = value => { window.previewPatch = value; };
+const chats = { local: { id: 'fixture-chat', title: 'Fixture chat', busy: true, model: 'omlx/Example-27B-4bit' },
+  cloud: { id: 'fixture-chat', title: 'Fixture chat', busy: false, model: 'cloud-provider/fixture-model' } };
+let session = chats[params.get('chat')] ?? null;
+function theme(name) {
+  const light = name === 'light';
+  const palette = light ? ['#f7f9fb','#ffffff','#245a90','#2868a5','#ffffff'] : ['#10151b','#202c36','#98c8fa','#3b72ad','#ffffff'];
+  return {mode:light?'light':'dark',tokens:{
+    background:palette[0],elevated:palette[1],foreground:light?'#172a37':'#e9f0f5',elevatedForeground:light?'#172a37':'#e9f0f5',
+    muted:light?'#596977':'#9aa9b7',subtle:light?'#687683':'#8595a5',border:light?'#ced7df':'#3b3a47',
+    hover:light?'#e8e4de':'#2c2736',active:light?'#e1ddd7':'#342e40',selection:light?'#dfd4c4':'#433653',selectionForeground:light?'#172a37':'#e9f0f5',
+    focus:palette[2],mutedSurface:light?'#f0ece6':'#25222d',primary:palette[3],primaryText:palette[2],primaryForeground:palette[4],
+    success:light?'#197e68':'#7dd9bd',successText:light?'#197e68':'#7dd9bd',warning:light?'#966113':'#dfb976',warningText:light?'#966113':'#dfb976',
+    error:light?'#b13a45':'#ee8992',errorText:light?'#b13a45':'#ee8992',info:light?'#286cae':'#86b7ed',infoText:light?'#286cae':'#86b7ed',
+    font:'-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',mono:'ui-monospace, SFMono-Regular, Menlo, monospace',radius:'9px'}};
+}
+let themeName = params.get('theme') || 'dark';
+document.body.style.background = theme(themeName).tokens.background;
+const post = message => frame.contentWindow.postMessage({channel:'openchamber.sdk',v:1,...message}, '*');
+const ready = () => post({type:'ready',payload:{theme:theme(themeName),locale:'en-US',directory:null,session,surface,connection:{connected:true,account:''},settings:{},item:null}});
+window.setPreviewTheme = value => { themeName = value; document.body.style.background = theme(value).tokens.background; ready(); };
+window.setPreviewSession = value => { session = value; post({type:'session',payload:{session:value}}); };
+window.sendPreviewLifecycle = (phase) => post({type:'session-lifecycle',payload:{sessionId:'fixture-chat',phase}});
+const result = (id, payload = null) => post({type:'result',id,ok:true,payload});
+const failure = (id, code, error) => post({type:'result',id,ok:false,code,error});
+window.addEventListener('message', event => {
+  if (event.source !== frame.contentWindow || event.data?.channel !== 'openchamber.sdk') return;
+  const m = event.data;
+  if (m.type === 'hello') { if (!params.has('nohost')) ready(); return; }
+  if (m.type === 'resize') { window.previewHeights.push(m.payload.height); if (surface === 'status') frame.style.height = `${Math.min(320, Math.max(24, m.payload.height))}px`; result(m.id); return; }
+  if (m.type === 'badge') { window.previewBadges.push(m.payload.count); result(m.id); return; }
+  if (m.type === 'toast') { window.previewToasts.push(m.payload); result(m.id); return; }
+  if (m.type === 'open-url') { window.previewOpenedURL = m.payload.url; result(m.id); return; }
+  if (m.type === 'service-status') { result(m.id, {status:'ready'}); return; }
+  if (m.type === 'clipboard-write') { window.previewCopied = m.payload.text; result(m.id); return; }
+  if (m.type === 'compose') { window.previewComposed = m.payload; result(m.id); return; }
+  if (m.type === 'storage') {
+    const {op,key,value} = m.payload, stored = key ? sessionStorage.getItem(key) : null;
+    if (params.get('storage') === 'fail') { failure(m.id, 'HOST_REJECTED', 'Fixture storage failure'); return; }
+    if (op === 'delete') { sessionStorage.removeItem(key); window.previewWrites += 1; }
+    if (op === 'set') { sessionStorage.setItem(key, JSON.stringify(value)); window.previewWrites += 1; }
+    result(m.id, op === 'keys' ? {storage:true,op,keys:Object.keys(sessionStorage)} : op === 'get' ? {storage:true,op,found:stored !== null,...(stored === null ? {} : {value:JSON.parse(stored)})} : {storage:true,op});
+    return;
+  }
+  if (m.type === 'prompt' || m.type === 'generate' || m.type === 'start-session') { window.previewUnexpectedSends += 1; return; }
+  if (m.type !== 'service-request') return;
+  const query = m.payload.query || {};
+  window.previewQueries.push(query); window.previewRequests += 1;
+  if (window.previewHold) return;
+  const approval = state === 'needs-approval' || window.previewError === 'NO_SERVICE';
+  if (approval || window.previewError) { failure(m.id, approval ? 'NO_SERVICE' : window.previewError, 'NO_SERVICE: Allow this extension’s local service in Settings → Extensions.'); return; }
+  const mismatch = state === 'contract-mismatch' || m.payload.path !== '/v2/snapshot';
+  const since = /^\d+$/.test(query.since ?? '') ? Number(query.since) : undefined;
+  const body = mismatch ? {error:'not_found'} : ScopeStates.mockBody(state, { now: Date.now(), since, lease: window.previewLease,
+    ...(window.previewNextPollMs === null ? {} : { nextPollMs: window.previewNextPollMs }) });
+  if (!mismatch) Object.assign(body, window.previewPatch);
+  result(m.id, {status: mismatch ? 404 : 200, body: JSON.stringify(body)});
+});
+frame.src = '/panel/index.html';
+</script></body></html>

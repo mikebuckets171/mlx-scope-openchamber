@@ -1,58 +1,39 @@
 import type { CompletionV2 } from '../../src/contract/completion.ts';
-import type { RuntimeKind } from '../../src/contract/runtime.ts';
-import type { RecentSpeed } from '../insights.ts';
-import { connectionName } from './messages.ts';
-import type { Coverage, HostReading, Link, Reading, ReadingPhase } from './reading.ts';
+import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
+import type { AttributionLabel } from '../attribution/join.ts';
+import type { NextReplyState } from '../attribution/next-reply.ts';
+import type { RegressionFlag, VsUsual } from '../history/regress.ts';
+import type { SignalPoint } from '../signal.ts';
+import type { PanelReason } from './reading.ts';
 
-/** Everything one render needs; presenters are pure functions of it. */
+/** Why the newest poll has no body: a frame-side state (host error, version skew, approval pending). */
+export interface FrameIssue { reason: PanelReason; message: string | null }
+/** The newest finished request, with the label its verdict carries and how it compares with the usual. */
+export interface LastReply { completion: CompletionV2; label: AttributionLabel; vsUsual: VsUsual | null; flag: RegressionFlag | null }
+
+/** Everything one render of any 2.0 surface needs. Presenters are pure functions of it (P10). */
 export interface ScopeInput {
-  reading: Reading;                          // the newest reading, available or not
-  last: Reading | null;                      // the newest available reading (this one when available)
-  host: HostReading | null;                  // this reading's host, else the last one seen
-  lastRequest: CompletionV2 | null;          // the newest finished request the service reported
-  selectionRuntime: RuntimeKind | null;      // the runtime the user chose, if any
-  speed: RecentSpeed | null;                 // observed output speed after this reading
   now: number;                               // the frame's time on the service clock
+  version: string;
+  snapshot: SnapshotV2 | null;               // the newest body, retained through a missed poll
+  fresh: boolean;                            // the body is the newest poll's and inside the no-fresh-reading deadline
+  stale?: boolean;                           // the no-fresh-reading deadline passed (otherwise a not-fresh body is refreshing)
+  frame: FrameIssue | null;                  // the newest poll had no body
+  paused: boolean;
+  attribution: AttributionLabel;             // the live reading's label (attribution join)
+  chatRuntime: string | null;                // the open chat's runtime name, for "this chat uses …"
+  last: LastReply | null;
+  next: NextReplyState;
+  samples: readonly SignalPoint[];           // the panel's own 90 s ring
+  turnStartAt: number | null;                // this chat's turn start, when observed live
 }
+export const SERVER_WIDE: AttributionLabel = { kind: 'server-wide', reason: 'not-observed' };
 
-/** The 1.6 panel's shared reading of one poll: what is live, what is retained, and what is being watched. */
-export interface Scope extends ScopeInput {
-  current: Reading | null;
-  display: Reading | null;
-  stale: boolean;
-  phase: ReadingPhase;
-  runtime: RuntimeKind | null;
-  link: Link | null;
-  name: string;
-  splashEngine: boolean;
-  coverage: Coverage;
-  splashLoading: boolean;
-  splashRate: number | null;
-  observed: RecentSpeed | null;
-  liveRate: number | null;
-  logActivity: boolean;
-  logRequest: CompletionV2 | null;
-  logRate: number | null;
-}
-
-export const derive = (input: ScopeInput): Scope => {
-  const { reading, last } = input;
-  const current = reading.available ? reading : null, display = current ?? last, stale = current === null;
-  const phase: ReadingPhase = current?.phase ?? (last ? 'reconnecting' : reading.reason === 'authentication_failed' ? 'offline' : 'connecting');
-  const runtime = reading.runtime ?? reading.link?.runtime ?? input.selectionRuntime ?? last?.runtime ?? null;
-  const link = reading.link ?? last?.link ?? null;
-  const coverage: Coverage = current ? reading.link?.coverage ?? (runtime === 'omlx' ? 'requests' : 'server') : last?.link?.coverage ?? 'requests';
-  const decode = current?.request?.decodeTps ?? null;
-  const observed = current?.phase === 'decode' && decode === null ? input.speed : null;
-  const liveRate = current?.phase === 'decode' ? decode ?? observed?.tokensPerSecond ?? null
-    : current?.phase === 'prefill' ? current.request?.prefillTps ?? null : null;
-  const logActivity = runtime === 'lmstudio' && coverage === 'requests' && current !== null;
-  const logRequest = logActivity ? input.lastRequest : null;
-  return {
-    ...input, current, display, stale, phase, runtime, link, name: connectionName(runtime, link), splashEngine: link?.engine === 'splash', coverage,
-    splashLoading: runtime === 'splash' && display?.splash?.ready === false,
-    splashRate: runtime === 'splash' && display?.splash?.ready === true ? display.splash.decodeTps : null,
-    observed, liveRate, logActivity, logRequest,
-    logRate: logActivity && liveRate === null && phase !== 'decode' && phase !== 'prefill' ? logRequest?.decodeTps ?? null : null,
-  };
-};
+/** The model a reading is about: the request's, else the loaded one. */
+export const modelOf = (snapshot: SnapshotV2 | null): string | null => snapshot
+  ? snapshot.runtime.request?.model ?? snapshot.runtime.residency[0]?.model ?? snapshot.runtime.catalog.find(model => model.loaded)?.name ?? null
+  : null;
+/** A model name for 280 px: no publisher, no quantisation suffix. */
+export const glanceModel = (model: string): string => (model.split('/').at(-1) ?? model).replace(/[-_.](?:\d+bit|mlx|q\d\w*|gguf|splash)$/i, '');
+/** Splash's readings are last observed while it recovers or its status is stale. */
+export const heldBySource = (snapshot: SnapshotV2): boolean => snapshot.status.state === 'recovering' || snapshot.status.reason === 'status_stale';

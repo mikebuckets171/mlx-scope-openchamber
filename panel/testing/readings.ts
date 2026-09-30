@@ -11,7 +11,18 @@ const wire = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 /** The v2 body a converted 1.x reading puts on the wire, as the panel's client validates it. */
 export const v2Body = (v1: Record<string, unknown>): SnapshotV2 =>
   parseSnapshotV2(wire(toSnapshotV2(parseTelemetrySnapshot(wire(v1)) as V1Snapshot, EXTRAS)))!;
-export const fromV1 = (v1: Record<string, unknown>): Reading => fromSnapshot(v2Body(v1));
+/**
+ * A 1.x fixture as the panel reads it. The 2.0 wire has no `traceEpoch` or `sessionStatsState` (the 2a compat bridge is gone:
+ * the panel takes continuity from `connection.generation` and freshness from the status); 1.6 module tests that pin
+ * request-boundary logic keep their 1.x inputs through this helper.
+ */
+export const fromV1 = (v1: Record<string, unknown>): Reading => {
+  const reading = fromSnapshot(v2Body(v1));
+  if (!reading.available) return reading;
+  const stats = v1.sessionStatsState;
+  return { ...reading, traceEpoch: typeof v1.traceEpoch === 'number' ? v1.traceEpoch : v1.traceEpoch === null ? null : reading.traceEpoch,
+    statsState: stats === 'fresh' || stats === 'stale' || stats === 'unavailable' ? stats : reading.statsState };
+};
 /** A service's raw 1.x body converted as the service (and the synthetic host) converts it, without the 1.6 panel parser. */
 export const fromService = (v1: V1Snapshot): Reading => fromSnapshot(parseSnapshotV2(wire(toSnapshotV2(wire(v1), EXTRAS)))!);
 /** The newest completion a reading carried, as the panel's state keeps it. */

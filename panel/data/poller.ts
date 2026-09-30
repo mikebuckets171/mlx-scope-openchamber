@@ -59,11 +59,13 @@ export class Poller {
 }
 
 /**
- * The next poll: the service's `nextPollMs` after a reading, else the 1.6 backoff. Host readings stay useful while the
- * runtime is offline (the service keeps its own retry budget), and energy saving never polls faster than 3 s.
+ * The next poll: the service's `nextPollMs` after a reading, else the 1.6 backoff. The service owns the cadence, including
+ * the ≥ 10 s back-off of a lower-priority frame while a higher-priority one leads, so there is no panel-side cap; energy
+ * saving never polls faster than its floor (3 s for the panel and page, 5 s for the Work Status section).
  */
-export const pollDelay = ({ failures, nextPollMs, host, efficient }: { failures: number; nextPollMs: number | null; host: boolean; efficient: boolean }): number => {
+export const pollDelay = ({ failures, nextPollMs, efficient, floorMs = 3_000 }: { failures: number; nextPollMs: number | null; efficient: boolean; floorMs?: number }): number => {
   const delay = failures > 0 ? Math.min(15_000, 1_000 * 2 ** Math.min(4, failures - 1)) : nextPollMs ?? 2_000;
-  const held = host ? Math.min(2_000, delay) : delay;
-  return efficient ? Math.max(3_000, held) : held;
+  return efficient ? Math.max(floorMs, delay) : delay;
 };
+/** "No fresh reading" deadline: max(6 s, 2 × the scheduled delay + 1 s), so a slow cadence never reads as a stall. */
+export const freshnessDeadline = (delayMs: number): number => Math.max(6_000, 2 * delayMs + 1_000);

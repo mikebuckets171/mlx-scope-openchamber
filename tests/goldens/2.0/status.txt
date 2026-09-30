@@ -1,0 +1,90 @@
+# Work Status section · 280 px
+
+## status-tip · 280 dark status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="glance" data-variant="glance" style="height:120px"}: Example-27B 26.4 tok/s
+span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
+#ws-why: not observed
+span.chip: GPU 87% busy
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
+div.connection-diagnosis[role=note] {data-severity="info"}: Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place
+setHeight: 120
+
+## status-decode · 280 dark status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Example-27B 26.4 tok/s
+span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
+#ws-why: not observed
+span.chip: GPU 87% busy
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
+setHeight: 56
+
+## status-decode-light · 280 light status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Example-27B 26.4 tok/s
+span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
+#ws-why: not observed
+span.chip: GPU 87% busy
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
+setHeight: 56
+
+## status-prefill · 280 dark status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Example-27B
+span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
+#ws-why: not observed
+span.chip: GPU 94% busy
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
+setHeight: 56
+
+## status-idle · 280 dark status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Idle Example-27B Last reply 24.9 tok/s last observed
+span.chip {data-attr="inferred"}: This chat · inferred
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
+setHeight: 56
+
+## status-alert · 280 dark status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="glance" data-variant="glance" style="height:80px"}: Example-27B 21.2 tok/s Warning: macOS memory pressure: warning +1 more
+span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
+#ws-why: not observed
+span.chip: GPU 87% busy
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
+setHeight: 80
+
+## status-offline · 280 dark status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Critical: | oMLX stopped responding | since 14:02 | Scope checks again automatically
+setHeight: 56
+
+## status-recovering · 280 dark status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Splash is recovering | since 14:03 | Scope reads its status every 30 s
+setHeight: 56
+
+## status-approval · 280 dark status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="glance" data-variant="glance" style="height:56px"}: MLX Scope 2.0 needs one approval | Settings → Extensions → MLX Scope
+setHeight: 56
+
+## status-nonlocal · 280 dark status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="non-local" data-variant="nonlocal" style="height:24px"}: Chat uses a non-local model
+setHeight: 24
+
+## status-turnstats · 280 dark status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="turn-stats" style="height:136px"}: Last reply | Chart starts after 2 readings
+span.chip {data-attr="inferred"}: This chat · inferred
+#ws-toggle {aria-expanded="true" aria-label="Show the glance view" data-action="status-toggle"}
+#ts-rows: Response | 38.6 tok/s | TTFT | 0.51 s | Tokens in · out | 18.4K · 1,092 | Cache % | 61% | Context used | 19.5K of 262K
+setHeight: 136
+
+## status-turnstats-light · 280 light status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="turn-stats" style="height:136px"}: Last reply | Chart starts after 2 readings
+span.chip {data-attr="inferred"}: This chat · inferred
+#ws-toggle {aria-expanded="true" aria-label="Show the glance view" data-action="status-toggle"}
+#ts-rows: Response | 38.6 tok/s | TTFT | 0.51 s | Tokens in · out | 18.4K · 1,092 | Cache % | 61% | Context used | 19.5K of 262K
+setHeight: 136
