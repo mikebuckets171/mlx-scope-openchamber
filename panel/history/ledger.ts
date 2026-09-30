@@ -4,7 +4,7 @@ import { modelLabel } from '../../src/contract/guards.ts';
 import type { RuntimeKind } from '../../src/contract/runtime.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { Accounting, entryBytes, isLedgerKey, jsonBytes, type LedgerAccounting } from './accounting.ts';
-import { BASELINE_WINDOW_MS, BASELINE_WRITE_MS, buildBaselines, parseBaselineStore, sameBaselines, toBaselineStore, type Baselines } from './baselines.ts';
+import { BASELINE_WINDOW_MS, BASELINE_WRITE_EVERY_MS as BASELINE_WRITE_MS, baselineStore as toBaselineStore, buildBaselines, parseBaselineStore, sameBaselines, type Baselines } from './baselines.ts';
 import {
   CHUNK_KEY, CHUNK_MAX_CHARS, CHUNK_TARGET_CHARS, chunkKey, KEYS, LEDGER_SCHEMA, MAX_CURSORS, MAX_MODELS, parseChunk, parseCursors, parseMeta,
   parseModels, parsePref, rand4, replyRow, retentionDays, rowIdentity, rowTimeS, toSeconds, verdictAttr,

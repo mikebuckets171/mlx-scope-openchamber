@@ -463,3 +463,20 @@ dd { margin: 0; }
 @media (prefers-contrast: more) { :root { --scope-line: var(--scope-muted); } .grid { opacity: .7; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 @media (forced-colors: active) { .meter i, .progress-track span, .cache-input-bar > span { background: Highlight; } .trace { stroke: Highlight; } .hero-card::before { display: none; } .chip[data-outline], .info::before { border: 1px solid CanvasText; } }
+
+/* ---------- 2.0: History and Captures (ui-history) ----------
+   The approved mock's History rules (docs/design/2.0-mock.html "2.0: History") that the shell's rules above do not
+   already carry, plus what the views add. Shared parts (chip, ⓘ, btn, section, callout, values-3, kv) come from above. */
+.alog .sev[data-severity="critical"] { background: var(--scope-bad, var(--oc-error-text, #ee8992)); }
+/* Additions: 30 and 90 day usage, the Captures cards' readings, the page column. */
+/* WebKit ignores min-height on a native select; the retention and window selects keep a 30 px target. */
+:is(.storage-controls, .capture-card) select.btn { height: 30px; }
+/* A long server-wide reason wraps inside its chip at 320 px rather than losing the reason to an ellipsis. */
+.led-main .chip[data-attr] { white-space: normal; overflow-wrap: anywhere; }
+.usage-bars[data-dense="true"], .usage-days[data-dense="true"] { gap: 1px; }
+.usage-days[data-dense="true"] span { overflow: visible; white-space: nowrap; }
+.capture-card .reply-values, .capture-card .split { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin-top: 8px; color: var(--scope-muted); font-size: 11px; }
+.capture-card .reply-values .val { color: var(--scope-fg); font-size: 13px; font-weight: 550; }
+.scope[data-surface="page"] .trend .plot { height: 132px; }
+@media (forced-colors: active) { .gap-band, .gap-row, .legend i.hatch { forced-color-adjust: none; } .usage-bars i { background: Highlight; } }
+/* ---------- end History and Captures ---------- */

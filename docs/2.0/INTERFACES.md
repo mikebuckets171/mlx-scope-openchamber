@@ -493,6 +493,38 @@ class HistoryClient { constructor(host: Pick<HostClient, 'serviceRequest'>); tre
 // render/views/history.ts: mountHistory: MountView
 ```
 
+ui-history additions (the signatures above are unchanged):
+
+```ts
+// history/baselines.ts
+BASELINE_MIN_N = { p50: 5, p90: 10 }; BASELINE_WRITE_EVERY_MS = 600_000; BASELINE_METRICS
+replyMetric(row, metric): { value; key: BaselineKey } | null      // the one exclusion rule, shared with regress.ts
+percentile(sorted, q) (nearest rank: always a real reply's value); baselineOf(values): Baseline
+baselineStore(baselines, computedAt): BaselineStoreV2; parseBaselineStore(value); sameBaselines(a, b)   // leader writes baseline.v2 only on change
+// history/regress.ts
+REGRESSION; class RegressionTracker { current; update(replyRows, baselines, now): RegressionFlag[]; clear() }   // flags for Signals.apply
+// history/summary.ts: SIZE_LABELS; modelAlias(index)
+// render/trend-chart.ts: trendGeometry(…, ceiling?) adds spans/readings/low/high; trendGaps(trend, width?); trendCeiling(max)
+// present/history.ts: optional HistoryInput/HistoryView fields; HistoryText + HISTORY_TEXT (withheld/alert English from present/reasons.ts)
+// render/views/history.ts
+interface HistoryDeps { ledger: Pick<Ledger, 'state'|'read'|'models'|'accounting'|'setRetention'|'setPaused'|'clear'>;
+  client: Pick<HistoryClient, 'trend'|'usage'>; retentionDays(): number; copy(text): Promise<void>; version: string;
+  selection?(snapshot): { provider?; runtime? }; legacyCaptures?(): Promise<number>; flags?(flags): void; text?: HistoryText }
+historyView(deps): MountView; defaultHistoryDeps(context)      // mountHistory = historyView(defaultHistoryDeps(context))
+// New ui-history files: the Captures tab (ui-core's track text assigns the Captures view to ui-history)
+// captures/window.ts: WINDOW_LENGTHS_MS, WINDOW_GAP_MS, class WindowCapture { current; recording; start(snapshot, ms); observe(snapshot); stop(reason?); clear() }, windowRate(state)
+// present/captures-tab.ts: interface NextReplyControl { state(): NextReplyState; arm(); cancel(); watch?() };
+//   presentCaptures(input): CapturesView; CAPTURE_MEASUREMENTS; nextReplyCapture(result, runtime, at); windowCapture(state, at);
+//   captureRate(capture); captureKey(capture, legacy?); capturesReport(captures, version, forbidden)
+// render/views/captures.ts: interface CapturesDeps { store: Pick<CaptureStore, 'list'|'save'>; legacy(); next: NextReplyControl | null;
+//   copy(text); compose(text); version; forbidden?(); text? }; capturesView(deps): MountView; mountCaptures: MountView; readLegacyCaptures(storage)
+// render/views/history-parts.ts (DOM builder + morph shared by both views); testing/{rows,mock-history,history-text}.ts (tests only)
+```
+
+Wiring the shell does (ui-core, integration): pass the frame's one `Ledger` and one `NextReplyControl` through `historyView`/`capturesView`
+(the defaults read storage themselves and cannot arm); keep the Captures view mounted and call `update(snapshot)` on every poll
+while its tab is hidden (the 30/60 s window is fed by polls); give History the snapshot poll's provider/runtime via `selection`.
+
 ### 4.5 Alerts, status section, views, reasons, sanitizer
 
 ```ts
