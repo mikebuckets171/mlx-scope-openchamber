@@ -182,14 +182,16 @@ test('each read gets its selection and tier; the host sampler gets the tier, act
   const request = await launch({ read: async (selection, tier) => { selections.push([selection, tier]); return current; },
     host: async context => { hosts.push(context); return HOST; } });
   for (const query of ['provider=my-local&runtime=mlx-lm', 'runtime=lmstudio', 'provider=other', '', 'provider=my-local&frame=0badc0de&unknown=1',
-    'provider=My%20LM%20Studio%20(Bionic)', 'runtime=llama-server', 'runtime=ollama&surface=status', 'tier=full&detail=server&provider=&runtime=splash']) {
+    'provider=My%20LM%20Studio%20(Bionic)', 'runtime=llama-server', 'runtime=ollama&surface=status', 'surface=background',
+    'tier=full&detail=server&provider=&runtime=splash']) {
     await snapshot(request, `/v2/snapshot?${query}`);
   }
-  const full = { tier: 'full', detail: false };
+  const full = { tier: 'full', detail: false, oneShot: false };
   expect(selections).toEqual([[{ provider: 'my-local', runtime: 'mlx-lm' }, full], [{ provider: '', runtime: 'lmstudio' }, full],
     [{ provider: 'other', runtime: null }, full], [undefined, full], [{ provider: 'my-local', runtime: null }, full],
     [{ provider: 'My LM Studio (Bionic)', runtime: null }, full], [{ provider: '', runtime: 'llama-server' }, full],
-    [{ provider: '', runtime: 'ollama' }, { tier: 'glance', detail: false }], [{ provider: '', runtime: 'splash' }, { tier: 'full', detail: true }]]);
+    [{ provider: '', runtime: 'ollama' }, { tier: 'glance', detail: false, oneShot: false }], [undefined, { tier: 'glance', detail: false, oneShot: true }],
+    [{ provider: '', runtime: 'splash' }, { tier: 'full', detail: true, oneShot: false }]]);
   expect(hosts.at(-1)).toEqual({ tier: 'full', active: false, generation: 3, omlxPort: null });
   current = reading({ state: 'ready', reason: null, params: {} }, { runtime: { ...offline().runtime, phase: 'decode' },
     meta: meta({ port: 8001, connection: { ...meta().connection, runtime: 'omlx', generation: 7 } }) });

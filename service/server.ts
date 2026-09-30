@@ -111,7 +111,8 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       const view = lease.observe(query.frame, query.surface, monotonic());
       // 1.6 semantics: provider '' with a runtime is "Automatic, read as that runtime".
       const selection = query.provider || query.runtime ? { provider: query.provider ?? '', runtime: query.runtime ?? null } : undefined;
-      const reading = await Promise.resolve().then(() => sources.read(selection, { tier: query.tier, detail: query.detail === 'server' }))
+      const reading = await Promise.resolve().then(() => sources.read(selection, { tier: query.tier, detail: query.detail === 'server',
+        oneShot: query.surface === 'background' }))
         .catch(() => unread(serverNow));
       const context = hostContextOf(query.tier, reading);
       const host = await Promise.resolve().then(() => sources.host?.(context) ?? null).catch(() => null);

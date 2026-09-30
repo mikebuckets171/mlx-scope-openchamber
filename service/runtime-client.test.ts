@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { RuntimeKind } from '../src/contract/runtime.ts';
 import type { RuntimeConnectionConfig, RuntimeConnections } from './config.ts';
-import type { AdapterReadingV2, DescriptorV2 } from './core/adapter-v2.ts';
+import type { AdapterReadingV2, DescriptorV2, ReadContext } from './core/adapter-v2.ts';
 import { DESCRIPTORS } from './core/registry.ts';
 import { HttpFailure } from './http.ts';
 import { RuntimeClient, type ReadSelection, type RuntimeReading } from './runtime-client.ts';
@@ -459,4 +459,15 @@ test('a reading from a glance frame is refreshed for the Server tab once the flo
   expect(requests).toBe(2);
   now += 1_000; await client.read(undefined, { tier: 'glance', detail: false });
   expect(requests).toBe(2);
+});
+
+test('a one-shot read (/scope) reaches the adapter as one', async () => {
+  let now = 1_000;
+  const contexts: ReadContext[] = [];
+  const spy: DescriptorV2 = { ...INVENTORY, create: context => { const adapter = INVENTORY.create(context);
+    return { ...adapter, read: read => { contexts.push(read); return adapter.read(read); } }; } };
+  const client = new RuntimeClient({ now: () => now, descriptors: [spy], readConfig: async () => configuration(connection('studio', 'lmstudio')), fetchImpl: async () => json({ models: [] }) });
+  await client.read(undefined, { tier: 'glance', detail: false, oneShot: true });
+  now += 5_000; await client.read(undefined, { tier: 'glance', detail: false });
+  expect(contexts.map(read => read.oneShot)).toEqual([true, undefined]);
 });

@@ -205,7 +205,7 @@ class LmstudioAdapter implements AdapterV2 {
   constructor(private readonly context: AdapterContextV2, private readonly lms: string | null, private readonly cli: LmsCli,
     private readonly activity: ConnectionActivity, private readonly serverInfoPath: string, private readonly readPorts: (file: string) => LmsPorts) {}
 
-  async read({ deadline, tier, detail }: ReadContext): Promise<AdapterReadingV2> {
+  async read({ deadline, tier, detail, oneShot }: ReadContext): Promise<AdapterReadingV2> {
     const at = this.context.now();
     await this.greet(false);
     const inventory = await this.inventory();
@@ -215,7 +215,8 @@ class LmstudioAdapter implements AdapterV2 {
     // Only the connection on this Mac's LM Studio REST port may use lms: a tunnel to another app must not get this app's data.
     const ports = this.localPorts(), bound = this.lms !== null && ports.internal !== null && ports.rest === this.context.connection.port;
     const greeted = this.context.monotonic() - this.greetedAt <= GREETING_WINDOW_MS, port = bound && greeted ? ports.internal : null;
-    if (port !== null) this.activity.touch(port);
+    // A one-shot read (/scope) never starts or extends the 60 s stream; it still reads one a polling frame keeps running.
+    if (port !== null && !oneShot) this.activity.touch(port);
     // lms one-shots only on the full tier (never glance); a glance read reuses the last rows without spawning.
     const [ps, engines] = await Promise.all([
       port !== null && tier === 'full' ? this.bounded(this.cli.ps(port, this.generation), deadline) : Promise.resolve(null),
