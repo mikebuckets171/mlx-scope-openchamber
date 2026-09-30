@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Surface } from '../../src/contract/snapshot.ts';
-import { backoffMs, failuresOf, initialSlot, stepSlot, type SlotEvent, type SlotState } from './slot.ts';
+import { backoffMs, failuresOf, initialSlot, redetectDue, stepSlot, type SlotEvent, type SlotState } from './slot.ts';
 
 export const SLOT_CAPACITY = 8;
 /** No runtime is read more often than this, whatever its cadence. */
@@ -9,14 +9,15 @@ export const FLOOR_MS = 450;
 export interface Slot<C, T> {
   readonly key: string;
   readonly fingerprint: string;
-  readonly generation: number;               // v2 connection generation: +1 for every slot the scheduler creates
-  readonly marker: string;                   // the 1.x opaque generation
+  generation: number;                        // v2 connection generation: new slot, re-detection or a runtime model change
+  marker: string;                            // the 1.x opaque generation, renewed with `generation`
   readonly context: C;
   value: T | null;
   inFlight: Promise<T> | null;
   sampledAt: number;
   state: SlotState;
   activeAt: number;                          // last reading with work in progress, or creation
+  redetect: boolean;                         // the slot machine asked for a detection pass; the next collection runs it
 }
 export interface Outcome { event: SlotEvent; active: boolean }
 
@@ -27,7 +28,13 @@ export interface Outcome { event: SlotEvent; active: boolean }
 export class Scheduler<C, T> {
   private readonly slots = new Map<string, Slot<C, T>>();
   private generations = 0;
-  constructor(private readonly monotonic: () => number, private readonly capacity = SLOT_CAPACITY) {}
+  /** `drop` hears about every slot replaced or evicted, so its adapter can stop streams and timers. */
+  constructor(private readonly monotonic: () => number, private readonly capacity = SLOT_CAPACITY, private readonly drop: (slot: Slot<C, T>) => void = () => {}) {}
+
+  /** The slot for `key`, if the table still holds one; never creates. */
+  peek(key: string): Slot<C, T> | undefined { return this.slots.get(key); }
+  /** Every slot, for shutdown. */
+  all(): Slot<C, T>[] { return [...this.slots.values()]; }
 
   /**
    * The slot for `key`; a new fingerprint (endpoint, key, runtime) replaces it. Null when that would evict a read in
@@ -39,23 +46,32 @@ export class Scheduler<C, T> {
     const idleKey = [...this.slots].find(([, value]) => !value.inFlight)?.[0];
     if (slot?.inFlight || !slot && this.slots.size >= this.capacity && idleKey === undefined) return null;
     const at = this.monotonic();
+    const replaced = slot;
     slot = { key, fingerprint, generation: ++this.generations, marker: randomUUID(), context: context(), value: null, inFlight: null,
-      sampledAt: -Infinity, state: initialSlot(at), activeAt: at };
-    this.slots.delete(key);
-    if (this.slots.size >= this.capacity && idleKey !== undefined) this.slots.delete(idleKey);
+      sampledAt: -Infinity, state: initialSlot(at), activeAt: at, redetect: false };
+    if (replaced) { this.slots.delete(key); this.drop(replaced); }
+    if (this.slots.size >= this.capacity && idleKey !== undefined) { const evicted = this.slots.get(idleKey)!; this.slots.delete(idleKey); this.drop(evicted); }
     this.slots.set(key, slot);
     return slot;
   }
 
-  /** `collect` must resolve (failures become readings); `outcome` classifies each reading for the slot machine. */
-  read(slot: Slot<C, T>, cadenceMs: number, collect: () => Promise<T>, outcome: (value: T) => Outcome): Promise<T> {
-    const now = this.monotonic();
-    const fresh = slot.value !== null && (now - slot.sampledAt < Math.max(FLOOR_MS, cadenceMs) || now < slot.sampledAt + backoffMs(failuresOf(slot.state)));
+  /** A new connection generation for this slot (re-detection switched runtime, or the runtime's models changed). */
+  bump(slot: Slot<C, T>): void { slot.generation = ++this.generations; slot.marker = randomUUID(); }
+
+  /**
+   * `collect` must resolve (failures become readings); `outcome` classifies each reading for the slot machine. A cached
+   * reading that does not `fit` the request (a glance reading when the Server tab asks for detail) is refreshed once
+   * the floor has passed, but never inside a backoff.
+   */
+  read(slot: Slot<C, T>, cadenceMs: number, collect: () => Promise<T>, outcome: (value: T) => Outcome, fits: (value: T) => boolean = () => true): Promise<T> {
+    const now = this.monotonic(), age = now - slot.sampledAt;
+    const fresh = slot.value !== null && (age < FLOOR_MS || fits(slot.value) && age < cadenceMs || now < slot.sampledAt + backoffMs(failuresOf(slot.state)));
     if (!slot.inFlight && !fresh) {
       slot.inFlight = collect().then(value => {
-        const { event, active } = outcome(value);
+        const { event, active } = outcome(value), previous = slot.state;
         slot.value = value; slot.sampledAt = this.monotonic();
-        slot.state = stepSlot(slot.state, event, slot.sampledAt);
+        slot.state = stepSlot(previous, event, slot.sampledAt);
+        if (redetectDue(previous, slot.state, slot.sampledAt)) slot.redetect = true;
         if (active) slot.activeAt = slot.sampledAt;
         return value;
       }).finally(() => { slot.inFlight = null; });

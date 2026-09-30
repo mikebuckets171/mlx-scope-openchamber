@@ -26,9 +26,13 @@ export const modelLabel = (value: unknown, max = 256): string | null => {
   return name?.slice(0, max) || null;
 };
 
-export const CONNECTION_ID = /^[A-Za-z0-9._-]{1,64}$/;
+/** 1.6's provider-id rule, kept by owner decision: 1–120 characters and no control characters (spaces are fine). */
+export const CONNECTION_ID_MAX = 120;
+const CONTROL_CHAR = /[\u0000-\u001f\u007f]/;
+export const isConnectionId = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= CONNECTION_ID_MAX && !CONTROL_CHAR.test(value);
 export const HEX8 = /^[0-9a-f]{8}$/;
-export const connectionId = (value: unknown): string | null => typeof value === 'string' && CONNECTION_ID.test(value) ? value : null;
+export const connectionId = (value: unknown): string | null => isConnectionId(value) ? value : null;
 export const hex8 = (value: unknown): string | null => typeof value === 'string' && HEX8.test(value) ? value : null;
 
 /** Drop invalid entries, then keep at most `max`. */

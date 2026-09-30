@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+import { hostFromV1 } from '../src/contract/convert-v1.ts';
 import { RuntimeClient } from './runtime-client.ts';
 import { LMStudioActivityStream } from './lmstudio-activity.ts';
 import { SystemSampler } from './system.ts';
@@ -9,11 +11,14 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535 || token.length === 0) 
   console.error('OpenChamber service port and token are required.');
   process.exit(1);
 }
-const client = new RuntimeClient({ lmstudioActivity: new LMStudioActivityStream() });
+// One instance id per service start: the completion rings and the snapshot's service identity share it.
+const instance = randomBytes(4).toString('hex');
+const client = new RuntimeClient({ lmstudioActivity: new LMStudioActivityStream(), instance });
 const system = new SystemSampler();
 const server = createScopeServer(token, {
-  read: selection => client.read(selection), system: () => system.sample(), completionHead: () => client.completionHead,
-});
+  read: (selection, request) => client.read(selection, request), host: async () => hostFromV1(await system.sample()),
+  completionHead: () => client.completionHead,
+}, { instance });
 server.on('error', (error: NodeJS.ErrnoException) => {
   console.error('MLX Scope could not start its local service.', error);
   process.exit(1);

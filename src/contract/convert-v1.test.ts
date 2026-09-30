@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { parseTelemetrySnapshot, unavailableTelemetry, type TelemetrySnapshot } from '../telemetry.ts';
-import { __test__, toSnapshotV2, type V1Snapshot } from './convert-v1.ts';
+import { __test__, hostFromV1, toSnapshotV2, v1Parts, type V1Snapshot } from './convert-v1.ts';
 import { bodyChars, classAKeys, MAX_BODY_CHARS } from './guards.ts';
 import { honestyViolations, parseSnapshotV2 } from './snapshot.ts';
 import { rendered, toV1 } from './testing/v1-inverse.ts';
@@ -72,8 +72,9 @@ test('1.6 status and connection semantics map onto v2 codes', () => {
   expect(toSnapshotV2(find('service splash loading'), EXTRAS).status).toEqual({ state: 'degraded', reason: 'loading', params: {} });
   expect(toSnapshotV2(find('service omlx auth'), EXTRAS).status).toEqual({ state: 'failing', reason: 'authentication_failed', params: {} });
   expect(toSnapshotV2(find('service omlx unreachable'), EXTRAS).status).toEqual({ state: 'failing', reason: 'runtime_unreachable', params: {} });
-  expect(toSnapshotV2(find('service custom unsupported'), EXTRAS).status).toEqual({ state: 'failing', reason: 'unsupported_contract', params: {} });
-  const missing = toSnapshotV2(find('service nothing configured'), EXTRAS);
+  expect(toSnapshotV2(find('service splash unsupported'), EXTRAS).status).toEqual({ state: 'failing', reason: 'unsupported_contract', params: {} });
+  const missing = toSnapshotV2({ ...unavailableTelemetry('runtime_unreachable', null, EPOCH), connection: { selected: null, label: null, runtime: null,
+    generation: null, choices: [], diagnostic: 'missing', coverage: null } }, EXTRAS);
   expect(missing.status).toEqual({ state: 'unconfigured', reason: 'configuration_missing', params: {} });
   expect(missing.connection).toMatchObject({ id: 'auto', label: 'Automatic', runtime: null, generation: 0 });
   // A frame-side reason the service never sends survives only in the bridge.
@@ -94,12 +95,13 @@ test('an unavailable 1.x body keeps only what the 1.6 panel kept', () => {
   expect(Object.keys(offline.capabilities).sort()).toEqual(['host.cpu', 'host.memory', 'host.swap']);
 });
 
-test('ids outside the v2 grammar become "auto" and stay only in the bridge (documented 2a loss)', () => {
+test('1.6 connection ids cross unchanged (owner decision: ≤ 120 characters, no control characters)', () => {
   const v1: V1Snapshot = { ...unavailableTelemetry('runtime_unreachable', null, EPOCH), connection: { selected: 'My Provider', label: 'My Provider',
     runtime: 'lmstudio', generation: null, choices: [{ id: 'My Provider', label: 'My Provider', runtime: 'lmstudio' }, { id: 'omlx', label: 'oMLX', runtime: 'omlx' }],
     diagnostic: 'offline', coverage: null } };
   const v2 = toSnapshotV2(v1, EXTRAS);
-  expect(v2.connection).toMatchObject({ id: 'auto', label: 'My Provider', choices: [{ id: 'omlx', label: 'oMLX', runtime: 'omlx' }] });
+  expect(v2.connection).toMatchObject({ id: 'My Provider', label: 'My Provider', choices: [{ id: 'My Provider', label: 'My Provider', runtime: 'lmstudio' },
+    { id: 'omlx', label: 'oMLX', runtime: 'omlx' }] });
   expect(v2.compat?.connection?.selected).toBe('My Provider');
 });
 
@@ -110,4 +112,27 @@ test('extras carry the service identity and scheduling; bad identity is a progra
   expect(toSnapshotV2(find('host omlx-decode'), EXTRAS).nextPollMs).toBe(500);
   expect(toSnapshotV2(find('host omlx-idle'), EXTRAS).nextPollMs).toBe(2_000);
   expect(() => toSnapshotV2(find('host omlx-idle'), { service: { version: '2.0.0', instance: 'not-hex' } })).toThrow(TypeError);
+});
+
+test('the 2b bridge: a 1.x adapter reading becomes adapter-reading parts, with the same withholding and no English', () => {
+  const service = states.filter(state => state.service);
+  expect(service.length).toBeGreaterThan(40);
+  for (const { name, body } of service) {
+    const parts = v1Parts(body), whole = toSnapshotV2({ ...body, system: null }, EXTRAS);
+    expect([parts.status, parts.runtime], name).toEqual([{ state: whole.status.state, reason: whole.status.reason }, whole.runtime]);
+    // The bridge derives 1.6's coverage tier itself, so it declares what runtime-client's reading declared.
+    if (body.connection?.coverage) expect(parts.capabilities, name).toEqual(whole.capabilities);
+    if (body.message) expect(JSON.stringify(parts), name).not.toContain(body.message);
+    expect(Object.keys(parts.compat).sort(), name).not.toContain('message');
+  }
+  const bionic = v1Parts(find('service lmstudio activity decode'));
+  expect(bionic.last).toEqual({ finishedAt: EPOCH - 42_000, startedAt: null, model: 'fixture-splash', basis: 'reported', promptTokens: 18_400,
+    cachedTokens: 11_260, outputTokens: 1092, ttftMs: 470, decodeTps: 38.6, overlapped: true });
+  expect(v1Parts(find('service omlx decode')).compat).toMatchObject({ statsState: expect.any(String), traceEpoch: expect.any(Number) });
+});
+
+test('the 1.x host sampler reading as HostV2 until svc-host replaces it', () => {
+  const host = hostFromV1(find('host omlx-idle').system);
+  expect(host).toMatchObject({ platform: 'macOS', memTotalBytes: expect.any(Number), mac: { swapUsedBytes: expect.any(Number) } });
+  expect([hostFromV1(null), hostFromV1(undefined), hostFromV1({ ...find('host omlx-idle').system!, sampledAt: -1 })]).toEqual([null, null, null]);
 });

@@ -48,7 +48,7 @@ export const fullSnapshot = () => ({
     seq: 9_999_999_936 + index, finishedAt: AT - 64 + index, startedAt: AT - 999_999, model: model(index), basis: 'last-observed',
     promptTokens: 9_999_999, cachedTokens: 9_999_999, outputTokens: 9_999_999, ttftMs: 123_456.789, prefillMs: 123_456.789,
     decodeTps: 12_345.678_9, prefillTps: 12_345.678_9, overlapped: true, aggregateOf: 999,
-    verdict: { attr: 'withheld', reason: 'too-many-projects', at: AT },
+    verdict: { attr: 'withheld', reason: 'joined-mid-turn', at: AT },
     host: { pressureMax: 4, swapDeltaBytes: -999_999_999_999, gpuAllocMaxBytes: 999_999_999_999, thermalMaxLevel: 4, energyJ: 123_456.789, powerCoverage: 0.987_654_321 },
   })) },
   marksHead: 9_999_999_999,

@@ -1,13 +1,14 @@
 // Test support only: every 1.x reading the 1.6 panel can show, from the golden host and from the real service code.
 import { readFileSync } from 'node:fs';
-import type { RuntimeConnectionConfig, RuntimeConnections } from '../../../service/config.ts';
 import { LMStudioClient } from '../../../service/lmstudio.ts';
 import type { LMStudioActivityView } from '../../../service/lmstudio-activity.ts';
-import { RuntimeClient } from '../../../service/runtime-client.ts';
+import { requestJSON } from '../../../service/http.ts';
+import { OmlxClient } from '../../../service/omlx-client.ts';
+import { SplashClient } from '../../../service/splash.ts';
 import { SystemSampler } from '../../../service/system.ts';
 import type { ConnectionInfo, Runtime } from '../../runtime.ts';
 import type { MacMemory, SystemSnapshot } from '../../system.ts';
-import { normalizeOmlxTelemetry, type TelemetrySnapshot } from '../../telemetry.ts';
+import { normalizeOmlxTelemetry, unavailableTelemetry, type TelemetrySnapshot } from '../../telemetry.ts';
 import corpus from '../../../tests/fixtures/omlx-monitoring.json';
 
 export type V1State = { name: string; body: TelemetrySnapshot & { system?: SystemSnapshot | null }; service: boolean };
@@ -53,35 +54,39 @@ const HOST_CASES: Array<[string, string, string?]> = [
 export const hostStates = (): V1State[] => HOST_CASES.flatMap(([name, query, provider]) =>
   hostPayloads(query, provider, 8).map((body, step) => ({ name: `host ${name} #${step}`, body, service: false })));
 
-// Real service code with synthetic runtimes: RuntimeClient, the adapters, SystemSampler and the oMLX normalizer.
+// Real 1.x adapter code with synthetic runtimes: the clients the 2b bridge still runs (oMLX, LM Studio, Splash) and the oMLX
+// normalizer. vllm-mlx, mlx-lm and the connection states are v2-native since Stage 2b, so no 1.x reading of theirs exists.
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 type Routes = Record<string, unknown>;
-const link = (id: string, runtime: Runtime | null, apiKey: string | null = null): RuntimeConnectionConfig => ({
-  id, label: `Local ${id}`, runtime, config: { baseURL: new URL('http://127.0.0.1:8000/'), apiKey, preferredModel: null,
-    issue: apiKey ? 'none' : 'missing_credential', source: 'opencode', configStatus: 'present', authStatus: 'present', error: null } });
-const read = async (config: RuntimeConnections | RuntimeConnectionConfig, routes: Routes | Array<Routes>, polls = 1) => {
+type Legacy = 'omlx' | 'splash' | 'lmstudio';
+const connectionOf = (id: string, runtime: Runtime, body: TelemetrySnapshot): ConnectionInfo => ({ selected: id, label: `Local ${id}`, runtime,
+  generation: '00000000-0000-4000-8000-000000000002', choices: [{ id, label: `Local ${id}`, runtime }],
+  diagnostic: body.available ? 'ready' : body.reason === 'authentication_failed' ? 'authentication' : 'offline',
+  coverage: runtime === 'splash' ? 'server' : runtime === 'omlx' || body.available && body.phase !== 'unknown' ? 'requests' : 'inventory' });
+const read = async (runtime: Legacy, routes: Routes | Array<Routes>, polls = 1, apiKey: string | null = null) => {
   let now = EPOCH, poll = 0;
-  const client = new RuntimeClient({ now: () => now, readConfig: async () => 'connections' in config ? config : { connections: [config], issue: 'none', error: null },
-    fetchImpl: async url => {
-      const table = Array.isArray(routes) ? routes[Math.min(poll, routes.length - 1)]! : routes, path = new URL(String(url)).pathname;
-      if (!(path in table)) return json({ error: 'Unexpected endpoint' }, 404);
-      const value = table[path];
-      if (value instanceof Error) throw value;
-      return typeof value === 'number' ? json({}, value) : json(value);
-    } });
+  const fetchImpl = async (url: RequestInfo | URL) => {
+    const table = Array.isArray(routes) ? routes[Math.min(poll, routes.length - 1)]! : routes, path = new URL(String(url)).pathname;
+    if (!(path in table)) return json({ error: 'Unexpected endpoint' }, 404);
+    const value = table[path];
+    if (value instanceof Error) throw value;
+    return typeof value === 'number' ? json({}, value) : json(value);
+  };
+  const base = new URL('http://127.0.0.1:8000/');
+  const reader = async (path: string) => (await requestJSON({ url: new URL(path, base), fetchImpl, allowLoadingHealth: path === '/health' })).body;
+  const client = runtime === 'omlx' ? new OmlxClient({ fetchImpl, now: () => now, readConfig: async () => ({ baseURL: base, apiKey, preferredModel: null,
+    issue: apiKey ? 'none' : 'missing_credential', source: 'opencode', configStatus: 'present', authStatus: 'present', error: null }) })
+    : runtime === 'splash' ? new SplashClient(reader, () => now) : new LMStudioClient(reader, () => now);
   const results: TelemetrySnapshot[] = [];
-  for (; poll < polls; poll += 1, now += 1_000) results.push(await client.snapshot());
+  for (; poll < polls; poll += 1, now += 1_000) {
+    const body = await client.snapshot().catch((error: Error) => unavailableTelemetry('runtime_unreachable', error.message, now));
+    results.push({ ...body, connection: connectionOf(runtime, runtime, body) });
+  }
   return results;
 };
 const splash = (overrides: Record<string, unknown> = {}) => ({ '/status': { ready: true, maximum_context_tokens: 262_144,
   instance: { model: 'example/Example-27B-Splash' }, requests: { submitted: 18, completed: 17, cancelled: 1, failed: 0 },
   metrics: { decode_tokens_per_second: 47.2 }, memory_actual: { current_bytes: 12_500_000_000, peak_bytes: 13_000_000_000 }, ...overrides } });
-const vllmRequest = (extra: Record<string, unknown> = {}) => ({ request_id: 'fixture-request', status: 'running', phase: 'generation',
-  prompt_tokens: 1000, completion_tokens: 100, tokens_per_second: 50, elapsed_s: 3, cached_tokens: 500, cache_hit_type: 'prefix', ...extra });
-const vllm = (status: Record<string, unknown>, health: Record<string, unknown> = { status: 'healthy', model_loaded: true,
-  model_name: 'example-model', engine_type: 'batched', model_type: 'llm' }) => ({ '/health': health, '/v1/status': { status: 'running',
-  model: 'example-model', num_running: 1, num_waiting: 0, requests: [vllmRequest()], total_requests_processed: 10, uptime_s: 100,
-  cache: { max_memory_mb: 2048, current_memory_mb: 1024.5, entry_count: 4 }, ...status } });
 const omlxCase = (name: string) => corpus.cases.find(item => item.name === name)! as { activity: unknown; stats?: unknown; contextWindows?: Record<string, number> };
 const omlx = (name: string): Routes => { const item = omlxCase(name); return {
   '/health': { status: 'healthy', engine_pool: { model_count: 1 } }, '/admin/api/activity': item.activity,
@@ -89,33 +94,20 @@ const omlx = (name: string): Routes => { const item = omlxCase(name); return {
 
 const runtimeStates = async (): Promise<Array<[string, TelemetrySnapshot]>> => {
   const states: Array<[string, TelemetrySnapshot[]]> = [
-    ['splash idle', await read(link('splash', 'splash'), splash())],
-    ['splash busy', await read(link('splash', 'splash'), splash({ requests: { submitted: 21, completed: 17, cancelled: 1, failed: 1 } }))],
-    ['splash loading', await read(link('splash', 'splash'), splash({ ready: false, requests: { completed: 10 }, instance: { model: '/models/example' } }))],
-    ['splash unsupported', await read(link('splash', 'splash'), { '/status': { status: 'ready' } })],
-    ['mlx-lm', await read(link('mlx', 'mlx-lm'), { '/health': { status: 'ok' }, '/v1/models': { object: 'list', data: [{ id: 'example/Example-4bit' }] } })],
-    ['mlx-lm no catalog', await read(link('mlx', 'mlx-lm'), { '/health': { status: 'ok' }, '/v1/models': 500 })],
-    ['mlx-lm down', await read(link('mlx', 'mlx-lm'), { '/health': { status: 'down' } })],
-    ['vllm decode', await read(link('vllm', 'vllm-mlx'), [vllm({}), vllm({ requests: [vllmRequest({ completion_tokens: 125 })] })], 2)],
-    ['vllm mllm prefill', await read(link('vllm', 'vllm-mlx'), [0.2, 0.4].map(progress => vllm({ requests: [vllmRequest({ phase: 'prefill', completion_tokens: 0, progress })] },
-      { status: 'healthy', model_loaded: true, model_name: 'example-model', engine_type: 'batched', model_type: 'mllm' })), 2)],
-    ['vllm queued', await read(link('vllm', 'vllm-mlx'), vllm({ num_running: 0, num_waiting: 2, requests: [] }))],
-    ['vllm concurrent', await read(link('vllm', 'vllm-mlx'), vllm({ num_running: 2, requests: [vllmRequest(), vllmRequest({ request_id: 'fixture-second' })] }))],
-    ['vllm not loaded', await read(link('vllm', 'vllm-mlx'), vllm({ status: 'not_loaded', residency: { state: 'loading' } }))],
-    ['vllm registry', await read(link('vllm', 'vllm-mlx'), vllm({ model_manager: { models: [{ id: '/models/example-a', loaded: true }, { id: 'example-b', loaded: false }] } }))],
-    ['lmstudio', await read(link('studio', 'lmstudio'), { '/api/v1/models': { models: [
+    ['splash idle', await read('splash', splash())],
+    ['splash busy', await read('splash', splash({ requests: { submitted: 21, completed: 17, cancelled: 1, failed: 1 } }))],
+    ['splash loading', await read('splash', splash({ ready: false, requests: { completed: 10 }, instance: { model: '/models/example' } }))],
+    ['splash unsupported', await read('splash', { '/status': { status: 'ready' } })],
+    ['lmstudio', await read('lmstudio', { '/api/v1/models': { models: [
       { type: 'llm', key: 'fixture/model', format: 'mlx', max_context_length: 32768, loaded_instances: [{ id: 'fixture/loaded', config: { context_length: 8192 } }] },
       { type: 'llm', key: 'fixture/other', format: 'gguf', max_context_length: 4096, loaded_instances: [] }] } })],
-    ['lmstudio legacy', await read(link('bionic', 'lmstudio'), { '/api/v1/models': { error: 'Unexpected endpoint or method.' }, '/api/v0/models': { object: 'list',
+    ['lmstudio legacy', await read('lmstudio', { '/api/v1/models': { error: 'Unexpected endpoint or method.' }, '/api/v0/models': { object: 'list',
       data: [{ id: 'fixture-splash', type: 'llm', state: 'loaded', compatibility_type: 'splash', max_context_length: 262144 }] } })],
-    ['omlx decode', await read(link('omlx', 'omlx'), omlx('decode with request-matched cache'))],
-    ['omlx prefill', await read(link('omlx', 'omlx'), omlx('prefill with request-matched cache'))],
-    ['omlx detected', await read(link('auto', null), omlx('resident idle'))],
-    ['omlx auth', await read(link('omlx', 'omlx', 'fixture-key'), { ...omlx('resident idle'), '/admin/api/login': 401 })],
-    ['omlx unreachable', await read(link('omlx', 'omlx'), { '/health': new TypeError('fetch failed') })],
-    ['custom unsupported', await read(link('custom', null), { '/health': 404, '/api/v1/models': 404, '/status': 404, '/v1/models': { data: [] } })],
-    ['nothing configured', await read({ connections: [], issue: 'missing_endpoint', error: 'Add a local provider.' }, {})],
-    ['invalid endpoint', await read({ ...link('bad', 'omlx'), config: { ...link('bad', 'omlx').config, baseURL: null, issue: 'invalid_endpoint', error: 'Invalid.' } }, {})],
+    ['omlx decode', await read('omlx', omlx('decode with request-matched cache'))],
+    ['omlx prefill', await read('omlx', omlx('prefill with request-matched cache'))],
+    ['omlx idle', await read('omlx', omlx('resident idle'))],
+    ['omlx auth', await read('omlx', { ...omlx('resident idle'), '/admin/api/login': 401 }, 1, 'fixture-key')],
+    ['omlx unreachable', await read('omlx', { '/health': new TypeError('fetch failed') })],
   ];
   return states.flatMap(([name, list]) => list.map((body, index): [string, TelemetrySnapshot] => [`${name} #${index}`, body]));
 };
