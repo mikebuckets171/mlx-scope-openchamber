@@ -349,6 +349,27 @@ test('Clear removes the ledger and baselines, and no later leader re-records a c
   expect(next.pendingRows).toBe(0);
 });
 
+test('a flush that raced past a Clear is undone: its chunk goes at the next flush and its rows never read back', async () => {
+  const { storage, time, ledger } = setup(), ring = new FakeRing();
+  await ledger.start();
+  for (let index = 0; index < 5; index++) ring.add(T0 + index * 1_000);
+  poll(ledger, ring);
+  await ledger.flush('hidden');
+  const [[key, raced]] = chunks(storage) as [[string, unknown]];
+  time.state.now += 60_000;
+  await new Ledger({ storage, now: time.now }).clear();
+  await storage.set(key, raced as never);   // the old write lands after the clear
+  const other = new Ledger({ storage, now: time.now });
+  expect(await other.read()).toEqual([]);
+  ring.add(time.state.now + 1_000);
+  poll(ledger, ring);
+  time.state.now += HIDE_FLUSH_GAP_MS;
+  await ledger.flush('hidden');
+  expect(storage.dump()[key]).toBeUndefined();
+  expect(ids(storage)).toEqual([`${INSTANCE}.6`]);
+  expect(ledger.accounting()!.totalBytes).toBe(storage.stats().fileBytes);
+});
+
 test('Pause recording: no new rows while paused (pending rows still flush), persisted in pref.v2', async () => {
   const { storage, time, ledger } = setup(), ring = new FakeRing();
   await ledger.start();

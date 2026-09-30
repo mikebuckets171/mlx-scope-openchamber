@@ -211,14 +211,15 @@ export class Ledger {
 
   /** All rows in [fromS, toS], oldest first; reads chunk by chunk. Rows past retention are left out. */
   async read(fromS = 0, toS = Infinity): Promise<LedgerRow[]> {
-    const running = this.stateValue !== 'stopped';
-    const retention = running ? this.retention : parsePref(await this.options.storage.get(KEYS.pref)).retentionDays;
-    const floorS = Math.max(fromS, toSeconds(this.options.now()) - retention * dayS);
+    const running = this.stateValue !== 'stopped', storage = this.options.storage;
+    const retention = running ? this.retention : parsePref(await storage.get(KEYS.pref)).retentionDays;
+    const clearedAt = running ? this.clearedAt : parseMeta(await storage.get(KEYS.meta))?.clearedAt ?? 0;
+    const floorS = Math.max(fromS, toSeconds(this.options.now()) - retention * dayS, Math.floor(clearedAt / 1000));
     const keys = running ? [...this.chunks.values()].filter(chunk => chunk.newestS >= floorS && chunk.oldestS <= toS).map(chunk => chunk.key)
-      : (await this.options.storage.keys()).filter(isChunkKey);
+      : (await storage.keys()).filter(isChunkKey);
     const rows = new Map<string, LedgerRow>();
     const take = (row: LedgerRow): void => { const time = rowTimeS(row); if (time >= floorS && time <= toS) rows.set(rowIdentity(row), row); };
-    for (const key of keys) for (const row of parseChunk(await this.options.storage.get(key))?.r ?? []) take(row);
+    for (const key of keys) for (const row of parseChunk(await storage.get(key))?.r ?? []) take(row);
     if (running) { for (const row of this.open?.rows ?? []) take(row); for (const { row } of this.pending) take(row); }
     return [...rows.values()].sort((a, b) => rowTimeS(a) - rowTimeS(b) || a[1] - b[1]);
   }
@@ -266,7 +267,10 @@ export class Ledger {
     // clearedAt first: whichever frame leads next never re-records a cleared reply from the service ring.
     await storage.set(KEYS.meta, meta as unknown as JsonValue);
     this.book.apply(KEYS.meta, undefined, meta);
-    for (const key of (await storage.keys()).filter(isLedgerKey)) { await storage.delete(key); this.book.apply(key, undefined, undefined); }
+    for (const key of (await storage.keys()).filter(isLedgerKey)) {
+      await storage.delete(key);
+      this.book.apply(key, undefined, undefined); this.chunks.delete(key);
+    }
     this.applyClear(now);
   }
   dispose(): void {
@@ -354,7 +358,9 @@ export class Ledger {
     this.clearedAt = clearedAt;
     const names = this.modelList;
     this.pending = this.pending.filter(entry => rowTimeS(entry.row) * 1000 >= clearedAt);
-    this.chunks.clear(); this.open = null; this.mutable.clear(); this.relabeled = false; this.stored = null; this.baselineAt = -Infinity;
+    // Chunks stay listed: the clearing frame deleted them (the next key sync drops them), and one a flush raced past the
+    // clear goes at the next eviction.
+    this.open = null; this.mutable.clear(); this.relabeled = false; this.stored = null; this.baselineAt = -Infinity;
     this.modelList = []; this.modelIndex.clear(); this.modelsDirty = false;
     // Rows recorded after the clear keep their model: re-number them against the fresh dictionary.
     for (const { row } of this.pending) {
@@ -423,6 +429,7 @@ export class Ledger {
       }
       // Labels that change while the set is in flight belong to the next flush.
       relabeled = this.relabeled; this.relabeled = false;
+      if (epoch !== this.epoch) return;
       await storage.set(key, value as unknown as JsonValue);
       relabeled = false;
       if (epoch !== this.epoch) return;
@@ -497,7 +504,7 @@ export class Ledger {
     const order = [...this.chunks.values()].filter(chunk => chunk.key !== this.open?.key)
       .sort((a, b) => a.newestS - b.newestS || (a.key < b.key ? -1 : 1));
     for (const chunk of order) {
-      if (chunk.newestS >= expiryS && this.book.fits(reserve, keys)) break;
+      if (chunk.newestS >= expiryS && chunk.newestS * 1000 >= this.clearedAt && this.book.fits(reserve, keys)) break;
       await this.options.storage.delete(chunk.key);
       this.book.apply(chunk.key, undefined, undefined);
       this.chunks.delete(chunk.key);
