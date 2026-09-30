@@ -1,4 +1,5 @@
 import type { Capabilities, CapabilityDescriptor } from '../../src/contract/capabilities.ts';
+import type { V1Compat } from '../../src/contract/convert-v1.ts';
 import type { CompletionV2 } from '../../src/contract/completion.ts';
 import type { Json } from '../../src/contract/guards.ts';
 import type { RuntimeKind } from '../../src/contract/runtime.ts';
@@ -8,8 +9,8 @@ import type { FetchImplementation } from '../http.ts';
 import type { Exec } from '../lib/argv.ts';
 import type { Confidence } from './registry.ts';
 
-// The v2 adapter contract (docs/2.0/INTERFACES.md §2). Scaffold only: nothing constructs these yet. svc-2b moves
-// DESCRIPTORS onto DescriptorV2 and bridges the 1.6 adapters; the ad-* tracks implement `create`.
+// The v2 adapter contract (docs/2.0/INTERFACES.md §3.1). service/core/registry.ts lists the descriptors, and the runtime
+// client drives them: detection, one adapter per connection slot, identity checks and re-detection.
 
 export type Tier = 'glance' | 'full';
 /** Plan §5.1 detection order; the hinted descriptor is tried first. mlx-lm is hint-only. */
@@ -36,6 +37,8 @@ export interface AdapterReadingV2 {
   /** Opaque, never on the wire: a change bumps `connection.generation` (LM Studio `/api/v0/models` state, a reload). */
   generationKey?: string;
   completions: CompletionDraft[];            // finished since the previous read, oldest first
+  /** Stage 2b bridge only (service/core/legacy.ts): what the 1.6 panel still reads. Never set by a v2 adapter. */
+  compat?: V1Compat;
 }
 
 export interface AdapterV2 {

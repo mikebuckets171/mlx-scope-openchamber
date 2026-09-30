@@ -339,3 +339,71 @@ test('the real spawner runs lms with only the minimal environment, the explicit 
     if (previous === undefined) delete process.env.OPENCHAMBER_SERVICE_TOKEN; else process.env.OPENCHAMBER_SERVICE_TOKEN = previous;
   }
 });
+
+const record = (content: string) => `${JSON.stringify({ timestamp: 1, data: { type: 'server.log', level: 'info', content } })}\n`;
+const DONE = [LINES.running, LINES.progress100, LINES.done, LINES.finished];
+
+test('the stream is healthy only after the "Streaming logs from LM Studio" banner or a parsed JSON record', async () => {
+  const { spawned, spawnStream } = recorder();
+  const stream = new LMStudioActivityStream({ home: fixtureHome().home, lmsPath: '/fake/lms', idleStopMs: 5_000, spawnStream });
+  stream.touch();
+  const child = spawned[0]!.child;
+  // lms failing to connect prints text, not records: that is not a stream.
+  child.stdout.write('Error: could not connect to LM Studio\n{not json\n[1,2]\n');
+  child.stderr.write('Error: ECONNREFUSED\n');
+  await tick();
+  expect(stream.view()).toBeNull();
+  child.stderr.write('Streaming logs from LM Studio\n');
+  await tick();
+  expect(stream.view()).toMatchObject({ activeRequests: 0, completedRequests: 0, lastRequest: null });
+  stream.stop();
+  // A JSON record alone is enough (a build that prints no banner).
+  stream.touch();
+  const second = spawned[1]!.child;
+  second.stdout.write(record(LINES.running));
+  await tick();
+  expect(stream.view()?.activeRequests).toBe(1);
+  stream.stop();
+});
+
+test('an lms that only ever prints errors counts as a silent exit', async () => {
+  const { spawned, spawnStream } = recorder();
+  const stream = new LMStudioActivityStream({ home: fixtureHome().home, lmsPath: '/fake/lms', idleStopMs: 5_000, restartBaseMs: 2, spawnStream });
+  stream.touch();
+  for (let i = 0; i < 8; i++) {
+    const child = spawned.at(-1)!.child;
+    if (child.exitCode === null) { child.stderr.write('Error: could not connect\n'); child.stdout.write('not a record\n'); await tick(); child.exitCode = 1; child.emit('exit', 1, null); }
+    stream.touch();
+    await new Promise(resolve => setTimeout(resolve, 15));
+  }
+  expect(spawned).toHaveLength(5);
+  stream.stop();
+});
+
+test('counts and averages start again when the stream restarts or the home server changes connection', async () => {
+  let now = 1_000_000;
+  const { home, studio } = fixtureHome();
+  const { spawned, spawnStream } = recorder();
+  const stream = new LMStudioActivityStream({ home, lmsPath: '/fake/lms', idleStopMs: 60_000, restartBaseMs: 5, now: () => now, spawnStream });
+  const port = stream.forPort(1234);
+  port.touch();
+  for (const line of DONE) spawned[0]!.child.stdout.write(record(line));
+  await tick();
+  expect(port.view()).toMatchObject({ completedRequests: 1, lastRequest: { outputTokens: 1092 }, averageDecodeTPS: 92.9 });
+  spawned[0]!.child.exitCode = 1; spawned[0]!.child.emit('exit', 1, null);
+  port.touch();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  expect(spawned).toHaveLength(2);
+  spawned[1]!.child.stderr.write('Streaming logs from LM Studio\n');
+  await tick();
+  expect(port.view()).toMatchObject({ completedRequests: 0, lastRequest: null, averageDecodeTPS: null, cacheEfficiencyPercent: null });
+  for (const line of DONE) spawned[1]!.child.stdout.write(record(line));
+  await tick();
+  expect(port.view()?.completedRequests).toBe(1);
+  // The home server moves to another REST port: the old connection loses the stream, the new one starts from zero.
+  writeFileSync(path.join(studio, '.internal', 'http-server-config.json'), JSON.stringify({ port: 1240 }));
+  now += 10_001;
+  expect(port.view()).toBeNull();
+  expect(stream.forPort(1240).view()).toMatchObject({ completedRequests: 0, lastRequest: null });
+  stream.stop();
+});

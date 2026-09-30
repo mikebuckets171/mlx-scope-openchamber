@@ -32,7 +32,7 @@ test('verdicts: only for assigned seqs, the first stands, an armed capture repla
   const verdicts = new Verdicts();
   verdicts.record([{ seq: 3, attr: 'inferred', reason: null }, { seq: 4, attr: 'withheld', reason: 'overlap' }], NOW, 3);
   expect([verdicts.get(3), verdicts.get(4)]).toEqual([{ attr: 'inferred', at: NOW }, undefined]);
-  verdicts.record([{ seq: 3, attr: 'withheld', reason: 'several-chats' }], NOW + 1, 4);
+  verdicts.record([{ seq: 3, attr: 'withheld', reason: 'overlap' }], NOW + 1, 4);
   expect(verdicts.get(3)).toEqual({ attr: 'inferred', at: NOW });
   verdicts.record([{ seq: 3, attr: 'armed', reason: null }, { seq: 4, attr: 'withheld', reason: 'overlap' }], NOW + 2, 4);
   expect([verdicts.get(3), verdicts.get(4)]).toEqual([{ attr: 'armed', at: NOW + 2 }, { attr: 'withheld', reason: 'overlap', at: NOW + 2 }]);

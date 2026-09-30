@@ -1,11 +1,13 @@
+import type { ConnectionInfo } from '../runtime.ts';
 import type { SystemSnapshot } from '../system.ts';
 import type { TelemetryPhase, TelemetrySnapshot } from '../telemetry.ts';
 import type { AlertLogEntryV2, AlertV2 } from './alerts.ts';
 import { capabilitiesOf, type Basis, type CapabilityDescriptor, type CapabilityKey } from './capabilities.ts';
-import { CONNECTION_ID, type Json } from './guards.ts';
+import { isConnectionId, type Json } from './guards.ts';
 import type { StatusReason, StatusState } from './reasons.ts';
 import { parseSnapshotV2, requiredCapabilities, type CompatV1, type ConnectionV2, type LeaseV2, type Phase, type SnapshotV2 } from './snapshot.ts';
 import { gbToBytes, percentToFraction, secondsToMs } from './units.ts';
+import { parseHostV2 } from './host.ts';
 import { CONTRACT_VERSION } from './version.ts';
 
 /**
@@ -67,10 +69,15 @@ const status = (v1: V1Snapshot): { state: StatusState; reason: StatusReason | nu
   const reason = v1.reason === 'runtime_unreachable' || v1.reason === 'authentication_failed' || v1.reason === 'unsupported_contract' ? v1.reason : null;
   return { state: 'failing', reason };
 };
-/** The 1.6 reason `status` stands for; `compat.reason` carries any other. */
+/**
+ * The 1.6 reason `status` stands for; `compat.reason` carries any other. States 1.6 never had read as its nearest reason:
+ * a runtime nothing identifies is "unsupported", and detecting or recovering is "not answering yet".
+ */
 export const v1Reason = (state: StatusState, reason: StatusReason | null): V1Snapshot['reason'] =>
   state === 'ready' || state === 'degraded' ? null : reason === 'configuration_missing' ? 'runtime_unreachable'
-    : reason === 'runtime_unreachable' || reason === 'authentication_failed' || reason === 'unsupported_contract' ? reason : null;
+    : reason === 'runtime_unreachable' || reason === 'authentication_failed' || reason === 'unsupported_contract' ? reason
+      : reason === 'unsupported_runtime' ? 'unsupported_contract'
+        : state === 'detecting' || state === 'recovering' ? 'runtime_unreachable' : null;
 
 /** Mirrors panel/context.ts: reported prompt + output against the model limit, only where 1.6 shows it. */
 const contextUsed = (v1: V1Snapshot): number | null => {
@@ -153,8 +160,8 @@ const draft = (v1: V1Snapshot, extras: V1Extras): { body: Json; uncovered: Capab
   const body: Json = {
     contractVersion: CONTRACT_VERSION, serverNow: extras.serverNow ?? v1.sampledAt, service: extras.service,
     connection: {
-      // The grammar is narrower than 1.x ids; 'auto' stands for "nothing selected", as in the G2 mock.
-      id: link?.selected && CONNECTION_ID.test(link.selected) ? link.selected : 'auto', label: link?.label ?? 'Automatic',
+      // 'auto' stands for "nothing selected", as in the G2 mock.
+      id: isConnectionId(link?.selected) ? link.selected : 'auto', label: link?.label ?? 'Automatic',
       runtime: connectionRuntime, version: extras.runtimeVersion, engine: link?.engine ?? null, host: link?.host ?? null,
       generation: extras.generation ?? (link?.generation ? 1 : 0), choices: link?.choices ?? [],
       detection: extras.detection ?? { basis: 'probe', confidence: 'low' },
@@ -191,6 +198,39 @@ export const toSnapshotV2 = (v1: V1Snapshot, extras: V1Extras): SnapshotV2 => {
   const snapshot = parseSnapshotV2(draft(v1, extras).body);
   if (!snapshot) throw new TypeError('The 1.x reading could not form a v2 snapshot; check extras.service.');
   return snapshot;
+};
+
+/** What only the 1.6 panel reads from a 1.x adapter reading; the service adds the English-free connection part. */
+export type V1Compat = Omit<CompatV1, 'message' | 'reason' | 'connection'>;
+export interface V1Parts {
+  status: { state: StatusState; reason: StatusReason | null };
+  capabilities: SnapshotV2['capabilities'];
+  runtime: SnapshotV2['runtime'];
+  /** The runtime's last finished request, without the seq, verdict and co-factors the service adds. */
+  last: Omit<SnapshotV2['completions']['items'][number], 'seq' | 'verdict' | 'host'> | null;
+  compat: V1Compat;
+}
+/**
+ * Stage 2b bridge for the 1.6 adapters that have no v2 adapter yet: one 1.x runtime reading (no host, no connection) as
+ * the parts of a v2 adapter reading, through the same draft and parser as `toSnapshotV2`, so nothing is withheld
+ * differently. The English `message` is dropped: the service sends reason codes only.
+ */
+export const v1Parts = (v1: TelemetrySnapshot): V1Parts => {
+  // The adapter table keys on 1.6's coverage tier, which runtime-client derived from the reading the same way.
+  const runtime = v1.runtime, coverage = runtime === 'omlx' ? 'requests' : runtime === 'splash' ? 'server'
+    : runtime === 'lmstudio' && v1.available && v1.phase !== 'unknown' ? 'requests' : 'inventory';
+  const connection: ConnectionInfo = { selected: null, label: null, runtime, generation: null, choices: [], diagnostic: 'ready', coverage };
+  const parsed = toSnapshotV2({ ...v1, connection, system: null }, { service: { version: 'bridge', instance: '00000000' } });
+  const { message: _message, reason: _reason, connection: _connection, ...compat } = parsed.compat!;
+  const item = parsed.completions.items.at(-1);
+  return { status: { state: parsed.status.state, reason: parsed.status.reason }, capabilities: parsed.capabilities, runtime: parsed.runtime,
+    last: item ? (({ seq: _seq, verdict: _verdict, host: _host, ...rest }) => rest)(item) : null, compat };
+};
+
+/** The 1.x host sampler's reading as `HostV2`, until svc-host's sampler replaces it (null without a valid reading). */
+export const hostFromV1 = (system: SystemSnapshot | null | undefined): SnapshotV2['host'] => {
+  const body = host(system);
+  return body ? parseHostV2(body) : null;
 };
 
 export const __test__ = { draft };

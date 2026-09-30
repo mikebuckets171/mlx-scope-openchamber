@@ -1,4 +1,4 @@
-import { CONNECTION_ID, HEX8 } from './guards.ts';
+import { HEX8, isConnectionId } from './guards.ts';
 import { withholdReason, type WithholdReason } from './reasons.ts';
 import { runtimeKind, type RuntimeKind } from './runtime.ts';
 import { SURFACES, type Surface } from './snapshot.ts';
@@ -37,7 +37,8 @@ const match = <T>(params: Params, name: string, parse: (value: string) => T | nu
 };
 const integer = (value: string): number | null => /^\d{1,15}$/.test(value) ? Number(value) : null;
 const selection = (params: Params): Selection => {
-  const provider = match(params, 'provider', value => CONNECTION_ID.test(value) ? value : null);
+  // 1.6 semantics: an empty provider is Automatic, like an absent one.
+  const provider = match(params, 'provider', value => value === '' || isConnectionId(value) ? value : null);
   const runtime = match(params, 'runtime', runtimeKind);
   return { ...(provider ? { provider } : {}), ...(runtime ? { runtime } : {}) };
 };

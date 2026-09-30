@@ -9,3 +9,5 @@ export const RETIRED_STATUS = 410;
 export const RETIRED_BODY = { error: 'contract_mismatch', contractVersion: CONTRACT_VERSION } as const;
 export const NOT_FOUND_BODY = { error: 'not_found' } as const;
 export const badQuery = (param: string) => ({ error: 'bad_query', param }) as const;
+/** `GET /health` (contract §2). The host only waits for a 200; frames and tools read the service version here. */
+export const healthBody = (version: string) => ({ ok: true, version }) as const;

@@ -1,6 +1,7 @@
 import { v1Reason } from '../../src/contract/convert-v1.ts';
 import type { RuntimeKind } from '../../src/contract/runtime.ts';
 import type { CompatV1, RequestV2, SnapshotV2, V1_REASONS } from '../../src/contract/snapshot.ts';
+import { statusMessage } from './reasons.ts';
 
 /**
  * What the presenters read: one validated `/v2/snapshot` body flattened to the values the panel shows, or a
@@ -96,7 +97,9 @@ const host = (body: SnapshotV2): HostReading | null => {
 export const fromSnapshot = (body: SnapshotV2): Reading => {
   const compat = body.compat, available = AVAILABLE.has(body.status.state), runtime = body.runtime;
   const reading: Reading = {
-    ...frameReading(compat?.reason ?? v1Reason(body.status.state, body.status.reason) ?? 'unparseable_snapshot', compat?.message ?? null,
+    // Since 2b the service sends codes only; the 1.6 line comes from the code unless a 1.x fixture still carries its own.
+    ...frameReading(compat?.reason ?? v1Reason(body.status.state, body.status.reason) ?? 'unparseable_snapshot', compat?.message ?? (body.status.reason
+      ? statusMessage(body.status.reason, body.status.params, body.connection.runtime, { model: compat?.modelID ?? runtime.request?.model }) : null),
       runtime.sampledAt ?? body.serverNow),
     body, link: link(body), host: host(body),
     catalog: runtime.catalog.map(entry => ({ name: entry.name, loaded: entry.loaded, format: entry.format, contextWindowTokens: entry.contextWindowTokens })),

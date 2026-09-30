@@ -7,7 +7,8 @@ type Hint = (id: string, name: string) => boolean;
  */
 export const HINTS: ReadonlyArray<readonly [Runtime, Hint]> = [
   ['lmstudio', (id, name) => /bionic|lm[\s_-]*studio/.test(`${id} ${name}`.toLowerCase())],
-  ['splash', (id, name) => id.trim().toLowerCase() === 'splash' || /splash/i.test(name)],
+  // splish is the owner's Splash fork (plan §4.1): its provider id or name selects Splash.
+  ['splash', (id, name) => id.trim().toLowerCase() === 'splash' || /splash/i.test(name) || /splish/i.test(`${id} ${name}`)],
   ['vllm-mlx', (id, name) => /vllm[\s_-]*mlx/.test(`${id} ${name}`.toLowerCase())],
   ['omlx', (id, name) => /omlx/.test(`${id} ${name}`.toLowerCase())],
   ['mlx-lm', (id, name) => /mlx[\s_-]*lm/.test(`${id} ${name}`.toLowerCase())],

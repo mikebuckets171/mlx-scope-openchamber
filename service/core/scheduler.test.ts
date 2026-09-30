@@ -90,6 +90,36 @@ test('at most 8 slots: the oldest idle slot is evicted, and a table of in-flight
   expect(scheduler.claim('k2', 'f', () => ({ label: 'unused' }))!.context.label).toBe('k2');
 });
 
+test('a cached reading that does not fit the request is refreshed after the floor, never inside a backoff', async () => {
+  const { time, scheduler, collect, s } = setup();
+  const slot = scheduler.claim('a', 'f', () => ({ label: 'a' }))!;
+  const detail = (value: Reading) => value.n % 2 === 0;           // stands for "this reading carries the Server tab's detail"
+  await scheduler.read(slot, 2_000, collect, outcome);
+  time.state.now += FLOOR_MS - 1; await scheduler.read(slot, 2_000, collect, outcome, detail);
+  expect(s.collections).toBe(1);
+  time.state.now += 1; expect((await scheduler.read(slot, 2_000, collect, outcome, detail)).n).toBe(2);
+  time.state.now += 1_000; await scheduler.read(slot, 2_000, collect, outcome, detail);
+  expect(s.collections).toBe(2);
+  s.fail(true); time.state.now += 2_000; await scheduler.read(slot, 2_000, collect, outcome);
+  time.state.now += FLOOR_MS; await scheduler.read(slot, 2_000, collect, outcome, detail);
+  expect(s.collections).toBe(3);
+});
+
+test('the slot machine flags re-detection for the next collection, and a bump renews the generation', async () => {
+  const { time, scheduler } = setup();
+  const slot = scheduler.claim('a', 'f', () => ({ label: 'a' }))!;
+  const unsupported = (): Outcome => ({ event: { kind: 'degraded', unsupported: true }, active: false });
+  for (const expected of [false, false, true]) {
+    await scheduler.read(slot, 450, async () => ({ ok: true, n: 0 }), unsupported);
+    expect(slot.redetect).toBe(expected);
+    time.state.now += 450;
+  }
+  const { generation, marker } = slot;
+  scheduler.bump(slot);
+  expect([slot.generation > generation, slot.marker !== marker]).toEqual([true, true]);
+  expect(scheduler.claim('b', 'f', () => ({ label: 'b' }))!.generation).toBeGreaterThan(slot.generation);
+});
+
 const poll = (input: Partial<PollInput>) => nextPollMs({ active: false, idleMs: 0, failures: 0, hostLive: true, yielded: false, ...input });
 test('frames poll per plan §4.3: 500 ms / 2 s for panel and page, 1 s / 3 s / 10 s for status', () => {
   expect([poll({ active: true }), poll({}), poll({ surface: 'page', active: true }), poll({ surface: 'panel', idleMs: DORMANT_AFTER_MS })]).toEqual([500, 2_000, 500, 2_000]);

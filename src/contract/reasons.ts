@@ -18,10 +18,12 @@ export const FRAME_REASONS = [
 ] as const;
 export type FrameReason = typeof FRAME_REASONS[number];
 
-/** Why an item stays "Server-wide" (plan §5.5). One reason per item. */
+/**
+ * Why an item stays "Server-wide" (plan §5.5). One reason per item. The S2 decision dropped the `sessions` capability, so
+ * the project and other-chat reasons (projects-loading/-error, too-many-projects, several-chats, subagent-running) are gone.
+ */
 export const WITHHOLD_REASONS = [
-  'projects-loading', 'projects-error', 'too-many-projects', 'several-chats', 'subagent-running', 'other-provider',
-  'model-differs', 'model-unknown', 'cannot-count', 'overlap', 'outside-turn', 'joined-mid-turn', 'not-observed', 'auto-off',
+  'other-provider', 'model-differs', 'model-unknown', 'cannot-count', 'overlap', 'outside-turn', 'joined-mid-turn', 'not-observed', 'auto-off',
 ] as const;
 export type WithholdReason = typeof WITHHOLD_REASONS[number];
 
@@ -34,6 +36,11 @@ export type AlertId = typeof ALERT_IDS[number];
 
 export type ReasonParams = Record<string, string | number | boolean>;
 
+/** Why a connection cannot be read at all (`configuration_missing`): the 1.6 configuration issues, plus a removed selection. */
+export const CONFIG_ISSUES = ['missing_endpoint', 'malformed_config', 'unreadable_config', 'read_failed', 'invalid_endpoint',
+  'unsupported_config', 'removed'] as const;
+export type ConfigIssue = typeof CONFIG_ISSUES[number];
+
 export const statusState = oneOf(STATUS_STATES);
 export const statusReason = oneOf(STATUS_REASONS);
 export const frameReason = oneOf(FRAME_REASONS);
@@ -45,16 +52,20 @@ const PARAM_KINDS = {
   port: (value: unknown) => { const n = count(value); return n !== null && n >= 1 && n <= 65_535 ? n : null; },
   at, ms: nonneg, bytes: signedInt, boolean: bool, runtime: runtimeKind, model: (value: unknown) => modelLabel(value),
   pressureLevel: oneOf([1, 2, 4] as const), thermalLevel: oneOf([0, 1, 2, 3, 4] as const),
+  issue: oneOf(CONFIG_ISSUES), cause: oneOf(['metal', 'memory'] as const),
 } satisfies Record<string, (value: unknown) => string | number | boolean | null>;
 type ParamKind = keyof typeof PARAM_KINDS;
 type Allowlist = Readonly<Record<string, ParamKind>>;
 
 const NONE: Allowlist = {};
+// `deferred`: the 8 connection slots are all mid-read, so this one waits (1.6 "Earlier connection reads are finishing").
+// `keySaved`: whether a key was sent, which decides between "needs an API key" and "rejected the saved key".
 export const STATUS_PARAMS: Readonly<Record<StatusReason, Allowlist>> = {
-  runtime_unreachable: { port: 'port', sinceAt: 'at' }, authentication_failed: NONE, configuration_missing: NONE,
-  unsupported_runtime: NONE, unsupported_contract: NONE, detecting: { port: 'port' }, redetecting: { port: 'port' },
-  runtime_changed: { detected: 'runtime', port: 'port' }, loading: NONE, recovering: { retryInMs: 'ms', crashTrace: 'boolean' },
-  status_stale: NONE, not_admitting: NONE, admin_unauthorized: NONE, lms_unavailable: NONE, metrics_required: NONE, sleeping: NONE,
+  runtime_unreachable: { port: 'port', sinceAt: 'at', deferred: 'boolean' }, authentication_failed: { port: 'port', keySaved: 'boolean' },
+  configuration_missing: { issue: 'issue' }, unsupported_runtime: { port: 'port' }, unsupported_contract: { port: 'port' },
+  detecting: { port: 'port' }, redetecting: { port: 'port' }, runtime_changed: { detected: 'runtime', port: 'port' }, loading: NONE,
+  recovering: { retryInMs: 'ms', crashTrace: 'boolean' }, status_stale: { staleSinceAt: 'at' }, not_admitting: { cause: 'cause' },
+  admin_unauthorized: NONE, lms_unavailable: NONE, metrics_required: NONE, sleeping: NONE,
 };
 export const ALERT_PARAMS: Readonly<Record<AlertId, Allowlist>> = {
   'runtime-lost': { runtime: 'runtime' }, 'model-unloaded': { model: 'model' },

@@ -109,7 +109,8 @@ try {
     assert(!service.closed, `Bundled service exited before readiness:\n${service.log}`);
     try {
       const response = await get('/health');
-      healthy = response.status === 200 && (await response.json()).status === 'healthy';
+      const body = response.status === 200 ? await response.json() : null;
+      healthy = body?.ok === true && typeof body.version === 'string';
       if (healthy) break;
     } catch { /* The child may still be binding its listener. */ }
     await delay(50);
@@ -122,7 +123,7 @@ try {
   assert.equal(retired.status, 410);
   assert.deepEqual(await retired.json(), { error: 'contract_mismatch', contractVersion: 2 });
   assert.equal((await get('/v2/unknown')).status, 404);
-  const bad = await get('/v2/snapshot?provider=not%20an%20id');
+  const bad = await get('/v2/snapshot?provider=not%0Aan%20id');
   assert.equal(bad.status, 400);
   assert.deepEqual(await bad.json(), { error: 'bad_query', param: 'provider' });
   assert.equal((await get('/v2/trend')).status, 501);
@@ -130,12 +131,14 @@ try {
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   const snapshot = assertContract(await response.json());
-  assert.deepEqual(snapshot.status, { state: 'failing', reason: 'runtime_unreachable', params: {} });
+  assert.equal(snapshot.status.state, 'failing');
+  assert.equal(snapshot.status.reason, 'runtime_unreachable');
+  assert(Number.isInteger(snapshot.status.params.port), 'An unreachable runtime names its port.');
   assert.equal(snapshot.connection?.id, 'omlx', 'JSONC must select the configured provider.');
   assert.equal(snapshot.connection?.runtime, 'omlx');
   assert.equal(snapshot.compat?.connection?.diagnostic, 'offline');
-  assert.equal(typeof snapshot.compat?.message, 'string');
-  assert(snapshot.compat.message.trim(), 'An unavailable connection needs an explanation.');
+  // The service sends reason codes only; the panel words them (panel/present/reasons.ts).
+  assert.equal(snapshot.compat?.message, null);
   assertHostReadings(snapshot);
   const leader = assertContract(await (await get('/v2/snapshot?frame=0badc0de&surface=panel')).json());
   assert.deepEqual(leader.lease, { leader: true, epoch: 1, ttlMs: 12_000, leaderSurface: 'panel' });

@@ -168,6 +168,11 @@ export class LMStudioActivityTracker {
 
   /** Stream restarts can drop events; never keep a request that can no longer be observed. */
   resetActive(): void { this.active.clear(); }
+  /** A new stream or another connection: counts and averages from before may have missed lines, so they start again. */
+  reset(): void {
+    this.active.clear(); this.recentModel = null; this.last = null;
+    this.completed = 0; this.outputTokens = 0; this.decodeSeconds = 0; this.promptTokens = 0; this.cachedTokens = 0;
+  }
 
   view(): LMStudioActivityView {
     const at = this.now();
@@ -265,6 +270,8 @@ export const defaultSpawner: Spawner = (file, args, env) => spawn(file, args, {
 });
 
 const SILENT_EXIT_LIMIT = 5;
+/** lms log stream's first line (to stderr); stdout is pure NDJSON after it. */
+const BANNER = /Streaming logs from LM Studio/;
 
 /**
  * Runs `lms log stream -s server --json --port <port>` only while MLX Scope is being watched and the LM Studio server
@@ -288,6 +295,7 @@ export class LMStudioActivityStream {
   private readonly spawnStream: Spawner;
   private readonly idleStopMs: number;
   private readonly restartBaseMs: number;
+  private readonly now: () => number;
 
   constructor(options: StreamOptions = {}) {
     const home = options.home ?? homedir();
@@ -296,7 +304,8 @@ export class LMStudioActivityStream {
     this.spawnStream = options.spawnStream ?? defaultSpawner;
     this.idleStopMs = options.idleStopMs ?? 60_000;
     this.restartBaseMs = options.restartBaseMs ?? 1000;
-    this.tracker = new LMStudioActivityTracker(options.now);
+    this.now = options.now ?? Date.now;
+    this.tracker = new LMStudioActivityTracker(this.now);
   }
 
   get available(): boolean { return this.lms !== null; }
@@ -307,8 +316,13 @@ export class LMStudioActivityStream {
   }
 
   private servesPort(port: number | null): boolean {
-    const now = Date.now();
-    if (!this.restPort || now - this.restPort.at > 10_000) this.restPort = { value: filePort(restConfigPath(this.lmstudioHome)), at: now };
+    const now = this.now();
+    if (!this.restPort || now - this.restPort.at > 10_000) {
+      const value = filePort(restConfigPath(this.lmstudioHome));
+      // The home server moved to another port: the stream now belongs to another connection.
+      if (this.restPort && value !== this.restPort.value) this.tracker.reset();
+      this.restPort = { value, at: now };
+    }
     return port !== null && this.restPort.value !== null && port === this.restPort.value;
   }
 
@@ -347,36 +361,42 @@ export class LMStudioActivityStream {
     const port = filePort(infoPath);
     if (port === null) return;
     let child: StreamProcess;
-    let output = false;
+    let connected = false;
     try {
       child = this.spawnStream(lms, ['log', 'stream', '-s', 'server', '--json', '--port', String(port)], {
         LANG: 'C', LC_ALL: 'C', HOME: homedir(), PATH: '/usr/bin:/bin', LMS_API_SERVER_INFO_PATH: infoPath,
       });
     } catch { this.readsAtEnd = this.reads; this.scheduleRestart(); return; }
     this.child = child;
+    this.tracker.reset();
+    // Healthy only once lms says it is streaming (its banner, normally on stderr) or a JSON record arrives: an lms that
+    // prints only an error never counts as connected, and its exit counts as silent.
+    const ready = () => { if (this.child !== child || this.healthy) return; connected = true; this.healthy = true; this.failures = 0; this.silentExits = 0; };
     const lines = new BoundedLines(line => {
       if (this.child !== child) return;
-      output = true;
-      if (!this.healthy) { this.healthy = true; this.failures = 0; this.silentExits = 0; }
+      if (BANNER.test(line)) { ready(); return; }
       if (!line.startsWith('{')) return;
       let record: unknown;
       try { record = JSON.parse(line); } catch { return; }
-      const data = record && typeof record === 'object' ? (record as { data?: unknown }).data : null;
+      if (!record || typeof record !== 'object' || Array.isArray(record)) return;
+      ready();
+      const data = (record as { data?: unknown }).data;
       const content = data && typeof data === 'object' ? (data as { content?: unknown }).content : null;
       if (typeof content !== 'string') return;
       const event = parseLMStudioServerLine(content);
       if (event) this.tracker.apply(event);
     });
+    const errors = new BoundedLines(line => { if (BANNER.test(line)) ready(); });
     child.stdout.on('data', (chunk: Buffer) => lines.push(chunk));
-    child.stderr.resume();
+    child.stderr.on('data', (chunk: Buffer) => errors.push(chunk));
     const ended = () => {
       if (this.child !== child) return;
       this.child = null;
       this.healthy = false;
       this.tracker.resetActive();
-      lines.reset();
+      lines.reset(); errors.reset();
       this.readsAtEnd = this.reads;
-      if (!output) this.silentExits += 1;
+      if (!connected) this.silentExits += 1;
       // lms that exits without output keeps failing to connect; stop retrying until Scope is reopened.
       if (this.idleTimer && this.silentExits < SILENT_EXIT_LIMIT) this.scheduleRestart();
     };
