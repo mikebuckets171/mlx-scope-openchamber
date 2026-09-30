@@ -122,7 +122,7 @@ export interface LmstudioSample {
   inventory: LmstudioInventory;
   generationKey: string | null;
   ps: ResidencyV2[] | null;                  // lms ps rows (maybe cached); null when unknown
-  engines: EngineRows | null;                // lms runtime ls, only when the Server tab asked
+  engines: EngineRows | null;                // lms runtime ls rows the Server tab asked for (maybe cached)
   activity: ActivityView | null;
   lmsBlocked: boolean;                       // lms would serve this connection but the greeting is older than 10 s
 }
@@ -201,6 +201,7 @@ class LmstudioAdapter implements AdapterV2 {
   private generation = 0;
   private ports: { at: number; value: LmsPorts } | null = null;
   private lastPs: { port: number; rows: ResidencyV2[] } | null = null;
+  private lastEngines: { port: number; rows: EngineRows } | null = null;
 
   constructor(private readonly context: AdapterContextV2, private readonly lms: string | null, private readonly cli: LmsCli,
     private readonly activity: ConnectionActivity, private readonly serverInfoPath: string, private readonly readPorts: (file: string) => LmsPorts) {}
@@ -217,13 +218,16 @@ class LmstudioAdapter implements AdapterV2 {
     const greeted = this.context.monotonic() - this.greetedAt <= GREETING_WINDOW_MS, port = bound && greeted ? ports.internal : null;
     // A one-shot read (/scope) never starts or extends the 60 s stream; it still reads one a polling frame keeps running.
     if (port !== null && !oneShot) this.activity.touch(port);
-    // lms one-shots only on the full tier (never glance); a glance read reuses the last rows without spawning.
+    // lms one-shots only on the full tier (never glance); a glance read reuses the last rows without spawning. Any read
+    // keeps the last engines: inside the floor the scheduler may hand it to the Server tab, whose card must not flicker.
     const [ps, engines] = await Promise.all([
       port !== null && tier === 'full' ? this.bounded(this.cli.ps(port, this.generation), deadline) : Promise.resolve(null),
       port !== null && tier === 'full' && detail ? this.bounded(this.cli.runtimeLs(port), deadline) : Promise.resolve(null)]);
     if (port !== null && ps) this.lastPs = { port, rows: ps };
+    if (port !== null && engines) this.lastEngines = { port, rows: engines };
     return lmstudioReading({ at, connectionId: this.context.connection.id, inventory: inventory.inventory, generationKey: inventory.key,
-      ps: port !== null && this.lastPs?.port === port ? this.lastPs.rows : null, engines, activity: this.activity.view(), lmsBlocked: bound && !greeted });
+      ps: port !== null && this.lastPs?.port === port ? this.lastPs.rows : null,
+      engines: port !== null && this.lastEngines?.port === port ? this.lastEngines.rows : null, activity: this.activity.view(), lmsBlocked: bound && !greeted });
   }
 
   /** The greeting, or on builds without one the inventory route, still answers as LM Studio. */
