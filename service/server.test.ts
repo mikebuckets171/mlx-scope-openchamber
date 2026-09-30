@@ -139,7 +139,7 @@ test('a v2 snapshot is canonical, honest, English-free and carries the service i
     status: { state: 'failing', reason: 'runtime_unreachable', params: { port: 8000 } }, runtime: { sampledAt: NOW - 400 },
     completions: { instance: INSTANCE, cursor: 0, reset: false, items: [] }, marksHead: 0, alerts: [], alertLog: [],
     lease: { leader: false, epoch: 0, ttlMs: 12_000, leaderSurface: null }, nextPollMs: 2_000,
-    host: { platform: 'macOS', memTotalBytes: 48_000_000_000 }, capabilities: { 'host.cpu': { basis: 'reported' }, 'host.memory': { basis: 'reported' } },
+    host: { platform: 'macOS', memTotalBytes: 48_000_000_000 }, capabilities: { 'host.memory': { basis: 'reported' } },
     compat: { message: null },
   });
 });

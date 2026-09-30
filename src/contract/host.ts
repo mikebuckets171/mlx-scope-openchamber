@@ -1,3 +1,4 @@
+import type { CapabilityDescriptor } from './capabilities.ts';
 import { at, count, defined, fraction, label, nonneg, obj, oneOf, opt } from './guards.ts';
 
 export const PLATFORMS = ['macOS', 'Linux', 'Windows', 'Host'] as const;
@@ -73,4 +74,22 @@ export const parseHostV2 = (value: unknown): HostV2 | null => {
         sysW: sys ? sys : undefined, coverageFraction: coverage }) : null;
     }),
   });
+};
+
+/**
+ * The host capabilities a reading fills (P3: exactly the parts present, so a probe with no reading claims nothing). Only
+ * macmon power is an `estimate`; the rest the kernel, driver or `footprint` reported.
+ */
+export const hostCapabilities = (host: HostV2 | null | undefined): CapabilityDescriptor[] => {
+  if (!host) return [];
+  const { mac, gpu } = host, has = (...values: unknown[]): boolean => values.some(value => value !== undefined);
+  const present: Array<[CapabilityDescriptor['key'], boolean]> = [
+    ['host.cpu', has(host.cpuFraction)],
+    ['host.memory', has(host.memUsedBytes, host.memTotalBytes, mac?.wiredBytes, mac?.compressedBytes)],
+    ['host.swap', has(mac?.swapUsedBytes, mac?.swapTotalBytes)], ['host.pressure', has(mac?.pressureLevel)],
+    ['host.wiredLimit', has(mac?.wiredLimitBytes)], ['host.gpuBusy', has(gpu?.busyFraction)],
+    ['host.gpuMemory', has(gpu?.allocBytes, gpu?.inUseBytes)], ['host.thermal', has(host.thermal)],
+    ['host.footprint', has(host.runtimeProcess)], ['host.power', has(host.power)],
+  ];
+  return present.filter(([, on]) => on).map(([key]) => ({ key, basis: key === 'host.power' ? 'estimate' : 'reported' }));
 };

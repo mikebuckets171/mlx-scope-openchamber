@@ -12,18 +12,22 @@ import { parseArgs } from 'node:util';
 import { FAKE_RUNTIMES, createFakeRuntime, installFakeLMStudio } from './lib/fake-runtimes.mjs';
 
 // Development measurement only. The measured service reads loopback fake runtimes; no real runtime or lms is used.
-// Usage: node scripts/measure-overhead.mjs [--runtime all|omlx|lmstudio] [--cold s] [--active s] [--idle s] [--tail s]
-//   [--service file] [--out receipt.json] [--<budget> value …]. Legacy form: [seconds per phase] [service file].
-// Budgets come from docs/2.0/SPIKES.md S13; CPU is % of one core over the service and all of its descendants.
+// Usage: node scripts/measure-overhead.mjs [--runtime all|omlx|lmstudio] [--macmon on|off|only] [--cold s] [--active s]
+//   [--idle s] [--glance s] [--tail s] [--service file] [--out receipt.json] [--<budget> value …].
+//   Legacy form: [seconds per phase] [service file].
+// Budgets come from docs/2.0/SPIKES.md S13; CPU is % of one core over the service and all of its descendants. The glance
+// phase is the Work Status section alone (tier=glance, 1 s polls while decoding) and must stay inside the idle CPU budget.
+// `--macmon on` adds an oMLX run with a fake `macmon pipe` (scripts/lib/fake-macmon-preload.mjs); macmon itself is never run.
 const BUDGETS = {
-  'no-view-cpu': 0.07, 'idle-cpu': 0.68, 'active-cpu': 1.9, 'active-cpu-max': 3,
-  'rss-mib': 132, 'idle-spawns': 24, 'active-spawns': 36, 'children-gone-s': 65,
+  'no-view-cpu': 0.07, 'idle-cpu': 0.68, 'active-cpu': 1.9, 'active-cpu-max': 3, 'glance-cpu': 0.68,
+  'rss-mib': 132, 'idle-spawns': 24, 'active-spawns': 36, 'glance-spawns': 18, 'children-gone-s': 65,
 };
 const SAMPLE_MS = 500, BUCKET_S = 5, QUIET_AFTER_S = 60;
 const here = dirname(fileURLToPath(import.meta.url));
 const { values: flags, positionals } = parseArgs({ allowPositionals: true, options: {
-  runtime: { type: 'string', default: 'all' }, cold: { type: 'string', default: '30' }, active: { type: 'string' },
-  idle: { type: 'string' }, tail: { type: 'string', default: '75' }, service: { type: 'string' }, out: { type: 'string' },
+  runtime: { type: 'string', default: 'all' }, macmon: { type: 'string', default: 'on' }, cold: { type: 'string', default: '30' },
+  active: { type: 'string' }, idle: { type: 'string' }, glance: { type: 'string', default: '30' }, tail: { type: 'string', default: '75' },
+  service: { type: 'string' }, out: { type: 'string' },
   ...Object.fromEntries(Object.keys(BUDGETS).map(name => [name, { type: 'string' }])),
 } });
 const number = (name, value, min, max) => {
@@ -35,14 +39,21 @@ const seconds = {
   settle: 15, cold: number('cold', flags.cold, 10, 600), warmup: 5,
   active: number('active', flags.active ?? positionals[0] ?? 30, 10, 600),
   idle: number('idle', flags.idle ?? positionals[0] ?? 30, 10, 600),
+  glance: number('glance', flags.glance, 10, 600),
   paused: number('tail', flags.tail, 70, 600),
 };
 const budgets = Object.fromEntries(Object.entries(BUDGETS).map(([name, value]) => [name, number(name, flags[name] ?? value, 0, 1e6)]));
 const runtimes = flags.runtime === 'all' ? FAKE_RUNTIMES : [flags.runtime];
 assert(runtimes.every(kind => FAKE_RUNTIMES.includes(kind)), `--runtime must be all or one of ${FAKE_RUNTIMES.join(', ')}.`);
+assert(['on', 'off', 'only'].includes(flags.macmon), '--macmon must be on, off or only.');
+// macmon only matters where Scope reads the Mac, and it rides on an oMLX view.
+const plans = [...flags.macmon === 'only' ? [] : runtimes.map(kind => ({ kind, macmon: false })),
+  ...flags.macmon !== 'off' && runtimes.includes('omlx') ? [{ kind: 'omlx', macmon: true }] : []];
+assert(plans.length, '--macmon only needs --runtime all or omlx.');
 assert(['darwin', 'linux'].includes(platform()), 'This measurement uses macOS/Linux ps.');
 const serviceFile = resolve(flags.service ?? positionals[1] ?? join(here, '../service/main.js'));
 const preload = pathToFileURL(join(here, 'lib/spawn-log-preload.mjs')).href;
+const macmonPreload = pathToFileURL(join(here, 'lib/fake-macmon-preload.mjs')).href, fakeMacmon = join(here, 'lib/fake-macmon.mjs');
 const timeWrapper = platform() === 'darwin' && existsSync('/usr/bin/time');
 
 const round = (value, digits = 3) => value === null || !Number.isFinite(value) ? null : Number(value.toFixed(digits));
@@ -92,10 +103,11 @@ const rusage = text => {
   return user === null || sys === null ? null : { cpuSeconds: user + sys, maxRssBytes: value(/(\d+)\s+maximum resident set size/) };
 };
 
-async function measure(kind) {
+async function measure({ kind, macmon }) {
   const sandbox = await mkdtemp(join(tmpdir(), 'mlx-scope-overhead-home-'));
   const scratch = await mkdtemp(join(tmpdir(), 'mlx-scope-overhead-log-'));
   const log = join(scratch, 'service.jsonl'), lmsLog = join(scratch, 'lms.log');
+  const seen = { power: 0, powerEstimate: 0 };
   const state = { active: true, began: Date.now() };
   const requests = [], readings = [];
   const runtime = createFakeRuntime(kind, state, path => requests.push({ at: Date.now(), path }));
@@ -114,8 +126,10 @@ async function measure(kind) {
       OPENCHAMBER_SERVICE_PORT: String(servicePort), OPENCHAMBER_SERVICE_TOKEN: token,
       MLX_SCOPE_BASE_URL: `http://127.0.0.1:${runtimePort}`, MLX_SCOPE_MEASURE_LOG: log,
       ...(kind === 'lmstudio' ? { MLX_SCOPE_RUNTIME: 'lmstudio' } : {}),
+      ...(macmon ? { MLX_SCOPE_MEASURE_FAKE_MACMON: fakeMacmon } : {}),
     };
-    const argv = [process.execPath, '--import', preload, serviceFile];
+    // The fake-macmon preload goes first, so the spawn log still records the executable the service asked for.
+    const argv = [process.execPath, ...macmon ? ['--import', macmonPreload] : [], '--import', preload, serviceFile];
     // /usr/bin/time -l adds the whole-run rusage of the service and every child it reaped.
     child = spawn(timeWrapper ? '/usr/bin/time' : argv[0], timeWrapper ? ['-l', ...argv] : argv.slice(1),
       { cwd: sandbox, stdio: ['ignore', 'ignore', 'pipe'], env });
@@ -157,11 +171,14 @@ async function measure(kind) {
       }
       throw new Error('The service did not report its CPU time.');
     };
-    const poll = async (duration, interval) => {
+    const poll = async (duration, interval, path = '/v2/snapshot') => {
       const until = performance.now() + duration * 1000, latencies = [];
       while (performance.now() < until) {
         const start = performance.now();
-        assert.equal((await get('/v2/snapshot')).status.state, 'ready');
+        const body = await get(path);
+        assert.equal(body.status.state, 'ready');
+        if (body.host?.power?.field === 'all_power') seen.power += 1;
+        if (body.capabilities?.['host.power']?.basis === 'estimate') seen.powerEstimate += 1;
         latencies.push(performance.now() - start);
         lastRead = Date.now();
         await delay(Math.max(1, Math.min(interval - (performance.now() - start), until - performance.now())));
@@ -191,8 +208,15 @@ async function measure(kind) {
     assert.equal((await get('/v2/snapshot')).status.state, 'ready');
     await delay(500);
     edges.idle = await probe();
-    const idleLatency = await poll(seconds.idle, 2_000), lastRequestAt = lastRead;
-    edges.idleEnd = edges.paused = await probe();
+    const idleLatency = await poll(seconds.idle, 2_000);
+    edges.idleEnd = await probe();
+    // The Work Status section alone, while the runtime decodes: glance tier, status cadence.
+    state.active = true;
+    assert.equal((await get('/v2/snapshot?surface=status&tier=glance')).status.state, 'ready');
+    await delay(500);
+    edges.glance = await probe();
+    const glanceLatency = await poll(seconds.glance, 1_000, '/v2/snapshot?surface=status&tier=glance'), lastRequestAt = lastRead;
+    edges.glanceEnd = edges.paused = await probe();
     await delay(seconds.paused * 1000);
     edges.pausedEnd = await probe();
     sampling = false;
@@ -202,7 +226,7 @@ async function measure(kind) {
     const timer = setTimeout(() => { try { process.kill(servicePid, 'SIGKILL'); } catch {} }, 2_500);
     try { await closed; } finally { clearTimeout(timer); }
     if (changed.length) console.error(`${kind}: the service wrote to its sandbox HOME: ${changed.slice(0, 10).join(', ')}`);
-    return summarize(kind, { records: records(), readings, requests, edges, lastRequestAt, activeLatency, idleLatency,
+    return summarize(kind, { records: records(), readings, requests, edges, lastRequestAt, activeLatency, idleLatency, glanceLatency, macmon, seen,
       changed: changed.length, whole: timeWrapper ? rusage(stderr) : null, lmsLog: existsSync(lmsLog) ? readFileSync(lmsLog, 'utf8') : '' });
   } finally {
     sampling = false;
@@ -296,6 +320,7 @@ function summarize(kind, run) {
     noView: phase(edges.noView, edges.noViewEnd),
     active: phase(edges.active, edges.activeEnd, { pollMs: 500, snapshotLatency: run.activeLatency }),
     idle: phase(edges.idle, edges.idleEnd, { pollMs: 2_000, snapshotLatency: run.idleLatency }),
+    glance: phase(edges.glance, edges.glanceEnd, { pollMs: 1_000, tier: 'glance', snapshotLatency: run.glanceLatency }),
     paused: phase(edges.paused, edges.pausedEnd),
   };
   const after = at => at - lastRequestAt;
@@ -331,6 +356,16 @@ function summarize(kind, run) {
     argv: [...new Set(lmsCalls.map(line => line.split('|')[0].replace(/\b\d+\b/g, '<port>')))],
     serverInfoPathSet: lmsCalls.every(line => line.endsWith('|set')),
   } : undefined;
+  const macmonSpawns = spawns.filter(record => record.file === 'macmon');
+  // The fake is a node process (ps comm `node`); its CPU and RSS are the stand-in's, listed apart, not macmon's.
+  const fakeCpu = new Map();
+  for (const reading of run.readings) for (const row of reading.descendants) if (row.comm === 'node') fakeCpu.set(row.pid, Math.max(fakeCpu.get(row.pid) ?? 0, row.cpu));
+  const macmon = run.macmon ? {
+    spawns: macmonSpawns.length, samplesWithPower: run.seen.power, samplesWithEstimateCapability: run.seen.powerEstimate,
+    fakeChildCpuSeconds: round([...fakeCpu.values()].reduce((sum, n) => sum + n, 0), 2),
+    fakeChildPeakRssMiB: Math.max(0, ...Object.values(phases).map(item => item.children.peakRssMiBByKind.node ?? 0)),
+  } : undefined;
+  const glanceOnly = ['lsof', 'footprint', 'macmon', 'lms'].reduce((sum, file) => sum + (phases.glance.spawns.byFile[file]?.count ?? 0), 0);
   const peakRss = Math.max(...run.readings.filter(reading => reading.service).map(reading => reading.service.rssKiB / 1024));
   const check = (id, value, limit) => ({ id, value, limit, pass: value !== null && value <= limit });
   const checks = [
@@ -342,6 +377,10 @@ function summarize(kind, run) {
     check('active.spawnsPerMinute', phases.active.spawns.perMinute, budgets['active-spawns']),
     check('idle.cpuPercent', phases.idle.cpu.totalPercent, budgets['idle-cpu']),
     check('idle.spawnsPerMinute', phases.idle.spawns.perMinute, budgets['idle-spawns']),
+    check('glance.cpuPercent', phases.glance.cpu.totalPercent, budgets['glance-cpu']),
+    check('glance.spawnsPerMinute', phases.glance.spawns.perMinute, budgets['glance-spawns']),
+    // §4.4: lsof, footprint, lms and macmon are full-tier only.
+    check('glance.fullTierSpawns', glanceOnly, 0),
     check('service.peakRssMiB', round(peakRss, 1), budgets['rss-mib']),
     check('paused.runtimeRequests', paused.runtimeRequests, 0),
     check(`paused.spawnsAfter${QUIET_AFTER_S}s`, paused.spawnsAfterQuietS, 0),
@@ -350,11 +389,14 @@ function summarize(kind, run) {
     check('sandboxHome.filesWritten', run.changed, 0),
     ...(lms ? [check('lms.unverifiedSpawns', Math.abs(lms.spawns - lms.fakeInvocations) + lmsSpawns.filter(record => !record.underHome).length, 0),
       check('lms.withoutServerInfoPath', lms.serverInfoPathSet ? 0 : 1, 0)] : []),
+    // One stream per demand window; power reaches the body as an estimate while full-tier views read.
+    ...(macmon ? [check('macmon.spawns', macmon.spawns, 2), check('macmon.missingPower', macmon.samplesWithPower > 0 ? 0 : 1, 0),
+      check('macmon.missingEstimateBasis', macmon.samplesWithEstimateCapability === macmon.samplesWithPower ? 0 : 1, 0)] : []),
   ];
   return {
-    runtime: kind, pass: checks.every(item => item.pass), checks,
+    runtime: kind, macmon: run.macmon, pass: checks.every(item => item.pass), checks,
     startupSettle: { wallSeconds: round((edges.noView.at - edges.settle.at) / 1000, 2), serviceCpuSeconds: round((edges.noView.cpuMicros - edges.settle.cpuMicros) / 1e6, 4) },
-    phases, paused, ...(lms ? { lms } : {}),
+    phases, paused, ...(lms ? { lms } : {}), ...(macmon ? { macmon } : {}),
     wholeRun: {
       spawnsByFile: spawns.reduce((all, record) => ({ ...all, [record.file]: (all[record.file] ?? 0) + 1 }), {}),
       serviceCpuSeconds: final ? round(final.cpuMicros / 1e6, 4) : null,
@@ -367,7 +409,7 @@ function summarize(kind, run) {
 
 const packageFile = join(dirname(serviceFile), '../package.json');
 const runs = [];
-for (const kind of runtimes) runs.push(await measure(kind));
+for (const plan of plans) runs.push(await measure(plan));
 const receipt = {
   measurement: 'MLX Scope service overhead: service process plus all descendants, synthetic loopback runtimes',
   recordedAt: new Date().toISOString(),
@@ -379,7 +421,7 @@ const receipt = {
   host: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model ?? null, logicalCores: cpus().length, memGiB: Math.round(totalmem() / 2 ** 30) },
   method: {
     psSampleMs: SAMPLE_MS, tailBucketSeconds: BUCKET_S, seconds,
-    phases: 'settle: 15 s after the service is ready, no reads (not measured; startup heap trim) · noView: no reads · warmup: 5 s at 500 ms (not measured) · active: 500 ms polls, runtime generating · idle: 2 s polls, runtime idle · paused: no reads',
+    phases: 'settle: 15 s after the service is ready, no reads (not measured; startup heap trim) · noView: no reads · warmup: 5 s at 500 ms (not measured) · active: 500 ms polls, runtime generating · idle: 2 s polls, runtime idle · glance: surface=status&tier=glance at 1 s, runtime generating · paused: no reads · macmon runs: the same phases with a fake `macmon pipe`',
     cpu: 'Percent of one core. Service: its own cpuUsage() at phase edges (each read costs it about 0.2 ms). Children: ps -A every 500 ms, plus children too short-lived for ps, which share the whole-run wait4 rusage (/usr/bin/time -l) evenly per spawn.',
     spawns: 'Counted in-process by a --import preload that wraps child_process; runtime requests are counted by the fake runtime.',
   },
@@ -389,6 +431,8 @@ const receipt = {
   limitations: [
     'Synthetic loopback runtimes; no inference was started or measured.',
     'The fake lms is a shell stand-in that idles like lms log stream; real lms CPU and RSS (docs/2.0/SPIKES.md S8) are not reproduced.',
+    'The fake macmon is a node process printing one fixture line per second; real macmon CPU and RSS are not reproduced.',
+    'On macOS, lsof and footprint read the harness\'s own loopback listener; elsewhere no host probe runs, so host spawns and their CPU are not measured.',
     'The service runs under Node, not OpenChamber\'s Electron runtime, where RSS reads higher (S13: 89–92 MiB live).',
     'ps CPU time has 10 ms resolution; RSS includes shared pages and is sampled every 500 ms.',
     'Browser rendering, the OpenChamber server, battery use and inference throughput impact are not measured.',

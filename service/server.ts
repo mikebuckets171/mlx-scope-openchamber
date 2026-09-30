@@ -54,6 +54,15 @@ const unread = (at: number): RuntimeReading => ({
       statsState: 'unavailable', guardLevel: null, lastMissReason: null, traceEpoch: null } },
 });
 
+/**
+ * What the host sampler rides along with: the frame's tier, whether the runtime is working, and the oMLX loopback port
+ * only while oMLX itself answered on it, so lsof and footprint never read whatever else holds that port.
+ */
+export const hostContextOf = (tier: HostContext['tier'], { status, runtime, meta }: RuntimeReading): HostContext => ({
+  tier, active: busy(runtime), generation: meta.connection.generation,
+  omlxPort: meta.connection.runtime === 'omlx' && (status.state === 'ready' || status.state === 'degraded') ? meta.port ?? null : null,
+});
+
 /** Exact read-only route allowlist (contract §2). Host and inference failures are independent. */
 export const createScopeServer = (token: string, sources: Sources, options: ServerOptions = {}): http.Server => {
   if (!token) throw new Error('A service token is required.');
@@ -94,9 +103,7 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       const selection = query.provider || query.runtime ? { provider: query.provider ?? '', runtime: query.runtime ?? null } : undefined;
       const reading = await Promise.resolve().then(() => sources.read(selection, { tier: query.tier, detail: query.detail === 'server' }))
         .catch(() => unread(serverNow));
-      const { connection } = reading.meta;
-      const context: HostContext = { tier: query.tier, active: busy(reading.runtime), generation: connection.generation,
-        omlxPort: connection.runtime === 'omlx' ? reading.meta.port : null };
+      const context = hostContextOf(query.tier, reading);
       const host = await Promise.resolve().then(async () => sources.host ? sources.host(context) : sources.system ? hostFromV1(await sources.system()) : null)
         .catch(() => null);
       const completions = reading.meta.completions?.since(query.since, seq => verdicts.get(seq))

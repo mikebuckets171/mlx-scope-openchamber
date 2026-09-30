@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto';
+import { homedir } from 'node:os';
 import { RuntimeClient } from './runtime-client.ts';
 import { LMStudioActivityStream } from './lmstudio-activity.ts';
-import { SystemSampler } from './system.ts';
+import { HostSampler } from './host/sampler.ts';
+import { createExec } from './lib/argv.ts';
 import { createScopeServer } from './server.ts';
 
 const port = Number(process.env.OPENCHAMBER_SERVICE_PORT);
@@ -13,9 +15,10 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535 || token.length === 0) 
 // One instance id per service start: the completion rings and the snapshot's service identity share it.
 const instance = randomBytes(4).toString('hex');
 const client = new RuntimeClient({ lmstudioActivity: new LMStudioActivityStream(), instance });
-const system = new SystemSampler();
+const home = homedir();
+const host = new HostSampler({ exec: createExec(home), now: Date.now, home });
 const server = createScopeServer(token, {
-  read: (selection, request) => client.read(selection, request), system: () => system.sample(),
+  read: (selection, request) => client.read(selection, request), host: context => host.sample(context),
   completionHead: () => client.completionHead,
 }, { instance });
 server.on('error', (error: NodeJS.ErrnoException) => {
@@ -27,10 +30,11 @@ const stop = (): void => {
   if (stopping) return;
   stopping = true;
   client.dispose();
+  host.dispose();
   server.close(() => process.exit(0));
   setTimeout(() => { server.closeAllConnections(); process.exit(0); }, 2_000).unref();
 };
 process.once('SIGTERM', stop);
 process.once('SIGINT', stop);
-process.once('exit', () => client.dispose());
+process.once('exit', () => { client.dispose(); host.dispose(); });
 server.listen(port, '127.0.0.1');
