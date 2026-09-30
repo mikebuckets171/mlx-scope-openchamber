@@ -124,7 +124,10 @@ live #connection-result (hidden): Check whether OpenChamber has started the exte
 main.scope {aria-labelledby="scope-title"}: · | MLX Scope
 #scope-title: MLX Scope
 #phase: Idle
-#connection: Viewing saved observations
+#connection: Splash (standalone) connected
+#pause {aria-pressed="false" title="Pause this monitor, not inference"}
+#pause-symbol {d="M7 5v10M13 5v10"}
+#pause-label: Pause
 #monitor-menu
 #tab-live {aria-controls="view-live" aria-selected="false"}: Live
 #tab-server {aria-controls="view-server" aria-selected="false"}: Server
@@ -139,7 +142,7 @@ h2: Saved observations
 #connection-help: Connection help
 #scope-version: <version>
 #freshness: Updated now
-live #connection: Viewing saved observations
+live #connection: Splash (standalone) connected
 live #action-status (hidden): 
 live #notice (hidden): 
 live #runtime-advisory (hidden): 

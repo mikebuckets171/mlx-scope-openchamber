@@ -84,7 +84,6 @@ h1 span { font-weight: 400; color: var(--scope-muted); }
 #pause svg, .monitor-menu > summary svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .monitor-menu > summary svg circle { fill: currentColor; stroke: none; }
 #pause[aria-pressed="true"] { color: var(--scope-warn); border-color: color-mix(in srgb, var(--scope-warn) 45%, var(--scope-line)); background: color-mix(in srgb, var(--scope-warn) 10%, transparent); }
-.scope[data-workspace="saved"] #pause { visibility: hidden; }
 
 /* ⋯ menu. Opaque even when the host's elevated token is translucent: the elevated color is layered over the background. */
 .monitor-menu { position: relative; z-index: 30; }
@@ -422,3 +421,63 @@ footer { padding-top: 10px; border-top: 1px solid var(--scope-line); color: var(
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 @media (prefers-contrast: more) { :root { --scope-line: var(--scope-muted); } .grid { opacity: .7; } }
 @media (forced-colors: active) { .progress-track span, .meter i, .cache-input-bar > span { background: Highlight; } #trace path { stroke: Highlight; } .hero-card::before { display: none; } }
+
+/* ---------- 2.0: History and Captures (ui-history) ----------
+   The approved mock's History rules (docs/design/2.0-mock.html "2.0: History"), unchanged, plus what the views add.
+   Shared parts (chip, ⓘ, btn, section, callout, values-3, kv) come from the 2.0 shell's rules above. */
+.seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 2px; border: 1px solid var(--scope-line); border-radius: var(--scope-radius); background: var(--scope-surface); }
+.seg button { min-height: 24px; padding: 2px 8px; border: 0; border-radius: calc(var(--scope-radius) - 3px); background: transparent; color: var(--scope-muted); font: 500 11px var(--oc-font, sans-serif); cursor: pointer; }
+.seg button[aria-pressed="true"] { color: var(--scope-fg); background: var(--scope-bg); box-shadow: 0 0 0 1px var(--scope-line); }
+.trend .plot { height: 104px; }
+.band { fill: var(--scope-accent); opacity: .16; stroke: none; }
+.turn-span { fill: var(--scope-muted); opacity: .45; }
+.gap-band { position: absolute; top: 0; bottom: 0; display: grid; place-items: center; border-inline: 1px dashed color-mix(in srgb, var(--scope-muted) 55%, transparent); background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--scope-muted) 24%, transparent) 0 1px, transparent 1px 6px); }
+.gap-band span { max-width: 92%; padding: 2px 6px; border-radius: 4px; background: var(--scope-surface); color: var(--scope-muted); font-size: 10px; line-height: 1.35; text-align: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; color: var(--scope-muted); font-size: 10.5px; }
+.legend i { display: inline-block; width: 10px; height: 2px; margin-right: 5px; vertical-align: middle; background: var(--scope-accent); }
+.legend i.tick { width: 2px; height: 9px; background: var(--scope-muted); }
+.legend i.hatch { width: 12px; height: 9px; background: repeating-linear-gradient(135deg, var(--scope-muted) 0 1px, transparent 1px 4px); }
+.counts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.ledger { margin-top: 10px; }
+.led-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 2px 8px; padding: 9px 0; border-top: 1px solid var(--scope-line); font-size: 11px; }
+.led-row > time { color: var(--scope-muted); font-size: 10.5px; }
+.led-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 8px; min-width: 0; }
+.led-main strong { font-size: 12px; font-weight: 600; }
+.led-main > span:not(.val):not(.chip) { color: var(--scope-muted); }
+.led-row[data-kind="t"] { margin-inline: -8px; padding-inline: 8px; border-radius: 6px; border-top-color: transparent; background: color-mix(in srgb, var(--oc-primary-text, var(--scope-accent)) 7%, transparent); }
+.led-row[data-kind="t"] + .led-row { border-top-color: transparent; }
+.led-row[data-kind="gap"] { grid-template-columns: minmax(0, 1fr); }
+.gap-row { padding: 5px 8px; border-radius: 6px; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--scope-muted) 16%, transparent) 0 1px, transparent 1px 6px); color: var(--scope-muted); font-size: 10.5px; text-align: center; }
+.gap-row span { padding: 1px 6px; border-radius: 4px; background: var(--scope-surface); }
+.usage-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); align-items: end; gap: 6px; height: 72px; margin-top: 12px; }
+.usage-bars > div { display: grid; align-content: end; height: 100%; }
+.usage-bars i { display: block; min-height: 2px; border-radius: 3px 3px 1px 1px; background: color-mix(in srgb, var(--scope-accent) 70%, transparent); }
+.usage-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 4px; color: var(--scope-muted); font-size: 10px; text-align: center; }
+.storage-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-top: 10px; color: var(--scope-muted); font-size: 11px; }
+.storage-line strong { color: var(--scope-fg); font-size: 16px; font-weight: 550; }
+.storage .meter { height: 8px; margin-top: 8px; }
+.storage .meter i { background: color-mix(in srgb, var(--scope-accent) 80%, var(--scope-fg)); }
+.storage[data-full="true"] .meter i { background: var(--scope-warn); }
+.storage-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.storage-controls label { display: inline-flex; align-items: center; gap: 6px; color: var(--scope-muted); font-size: 11px; }
+.storage .connection-diagnosis .actions { margin-top: 8px; }
+.alog > li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; padding: 7px 0; border-top: 1px solid var(--scope-line); font-size: 11px; }
+.alog > li:first-child { border-top: 0; }
+.alog time { color: var(--scope-muted); font-size: 10.5px; }
+.alog small { color: var(--scope-muted); font-size: 10.5px; white-space: nowrap; }
+.alog .sev { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--scope-blue); vertical-align: 1px; }
+.alog .sev[data-severity="warning"] { background: var(--scope-warn); }
+.alog .sev[data-severity="critical"] { background: var(--scope-bad, var(--oc-error-text, #ee8992)); }
+.empty { margin-top: 10px; color: var(--scope-muted); font-size: 11px; line-height: 1.6; }
+/* Additions: 30 and 90 day usage, the Captures cards' readings, the page column. */
+/* WebKit ignores min-height on a native select; the retention and window selects keep a 30 px target. */
+:is(.storage-controls, .capture-card) select.btn { height: 30px; }
+/* A long server-wide reason wraps inside its chip at 320 px rather than losing the reason to an ellipsis. */
+.led-main .chip[data-attr] { white-space: normal; overflow-wrap: anywhere; }
+.usage-bars[data-dense="true"], .usage-days[data-dense="true"] { gap: 1px; }
+.usage-days[data-dense="true"] span { overflow: visible; white-space: nowrap; }
+.capture-card .reply-values, .capture-card .split { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin-top: 8px; color: var(--scope-muted); font-size: 11px; }
+.capture-card .reply-values .val { color: var(--scope-fg); font-size: 13px; font-weight: 550; }
+.scope[data-surface="page"] .trend .plot { height: 132px; }
+@media (forced-colors: active) { .gap-band, .gap-row, .legend i.hatch { forced-color-adjust: none; } .usage-bars i { background: Highlight; } }
+/* ---------- end History and Captures ---------- */

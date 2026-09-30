@@ -794,7 +794,7 @@ test('DFlash shows observed output, never invents a request average or prefill p
   await expect(frame.locator('#recent-speed')).toBeHidden();
 });
 
-test('workspace tabs use keyboard navigation and Saved suspends monitoring until Live is restored', async ({page}) => {
+test('workspace tabs use keyboard navigation and Saved keeps monitoring', async ({page}) => {
   const frame = await openPanel(page,'state=prefill');
   const live = frame.getByRole('tab',{name:'Live',exact:true});
   await live.focus(); await live.press('ArrowRight');
@@ -804,9 +804,10 @@ test('workspace tabs use keyboard navigation and Saved suspends monitoring until
   await expect(frame.locator('#view-compare')).toBeVisible();
   await frame.getByRole('tab',{name:'Compare',exact:true}).press('ArrowRight');
   await expect(frame.locator('#view-saved')).toBeVisible();
-  const before = await requests(page); await page.waitForTimeout(1200); expect(await requests(page)).toBe(before);
+  // 2.0 (plan §5.9): the 1.6 suspend on Saved is gone; polls continue on every tab.
+  const before = await requests(page); await expect.poll(() => requests(page)).toBeGreaterThan(before);
   await frame.getByRole('tab',{name:'Saved',exact:true}).press('Home');
-  await expect(live).toBeFocused(); await expect.poll(() => requests(page)).toBeGreaterThan(before);
+  await expect(live).toBeFocused();
   await expect(frame.locator('#prefill-state')).toHaveText('Live reading');
 });
 

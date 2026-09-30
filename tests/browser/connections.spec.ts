@@ -208,7 +208,7 @@ test('storage failure keeps the selected connection usable and first-run failure
   await expect(frame.getByLabel('Connection',{exact:true})).toBeFocused();
 });
 
-test('switching during pause or Saved preserves suspension and discards old observations', async ({page}) => {
+test('switching during pause preserves suspension, Saved keeps monitoring, and both discard old observations', async ({page}) => {
   const frame = await open(page);
   await page.evaluate(()=>(window as any).setPreviewState('decode'));
   await menu(frame, '#refresh');
@@ -227,8 +227,10 @@ test('switching during pause or Saved preserves suspension and discards old obse
   await expect(frame.locator('#connection')).toHaveText('LM Studio connected');
   await frame.getByRole('tab',{name:'Saved',exact:true}).click();
   const saved=await page.evaluate(()=>(window as any).previewRequests);
-  await choose(page,'mlx'); await page.waitForTimeout(700);
-  expect(await page.evaluate(()=>(window as any).previewRequests)).toBe(saved);
+  // 2.0 (plan §5.9): saved captures no longer suspend monitoring, so the new connection is read at once.
+  await choose(page,'mlx');
+  await expect(frame.locator('#connection')).toHaveText('mlx-lm connected');
+  expect(await page.evaluate(()=>(window as any).previewRequests)).toBeGreaterThan(saved);
   await frame.getByRole('tab',{name:'Live',exact:true}).click();
   await expect(frame.locator('#connection')).toHaveText('mlx-lm connected');
 });

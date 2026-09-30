@@ -95,7 +95,6 @@ const connections = new ConnectionsView(shell, host.storage, () => {
   monitor.apply(frameReading('runtime_unreachable', CONNECTION_CLEARED, client.now()));
   monitor.sync();
   if (state.userPaused) { text('connection', 'Monitoring paused'); text('phase', 'Paused'); }
-  if (state.view === 'saved') { text('connection', 'Viewing saved observations'); text('cadence', 'Monitoring suspended'); }
   if (state.mounted) poller.start();
 }, actionStatus);
 dom.node('save-snapshot').addEventListener('click', () => {
@@ -115,15 +114,11 @@ new WorkspaceTabs(shell, view => {
   state.view = view; shell.dataset.workspace = view;
   dom.node('share-actions').hidden = view === 'saved';
   dom.node('compact').hidden = view !== 'live'; dom.node('save-snapshot').hidden = view !== 'live' && view !== 'server';
-  if (view === 'saved') {
-    text('connection', 'Viewing saved observations'); text('cadence', 'Monitoring suspended');
-    button.disabled = true; void savedView.load();
-  } else {
-    button.disabled = state.userPaused || !state.mounted;
-    text('cadence', state.efficient ? 'Energy saving · 3s+' : 'Adaptive updates');
-  }
+  // Saved captures no longer suspend monitoring (plan §5.9): the tab only loads its list.
+  if (view === 'saved') void savedView.load();
+  button.disabled = state.userPaused || !state.mounted;
   monitor.sync();
-  if (view !== 'saved' && !state.awaitingFresh && !state.userPaused) monitor.apply(state.latest);
+  if (!state.awaitingFresh && !state.userPaused) monitor.apply(state.latest);
 });
 // The ⋯ menu closes after an action, on Escape, and on an outside click. Share keeps it open for its own submenu.
 const monitorMenu = dom.node('monitor-menu') as HTMLDetailsElement;

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
+<title>MLX Scope · History and Captures preview</title><link rel="stylesheet" href="/history.css"></head>
+<body>
+<!-- Synthetic preview (ui-history): the approved mock's shell around the real History and Captures views. -->
+<main class="scope" id="scope" data-phase="decode" data-stale="false" data-approval="false" data-paused="false">
+  <header class="masthead">
+    <div class="brand"><svg class="scope-mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11"/><path d="M3 14h6l3-5 4 10 3-5h6"/></svg><h1>MLX <span>Scope</span></h1></div>
+    <div class="status-pill"><span class="connection-dot" aria-hidden="true"></span><span class="phase">Generating</span><span class="status-sep" aria-hidden="true">·</span><span class="conn">Local oMLX</span></div>
+  </header>
+  <nav class="workspace-nav" aria-label="Scope workspaces"><div class="tablist" role="tablist" id="tabs"></div></nav>
+  <div id="views"></div>
+  <footer><span>MLX Scope 2.0.0 · preview</span><span>Synthetic data</span></footer>
+</main>
+<script>
+  // The shell is static; the entry script mounts the real view into the selected tab's panel.
+  const q = new URLSearchParams(location.search), page = q.get('surface') === 'page', tab = q.get('tab') === 'captures' ? 'captures' : 'history';
+  const scope = document.getElementById('scope');
+  scope.dataset.surface = page ? 'page' : 'panel';
+  const tabs = page ? [['live', 'Live · History'], ['server', 'Server'], ['captures', 'Captures']] : [['live', 'Live'], ['server', 'Server'], ['history', 'History'], ['captures', 'Captures']];
+  const active = page ? 'live' : tab;
+  document.getElementById('tabs').innerHTML = tabs.map(([id, label]) => `<button class="tab" role="tab" type="button" id="tab-${id}" aria-controls="panel-${id}" aria-selected="${id === active}" tabindex="${id === active ? 0 : -1}">${label}</button>`).join('');
+  document.getElementById('views').innerHTML = page
+    ? '<div class="page-cols" role="tabpanel" id="panel-live" aria-labelledby="tab-live" tabindex="0"><div class="view page-live"><div class="col-title"><h2>Live</h2><span>ui-core</span></div></div><div class="view" id="history-column"></div></div><div role="tabpanel" id="panel-server" aria-labelledby="tab-server" hidden></div><div role="tabpanel" id="panel-captures" aria-labelledby="tab-captures" hidden></div>'
+    : tabs.map(([id]) => `<div class="view" role="tabpanel" id="panel-${id}" aria-labelledby="tab-${id}" tabindex="0"${id === active ? '' : ' hidden'}></div>`).join('');
+</script>
+<script src="/history.js"></script>
+</body></html>

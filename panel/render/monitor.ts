@@ -29,7 +29,8 @@ export class Monitor {
     this.poller = new Poller(() => this.poll());
   }
   /** Not paused, visible, and not on the Saved tab. */
-  get live(): boolean { return !this.p.state.userPaused && this.p.visibility().visible && this.p.state.view !== 'saved'; }
+  // 2.0: every tab keeps monitoring (plan §5.9); only the user's pause and the visibility gate stop polls.
+  get live(): boolean { return !this.p.state.userPaused && this.p.visibility().visible; }
 
   private async poll(): Promise<number> {
     const { state, client, connections } = this.p, generation = state.generation;
@@ -108,7 +109,7 @@ export class Monitor {
     dom.text('session-stats-state', label);
   }
 
-  /** Pause or resume polling for the user, the visibility gate and the Saved tab; resuming never shows old readings as live. */
+  /** Pause or resume polling for the user and the visibility gate; resuming never shows old readings as live. */
   sync(): void {
     const { dom, shell, state } = this.p;
     state.generation += 1;
