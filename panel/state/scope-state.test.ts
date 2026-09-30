@@ -53,3 +53,18 @@ test('fresh completions are returned once and kept in order (coverage is attribu
   expect(state.accept(fromSnapshot({ ...body, serverNow: 2_000, completions: { ...body.completions, cursor: 2, items: [second] } })).map(item => item.seq)).toEqual([2]);
   expect(state.recent.map(item => item.seq)).toEqual([1, 2]);
 });
+
+test('a frame back from hidden pages through a backlog of 65–128 completions to the newest', () => {
+  const state = new ScopeState(0), body = bionic(), item = body.completions.items[0]!;
+  // The service's ring after 100 replies finished while the frame was hidden: items after `since`, oldest first, ≤ 64.
+  const ring = Array.from({ length: 101 }, (_, index) => ({ ...item, seq: index + 1, finishedAt: 900 + index }));
+  const poll = (since: number): Reading => withCompletions(body, { cursor: 101, items: ring.filter(entry => entry.seq > since).slice(0, 64) });
+  state.accept(withCompletions(body, { cursor: 1, items: ring.slice(0, 1) }));
+  expect(state.accept(poll(state.since!)).map(entry => entry.seq)).toEqual(ring.slice(1, 65).map(entry => entry.seq));
+  expect(state.since).toBe(65);
+  expect(state.accept(poll(state.since!)).map(entry => entry.seq)).toEqual(ring.slice(65).map(entry => entry.seq));
+  expect([state.lastRequest?.seq, state.since, state.recent.length, state.recent[0]?.seq]).toEqual([101, 101, 64, 38]);
+  // A recording leader's held-back `since` brings a full page the frame already kept: its cursor never goes back.
+  expect(state.accept(poll(20))).toEqual([]);
+  expect([state.since, state.recent.length]).toEqual([101, 64]);
+});
