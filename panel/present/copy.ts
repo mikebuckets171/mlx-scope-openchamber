@@ -197,5 +197,5 @@ export const FRAME_TITLE: Partial<Record<string, string>> = {
   service_failed: 'MLX Scope’s service isn’t running', host_unavailable: 'OpenChamber can’t reach MLX Scope’s service',
   host_timeout: 'MLX Scope’s service didn’t answer in time', host_disconnected: 'OpenChamber disconnected MLX Scope',
   host_rejected: 'OpenChamber rejected Scope’s request', unparseable_snapshot: 'Scope couldn’t read its service’s reply',
-  service_not_granted: 'MLX Scope’s service isn’t approved',
+  service_not_granted: 'MLX Scope’s service isn’t approved', runtime_unreachable: 'Waiting for a reading',
 };
