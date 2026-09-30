@@ -26,7 +26,7 @@ export const fullSnapshot = () => ({
       cache: { ramBytes: 999_999_999_999, ssdBytes: 9_999_999_999_999, ramEntries: 999_999, ssdEntries: 999_999, lastLookup: 'miss' },
       speculative: { draftedTokens: 99_999_999, acceptedTokens: 88_888_888, acceptanceFraction: 0.888_888_88, windowMs: 600_000 },
       rates: { promptTps: 12_345.678_9, decodeTps: 12_345.678_9, windowMs: 60_000 } },
-    memory: { processBytes: 999_999_999_999, modelBytes: 999_999_999_999, metalBytes: 999_999_999_998, metalPeakBytes: 999_999_999_999, ceilingBytes: 999_999_999_999 },
+    memory: { processBytes: 999_999_999_999, modelBytes: 999_999_999_999, metalBytes: 999_999_999_998, metalPeakBytes: 999_999_999_999, ceilingBytes: 999_999_999_999, guard: 'hard' },
     residency: Array.from({ length: 12 }, (_, index) => ({ model: model(index), phase: 'prefill', source: 'ollama-ps', active: 1, queued: 999,
       bytes: 999_999_999_999, gpuResidentBytes: 999_999_999_999, unloadsAt: AT + 999_999, contextWindowTokens: 99_999_999,
       prefillFraction: 0.123_456_789, prefillTps: 12_345.678_9 })),
@@ -76,7 +76,7 @@ export const fullTrend = () => ({
 export const fullUsage = () => ({
   contractVersion: 2, serverNow: AT, available: true, range: '7d', cachedAt: AT, basis: 'reported', granularity: 'hour',
   buckets: Array.from({ length: 400 }, (_, index) => ({ at: AT - index * 3_600_000, requests: 999_999, promptTokens: 999_999_999_999,
-    cachedTokens: 999_999_999_999, outputTokens: 999_999_999_999 })),
+    cachedTokens: 999_999_999_999, outputTokens: 999_999_999_999, totalTokens: 1_999_999_999_998 })),
   totals: { requests: 999_999_999, promptTokens: 999_999_999_999_999, cachedTokens: 999_999_999_999_999, outputTokens: 999_999_999_999_999 },
   models: Array.from({ length: 50 }, (_, index) => ({ model: model(index), requests: 999_999_999, promptTokens: 999_999_999_999_999, outputTokens: 999_999_999_999_999 })),
 });
