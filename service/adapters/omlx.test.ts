@@ -4,7 +4,7 @@ import { honestyViolations, parseSnapshotV2, type SnapshotV2 } from '../../src/c
 import { unitViolations } from '../../src/contract/units.ts';
 import type { AdapterReadingV2, ReadContext, Tier } from '../core/adapter-v2.ts';
 import { HttpFailure } from '../http.ts';
-import { ADMIN_RETRY_MS, isOmlxHealth, OMLX_PATHS, omlxDescriptor, OmlxAdapter } from './omlx.ts';
+import { __test__, ADMIN_RETRY_MS, isOmlxHealth, OMLX_PATHS, omlxDescriptor, OmlxAdapter } from './omlx.ts';
 import { readOmlxUsage, usagePath } from './omlx-usage.ts';
 import {
   admin, clock, contextFor, envelope, fakeOmlx, fixture, fixtureFiles, from, leaks, login, ok, type Call, type Route, type Version,
@@ -324,4 +324,12 @@ test('every health and status fixture round-trips, through the admin session and
       }
     }
   }
+});
+
+test('only the oMLX session cookie is kept, and usage is offered from 0.7', () => {
+  expect([__test__.extractCookie('other=x; Path=/, omlx_admin_session=abc123; HttpOnly'), __test__.extractCookie('other=x'), __test__.extractCookie(null)])
+    .toEqual(['abc123', null, null]);
+  expect(['0.7.0rc1', '0.7.0', '0.6.4', '1.0.0', 'dev', undefined].map(__test__.hasUsage)).toEqual([true, true, false, true, false, false]);
+  expect(__test__.contextWindowsOf({ models: [{ id: 'a', max_context_window: 8192 }, { id: 'b', max_context_window: 0 }, { id: 3, max_context_window: 1 },
+    { id: 'c', max_context_window: 1.5 }] })).toEqual(new Map([['a', 8192]]));
 });

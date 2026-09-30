@@ -9,7 +9,6 @@ import type { OmlxConfig } from '../../config.ts';
 const ROOT = join(import.meta.dir, '../../../tests/fixtures/omlx');
 export type Version = '0.7.0rc1' | '0.6.4';
 export const fixture = (version: Version, file: string): unknown => JSON.parse(readFileSync(join(ROOT, version, file), 'utf8'));
-export const fixtureText = (version: Version, file: string): string => readFileSync(join(ROOT, version, file), 'utf8');
 export const fixtureFiles = (version: Version, prefix: string): string[] =>
   readdirSync(join(ROOT, version)).filter(file => file.startsWith(prefix) && file.endsWith('.json')).sort();
 
@@ -44,9 +43,9 @@ export const fakeOmlx = (routes: Record<string, Route>) => {
 export const login = (key = 'fixture-main-key'): Route => request =>
   request.body !== null && JSON.parse(request.body).api_key === key ? { status: 200, body: { success: true }, cookie: 'session-cookie' }
     : { status: 401, body: { detail: 'Invalid API key' } };
-/** Admin reads need the cookie `login` hands out. */
+/** Admin reads need the cookie `login` hands out; anything else gets oMLX's 401 (`require_admin`). */
 export const admin = (answer: Answer): Route => request =>
-  request.headers.Cookie === 'omlx_admin_session=session-cookie' ? answer : { status: 401, body: { detail: 'Admin authentication required' } };
+  request.headers.Cookie === 'omlx_admin_session=session-cookie' ? answer : from('0.7.0rc1', 'admin-api-activity.unauthorized.json', 401);
 
 export const clock = (start = Date.UTC(2026, 8, 29, 5, 30)) => {
   const state = { now: start, mono: 1_000_000 };
