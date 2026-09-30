@@ -264,7 +264,7 @@ export class RuntimeClient {
     const now = this.now();
     let connections: RuntimeConnectionConfig[] = [];
     try { connections = (await this.config()).connections; } catch { /* no connection: not oMLX */ }
-    const choice = query.provider ? connections.find(item => item.id === query.provider) : this.automatic(connections, null);
+    const choice = query.provider ? connections.find(item => item.id === query.provider) : this.automatic(connections, query.runtime ?? null);
     const slot = choice ? this.scheduler.all().find(item => item.context.choice.id === choice.id && item.context.runtime === 'omlx') : undefined;
     const context = slot?.context.adapterContext;
     if (!context) return unavailableUsage(choice?.runtime === 'omlx' || slot ? 'runtime_unavailable' : 'not_omlx', query.range, now);
