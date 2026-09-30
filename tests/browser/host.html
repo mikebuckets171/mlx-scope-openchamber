@@ -1,8 +1,11 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>MLX Scope · synthetic preview</title><style>html,body{margin:0;background:#10151b;font:11px -apple-system,sans-serif}aside{height:24px;display:grid;place-items:center;background:#203044;color:#c4d6e9}iframe{display:block;width:100%;height:calc(100vh - 24px);border:0}</style></head>
-<body><aside>Synthetic preview · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script>
+<body><aside>Synthetic preview · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script src="/convert-v1.js"></script><script>
 const frame = document.querySelector('iframe');
 const params = new URLSearchParams(location.search);
+// A hidden rail tab: the frame mounts inside display:none and must not poll until shown.
+window.setPreviewFrameHidden = value => { frame.style.display = value ? 'none' : ''; };
+if (params.get('frame') === 'hidden') window.setPreviewFrameHidden(true);
 let themeName = params.get('theme') || 'dark';
 let state = params.get('state') || 'decode';
 window.setPreviewState = value => { state = value; };
@@ -24,6 +27,8 @@ window.previewOpenedURL = '';
 window.previewHold = false;
 window.previewTransportError = '';
 window.previewQueries = [];
+window.previewHistoryQueries = [];
+window.previewBodies = [];
 window.previewDelay = false;
 window.previewDeferred = [];
 function theme(name) {
@@ -47,14 +52,56 @@ function theme(name) {
   }};
 }
 window.previewTheme = theme(themeName);
+// OpenChamber 2.0.4 surfaces (plan §8.4): panel (default), page, the Work Status section, and the /scope background frame.
+const surface = ['page', 'status', 'background'].includes(params.get('surface')) ? params.get('surface') : 'panel';
+const entry = surface === 'background' ? '/background/index.html' : '/panel/index.html';
+// A status frame starts at the manifest height and follows setHeight, clamped like clampStatusSectionHeight (24–320).
+window.previewHeights = [];
+const statusHeight = value => Math.min(320, Math.max(24, Math.round(value)));
+if (surface === 'status' && frame.style) frame.style.height = '72px';
+// Signals the host shows: badge counts (null clears) and toasts, recorded in order.
+window.previewBadges = [];
+window.previewToasts = [];
+// Slash commands: the host asks the background frame to resolve `/scope <args>` once it says hello.
+window.previewResolved = [];
+window.resolvePreviewCommand = (args = params.get('args') || '') => post({type:'resolve',id:`resolve-${window.previewResolved.length + 1}`,payload:{command:'scope',args}});
+// Storage as the 2.0.4 host keeps it: one namespace file, rewritten whole on every set or delete, with the SDK limits.
+window.previewStorageLimits = {valueBytes:65_536, totalBytes:2_097_152, keys:2_000};
+window.setPreviewStorageLimits = value => { Object.assign(window.previewStorageLimits, value); };
+window.previewStorage = {gets:0, keys:0, sets:0, deletes:0, rejected:0, fileBytes:0, rewrittenBytes:0};
+// Service-side extras for the v1 → v2 bridge (lease, alerts, alertLog, nextPollMs, marksHead): a leader handover is
+// setPreviewExtras({lease:{leader:false,epoch:2,ttlMs:12000,leaderSurface:'page'}}).
+window.previewExtras = {};
+window.setPreviewExtras = value => { window.previewExtras = value; };
+// Session lifecycle. The host sends no timestamp and repeats the last phase on mount and on a session switch
+// (SPIKES S2: two to three times); ?lifecycle=N replays the open chat's phase N times after ready.
+window.pushPreviewLifecycle = (phase, times = 1) => {
+  if (!currentSession) return;
+  for (let index = 0; index < times; index += 1) post({type:'session-lifecycle',payload:{sessionId:currentSession.id,phase}});
+};
 const post = (message) => frame.contentWindow.postMessage({channel:'openchamber.sdk',v:1,...message}, '*');
-const ready = () => post({type:'ready',payload:{theme:window.previewTheme,locale:'en-US',directory:null,session:currentSession,surface:params.get('surface') === 'page' ? 'page' : 'panel',connection:{connected:true,account:''},settings:{},item:sessionItem}});
+const ready = () => post({type:'ready',payload:{theme:window.previewTheme,locale:'en-US',directory:null,session:currentSession,surface,connection:{connected:true,account:''},settings:{},item:sessionItem}});
 window.setPreviewTheme = value => { window.previewTheme = theme(value); ready(); };
 window.setPreviewSession = value => { currentSession=value; post({type:'session',payload:{session:value}}); };
 window.addEventListener('message', async (event) => {
   if(event.source !== frame.contentWindow || event.data?.channel !== 'openchamber.sdk') return;
   const m = event.data;
-if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
+if(m.type === 'hello') {
+    if(params.has('nohost')) return;
+    ready();
+    const replays = Number(params.get('lifecycle') || 0);
+    if (replays > 0 && currentSession) window.pushPreviewLifecycle(currentSession.busy ? 'started' : 'completed', replays);
+    if (surface === 'background' && !params.has('noresolve')) window.resolvePreviewCommand();
+    return;
+  }
+  if(m.type === 'resolve-result') { window.previewResolved.push(m.payload); return; }
+  if(m.type === 'resize') {
+    window.previewHeights.push(m.payload.height);
+    if (surface === 'status' && frame.style) frame.style.height = `${statusHeight(m.payload.height)}px`;
+    post({type:'result',id:m.id,ok:true,payload:null}); return;
+  }
+  if(m.type === 'badge') { window.previewBadges.push(m.payload.count); post({type:'result',id:m.id,ok:true,payload:null}); return; }
+  if(m.type === 'toast') { window.previewToasts.push(m.payload); post({type:'result',id:m.id,ok:true,payload:null}); return; }
   if(m.type === 'open-url') { window.previewOpenedURL=m.payload.url; post({type:'result',id:m.id,ok:true,payload:null}); return; }
   if(m.type === 'service-status') {
     window.previewStatusChecks += 1;
@@ -66,8 +113,22 @@ if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
     const {op,key,value} = m.payload;
     if(params.get('storage') === 'fail') { post({type:'result',id:m.id,ok:false,code:'HOST_REJECTED',error:'Fixture storage failure'}); return; }
     const stored = key ? sessionStorage.getItem(key) : null;
-    if(op === 'delete') { sessionStorage.removeItem(key); window.previewWrites += 1; }
-    if(op === 'set') { sessionStorage.setItem(key, JSON.stringify(value)); window.previewWrites += 1; }
+    const file = () => Object.fromEntries(Object.keys(sessionStorage).map(name => [name, JSON.parse(sessionStorage.getItem(name))]));
+    const bytes = value => new TextEncoder().encode(JSON.stringify(value)).length;
+    const limits = window.previewStorageLimits, stats = window.previewStorage;
+    if(op === 'set') {
+      const next = {...file(), [key]: value};
+      // Every failure reaches the guest as the same HOST_REJECTED (plan: verified platform facts, storage).
+      if (bytes(value) > limits.valueBytes || Object.keys(next).length > limits.keys || bytes(next) > limits.totalBytes) {
+        stats.rejected += 1;
+        post({type:'result',id:m.id,ok:false,code:'HOST_REJECTED',error:'Fixture storage limit'}); return;
+      }
+    }
+    if(op === 'get') stats.gets += 1;
+    if(op === 'keys') stats.keys += 1;
+    if(op === 'delete') { sessionStorage.removeItem(key); window.previewWrites += 1; stats.deletes += 1; }
+    if(op === 'set') { sessionStorage.setItem(key, JSON.stringify(value)); window.previewWrites += 1; stats.sets += 1; }
+    if(op === 'set' || op === 'delete') { stats.fileBytes = bytes(file()); stats.rewrittenBytes += stats.fileBytes; }
     const payload = op === 'keys' ? {storage:true,op,keys:Object.keys(sessionStorage)} : op === 'get' ? {storage:true,op,found:stored !== null,...(stored === null ? {} : {value:JSON.parse(stored)})} : {storage:true,op};
     post({type:'result',id:m.id,ok:true,payload}); return;
   }
@@ -85,8 +146,19 @@ if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
   if(m.type === 'prompt' || m.type === 'generate' || m.type === 'start-session') window.previewUnexpectedSends += 1;
   if(m.type !== 'service-request') return;
   const selection = m.payload.query || {};
-  window.previewQueries.push(selection);
   window.previewRequests += 1;
+  // History routes, as the 2.0 service answers them for a preview it never watched: one gap, and no oMLX records.
+  if (m.payload.path === '/v2/trend' || m.payload.path === '/v2/usage') {
+    window.previewHistoryQueries.push({ path: m.payload.path, ...selection });
+    const now = Date.now(), windowMs = Number(selection.window ?? 900000) || 900000, range = selection.range ?? '7d';
+    const body = m.payload.path === '/v2/trend'
+      ? { contractVersion: 2, serverNow: now, windowMs, bucketMs: windowMs / 180, startAt: now - windowMs, series: {}, gaps: [{ fromAt: now - windowMs, toAt: now }], marks: [] }
+      : { contractVersion: 2, serverNow: now, available: false, reason: 'not_omlx', range, cachedAt: now, basis: 'reported', granularity: 'day', buckets: [],
+        totals: { requests: 0, promptTokens: 0, outputTokens: 0 }, models: [] };
+    post({ type: 'result', id: m.id, ok: true, payload: { status: params.get('contract') === '1.6' ? 404 : 200, body: JSON.stringify(body) } });
+    return;
+  }
+  window.previewQueries.push(selection);
   samples += 1;
   if (window.previewHold) return;
   if (state === 'stalled' && samples > 2) return;
@@ -191,7 +263,18 @@ if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
       if(params.get('setup') === 'missing')payload.connection.choices=[];
     }
   }
-  const reply = {type:'result',id:m.id,ok:true,payload:{status:200,body:JSON.stringify(payload)}};
+  // The fixtures stay 1.x readings; the service's own bridge turns them into v2 bodies, sent as strings like the real host.
+  const path = m.payload.path, contract = params.get('contract');
+  const response = path === '/snapshot' ? {status:410,body:{error:'contract_mismatch',contractVersion:2}}
+    : path !== '/v2/snapshot' || contract === '1.6' ? {status:404,body:{error:'not_found'}}
+      : contract === '3' ? {status:200,body:{contractVersion:3}}
+        : {status:200,body:ScopeConvert.toSnapshotV2(payload,{...window.previewExtras,service:{version:'2.0.0-preview',instance:'5c1e0a7b'},serverNow:Date.now()})};
+  // Like the service, answer only completions newer than the frame's `since` cursor (contract §7); the cursor stays.
+  const completions = response.status === 200 ? response.body.completions : null;
+  if (completions && /^\d+$/.test(selection.since ?? '')) completions.items = completions.items.filter(item => item.seq > Number(selection.since));
+  if (completions) window.previewBodies.push({since: selection.since, items: completions.items.length});
+  window.previewLastResponse = response;
+  const reply = {type:'result',id:m.id,ok:true,payload:{status:response.status,body:JSON.stringify(response.body)}};
   if (window.previewDelay) window.previewDeferred.push(() => post(reply));
   else post(reply);
 });
@@ -199,19 +282,19 @@ if(m.type === 'hello') { if(!params.has('nohost')) ready(); return; }
 // The released host's relay transport embeds package assets as data URLs in
 // srcdoc. Preserve the real panel CSP so this catches incompatible policies.
 async function loadRelayDocument() {
-  const entry = new URL('/panel/index.html', location.href);
-  const response = await fetch(entry);
-  if (!response.ok) throw new Error('Panel document did not load');
+  const page = new URL(entry, location.href), folder = page.pathname.slice(0, page.pathname.lastIndexOf('/') + 1);
+  const response = await fetch(page);
+  if (!response.ok) throw new Error('Entry document did not load');
   const document = new DOMParser().parseFromString(await response.text(), 'text/html');
   const base = document.createElement('base');
-  base.href = 'https://extension.invalid/api/guests/mlx-scope/panel/index.html';
+  base.href = `https://extension.invalid/api/guests/mlx-scope${entry}`;
   document.head.prepend(base);
   for (const node of document.querySelectorAll('script[src], link[rel="stylesheet"][href]')) {
     const attribute = node.tagName === 'SCRIPT' ? 'src' : 'href';
-    const url = new URL(node.getAttribute(attribute), entry);
-    if (url.origin !== location.origin || !url.pathname.startsWith('/panel/')) throw new Error('Fixture resource is outside the panel package');
+    const url = new URL(node.getAttribute(attribute), page);
+    if (url.origin !== location.origin || !url.pathname.startsWith(folder)) throw new Error('Fixture resource is outside the entry folder');
     const asset = await fetch(url);
-    if (!asset.ok) throw new Error('Panel resource did not load');
+    if (!asset.ok) throw new Error('Entry resource did not load');
     const bytes = new Uint8Array(await asset.arrayBuffer());
     let binary = '';
     for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
@@ -222,5 +305,5 @@ async function loadRelayDocument() {
 }
 if (params.get('transport') === 'relay') {
   loadRelayDocument().catch(error => { window.previewTransportError = error.message; });
-} else frame.src = '/panel/index.html';
+} else frame.src = entry;
 </script></body></html>

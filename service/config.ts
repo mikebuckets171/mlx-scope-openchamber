@@ -3,7 +3,8 @@ import { open } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { runtimeValue, type Runtime } from '../src/runtime.ts';
+import { runtimeKind as runtimeValue, type RuntimeKind as Runtime } from '../src/contract/runtime.ts';
+import { hintFor } from './core/hints.ts';
 
 type JsonObject = { readonly [key: string]: unknown };
 
@@ -169,15 +170,6 @@ export const parseLocalOrigin = (value: unknown): URL | null => {
   return url;
 };
 
-const hintFor = (id: string, name: unknown): Runtime | null => {
-  const value = `${id} ${typeof name === 'string' ? name : ''}`.toLowerCase();
-  const providerName = typeof name === 'string' ? name.trim() : '';
-  if (/bionic|lm[\s_-]*studio/.test(value)) return 'lmstudio';
-  if (id.trim().toLowerCase() === 'splash' || /splash/i.test(providerName)) return 'splash';
-  if (/vllm[\s_-]*mlx/.test(value)) return 'vllm-mlx';
-  if (/omlx/.test(value)) return 'omlx';
-  return /mlx[\s_-]*lm/.test(value) ? 'mlx-lm' : null;
-};
 const safeLabel = (value: string): string => value.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 120);
 const issueText = (issue: ConfigIssue): string | null => ({
   none: null,

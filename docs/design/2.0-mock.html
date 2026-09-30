@@ -1,0 +1,1237 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLX Scope 2.0 mock</title>
+<style>
+/* MLX Scope 2.0 · G2 design mock. Static and self-contained: synthetic v2 fixtures, no network, no external assets.
+   Query: surface=board|rail|page|status · tab=live|server|history|captures · state=<fixture state> · variant=<status variant>
+   · theme=dark|light · pop=attr|reply|mac|thermal · details=open · labels=short · compact=1.
+   Sections marked "1.6" are panel/style.css with IDs turned into classes; "2.0" is the proposal. */
+
+/* ---------- Host tokens, as the synthetic preview host sets them (tests/browser/host.html) ---------- */
+:root {
+  --oc-bg: #10151b; --oc-elevated: #202c36; --oc-fg: #e9f0f5; --oc-muted: #9aa9b7; --oc-subtle: #8595a5; --oc-border: #3b3a47;
+  --oc-hover: #2c2736; --oc-muted-surface: #25222d; --oc-primary: #3b72ad; --oc-primary-text: #98c8fa; --oc-primary-fg: #ffffff;
+  --oc-success-text: #7dd9bd; --oc-warning-text: #dfb976; --oc-error-text: #ee8992; --oc-info-text: #86b7ed;
+  --oc-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; --oc-mono: ui-monospace, SFMono-Regular, Menlo, monospace; --oc-radius: 9px;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --oc-bg: #f7f9fb; --oc-elevated: #ffffff; --oc-fg: #172a37; --oc-muted: #596977; --oc-subtle: #687683; --oc-border: #ced7df;
+  --oc-hover: #e8e4de; --oc-muted-surface: #f0ece6; --oc-primary: #2868a5; --oc-primary-text: #245a90; --oc-primary-fg: #ffffff;
+  --oc-success-text: #197e68; --oc-warning-text: #966113; --oc-error-text: #b13a45; --oc-info-text: #286cae;
+  color-scheme: light;
+}
+
+/* ---------- 1.6 tokens (panel/style.css:7-29, unchanged) ---------- */
+:root {
+  --scope-fg: var(--oc-fg, #ecf2f7);
+  --scope-muted: var(--oc-muted, #9aa9b7);
+  --scope-bg: var(--oc-bg, #0f151b);
+  --scope-fill: var(--oc-primary, #377dbd);
+  --scope-on-fill: var(--oc-primary-fg, #ffffff);
+  --scope-blue: var(--oc-info-text, #88b9ee);
+  --scope-good: var(--oc-success-text, #79cfb7);
+  --scope-warn: var(--oc-warning-text, #c99646);
+  --scope-accent: var(--oc-primary-text, #88b9ee);
+  --scope-line: color-mix(in srgb, var(--oc-border, #29313a) 70%, transparent);
+  --scope-line-strong: var(--oc-border, #29313a);
+  --scope-surface: color-mix(in srgb, var(--oc-muted-surface, #192128) 55%, var(--scope-bg));
+  --scope-surface-2: color-mix(in srgb, var(--oc-muted-surface, #192128) 85%, var(--scope-bg));
+  --scope-radius: var(--oc-radius, 9px);
+  --scope-card-radius: calc(var(--oc-radius, 9px) + 3px);
+  --scope-mono: var(--oc-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--oc-font, -apple-system, BlinkMacSystemFont, sans-serif);
+  color: var(--scope-fg);
+  background: var(--scope-bg);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+/* 2.0 proposal: the one token addition, derived from a host token like the rest. Used only for critical alerts and offline. */
+:root { --scope-bad: var(--oc-error-text, #ee8992); }
+
+/* ---------- 1.6 base ---------- */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--scope-bg); }
+h1, h2, h3, p, figure, dl, ol, ul { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+[hidden] { display: none !important; }
+button, summary { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button:focus-visible, summary:focus-visible, select:focus-visible { outline: 2px solid var(--scope-accent); outline-offset: 3px; }
+[role="tabpanel"]:focus-visible { outline: 2px solid var(--scope-accent); outline-offset: 4px; border-radius: 4px; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+summary { list-style: none; cursor: pointer; }
+summary::-webkit-details-marker { display: none; }
+.scope[data-phase="prefill"] { --scope-accent: var(--scope-blue); }
+.scope:is([data-phase="queued"], [data-phase="reconnecting"], [data-stale="true"]) { --scope-accent: var(--scope-warn); }
+.scope[data-paused="true"] { --scope-accent: var(--scope-muted); }
+
+/* ---------- 1.6 shell ---------- */
+.scope { max-width: 760px; margin: auto; padding: 16px 16px 20px; font-size: 12px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.masthead, .brand, .chart-top, figcaption, .section-heading, footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.section-heading h2, .section-heading h3 { flex: none; font-size: 12px; font-weight: 600; letter-spacing: -.005em; white-space: nowrap; }
+.section-heading > span { min-width: 0; color: var(--scope-muted); font-size: 11px; text-align: right; }
+.insight-note { margin-top: 6px; color: var(--scope-muted); font-size: 11px; line-height: 1.6; }
+.meter, .progress-track { overflow: hidden; height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--scope-muted) 18%, transparent); }
+.meter i, .progress-track span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--scope-accent); }
+.hero-card, .machine, .insight-section, .capture-card, .approval-card {
+  border: 1px solid var(--scope-line); border-radius: var(--scope-card-radius); background: var(--scope-surface);
+}
+.masthead { justify-content: flex-start; min-height: 32px; }
+.brand { flex: none; justify-content: flex-start; gap: 8px; }
+.scope-mark { width: 20px; height: 20px; fill: none; stroke: var(--scope-accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.scope-mark circle { opacity: .4; }
+h1 { font-size: 14px; font-weight: 650; letter-spacing: -.015em; white-space: nowrap; }
+h1 span { font-weight: 400; color: var(--scope-muted); }
+.status-pill { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; margin-left: 4px; padding: 4px 10px; border: 1px solid var(--scope-line); border-radius: 999px; background: var(--scope-surface); color: var(--scope-muted); font-size: 11px; white-space: nowrap; overflow: hidden; }
+.status-pill .phase { flex: none; color: var(--scope-fg); font-weight: 550; }
+.status-pill .conn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.status-sep { flex: none; opacity: .6; }
+.connection-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--scope-good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--scope-good) 20%, transparent); }
+.scope:is([data-stale="true"], [data-phase="reconnecting"]) .connection-dot { background: var(--scope-warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--scope-warn) 20%, transparent); }
+.scope[data-phase="offline"] .connection-dot { background: var(--scope-bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--scope-bad) 20%, transparent); }
+.scope:is([data-approval="true"], [data-paused="true"], [data-phase="detecting"]) .connection-dot { background: var(--scope-muted); box-shadow: none; }
+.monitor-controls { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: none; }
+.icon-btn { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--scope-line); border-radius: var(--scope-radius); background: transparent; color: var(--scope-fg); cursor: pointer; }
+.icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.icon-btn svg circle { fill: currentColor; stroke: none; }
+.workspace-nav { margin-top: 14px; }
+.tablist { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 3px; border: 1px solid var(--scope-line); border-radius: calc(var(--scope-radius) + 1px); background: var(--scope-surface); }
+.tab { min-height: 28px; padding: 4px 10px; border: 0; border-radius: calc(var(--scope-radius) - 2px); background: transparent; color: var(--scope-muted); font: 500 12px var(--oc-font, sans-serif); white-space: nowrap; cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--scope-fg); background: var(--scope-bg); box-shadow: 0 0 0 1px var(--scope-line), 0 1px 2px #0000001f; }
+.view { display: grid; gap: 8px; align-content: start; margin-top: 16px; }
+.link-btn { margin: 4px 0 0 -6px; padding: 3px 6px; border: 0; border-radius: var(--scope-radius); background: transparent; color: var(--oc-primary-text, var(--scope-accent)); font: inherit; cursor: pointer; white-space: nowrap; }
+.notice { padding-left: 10px; border-left: 2px solid var(--scope-warn); color: var(--scope-muted); font-size: 11px; line-height: 1.6; }
+
+/* 1.6's diagnosis callout is the one callout in 2.0: runtime status, alerts, tips. Only its tone follows severity. */
+.connection-diagnosis { --tone: var(--scope-warn); margin-top: 12px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--tone) 30%, var(--scope-line)); border-radius: var(--scope-radius); background: color-mix(in srgb, var(--tone) 7%, var(--scope-bg)); color: var(--scope-fg); font-size: 11px; line-height: 1.6; }
+.connection-diagnosis[data-severity="critical"] { --tone: var(--scope-bad); }
+.connection-diagnosis[data-severity="info"] { --tone: var(--scope-blue); }
+.view > .connection-diagnosis, .insight-section .connection-diagnosis { margin-top: 0; }
+.insight-section .connection-diagnosis { margin-top: 10px; }
+.diag-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
+.diag-title strong { font-weight: 600; }
+.diag-meta { color: var(--scope-muted); }
+.connection-diagnosis .link-btn { margin: 2px 0 0 -6px; }
+.diag-more { margin-top: 6px; }
+.diag-more > li { padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--tone) 20%, var(--scope-line)); }
+
+/* ---------- 1.6 hero card ---------- */
+.hero-card { position: relative; padding: 16px; overflow: hidden; background: linear-gradient(180deg, color-mix(in srgb, var(--scope-accent) 7%, var(--scope-surface)), var(--scope-surface) 55%); border-color: color-mix(in srgb, var(--scope-accent) 22%, var(--scope-line)); }
+.hero-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, var(--scope-accent), transparent 80%); opacity: .7; }
+.model-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: 600; line-height: 1.4; letter-spacing: -.005em; white-space: nowrap; }
+.model-name::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--scope-accent); }
+.model-name span { overflow: hidden; text-overflow: ellipsis; }
+.hero-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
+.hero-top .model-name { flex: 1 1 auto; }
+.coverage-note { margin-top: 8px; max-width: 64ch; color: var(--scope-muted); font-size: 11px; line-height: 1.6; }
+.hero-row { margin-top: 14px; }
+.readout { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.rate { font-size: 52px; line-height: 1; font-weight: 500; letter-spacing: -.035em; }
+.rate.is-word { font-size: 28px; font-weight: 500; letter-spacing: -.02em; }
+.unit { max-width: 200px; color: var(--scope-muted); font-size: 11px; line-height: 1.45; }
+.signal { position: relative; margin-top: 14px; }
+.chart-top, figcaption { color: var(--scope-muted); font-size: 10px; }
+.chart-top > span:last-child, figcaption { font-family: var(--scope-mono); }
+.plot { position: relative; height: 76px; margin: 6px 0 4px; }
+.plot svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.grid { fill: none; stroke: var(--scope-line); stroke-width: 1; stroke-dasharray: 2 4; vector-effect: non-scaling-stroke; }
+.trace { fill: none; stroke: var(--scope-accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.trace-area { stroke: none; opacity: .22; fill: var(--scope-accent); }
+.mark { stroke: var(--scope-muted); stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+.prefill-progress { margin-top: 14px; }
+.prefill-values { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.prefill-remaining { font-size: 36px; line-height: 1.05; font-weight: 500; letter-spacing: -.03em; }
+.prefill-completed { color: var(--scope-muted); font-size: 11px; }
+.prefill-progress .progress-track { height: 8px; margin: 12px 0 8px; }
+.prefill-estimate { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--scope-line); color: var(--scope-muted); font-size: 11px; }
+.prefill-estimate strong { margin-left: auto; color: var(--scope-fg); font-size: 15px; font-weight: 600; }
+.prefill-estimate .basis { width: 100%; }
+.scope[data-phase="prefill"] .hero-row { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--scope-line); }
+.scope[data-phase="prefill"] .rate { font-size: 26px; letter-spacing: -.02em; }
+.context-headroom { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--scope-line); }
+.context-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; color: var(--scope-muted); font-size: 11px; }
+.context-line strong { color: var(--scope-fg); font-weight: 550; }
+.context-headroom .meter { height: 6px; }
+.context-headroom .meter i { background: color-mix(in srgb, var(--scope-accent) 80%, var(--scope-fg)); }
+.context-headroom .pop { margin: 0 0 8px; }
+
+/* ---------- 1.6 stat tiles ---------- */
+.metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.metrics > div { min-width: 0; padding: 10px 12px 12px; border: 1px solid var(--scope-line); border-radius: var(--scope-card-radius); background: var(--scope-surface); }
+.metric-label { display: block; color: var(--scope-muted); font-size: 11px; }
+.metrics strong { display: block; margin-top: 2px; font-size: 20px; font-weight: 550; letter-spacing: -.02em; line-height: 1.3; }
+.metric-detail { display: block; margin-top: 1px; color: var(--scope-muted); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.metrics .meter { margin-top: 8px; height: 3px; }
+.metrics[data-count="3"] > div:last-child { grid-column: 1 / -1; }
+
+/* ---------- 1.6 host card, 2.0 rows ---------- */
+.machine { padding: 12px 14px 4px; }
+.machine-title { font-size: 12px; font-weight: 600; }
+.machine > .title-row { margin-bottom: 10px; }
+.machine > .pop { margin: -2px 0 10px; }
+.machine-line { display: grid; grid-template-columns: 1fr 1.3fr .8fr; gap: 12px; }
+.machine-line > div { min-width: 0; }
+.machine-label { display: block; color: var(--scope-muted); font-size: 11px; }
+.machine-line strong { display: block; margin-top: 1px; font-size: 14px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.machine-line .meter { margin-top: 6px; height: 3px; }
+.machine-line .meter i { background: var(--scope-blue); }
+.machine-line > div:nth-child(2) .meter i { background: var(--scope-good); }
+.host-details { margin-top: 2px; border-top: 1px solid var(--scope-line); }
+.host-details > summary { display: flex; align-items: center; justify-content: space-between; min-height: 34px; color: var(--scope-muted); font-size: 11px; }
+.host-details > summary::after { content: "›"; font-size: 14px; }
+.host-details[open] > summary::after { transform: rotate(90deg); }
+.mac-rows { margin-top: 10px; }
+.mac-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 2px 12px; padding: 7px 0; border-top: 1px solid var(--scope-line); font-size: 11px; }
+.mac-row > span:first-child { min-width: 0; color: var(--scope-muted); overflow-wrap: anywhere; }
+.mac-row > strong, .mac-row > .val { font-size: 12px; font-weight: 550; text-align: right; white-space: nowrap; }
+.mac-row > .meter { grid-column: 1 / -1; height: 3px; margin: 4px 0 1px; }
+.mac-row > .meter i { background: var(--scope-blue); }
+.mac-row > .pop { grid-column: 1 / -1; margin-top: 4px; }
+.host-details .mac-rows { margin-top: 0; padding-bottom: 6px; }
+.level { display: inline-flex; align-items: center; gap: 6px; }
+.level::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--scope-good); }
+.level[data-level="warning"] { color: var(--scope-warn); }
+.level[data-level="warning"]::before { background: var(--scope-warn); }
+.level[data-level="critical"] { color: var(--scope-bad); }
+.level[data-level="critical"]::before { background: var(--scope-bad); }
+
+/* ---------- 1.6 Server cards ---------- */
+.insight-section { min-width: 0; padding: 14px 16px; }
+.values-2, .values-3 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.values-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+:is(.values-2, .values-3) > div { min-width: 0; }
+:is(.values-2, .values-3) > div > span { display: block; color: var(--scope-muted); font-size: 11px; }
+:is(.values-2, .values-3) strong { display: block; margin-top: 2px; font-size: 16px; font-weight: 550; white-space: nowrap; letter-spacing: -.01em; }
+:is(.values-2, .values-3) small { display: block; color: var(--scope-muted); font-size: 10.5px; }
+:is(.values-2, .values-3) strong .basis { display: inline; margin-left: 4px; }
+.big-values strong { font-size: 22px; letter-spacing: -.02em; }
+.big-values > div:first-child strong { color: var(--scope-accent); }
+.cache-input-bar { height: 8px; margin: 12px 0 4px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--scope-accent) 25%, transparent); }
+.cache-input-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--scope-accent); }
+.resident-list { margin: 8px 0 4px; }
+.resident-row { padding: 10px 0; border-top: 1px solid var(--scope-line); }
+.resident-row:first-child { border-top: 0; }
+.resident-heading, .resident-reading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.resident-heading strong { min-width: 0; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.resident-row[data-loaded="true"] .resident-heading strong { font-weight: 650; }
+.resident-reading { flex-wrap: wrap; margin-top: 4px; color: var(--scope-muted); font-size: 11px; }
+.resident-row .meter { margin-top: 6px; height: 3px; }
+.kv > div { display: flex; justify-content: space-between; gap: 14px; padding: 6px 0; border-top: 1px solid var(--scope-line); font-size: 11px; }
+.kv > div:first-child { border-top: 0; }
+.kv dt { flex: none; color: var(--scope-muted); }
+.kv dd { min-width: 0; margin: 0; text-align: right; overflow-wrap: anywhere; }
+.kv { margin-top: 8px; }
+.kv > .kv-block { display: grid; gap: 6px; }
+.kv > .kv-block dd { text-align: left; }
+
+/* ---------- 1.6 buttons and capture ---------- */
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 5px 12px; border: 1px solid var(--scope-line-strong); border-radius: var(--scope-radius); background: var(--scope-bg); color: var(--scope-fg); font: 12px var(--oc-font, sans-serif); white-space: nowrap; cursor: pointer; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { border-color: transparent; background: var(--scope-fill); color: var(--scope-on-fill); font-weight: 600; }
+.btn.quiet { min-height: 26px; padding: 3px 6px; border-color: transparent; background: transparent; color: var(--oc-primary-text, var(--scope-accent)); }
+.btn.danger { border-color: transparent; background: var(--scope-bad); color: var(--scope-bg); font-weight: 600; }
+.btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+select.btn { padding-right: 8px; }
+.capture-card { padding: 16px; }
+footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--scope-line); color: var(--scope-muted); font-size: 10.5px; }
+
+/* ---------- 2.0: one chip (1.6's catalog chip, generalised): a tone, optionally outlined ---------- */
+.chip { --chip: var(--scope-muted); display: inline-block; flex: none; min-width: 0; max-width: 100%; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--chip) 12%, transparent); color: color-mix(in srgb, var(--chip) 75%, var(--scope-fg)); font-size: 10.5px; font-weight: 550; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: baseline; }
+.chip[data-tone="accent"] { --chip: var(--scope-accent); }
+.chip[data-tone="warn"] { --chip: var(--scope-warn); }
+.chip[data-tone="bad"] { --chip: var(--scope-bad); }
+.chip[data-outline] { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chip) 55%, transparent); }
+/* Attribution chips are labels, not status: fixed host colours, whatever the phase accent is. */
+.chip[data-attr="inferred"], .chip[data-attr="armed"] { --chip: var(--oc-primary-text, #88b9ee); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* ---------- 2.0: ⓘ disclosure. 24 px target; the explanation opens in flow below its row, never over a reading ---------- */
+.title-row { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.info { position: relative; flex: none; display: inline-grid; place-items: center; width: 24px; height: 24px; margin: -5px -5px -5px -3px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--scope-muted); font: 600 10px/1 var(--oc-font, sans-serif); cursor: pointer; vertical-align: middle; }
+.info::before { content: ""; position: absolute; inset: 4px; border: 1px solid var(--scope-line-strong); border-radius: 50%; }
+.info:hover, .info[aria-expanded="true"] { color: var(--scope-fg); }
+.info[aria-expanded="true"]::before { border-color: var(--oc-primary-text, var(--scope-accent)); }
+.pop { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--scope-line-strong); border-radius: var(--scope-radius); background: var(--oc-elevated, var(--scope-bg)); color: var(--scope-fg); font-size: 11px; font-weight: 400; line-height: 1.6; letter-spacing: 0; white-space: normal; text-align: left; }
+.pop > strong { display: block; margin-bottom: 2px; font-weight: 600; }
+.pop p + p { margin-top: 6px; color: var(--scope-muted); }
+.basis { color: var(--scope-muted); font-size: 10px; font-weight: 400; letter-spacing: 0; white-space: nowrap; }
+.basis-line { display: inline-flex; align-items: center; gap: 6px; margin-top: 3px; color: var(--scope-muted); font-size: 10.5px; }
+.val .basis { margin-left: 4px; }
+.chart-wait { margin-top: 12px; color: var(--scope-muted); font-size: 11px; }
+
+/* ---------- 2.0: the Last reply / Next reply strip at the foot of the hero (§5.9) ---------- */
+.reply-strip { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--scope-line); font-size: 11px; }
+.reply-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; color: var(--scope-muted); }
+.reply-head > .label { color: var(--scope-fg); font-weight: 600; }
+.reply-head time { margin-left: auto; }
+.reply-values { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin-top: 4px; color: var(--scope-muted); }
+.reply-values strong { color: var(--scope-fg); font-size: 14px; font-weight: 550; letter-spacing: -.01em; }
+.split { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 4px; color: var(--scope-muted); }
+.split strong { color: var(--scope-fg); font-weight: 550; }
+.next-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-top: 8px; color: var(--scope-muted); }
+.next-row .btn.quiet:first-child { margin-left: -6px; }
+.next-row time { font-weight: 550; color: var(--scope-fg); }
+.pulse { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--oc-primary-text, var(--scope-accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--oc-primary-text, var(--scope-accent)) 22%, transparent); }
+
+/* ---------- 2.0: History ---------- */
+.seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 2px; border: 1px solid var(--scope-line); border-radius: var(--scope-radius); background: var(--scope-surface); }
+.seg button { min-height: 24px; padding: 2px 8px; border: 0; border-radius: calc(var(--scope-radius) - 3px); background: transparent; color: var(--scope-muted); font: 500 11px var(--oc-font, sans-serif); cursor: pointer; }
+.seg button[aria-pressed="true"] { color: var(--scope-fg); background: var(--scope-bg); box-shadow: 0 0 0 1px var(--scope-line); }
+.trend .plot { height: 104px; }
+.band { fill: var(--scope-accent); opacity: .16; stroke: none; }
+.turn-span { fill: var(--scope-muted); opacity: .45; }
+.gap-band { position: absolute; top: 0; bottom: 0; display: grid; place-items: center; border-inline: 1px dashed color-mix(in srgb, var(--scope-muted) 55%, transparent); background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--scope-muted) 24%, transparent) 0 1px, transparent 1px 6px); }
+.gap-band span { max-width: 92%; padding: 2px 6px; border-radius: 4px; background: var(--scope-surface); color: var(--scope-muted); font-size: 10px; line-height: 1.35; text-align: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; color: var(--scope-muted); font-size: 10.5px; }
+.legend i { display: inline-block; width: 10px; height: 2px; margin-right: 5px; vertical-align: middle; background: var(--scope-accent); }
+.legend i.tick { width: 2px; height: 9px; background: var(--scope-muted); }
+.legend i.hatch { width: 12px; height: 9px; background: repeating-linear-gradient(135deg, var(--scope-muted) 0 1px, transparent 1px 4px); }
+.counts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.ledger { margin-top: 10px; }
+.led-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 2px 8px; padding: 9px 0; border-top: 1px solid var(--scope-line); font-size: 11px; }
+.led-row > time { color: var(--scope-muted); font-size: 10.5px; }
+.led-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 8px; min-width: 0; }
+.led-main strong { font-size: 12px; font-weight: 600; }
+.led-main > span:not(.val):not(.chip) { color: var(--scope-muted); }
+.led-row[data-kind="t"] { margin-inline: -8px; padding-inline: 8px; border-radius: 6px; border-top-color: transparent; background: color-mix(in srgb, var(--oc-primary-text, var(--scope-accent)) 7%, transparent); }
+.led-row[data-kind="t"] + .led-row { border-top-color: transparent; }
+.led-row[data-kind="gap"] { grid-template-columns: minmax(0, 1fr); }
+.gap-row { padding: 5px 8px; border-radius: 6px; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--scope-muted) 16%, transparent) 0 1px, transparent 1px 6px); color: var(--scope-muted); font-size: 10.5px; text-align: center; }
+.gap-row span { padding: 1px 6px; border-radius: 4px; background: var(--scope-surface); }
+.usage-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); align-items: end; gap: 6px; height: 72px; margin-top: 12px; }
+.usage-bars > div { display: grid; align-content: end; height: 100%; }
+.usage-bars i { display: block; min-height: 2px; border-radius: 3px 3px 1px 1px; background: color-mix(in srgb, var(--scope-accent) 70%, transparent); }
+.usage-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 4px; color: var(--scope-muted); font-size: 10px; text-align: center; }
+.storage-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-top: 10px; color: var(--scope-muted); font-size: 11px; }
+.storage-line strong { color: var(--scope-fg); font-size: 16px; font-weight: 550; }
+.storage .meter { height: 8px; margin-top: 8px; }
+.storage .meter i { background: color-mix(in srgb, var(--scope-accent) 80%, var(--scope-fg)); }
+.storage[data-full="true"] .meter i { background: var(--scope-warn); }
+.storage-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.storage-controls label { display: inline-flex; align-items: center; gap: 6px; color: var(--scope-muted); font-size: 11px; }
+.storage .connection-diagnosis .actions { margin-top: 8px; }
+.alog > li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; padding: 7px 0; border-top: 1px solid var(--scope-line); font-size: 11px; }
+.alog > li:first-child { border-top: 0; }
+.alog time { color: var(--scope-muted); font-size: 10.5px; }
+.alog small { color: var(--scope-muted); font-size: 10.5px; white-space: nowrap; }
+.alog .sev { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--scope-blue); vertical-align: 1px; }
+.alog .sev[data-severity="warning"] { background: var(--scope-warn); }
+.alog .sev[data-severity="critical"] { background: var(--scope-bad); }
+.empty { margin-top: 10px; color: var(--scope-muted); font-size: 11px; line-height: 1.6; }
+
+/* ---------- 2.0: needs approval / needs a restart ---------- */
+.approval-card { padding: 16px; }
+.approval-card h2 { font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
+.approval-card > p { margin-top: 8px; font-size: 12px; line-height: 1.6; }
+.steps { margin-top: 12px; counter-reset: step; }
+.steps li { position: relative; padding: 4px 0 4px 26px; font-size: 12px; }
+.steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: 4px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: color-mix(in srgb, var(--scope-accent) 16%, transparent); color: var(--scope-accent); font-size: 10.5px; font-weight: 650; }
+.grant { margin-top: 12px; border: 1px solid var(--scope-line); border-radius: var(--scope-radius); padding: 0 12px; }
+.grant > summary { display: flex; align-items: center; justify-content: space-between; min-height: 38px; color: var(--scope-muted); font-size: 11px; font-weight: 500; }
+.grant > summary::after { content: "+"; font-size: 15px; font-weight: 300; }
+.grant[open] > summary::after { transform: rotate(45deg); }
+.grant .kv > div { display: grid; grid-template-columns: 1fr; gap: 2px; }
+.grant .kv dt { color: var(--scope-fg); font-weight: 550; }
+.grant .kv dd { color: var(--scope-muted); text-align: left; }
+.grant code { font: 10.5px var(--scope-mono); color: var(--scope-fg); }
+
+/* ---------- 2.0: the glance component: Work Status section (280 px) and the rail's Compact mode ---------- */
+.ws { position: relative; width: 278px; padding: 4px 10px; overflow: hidden; font-size: 11px; line-height: 16px; }
+.ws[data-variant="nonlocal"] { padding-block: 0; }
+.ws-line { display: flex; align-items: center; gap: 5px; height: 24px; min-width: 0; white-space: nowrap; }
+.ws-line > * { flex: none; }
+.ws-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--oc-primary-text, var(--scope-accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--oc-primary-text, var(--scope-accent)) 20%, transparent); }
+.ws-dot[data-tone="prefill"] { background: var(--scope-blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--scope-blue) 20%, transparent); }
+.ws-dot[data-tone="warn"] { background: var(--scope-warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--scope-warn) 20%, transparent); }
+.ws-dot[data-tone="bad"] { background: var(--scope-bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--scope-bad) 20%, transparent); }
+.ws-dot[data-tone="idle"] { background: var(--scope-muted); box-shadow: none; }
+.ws .ws-model, .ws .ws-grow { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ws-model { color: var(--scope-muted); }
+.ws-rate { font-weight: 650; }
+.ws small { color: var(--scope-muted); font-size: 10px; font-weight: 400; }
+.ws-spark { flex: none; width: 56px; height: 16px; }
+.ws-spark.sm { width: 40px; }
+.ws-spark.wide { flex: 1 1 auto !important; width: auto; min-width: 56px; }
+.ws-spark .axis { stroke: var(--scope-line-strong); stroke-width: 1; stroke-dasharray: 1 3; }
+.ws-spark svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.ws-spark path { fill: none; stroke: var(--oc-primary-text, var(--scope-accent)); stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.ws-alert { color: var(--scope-warn); }
+.ws-alert[data-severity="critical"] { color: var(--scope-bad); }
+.ws-alert[data-severity="info"] { color: var(--scope-blue); }
+.ws-alert::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
+.ws-muted { color: var(--scope-muted); overflow: hidden; text-overflow: ellipsis; }
+.ws-btn { flex: none; min-height: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--oc-primary-text, var(--scope-accent)); font: 600 11px var(--oc-font, sans-serif); cursor: pointer; }
+.ws-toggle { flex: none; display: inline-grid; place-items: center; width: 24px; height: 24px; margin: 0 0 0 auto; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--scope-muted); cursor: pointer; }
+.ws-toggle svg, .ws .connection-diagnosis svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ws .connection-diagnosis { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0 0; padding: 5px 4px 5px 8px; font-size: 10.5px; line-height: 14px; white-space: normal; }
+.ws .connection-diagnosis > span { flex: 1 1 auto; min-width: 0; }
+.ws .connection-diagnosis .close { flex: none; display: inline-grid; place-items: center; width: 24px; height: 24px; margin: -4px 0 -4px auto; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--scope-muted); cursor: pointer; }
+.ws .connection-diagnosis .link-btn { margin: 0; padding: 0 2px; font-weight: 600; }
+.ts-head { display: flex; align-items: center; gap: 5px; height: 24px; white-space: nowrap; }
+.ts-head > * { flex: none; }
+.ts-head .chip { margin-left: auto; }
+.ts-head .ws-toggle { margin-left: 0; }
+.ts-reason { height: 16px; color: var(--scope-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ts-rows { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; line-height: 16px; }
+.ts-rows dt { color: var(--scope-muted); white-space: nowrap; }
+.ts-rows dd { margin: 0; min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 550; }
+.ts-rows dd .basis { margin-left: 5px; }
+.compact-glance { margin-top: 8px; border: 1px solid var(--scope-line); border-radius: var(--scope-card-radius); background: var(--scope-surface); }
+.compact-glance .ws { width: auto; }
+.scope[data-compact="true"] { padding-block: 12px; }
+
+/* ---------- Review-board chrome for the status section (not product UI) ---------- */
+.ws-stage { padding: 16px; }
+.ws-stage > .frames:first-child { margin-top: 0; }
+.ws-shot { width: 280px; border: 1px solid var(--scope-line); border-radius: var(--scope-card-radius); background: var(--scope-bg); overflow: hidden; }
+.ws-head { display: flex; align-items: center; justify-content: space-between; height: 26px; padding: 0 10px; border-bottom: 1px dashed var(--scope-line); color: var(--scope-muted); font-size: 11px; font-weight: 600; }
+.ws-head span:last-child { font-weight: 400; font-size: 10px; }
+.ws-caption { margin-top: 6px; color: var(--scope-muted); font-size: 10.5px; line-height: 1.5; max-width: 280px; }
+.host-rows { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; padding: 6px 10px; font-size: 11px; line-height: 16px; color: var(--scope-muted); }
+.host-rows b { color: var(--scope-fg); font-weight: 500; text-align: right; }
+.host-stack { width: 280px; border: 1px solid var(--scope-line-strong); border-radius: var(--scope-card-radius); overflow: hidden; background: var(--scope-bg); }
+.host-stack > div + div { border-top: 1px solid var(--scope-line); }
+.host-collapsed { display: flex; justify-content: space-between; height: 28px; align-items: center; padding: 0 10px; color: var(--scope-muted); font-size: 11px; font-weight: 600; }
+.host-collapsed span:last-child { font-weight: 400; }
+.annotation { margin-top: 8px; padding: 6px 10px; border: 1px dashed var(--scope-muted); border-radius: 6px; color: var(--scope-muted); font-size: 10.5px; line-height: 1.5; max-width: 280px; }
+.annotation b { color: var(--scope-fg); font-weight: 600; }
+
+/* ---------- 2.0: full page, two columns (Live | History) ---------- */
+.scope[data-surface="page"] { max-width: 1120px; padding: 28px 32px 24px; }
+.scope[data-surface="page"] .tablist { display: inline-grid; min-width: 380px; }
+.page-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 20px; }
+.page-cols > .view { margin-top: 0; }
+.page-cols > .page-live { position: sticky; top: 16px; }
+.col-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--scope-muted); font-size: 11px; }
+.col-title h2 { color: var(--scope-fg); font-size: 13px; font-weight: 600; }
+.scope[data-surface="page"] .hero-card { padding: 20px 22px; }
+.scope[data-surface="page"] .rate { font-size: 64px; }
+.scope[data-surface="page"] .rate.is-word { font-size: 34px; }
+.scope[data-surface="page"] .plot { height: 96px; }
+.scope[data-surface="page"] .trend .plot { height: 132px; }
+.scope[data-surface="page"] .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.scope[data-surface="page"] .metrics[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.scope[data-surface="page"] .metrics[data-count="3"] > div:last-child { grid-column: auto; }
+.scope[data-surface="page"] .approval-card { max-width: 640px; }
+
+/* ---------- 1.6 narrow and wide ---------- */
+@media (max-width: 420px) {
+  .masthead { flex-wrap: wrap; row-gap: 10px; }
+  .ctx-extra { display: none; }
+  .status-pill { order: 3; flex: 1 1 100%; margin: 0; }
+}
+@media (max-width: 370px) {
+  .scope { padding: 14px 12px 16px; }
+  .hero-card { padding: 14px; }
+  .rate { font-size: 46px; }
+  .prefill-remaining { font-size: 30px; }
+  .tab { padding-inline: 4px; }
+  .machine-line { gap: 8px; }
+  .machine-line strong { font-size: 13px; }
+  .values-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 560px) and (max-width: 899px) {
+  .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .metrics[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .metrics[data-count="3"] > div:last-child { grid-column: auto; }
+  .rate { font-size: 60px; }
+  .plot { height: 96px; }
+}
+.ctx-extra { font-size: 10px; }
+
+/* ---------- Review board (not product UI) ---------- */
+.board { max-width: 1480px; margin: 0 auto; padding: 24px; color: var(--scope-fg); font-size: 12px; line-height: 1.55; }
+.board > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.board h1 { font-size: 18px; }
+.board h2 { margin: 28px 0 4px; font-size: 14px; }
+.board > p, .board section > p { max-width: 90ch; color: var(--scope-muted); }
+a.btn { display: inline-grid; place-items: center; text-decoration: none; }
+.frames { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; margin-top: 12px; }
+.frames figure { display: grid; gap: 6px; }
+.frames figcaption { justify-content: flex-start; font-family: var(--oc-font, sans-serif); font-size: 11px; }
+.frames iframe { display: block; border: 1px solid var(--scope-line-strong); border-radius: 10px; background: var(--scope-bg); }
+.wide-frame { overflow-x: auto; max-width: 100%; padding-bottom: 6px; }
+.copy-table { width: 100%; max-width: 1100px; margin-top: 10px; border-collapse: collapse; font-size: 11.5px; }
+.copy-table th, .copy-table td { padding: 7px 10px 7px 0; border-top: 1px solid var(--scope-line); text-align: left; vertical-align: top; }
+.copy-table th { width: 260px; color: var(--scope-muted); font-weight: 500; }
+.defaults, .spec { display: grid; gap: 6px; margin-top: 10px; max-width: 110ch; }
+.defaults li { display: flex; gap: 8px; }
+.defaults li::before { content: "☐"; color: var(--scope-accent); }
+.spec li { padding-left: 14px; text-indent: -14px; }
+.spec li::before { content: "–  "; color: var(--scope-muted); }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+@media (forced-colors: active) { .meter i, .progress-track span, .cache-input-bar > span { background: Highlight; } .trace { stroke: Highlight; } .hero-card::before { display: none; } .chip[data-outline], .info::before { border: 1px solid CanvasText; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="application/json" id="fixtures">{"_about":"Synthetic fixtures for the MLX Scope 2.0 G2 mock. Contract v2 shapes (docs/design/2.0-contract.md). No real models, paths, identifiers or readings.","serverNow":1790690700000,"snapshots":{"omlx-decode":{"contractVersion":2,"serverNow":1790690700000,"service":{"version":"2.0.0","instance":"5c1e0a7b"},"connection":{"id":"omlx","label":"Local oMLX","runtime":"omlx","version":"0.7.0rc1","generation":3,"choices":[{"id":"omlx","label":"Local oMLX","runtime":"omlx"},{"id":"bionic","label":"Splash (Bionic)","runtime":"lmstudio"},{"id":"splash","label":"Splash","runtime":"splash"}],"detection":{"basis":"probe","confidence":"high","probe":"/health"}},"status":{"state":"ready","reason":null,"params":{}},"capabilities":{"request.decodeRate":{"scope":"request","basis":"reported"},"request.prefillRate":{"scope":"request","basis":"reported"},"request.prefillProgress":{"scope":"request","basis":"reported"},"request.prefillEta":{"scope":"request","basis":"estimate"},"request.tokens":{"scope":"request","basis":"reported"},"request.elapsed":{"scope":"request","basis":"reported"},"request.context":{"scope":"request","basis":"reported"},"server.requests":{"scope":"server","basis":"reported"},"server.averages":{"scope":"server","basis":"reported"},"server.cache":{"scope":"server","basis":"reported"},"server.memory.model":{"scope":"server","basis":"reported"},"server.memory.ceiling":{"scope":"server","basis":"reported"},"server.residency":{"scope":"server","basis":"reported"},"server.usage":{"scope":"server","basis":"reported"},"server.completions":{"scope":"server","basis":"last-observed"},"host.cpu":{"scope":"host","basis":"reported"},"host.memory":{"scope":"host","basis":"reported"},"host.swap":{"scope":"host","basis":"reported"},"host.pressure":{"scope":"host","basis":"reported"},"host.wiredLimit":{"scope":"host","basis":"reported"},"host.gpuBusy":{"scope":"host","basis":"reported"},"host.gpuMemory":{"scope":"host","basis":"reported"},"host.thermal":{"scope":"host","basis":"reported"},"host.power":{"scope":"host","basis":"estimate"},"host.footprint":{"scope":"host","basis":"observed"}},"runtime":{"phase":"decode","request":{"model":"Example-27B-4bit","decodeTps":26.4,"promptTokens":52100,"cachedTokens":43000,"outputTokens":612,"elapsedMs":38200,"contextWindowTokens":131072,"contextUsedTokens":52712},"server":{"active":1,"queued":0,"averages":{"decodeTps":23.2,"prefillTps":598.2,"cacheEfficiencyFraction":0.823,"requestsTotal":381,"uptimeMs":51420000},"cache":{"ramBytes":3435973837,"ssdBytes":24051816858,"ramEntries":7,"ssdEntries":188,"lastLookup":"hit"}},"memory":{"modelBytes":18360985190,"ceilingBytes":40802189312},"residency":[{"model":"Example-27B-4bit","phase":"decode","source":"runtime","active":1,"queued":0,"bytes":18360985190,"decodeTps":26.4,"contextWindowTokens":131072}],"slots":[],"catalog":[],"engines":[]},"host":{"sampledAt":1790690699200,"cpuFraction":0.31,"memTotalBytes":51539607552,"memUsedBytes":38762079846,"mac":{"sampledAt":1790690695800,"pressureLevel":1,"wiredLimitBytes":42949672960,"swapUsedBytes":1181116006,"wiredBytes":4831838208,"compressedBytes":3006477107},"gpu":{"sampledAt":1790690697900,"busyFraction":0.87,"allocBytes":26414048870},"thermal":{"sampledAt":1790690679000,"level":0},"runtimeProcess":{"sampledAt":1790690693600,"runtime":"omlx","port":8000,"footprintBytes":35862976922},"power":{"sampledAt":1790690699100,"field":"all_power","chipW":38.4,"cpuW":4.6,"gpuW":33.5,"aneW":0.3,"coverageFraction":0.97}},"completions":{"instance":"5c1e0a7b","cursor":57,"reset":false,"items":[{"seq":57,"finishedAt":1790690639000,"startedAt":1790690591000,"model":"Example-27B-4bit","basis":"last-observed","promptTokens":49800,"cachedTokens":41200,"outputTokens":1104,"prefillMs":14100,"decodeTps":24.9,"prefillTps":598,"overlapped":false,"verdict":{"attr":"inferred","at":1790690640000},"host":{"pressureMax":1,"swapDeltaBytes":0,"gpuAllocMaxBytes":26628797235,"thermalMaxLevel":0,"energyJ":1702.4,"powerCoverage":0.96}}]},"marksHead":12,"alerts":[],"alertLog":[{"id":"swap-growth","severity":"info","since":1790679180000,"until":1790679480000,"params":{"deltaBytes":1288490189,"windowMs":240000}},{"id":"model-unloaded","severity":"info","since":1790673900000,"until":1790674020000,"params":{"model":"Example-35B-A3B-4bit"}},{"id":"runtime-lost","severity":"critical","since":1790668920000,"until":1790669280000,"params":{"runtime":"omlx"}},{"id":"pressure-warning","severity":"warning","since":1790597100000,"until":1790597640000,"params":{"level":2}}],"lease":{"leader":true,"epoch":4,"ttlMs":12000,"leaderSurface":"panel"},"nextPollMs":500},"omlx-prefill":{"contractVersion":2,"serverNow":1790690700000,"service":{"version":"2.0.0","instance":"5c1e0a7b"},"connection":{"id":"omlx","label":"Local oMLX","runtime":"omlx","version":"0.7.0rc1","generation":3,"choices":[{"id":"omlx","label":"Local oMLX","runtime":"omlx"},{"id":"bionic","label":"Splash (Bionic)","runtime":"lmstudio"},{"id":"splash","label":"Splash","runtime":"splash"}],"detection":{"basis":"probe","confidence":"high","probe":"/health"}},"status":{"state":"ready","reason":null,"params":{}},"capabilities":{"request.decodeRate":{"scope":"request","basis":"reported"},"request.prefillRate":{"scope":"request","basis":"reported"},"request.prefillProgress":{"scope":"request","basis":"reported"},"request.prefillEta":{"scope":"request","basis":"estimate"},"request.tokens":{"scope":"request","basis":"reported"},"request.elapsed":{"scope":"request","basis":"reported"},"request.context":{"scope":"request","basis":"reported"},"server.requests":{"scope":"server","basis":"reported"},"server.averages":{"scope":"server","basis":"reported"},"server.cache":{"scope":"server","basis":"reported"},"server.memory.model":{"scope":"server","basis":"reported"},"server.memory.ceiling":{"scope":"server","basis":"reported"},"server.residency":{"scope":"server","basis":"reported"},"server.usage":{"scope":"server","basis":"reported"},"server.completions":{"scope":"server","basis":"last-observed"},"host.cpu":{"scope":"host","basis":"reported"},"host.memory":{"scope":"host","basis":"reported"},"host.swap":{"scope":"host","basis":"reported"},"host.pressure":{"scope":"host","basis":"reported"},"host.wiredLimit":{"scope":"host","basis":"reported"},"host.gpuBusy":{"scope":"host","basis":"reported"},"host.gpuMemory":{"scope":"host","basis":"reported"},"host.thermal":{"scope":"host","basis":"reported"},"host.power":{"scope":"host","basis":"estimate"},"host.footprint":{"scope":"host","basis":"observed"}},"runtime":{"phase":"prefill","request":{"model":"Example-27B-4bit","prefillTps":184.5,"prefillProcessedTokens":5824,"prefillTotalTokens":9100,"prefillFraction":0.64,"prefillEtaMs":17800,"promptTokens":52100,"cachedTokens":43000,"elapsedMs":31600,"contextWindowTokens":131072,"contextUsedTokens":52100},"server":{"active":1,"queued":0,"averages":{"decodeTps":23.2,"prefillTps":598.2,"cacheEfficiencyFraction":0.823,"requestsTotal":381,"uptimeMs":51420000},"cache":{"ramBytes":3435973837,"ssdBytes":24051816858,"ramEntries":7,"ssdEntries":188,"lastLookup":"hit"}},"memory":{"modelBytes":18360985190,"ceilingBytes":40802189312},"residency":[{"model":"Example-27B-4bit","phase":"prefill","source":"runtime","active":1,"queued":0,"bytes":18360985190,"contextWindowTokens":131072,"prefillFraction":0.64}],"slots":[],"catalog":[],"engines":[]},"host":{"sampledAt":1790690699200,"cpuFraction":0.31,"memTotalBytes":51539607552,"memUsedBytes":38762079846,"mac":{"sampledAt":1790690695800,"pressureLevel":1,"wiredLimitBytes":42949672960,"swapUsedBytes":1181116006,"wiredBytes":4831838208,"compressedBytes":3006477107},"gpu":{"sampledAt":1790690697900,"busyFraction":0.94,"allocBytes":26414048870},"thermal":{"sampledAt":1790690679000,"level":0},"runtimeProcess":{"sampledAt":1790690693600,"runtime":"omlx","port":8000,"footprintBytes":35862976922},"power":{"sampledAt":1790690699100,"field":"all_power","chipW":44.1,"cpuW":4.6,"gpuW":33.5,"aneW":0.3,"coverageFraction":0.97}},"completions":{"instance":"5c1e0a7b","cursor":57,"reset":false,"items":[{"seq":57,"finishedAt":1790690639000,"startedAt":1790690591000,"model":"Example-27B-4bit","basis":"last-observed","promptTokens":49800,"cachedTokens":41200,"outputTokens":1104,"prefillMs":14100,"decodeTps":24.9,"prefillTps":598,"overlapped":false,"verdict":{"attr":"inferred","at":1790690640000},"host":{"pressureMax":1,"swapDeltaBytes":0,"gpuAllocMaxBytes":26628797235,"thermalMaxLevel":0,"energyJ":1702.4,"powerCoverage":0.96}}]},"marksHead":12,"alerts":[],"alertLog":[{"id":"swap-growth","severity":"info","since":1790679180000,"until":1790679480000,"params":{"deltaBytes":1288490189,"windowMs":240000}},{"id":"model-unloaded","severity":"info","since":1790673900000,"until":1790674020000,"params":{"model":"Example-35B-A3B-4bit"}},{"id":"runtime-lost","severity":"critical","since":1790668920000,"until":1790669280000,"params":{"runtime":"omlx"}},{"id":"pressure-warning","severity":"warning","since":1790597100000,"until":1790597640000,"params":{"level":2}}],"lease":{"leader":true,"epoch":4,"ttlMs":12000,"leaderSurface":"panel"},"nextPollMs":500},"omlx-idle":{"contractVersion":2,"serverNow":1790690700000,"service":{"version":"2.0.0","instance":"5c1e0a7b"},"connection":{"id":"omlx","label":"Local oMLX","runtime":"omlx","version":"0.7.0rc1","generation":3,"choices":[{"id":"omlx","label":"Local oMLX","runtime":"omlx"},{"id":"bionic","label":"Splash (Bionic)","runtime":"lmstudio"},{"id":"splash","label":"Splash","runtime":"splash"}],"detection":{"basis":"probe","confidence":"high","probe":"/health"}},"status":{"state":"ready","reason":null,"params":{}},"capabilities":{"request.decodeRate":{"scope":"request","basis":"reported"},"request.prefillRate":{"scope":"request","basis":"reported"},"request.prefillProgress":{"scope":"request","basis":"reported"},"request.prefillEta":{"scope":"request","basis":"estimate"},"request.tokens":{"scope":"request","basis":"reported"},"request.elapsed":{"scope":"request","basis":"reported"},"request.context":{"scope":"request","basis":"reported"},"server.requests":{"scope":"server","basis":"reported"},"server.averages":{"scope":"server","basis":"reported"},"server.cache":{"scope":"server","basis":"reported"},"server.memory.model":{"scope":"server","basis":"reported"},"server.memory.ceiling":{"scope":"server","basis":"reported"},"server.residency":{"scope":"server","basis":"reported"},"server.usage":{"scope":"server","basis":"reported"},"server.completions":{"scope":"server","basis":"last-observed"},"host.cpu":{"scope":"host","basis":"reported"},"host.memory":{"scope":"host","basis":"reported"},"host.swap":{"scope":"host","basis":"reported"},"host.pressure":{"scope":"host","basis":"reported"},"host.wiredLimit":{"scope":"host","basis":"reported"},"host.gpuBusy":{"scope":"host","basis":"reported"},"host.gpuMemory":{"scope":"host","basis":"reported"},"host.thermal":{"scope":"host","basis":"reported"},"host.power":{"scope":"host","basis":"estimate"},"host.footprint":{"scope":"host","basis":"observed"}},"runtime":{"phase":"idle","request":null,"server":{"active":0,"queued":0,"averages":{"decodeTps":23.2,"prefillTps":598.2,"cacheEfficiencyFraction":0.823,"requestsTotal":381,"uptimeMs":51420000},"cache":{"ramBytes":3435973837,"ssdBytes":24051816858,"ramEntries":7,"ssdEntries":188,"lastLookup":"hit"}},"memory":{"modelBytes":18360985190,"ceilingBytes":40802189312},"residency":[{"model":"Example-27B-4bit","phase":"idle","source":"runtime","active":0,"queued":0,"bytes":18360985190,"contextWindowTokens":131072}],"slots":[],"catalog":[],"engines":[]},"host":{"sampledAt":1790690699200,"cpuFraction":0.06,"memTotalBytes":51539607552,"memUsedBytes":37795712205,"mac":{"sampledAt":1790690695800,"pressureLevel":1,"wiredLimitBytes":42949672960,"swapUsedBytes":1181116006,"wiredBytes":4831838208,"compressedBytes":3006477107},"gpu":{"sampledAt":1790690697900,"busyFraction":0.02,"allocBytes":25662429594},"thermal":{"sampledAt":1790690679000,"level":0},"runtimeProcess":{"sampledAt":1790690693600,"runtime":"omlx","port":8000,"footprintBytes":35862976922},"power":{"sampledAt":1790690699100,"field":"all_power","chipW":3.1,"cpuW":2.2,"gpuW":0.8,"aneW":0.1,"coverageFraction":0.97}},"completions":{"instance":"5c1e0a7b","cursor":57,"reset":false,"items":[{"seq":57,"finishedAt":1790690639000,"startedAt":1790690591000,"model":"Example-27B-4bit","basis":"last-observed","promptTokens":49800,"cachedTokens":41200,"outputTokens":1104,"prefillMs":14100,"decodeTps":24.9,"prefillTps":598,"overlapped":false,"verdict":{"attr":"inferred","at":1790690640000},"host":{"pressureMax":1,"swapDeltaBytes":0,"gpuAllocMaxBytes":26628797235,"thermalMaxLevel":0,"energyJ":1702.4,"powerCoverage":0.96}}]},"marksHead":12,"alerts":[],"alertLog":[{"id":"swap-growth","severity":"info","since":1790679180000,"until":1790679480000,"params":{"deltaBytes":1288490189,"windowMs":240000}},{"id":"model-unloaded","severity":"info","since":1790673900000,"until":1790674020000,"params":{"model":"Example-35B-A3B-4bit"}},{"id":"runtime-lost","severity":"critical","since":1790668920000,"until":1790669280000,"params":{"runtime":"omlx"}},{"id":"pressure-warning","severity":"warning","since":1790597100000,"until":1790597640000,"params":{"level":2}}],"lease":{"leader":true,"epoch":4,"ttlMs":12000,"leaderSurface":"panel"},"nextPollMs":2000},"omlx-offline":{"contractVersion":2,"serverNow":1790690700000,"service":{"version":"2.0.0","instance":"5c1e0a7b"},"connection":{"id":"omlx","label":"Local oMLX","runtime":"omlx","version":"0.7.0rc1","generation":3,"choices":[{"id":"omlx","label":"Local oMLX","runtime":"omlx"},{"id":"bionic","label":"Splash (Bionic)","runtime":"lmstudio"},{"id":"splash","label":"Splash","runtime":"splash"}],"detection":{"basis":"probe","confidence":"high","probe":"/health"}},"status":{"state":"failing","reason":"runtime_unreachable","params":{"port":8000,"sinceAt":1790690510000},"sinceAt":1790690510000},"capabilities":{"host.cpu":{"scope":"host","basis":"reported"},"host.memory":{"scope":"host","basis":"reported"},"host.swap":{"scope":"host","basis":"reported"},"host.pressure":{"scope":"host","basis":"reported"},"host.wiredLimit":{"scope":"host","basis":"reported"},"host.gpuBusy":{"scope":"host","basis":"reported"},"host.gpuMemory":{"scope":"host","basis":"reported"},"host.thermal":{"scope":"host","basis":"reported"},"host.power":{"scope":"host","basis":"estimate"},"server.completions":{"scope":"server","basis":"last-observed"}},"runtime":{"phase":"unknown","request":null,"server":{"active":null,"queued":null},"memory":{},"residency":[],"slots":[],"catalog":[],"engines":[]},"host":{"sampledAt":1790690699200,"cpuFraction":0.04,"memTotalBytes":51539607552,"memUsedBytes":19649475379,"mac":{"sampledAt":1790690695800,"pressureLevel":1,"wiredLimitBytes":42949672960,"swapUsedBytes":1181116006,"wiredBytes":4831838208,"compressedBytes":3006477107},"gpu":{"sampledAt":1790690697900,"busyFraction":0.01,"allocBytes":3328599654},"thermal":{"sampledAt":1790690679000,"level":0},"power":{"sampledAt":1790690699100,"field":"all_power","chipW":2.4,"cpuW":1.9,"gpuW":0.4,"aneW":0.1,"coverageFraction":0.98}},"completions":{"instance":"5c1e0a7b","cursor":57,"reset":false,"items":[{"seq":57,"finishedAt":1790690430000,"startedAt":1790690380000,"model":"Example-27B-4bit","basis":"last-observed","promptTokens":49800,"cachedTokens":41200,"outputTokens":1104,"prefillMs":14100,"decodeTps":24.9,"prefillTps":598,"overlapped":false,"verdict":{"attr":"inferred","at":1790690431000},"host":{"pressureMax":1,"swapDeltaBytes":0,"gpuAllocMaxBytes":26628797235,"thermalMaxLevel":0,"energyJ":1702.4,"powerCoverage":0.96}}]},"marksHead":12,"alerts":[{"id":"runtime-lost","severity":"critical","since":1790690510000,"params":{"runtime":"omlx"},"badge":true,"toastSeq":3}],"alertLog":[{"id":"swap-growth","severity":"info","since":1790679180000,"until":1790679480000,"params":{"deltaBytes":1288490189,"windowMs":240000}},{"id":"model-unloaded","severity":"info","since":1790673900000,"until":1790674020000,"params":{"model":"Example-35B-A3B-4bit"}},{"id":"runtime-lost","severity":"critical","since":1790668920000,"until":1790669280000,"params":{"runtime":"omlx"}},{"id":"pressure-warning","severity":"warning","since":1790597100000,"until":1790597640000,"params":{"level":2}}],"lease":{"leader":true,"epoch":4,"ttlMs":12000,"leaderSurface":"panel"},"nextPollMs":4000},"splash-recovering":{"contractVersion":2,"serverNow":1790690700000,"service":{"version":"2.0.0","instance":"5c1e0a7b"},"connection":{"id":"splash","label":"Splash","runtime":"splash","generation":5,"choices":[{"id":"omlx","label":"Local oMLX","runtime":"omlx"},{"id":"bionic","label":"Splash (Bionic)","runtime":"lmstudio"},{"id":"splash","label":"Splash","runtime":"splash"}],"detection":{"basis":"probe","confidence":"high","probe":"/status"}},"status":{"state":"recovering","reason":"recovering","params":{"retryInMs":30000,"crashTrace":true},"sinceAt":1790690605000},"capabilities":{"server.requests":{"scope":"server","basis":"reported"},"server.averages":{"scope":"server","basis":"reported"},"server.latency":{"scope":"server","basis":"reported"},"server.memory.metal":{"scope":"server","basis":"reported"},"server.catalog":{"scope":"server","basis":"reported"},"server.completions":{"scope":"server","basis":"derived"},"host.cpu":{"scope":"host","basis":"reported"},"host.memory":{"scope":"host","basis":"reported"},"host.swap":{"scope":"host","basis":"reported"},"host.pressure":{"scope":"host","basis":"reported"},"host.wiredLimit":{"scope":"host","basis":"reported"},"host.gpuBusy":{"scope":"host","basis":"reported"},"host.gpuMemory":{"scope":"host","basis":"reported"},"host.thermal":{"scope":"host","basis":"reported"},"host.power":{"scope":"host","basis":"estimate"}},"runtime":{"phase":"unknown","request":null,"server":{"active":null,"queued":null,"averages":{"decodeTps":47.2,"requestsTotal":17,"failedTotal":1},"histograms":{"ttftMs":{"p50":410,"p95":1260,"n":212,"window":"native-last-4096"},"itlMs":{"p50":21,"p95":38,"n":4096,"window":"native-last-4096"}}},"memory":{"metalBytes":13421772800,"metalPeakBytes":13958643712},"residency":[],"slots":[],"catalog":[{"name":"example/Example-27B-Splash","format":"splash","loaded":true,"contextWindowTokens":262144,"vision":true,"inputModalities":["text","image"]}],"engines":[]},"host":{"sampledAt":1790690699200,"cpuFraction":0.12,"memTotalBytes":51539607552,"memUsedBytes":31568009626,"mac":{"sampledAt":1790690695800,"pressureLevel":1,"wiredLimitBytes":42949672960,"swapUsedBytes":1181116006,"wiredBytes":4831838208,"compressedBytes":3006477107},"gpu":{"sampledAt":1790690697900,"busyFraction":0.03,"allocBytes":17931488461},"thermal":{"sampledAt":1790690679000,"level":0},"power":{"sampledAt":1790690699100,"field":"all_power","chipW":5.2,"cpuW":4.1,"gpuW":0.9,"aneW":0.2,"coverageFraction":0.97}},"completions":{"instance":"5c1e0a7b","cursor":17,"reset":false,"items":[]},"marksHead":3,"alerts":[{"id":"splash-recovering","severity":"warning","since":1790690605000,"params":{},"badge":true}],"alertLog":[{"id":"swap-growth","severity":"info","since":1790679180000,"until":1790679480000,"params":{"deltaBytes":1288490189,"windowMs":240000}},{"id":"model-unloaded","severity":"info","since":1790673900000,"until":1790674020000,"params":{"model":"Example-35B-A3B-4bit"}},{"id":"runtime-lost","severity":"critical","since":1790668920000,"until":1790669280000,"params":{"runtime":"omlx"}},{"id":"pressure-warning","severity":"warning","since":1790597100000,"until":1790597640000,"params":{"level":2}}],"lease":{"leader":true,"epoch":4,"ttlMs":12000,"leaderSurface":"panel"},"nextPollMs":2000},"llama-slots":{"contractVersion":2,"serverNow":1790690700000,"service":{"version":"2.0.0","instance":"5c1e0a7b"},"connection":{"id":"llama","label":"llama-server","runtime":"llama-server","version":"b10542","generation":2,"choices":[{"id":"llama","label":"llama-server","runtime":"llama-server"},{"id":"omlx","label":"Local oMLX","runtime":"omlx"},{"id":"bionic","label":"Splash (Bionic)","runtime":"lmstudio"},{"id":"splash","label":"Splash","runtime":"splash"}],"detection":{"basis":"probe","confidence":"high","probe":"/props"}},"status":{"state":"ready","reason":null,"params":{}},"capabilities":{"server.requests":{"scope":"server","basis":"reported"},"server.slots":{"scope":"server","basis":"reported"},"server.rates":{"scope":"server","basis":"derived"},"server.speculative":{"scope":"server","basis":"derived"},"server.catalog":{"scope":"server","basis":"reported"},"server.completions":{"scope":"server","basis":"observed"},"host.cpu":{"scope":"host","basis":"reported"},"host.memory":{"scope":"host","basis":"reported"},"host.swap":{"scope":"host","basis":"reported"},"host.pressure":{"scope":"host","basis":"reported"},"host.wiredLimit":{"scope":"host","basis":"reported"},"host.gpuBusy":{"scope":"host","basis":"reported"},"host.gpuMemory":{"scope":"host","basis":"reported"},"host.thermal":{"scope":"host","basis":"reported"},"host.power":{"scope":"host","basis":"estimate"}},"runtime":{"phase":"processing","request":null,"server":{"active":2,"queued":0,"rates":{"promptTps":812,"decodeTps":98.4,"windowMs":60000},"speculative":{"draftedTokens":5120,"acceptedTokens":3584,"acceptanceFraction":0.7,"windowMs":600000}},"memory":{},"residency":[],"slots":[{"id":0,"busy":true,"contextWindowTokens":32768,"decodedTokens":412,"remainingTokens":612,"promptTokens":3180},{"id":1,"busy":true,"contextWindowTokens":32768,"decodedTokens":1290,"promptTokens":8420},{"id":2,"busy":false,"contextWindowTokens":32768},{"id":3,"busy":false,"contextWindowTokens":32768}],"catalog":[{"name":"example-8b-instruct-q4_k_m.gguf","format":"gguf","loaded":true,"contextWindowTokens":32768}],"engines":[]},"host":{"sampledAt":1790690699200,"cpuFraction":0.22,"memTotalBytes":51539607552,"memUsedBytes":23407571763,"mac":{"sampledAt":1790690695800,"pressureLevel":1,"wiredLimitBytes":42949672960,"swapUsedBytes":1181116006,"wiredBytes":4831838208,"compressedBytes":3006477107},"gpu":{"sampledAt":1790690697900,"busyFraction":0.91,"allocBytes":8804682957},"thermal":{"sampledAt":1790690679000,"level":0},"power":{"sampledAt":1790690699100,"field":"all_power","chipW":29.7,"cpuW":3.9,"gpuW":25.6,"aneW":0.2,"coverageFraction":0.95}},"completions":{"instance":"5c1e0a7b","cursor":9,"reset":false,"items":[]},"marksHead":0,"alerts":[],"alertLog":[],"lease":{"leader":true,"epoch":4,"ttlMs":12000,"leaderSurface":"panel"},"nextPollMs":500},"ollama-residency":{"contractVersion":2,"serverNow":1790690700000,"service":{"version":"2.0.0","instance":"5c1e0a7b"},"connection":{"id":"ollama","label":"Ollama","runtime":"ollama","version":"0.12.3","generation":1,"choices":[{"id":"ollama","label":"Ollama","runtime":"ollama"},{"id":"omlx","label":"Local oMLX","runtime":"omlx"},{"id":"bionic","label":"Splash (Bionic)","runtime":"lmstudio"},{"id":"splash","label":"Splash","runtime":"splash"}],"detection":{"basis":"probe","confidence":"high","probe":"/api/version"}},"status":{"state":"ready","reason":null,"params":{}},"capabilities":{"server.residency":{"scope":"server","basis":"reported"},"host.cpu":{"scope":"host","basis":"reported"},"host.memory":{"scope":"host","basis":"reported"},"host.swap":{"scope":"host","basis":"reported"},"host.pressure":{"scope":"host","basis":"reported"},"host.wiredLimit":{"scope":"host","basis":"reported"},"host.gpuBusy":{"scope":"host","basis":"reported"},"host.gpuMemory":{"scope":"host","basis":"reported"},"host.thermal":{"scope":"host","basis":"reported"},"host.power":{"scope":"host","basis":"estimate"}},"runtime":{"phase":"unknown","request":null,"server":{"active":null,"queued":null},"memory":{},"residency":[{"model":"example:14b","phase":"unknown","source":"ollama-ps","bytes":12025908429,"gpuResidentBytes":10844792422,"unloadsAt":1790690912000,"contextWindowTokens":8192},{"model":"example-embed:latest","phase":"unknown","source":"ollama-ps","bytes":644245094,"gpuResidentBytes":644245094,"unloadsAt":1790690738000,"contextWindowTokens":2048}],"slots":[],"catalog":[],"engines":[]},"host":{"sampledAt":1790690699200,"cpuFraction":0.05,"memTotalBytes":51539607552,"memUsedBytes":26199300506,"mac":{"sampledAt":1790690695800,"pressureLevel":1,"wiredLimitBytes":42949672960,"swapUsedBytes":1181116006,"wiredBytes":4831838208,"compressedBytes":3006477107},"gpu":{"sampledAt":1790690697900,"busyFraction":0.01,"allocBytes":13207024435},"thermal":{"sampledAt":1790690679000,"level":0},"power":{"sampledAt":1790690699100,"field":"all_power","chipW":2.9,"cpuW":2.1,"gpuW":0.7,"aneW":0.1,"coverageFraction":0.97}},"completions":{"instance":"5c1e0a7b","cursor":0,"reset":false,"items":[]},"marksHead":0,"alerts":[],"alertLog":[],"lease":{"leader":true,"epoch":4,"ttlMs":12000,"leaderSurface":"panel"},"nextPollMs":2000},"bionic":{"contractVersion":2,"serverNow":1790690700000,"service":{"version":"2.0.0","instance":"5c1e0a7b"},"connection":{"id":"bionic","label":"Splash (Bionic)","runtime":"lmstudio","engine":"splash","host":"bionic","version":"1.1.6","generation":7,"choices":[{"id":"omlx","label":"Local oMLX","runtime":"omlx"},{"id":"bionic","label":"Splash (Bionic)","runtime":"lmstudio"},{"id":"splash","label":"Splash","runtime":"splash"}],"detection":{"basis":"probe","confidence":"high","probe":"/lmstudio-greeting"}},"status":{"state":"ready","reason":null,"params":{}},"capabilities":{"server.requests":{"scope":"server","basis":"reported"},"server.averages":{"scope":"server","basis":"reported"},"server.residency":{"scope":"server","basis":"reported"},"server.catalog":{"scope":"server","basis":"reported"},"server.engines":{"scope":"server","basis":"reported"},"server.completions":{"scope":"server","basis":"reported"},"host.cpu":{"scope":"host","basis":"reported"},"host.memory":{"scope":"host","basis":"reported"},"host.swap":{"scope":"host","basis":"reported"},"host.pressure":{"scope":"host","basis":"reported"},"host.wiredLimit":{"scope":"host","basis":"reported"},"host.gpuBusy":{"scope":"host","basis":"reported"},"host.gpuMemory":{"scope":"host","basis":"reported"},"host.thermal":{"scope":"host","basis":"reported"},"host.power":{"scope":"host","basis":"estimate"}},"runtime":{"phase":"idle","request":null,"server":{"active":0,"queued":null,"averages":{"decodeTps":37.9,"cacheEfficiencyFraction":0.612,"requestsTotal":23}},"memory":{},"residency":[{"model":"example-27b-splash","phase":"idle","source":"lms-ps","bytes":18683107738,"contextWindowTokens":262144}],"slots":[],"catalog":[{"name":"example-27b-splash","format":"splash","loaded":true,"contextWindowTokens":262144},{"name":"example-35b-a3b-splash","format":"splash","loaded":false,"contextWindowTokens":262144},{"name":"example-embed-v1.5","format":"gguf","loaded":false,"contextWindowTokens":2048}],"engines":[{"name":"splash","version":"0.0.5","selected":true},{"name":"mlx-llm","version":"0.28.1","selected":false},{"name":"llama.cpp","version":"1.52.0","selected":false}]},"host":{"sampledAt":1790690699200,"cpuFraction":0.07,"memTotalBytes":51539607552,"memUsedBytes":36399847834,"mac":{"sampledAt":1790690695800,"pressureLevel":1,"wiredLimitBytes":42949672960,"swapUsedBytes":1181116006,"wiredBytes":4831838208,"compressedBytes":3006477107},"gpu":{"sampledAt":1790690697900,"busyFraction":0.02,"allocBytes":21260088115},"thermal":{"sampledAt":1790690679000,"level":0},"power":{"sampledAt":1790690699100,"field":"all_power","chipW":3.4,"cpuW":2.5,"gpuW":0.8,"aneW":0.1,"coverageFraction":0.97}},"completions":{"instance":"5c1e0a7b","cursor":23,"reset":false,"items":[{"seq":21,"finishedAt":1790690579000,"startedAt":1790690552000,"model":"example-27b-splash","basis":"reported","promptTokens":17900,"cachedTokens":11020,"outputTokens":1310,"ttftMs":520,"decodeTps":37.8,"overlapped":false,"verdict":{"attr":"inferred","at":1790690580000},"host":{"pressureMax":1,"swapDeltaBytes":0,"thermalMaxLevel":0,"energyJ":1450.2,"powerCoverage":0.97}},{"seq":22,"finishedAt":1790690616000,"startedAt":1790690597000,"model":"example-27b-splash","basis":"reported","promptTokens":18120,"cachedTokens":11180,"outputTokens":702,"ttftMs":470,"decodeTps":38.1,"overlapped":false,"verdict":{"attr":"inferred","at":1790690617000},"host":{"pressureMax":1,"swapDeltaBytes":0,"thermalMaxLevel":0,"energyJ":772.6,"powerCoverage":0.97}},{"seq":23,"finishedAt":1790690658000,"startedAt":1790690629000,"model":"example-27b-splash","basis":"reported","promptTokens":18400,"cachedTokens":11260,"outputTokens":1092,"ttftMs":510,"decodeTps":38.6,"overlapped":false,"verdict":{"attr":"inferred","at":1790690659000},"host":{"pressureMax":1,"swapDeltaBytes":0,"thermalMaxLevel":0,"energyJ":1163.9,"powerCoverage":0.97}}]},"marksHead":8,"alerts":[],"alertLog":[],"lease":{"leader":true,"epoch":4,"ttlMs":12000,"leaderSurface":"status"},"nextPollMs":3000}},"trend":{"contractVersion":2,"serverNow":1790690700000,"windowMs":3600000,"bucketMs":20000,"startAt":1790687100000,"series":{"decodeTps":{"basis":"reported","buckets":[null,null,null,null,[24.6,26.4,25.2],[21.8,25.8,23.9],[21.8,26.1,24.5],[21.9,25.9,24.9],[22.5,25.5,24.6],[21.9,25,24],[22.2,26.4,25.4],[22.7,25.7,25.1],[21.9,25.9,24.5],[21.5,26.4,24.1],[24.4,26.2,25],null,null,null,null,null,null,null,null,null,null,null,null,null,null,[23.8,25.6,24],[22.1,26.1,25.3],[22.8,25.3,24.4],[22.1,25.6,23.7],[21.5,25,23.4],[22.4,26,25.3],[22.1,25.2,23.8],[22.5,25.5,24.2],[23.8,25.8,24.6],null,null,null,null,null,null,null,null,null,null,[21.5,25.6,24.7],[21.9,25.9,24.3],[22.1,26,25.3],[22.3,26,24.1],[22,25.5,23.8],[24.3,26.2,25],null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,[24.1,26.1,24.9],[23.9,27.6,25.6],[23.1,26.2,24.9],[23.1,26.2,25.6],[22.7,27.4,26.4],[22.6,27.2,24.8],[24,26.4,24.9],[24,27,25.4],[22.9,26.8,25.6],[23.6,27.4,25.4],[23.4,27.4,25],[24.1,26,25.5],null,null,null,null,null,null,null,null,null,null,null,null,null,[24,26,24.8],[22.5,26.9,25.5],[23.6,26.4,24.9],[23.2,26.1,25.3],[22.9,27.1,25.4],[24,26.2,25.8],[23.8,27.1,26.4],[23.9,27.4,26.6],[22.5,27.5,26.2],[24.3,26.4,25.5],null,null,null,null,null,null,null,null,null,null,null,null,null,[23.8,25.9,24.6],[23.9,25.6,24.9],null,[24.5,26.4,25.1],[23.2,26.6,25.4]]}},"gaps":[{"fromAt":1790688240000,"toAt":1790689560000}],"marks":[{"seq":1,"at":1790687190000,"phase":"started"},{"seq":2,"at":1790687388000,"phase":"completed"},{"seq":3,"at":1790687694000,"phase":"started"},{"seq":4,"at":1790687856000,"phase":"completed"},{"seq":5,"at":1790688060000,"phase":"started"},{"seq":6,"at":1790688168000,"phase":"completed"},{"seq":7,"at":1790689644000,"phase":"started"},{"seq":8,"at":1790689866000,"phase":"completed"},{"seq":9,"at":1790690142000,"phase":"started"},{"seq":10,"at":1790690641000,"phase":"completed"},{"seq":11,"at":1790690661000,"phase":"started"}]},"usage":{"contractVersion":2,"serverNow":1790690700000,"available":true,"range":"7d","cachedAt":1790690520000,"basis":"reported","granularity":"day","buckets":[{"at":1790121600000,"requests":52,"promptTokens":2410000,"cachedTokens":1830000,"outputTokens":162000},{"at":1790208000000,"requests":71,"promptTokens":3100000,"cachedTokens":2440000,"outputTokens":231000},{"at":1790294400000,"requests":38,"promptTokens":1720000,"cachedTokens":1300000,"outputTokens":121000},{"at":1790380800000,"requests":0,"promptTokens":0,"cachedTokens":0,"outputTokens":0},{"at":1790467200000,"requests":64,"promptTokens":2880000,"cachedTokens":2250000,"outputTokens":207000},{"at":1790553600000,"requests":96,"promptTokens":4350000,"cachedTokens":3410000,"outputTokens":318000},{"at":1790640000000,"requests":91,"promptTokens":3780000,"cachedTokens":2670000,"outputTokens":271000}],"totals":{"requests":412,"promptTokens":18240000,"cachedTokens":13900000,"outputTokens":1310000},"models":[{"model":"Example-27B-4bit","requests":371,"promptTokens":16810000,"outputTokens":1190000},{"model":"Example-35B-A3B-4bit","requests":41,"promptTokens":1430000,"outputTokens":120000}]},"panel":{"defaults":{"attr":{"label":"inferred"},"next":{"state":"idle"}},"ledger":[{"kind":"t","startedAt":1790690142000,"endedAt":1790690640000,"rt":"omlx","model":"Example-27B-4bit","steps":3,"outputTokens":3284,"wDecodeTps":25.2,"waitMs":332000,"cacheReuseFraction":0.84,"attr":{"label":"inferred"},"id":3,"promptTokens":142200,"cachedTokens":119800},{"kind":"r","finishedAt":1790690640000,"rt":"omlx","model":"Example-27B-4bit","basis":"last-observed","decodeTps":24.9,"outputTokens":1104,"promptTokens":49800,"cachedTokens":41200,"attr":{"label":"inferred"},"turn":3},{"kind":"r","finishedAt":1790690316000,"rt":"omlx","model":"Example-27B-4bit","basis":"last-observed","decodeTps":25.6,"outputTokens":862,"promptTokens":47300,"cachedTokens":39900,"attr":{"label":"inferred"},"turn":3},{"kind":"r","finishedAt":1790690214000,"rt":"omlx","model":"Example-27B-4bit","basis":"last-observed","decodeTps":25.1,"outputTokens":1318,"promptTokens":45100,"cachedTokens":38700,"attr":{"label":"inferred"},"turn":3},{"kind":"r","finishedAt":1790689866000,"rt":"omlx","model":"Example-27B-4bit","basis":"last-observed","decodeTps":24.3,"outputTokens":2210,"promptTokens":38200,"cachedTokens":30100,"attr":{"label":"armed"}},{"kind":"r","finishedAt":1790689758000,"rt":"omlx","model":"Example-27B-4bit","basis":"last-observed","decodeTps":23.8,"outputTokens":604,"promptTokens":36100,"cachedTokens":0,"attr":{"label":"withheld","reason":"several-chats","params":{"count":2}},"overlapped":true},{"kind":"gap","fromAt":1790688240000,"toAt":1790689560000},{"kind":"r","finishedAt":1790688168000,"rt":"omlx","model":"Example-27B-4bit","basis":"last-observed","decodeTps":24.4,"outputTokens":1502,"promptTokens":30400,"cachedTokens":26900,"attr":{"label":"withheld","reason":"subagent-running"}},{"kind":"r","finishedAt":1790687856000,"rt":"omlx","model":"Example-27B-4bit","basis":"last-observed","decodeTps":24,"outputTokens":988,"promptTokens":28800,"cachedTokens":25100,"attr":{"label":"inferred"}},{"kind":"r","finishedAt":1790687388000,"rt":"omlx","model":"Example-27B-4bit","basis":"last-observed","decodeTps":23.6,"outputTokens":1740,"promptTokens":26100,"cachedTokens":0,"attr":{"label":"server","reason":"not-observed"}}],"basisCounts":{"last-observed":41,"reported":0,"observed":0,"derived":0},"baseline":{"key":"omlx|Example-27B-4bit|32–64K","ctxBucket":"32–64K context","decode":{"p50":25.7,"p90":27.9,"n":23},"prefill":{"p50":598,"p90":655,"n":18},"tokPerW":{"p50":0.72,"n":14,"basis":"estimate"}},"bionicBaseline":{"decode":{"p50":37.4,"p90":38.9,"n":23},"ttft":{"p50":0.49,"p90":0.61,"n":23}},"storage":{"usedBytes":421888,"capBytes":1310720,"namespaceBytes":479232,"keys":31,"replies":1406,"days":12,"retentionDays":30,"paused":false},"storageFull":{"usedBytes":1310720,"capBytes":1310720,"namespaceBytes":1424384,"keys":64,"replies":7702,"days":19,"retentionDays":30,"paused":false},"captures":[{"at":1790689380000,"kind":"next-reply","model":"Example-27B-4bit","decodeTps":25.1,"outputTokens":1204,"attr":{"label":"armed"}},{"at":1790679900000,"kind":"window","windowMs":60000,"model":"Example-27B-4bit","decodeTps":24.6,"outputTokens":1480,"attr":{"label":"server","reason":"all-requests"}},{"at":1790597100000,"kind":"window","windowMs":30000,"model":"Example-35B-A3B-4bit","decodeTps":61.3,"outputTokens":1830,"attr":{"label":"server","reason":"all-requests"}}],"prefs":{"history":true,"retentionDays":30,"toasts":"critical","autoLabel":true,"statusMayToast":"owner decides"},"turnStats":{"bionic":{"startedAt":1790690546000,"endedAt":1790690658000,"steps":3,"wholeMs":112000,"modelMs":75000,"waitMs":37000,"firstTtftMs":520,"promptTokens":54420,"cachedTokens":33460,"outputTokens":3104,"wDecodeTps":38.1,"cacheReuseFraction":0.615,"contextUsedTokens":19492,"contextWindowTokens":262144,"basis":"reported","vsUsual":{"delta":0.019,"n":23}},"live":{"startedAt":1790690661000,"step":1,"phase":"decode","wholeMs":39000,"modelMs":38200,"waitMs":800,"decodeTps":26.4,"promptTokens":52100,"cachedTokens":43000,"outputTokens":612,"cacheReuseFraction":0.825,"contextUsedTokens":52712,"contextWindowTokens":131072,"basis":"last-observed"},"omlx":{"startedAt":1790690142000,"endedAt":1790690640000,"steps":3,"wholeMs":498000,"modelMs":166000,"waitMs":332000,"promptTokens":142200,"cachedTokens":119800,"outputTokens":3284,"wDecodeTps":25.2,"cacheReuseFraction":0.842,"contextUsedTokens":50904,"contextWindowTokens":131072,"basis":"last-observed","vsUsual":{"delta":-0.019,"n":23}},"withheld":{"seq":23,"reason":"several-chats","params":{"count":2}}}},"states":{"decode":{"title":"Decode · This chat · inferred","snapshot":"omlx-decode"},"withheld-chats":{"title":"Withheld · 2 chats running","snapshot":"omlx-decode","view":{"attr":{"label":"withheld","reason":"several-chats","params":{"count":2}},"lastAttr":{"label":"withheld","reason":"several-chats","params":{"count":2}}}},"withheld-subagent":{"title":"Withheld · subagent running","snapshot":"omlx-decode","view":{"attr":{"label":"withheld","reason":"subagent-running"},"lastAttr":{"label":"withheld","reason":"subagent-running"}}},"other-provider":{"title":"This chat uses Splash · Watch Splash","snapshot":"omlx-decode","view":{"attr":{"label":"withheld","reason":"other-provider","params":{"provider":"Splash"}},"lastAttr":{"label":"withheld","reason":"other-provider","params":{"provider":"Splash"}},"watch":"Splash"}},"armed-refusal":{"title":"Next reply won’t arm · chat model differs","snapshot":"omlx-idle","view":{"lastAttr":{"label":"withheld","reason":"model-differs"},"next":{"state":"refused","reason":"model-differs"}}},"first-readings":{"title":"First readings · no chart yet","snapshot":"omlx-decode","patch":{"runtime":{"request":{"decodeTps":24.8,"outputTokens":14,"elapsedMs":15100,"contextUsedTokens":52114},"residency":[{"model":"Example-27B-4bit","phase":"decode","source":"runtime","active":1,"queued":0,"bytes":18360985190,"decodeTps":24.8,"contextWindowTokens":131072}]}},"view":{"liveSamples":1}},"prefill":{"title":"oMLX prefill with ETA","snapshot":"omlx-prefill"},"prefill-stall":{"title":"oMLX prefill stalled","snapshot":"omlx-prefill","patch":{"runtime":{"request":{"prefillStale":true,"prefillEtaMs":null}},"alerts":[{"id":"omlx-prefill-stall","severity":"warning","since":1790690655000,"params":{"stalledMs":45000},"badge":true}]}},"idle":{"title":"Idle","snapshot":"omlx-idle"},"paused":{"title":"Paused","snapshot":"omlx-decode","view":{"paused":true}},"next-armed":{"title":"Next reply · armed","snapshot":"omlx-idle","view":{"next":{"state":"armed","leftMs":108000}}},"next-measuring":{"title":"Next reply · measuring","snapshot":"omlx-decode","view":{"attr":{"label":"armed"},"next":{"state":"measuring","elapsedMs":38200}}},"next-result":{"title":"Next reply · result","snapshot":"omlx-idle","view":{"next":{"state":"result","finishedAt":1790690691000,"decodeTps":25.1,"outputTokens":1204,"promptTokens":53400,"cachedTokens":44800,"wholeMs":38000,"modelMs":31000,"waitMs":7000,"vsUsual":{"delta":-0.023,"n":23}}}},"splash-recovering":{"title":"Splash recovering","snapshot":"splash-recovering","view":{"attr":{"label":"server","reason":"not-observed"},"lastAttr":null}},"splash-stale":{"title":"Splash status stale","snapshot":"splash-recovering","patch":{"status":{"state":"degraded","reason":"status_stale","params":{"staleSinceAt":1790690580000},"sinceAt":1790690580000},"runtime":{"phase":"idle"},"alerts":[]},"view":{"attr":{"label":"server","reason":"not-observed"},"lastAttr":null}},"splash-not-admitting":{"title":"Splash not admitting","snapshot":"splash-recovering","patch":{"status":{"state":"degraded","reason":"not_admitting","params":{"cause":"metal"},"sinceAt":1790690640000},"runtime":{"phase":"idle","server":{"active":0,"queued":2}},"alerts":[]},"view":{"attr":{"label":"server","reason":"not-observed"},"lastAttr":null}},"offline":{"title":"Offline · runtime lost","snapshot":"omlx-offline","view":{"attr":{"label":"server","reason":"not-observed"}}},"runtime-changed":{"title":"Looks like Splash now","snapshot":"omlx-idle","patch":{"status":{"state":"degraded","reason":"runtime_changed","params":{"detected":"splash","port":8000},"sinceAt":1790690680000},"runtime":{"phase":"unknown","residency":[]},"completions":{"items":[]}}},"detecting":{"title":"Detecting","snapshot":"omlx-offline","patch":{"connection":{"id":"auto","label":"Automatic","runtime":null,"version":null,"detection":{"basis":"probe","confidence":"low","probe":null}},"status":{"state":"detecting","reason":"detecting","params":{"port":8000},"sinceAt":1790690696000},"alerts":[],"completions":{"cursor":0,"items":[]}}},"unconfigured":{"title":"No runtime found","snapshot":"omlx-offline","patch":{"connection":{"id":"auto","label":"Automatic","runtime":null,"version":null,"detection":{"basis":"probe","confidence":"low","probe":null}},"status":{"state":"unconfigured","reason":"configuration_missing","params":{},"sinceAt":1790690600000},"alerts":[],"completions":{"cursor":0,"items":[]}}},"contract-mismatch":{"title":"Version skew · restart the service","snapshot":"omlx-idle","view":{"frame":"contract_mismatch"}},"needs-approval":{"title":"Needs approval","snapshot":"omlx-idle","view":{"approval":true}},"admin-unauthorized":{"title":"oMLX admin refused · public status","snapshot":"omlx-decode","patch":{"status":{"state":"degraded","reason":"admin_unauthorized","params":{},"sinceAt":1790690400000},"capabilities":{"request.decodeRate":null,"request.prefillRate":null,"request.prefillProgress":null,"request.prefillEta":null,"request.tokens":null,"request.elapsed":null,"request.context":null,"server.cache":null,"server.usage":null,"server.completions":null},"runtime":{"request":null,"server":{"cache":null}},"completions":{"items":[]}},"view":{"attr":{"label":"server","reason":"all-requests"},"lastAttr":null}},"pressure":{"title":"Pressure warning + swap growth","snapshot":"omlx-decode","patch":{"host":{"mac":{"pressureLevel":2,"swapUsedBytes":2576980378},"memUsedBytes":48640504627},"alerts":[{"id":"pressure-warning","severity":"warning","since":1790690510000,"params":{"level":2},"badge":true},{"id":"swap-growth","severity":"info","since":1790690540000,"params":{"deltaBytes":1395864371,"windowMs":240000},"badge":true,"toastSeq":7}],"completions":{"items":[{"seq":57,"finishedAt":1790690639000,"startedAt":1790690591000,"model":"Example-27B-4bit","basis":"last-observed","promptTokens":49800,"cachedTokens":41200,"outputTokens":1104,"prefillMs":14100,"decodeTps":21,"prefillTps":598,"overlapped":false,"verdict":{"attr":"inferred","at":1790690640000},"host":{"pressureMax":2,"swapDeltaBytes":966367642,"gpuAllocMaxBytes":26628797235,"thermalMaxLevel":0,"energyJ":1702.4,"powerCoverage":0.96}}]},"runtime":{"request":{"decodeTps":21.2},"residency":[{"model":"Example-27B-4bit","phase":"decode","source":"runtime","active":1,"queued":0,"bytes":18360985190,"decodeTps":21.2,"contextWindowTokens":131072}]}},"view":{"regression":{"medianTps":21.2,"p50":25.7,"n":23,"delta":-0.175,"cofactors":["macOS memory pressure: warning","swap grew 1.3 GiB"]}}},"pressure-critical":{"title":"Pressure critical","snapshot":"omlx-decode","patch":{"host":{"mac":{"pressureLevel":4,"swapUsedBytes":6442450944},"memUsedBytes":50465865728},"runtime":{"request":{"decodeTps":14.6},"residency":[{"model":"Example-27B-4bit","phase":"decode","source":"runtime","active":1,"queued":0,"bytes":18360985190,"decodeTps":14.6,"contextWindowTokens":131072}]},"alerts":[{"id":"pressure-critical","severity":"critical","since":1790690580000,"params":{"level":4},"badge":true,"toastSeq":9},{"id":"swap-growth","severity":"info","since":1790690520000,"params":{"deltaBytes":3865470566,"windowMs":300000},"badge":true}]}},"thermal":{"title":"Thermal pressure heavy","snapshot":"omlx-decode","patch":{"host":{"thermal":{"level":2}},"alerts":[{"id":"thermal","severity":"warning","since":1790690560000,"params":{"level":2},"badge":true,"toastSeq":8}]}},"model-unloaded":{"title":"Model unloaded","snapshot":"omlx-idle","patch":{"runtime":{"phase":"not-loaded","residency":[],"memory":{"modelBytes":null}},"host":{"runtimeProcess":{"footprintBytes":1395864371}},"alerts":[{"id":"model-unloaded","severity":"info","since":1790690670000,"params":{"model":"Example-27B-4bit"},"badge":true,"toastSeq":10}]}},"memory-guard":{"title":"oMLX memory guard","snapshot":"omlx-idle","patch":{"runtime":{"phase":"queued","server":{"active":0,"queued":1}},"alerts":[{"id":"omlx-memory-guard","severity":"warning","since":1790690650000,"params":{},"badge":true}]}},"llama":{"title":"llama-server slots + speculative decoding","snapshot":"llama-slots","view":{"attr":{"label":"withheld","reason":"overlap"},"lastAttr":null}},"llama-sleeping":{"title":"llama-server asleep","snapshot":"llama-slots","patch":{"status":{"state":"ready","reason":"sleeping","params":{},"sinceAt":1790690400000},"runtime":{"phase":"idle","server":{"active":0,"queued":0,"rates":null,"speculative":null},"slots":[]}},"view":{"attr":{"label":"server","reason":"not-observed"},"lastAttr":null}},"llama-metrics":{"title":"llama-server without --metrics","snapshot":"llama-slots","patch":{"status":{"state":"degraded","reason":"metrics_required","params":{},"sinceAt":1790690400000},"capabilities":{"server.slots":null,"server.rates":null,"server.speculative":null,"server.requests":null,"server.completions":null},"runtime":{"phase":"unknown","server":{"active":null,"queued":null,"rates":null,"speculative":null},"slots":[]}},"view":{"attr":{"label":"server","reason":"cannot-count"},"lastAttr":null}},"ollama":{"title":"Ollama residency","snapshot":"ollama-residency","view":{"attr":{"label":"server","reason":"cannot-count"},"lastAttr":null}},"bionic":{"title":"Splash via Bionic · Engines","snapshot":"bionic"},"lms-unavailable":{"title":"Bionic not answering · no lms","snapshot":"bionic","patch":{"status":{"state":"degraded","reason":"lms_unavailable","params":{},"sinceAt":1790690620000},"capabilities":{"server.residency":null,"server.engines":null},"runtime":{"phase":"unknown","residency":[],"engines":[]}}},"storage-full":{"title":"History storage full","snapshot":"omlx-idle","view":{"storage":"full"}},"history-empty":{"title":"History after a fresh upgrade","snapshot":"omlx-idle","view":{"history":"empty"}},"recording-paused":{"title":"Recording paused","snapshot":"omlx-idle","view":{"storage":"paused"}},"clear-confirm":{"title":"Clear history · confirmation","snapshot":"omlx-idle","view":{"storage":"confirm"}}},"trendFresh":{"contractVersion":2,"serverNow":1790690700000,"windowMs":3600000,"bucketMs":20000,"startAt":1790687100000,"series":{"decodeTps":{"basis":"reported","buckets":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}},"gaps":[{"fromAt":1790687100000,"toAt":1790690580000}],"marks":[]}}</script>
+<script>
+'use strict';
+const fx = JSON.parse(document.getElementById('fixtures').textContent);
+const NOW = fx.serverNow;
+const q = new URLSearchParams(location.search);
+const theme = q.get('theme') === 'light' ? 'light' : 'dark';
+document.documentElement.dataset.theme = theme;
+const surface = q.get('surface') || 'board';
+const openPop = q.get('pop'), detailsOpen = q.get('details') === 'open', shortLabels = q.get('labels') === 'short';
+
+/* ---------- markup helpers: every fixture value is escaped ---------- */
+class Raw { constructor(s) { this.s = s; } }
+const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const esc = s => String(s).replace(/[&<>"']/g, c => ESC[c]);
+const emit = v => v == null || v === false ? '' : v instanceof Raw ? v.s : Array.isArray(v) ? v.map(emit).join('') : esc(v);
+const html = (parts, ...vals) => new Raw(parts.reduce((out, part, i) => out + part + (i < vals.length ? emit(vals[i]) : ''), ''));
+const attr = (text, on) => on ? new Raw(text) : '';
+let seq = 0;
+const uid = prefix => `${prefix}-${++seq}`;
+
+/* ---------- formatting (panel/present/format.ts is the only GiB formatter in 2.0) ---------- */
+const GiB = 2 ** 30, MiB = 2 ** 20, KiB = 1024;
+const gib = b => `${(b / GiB).toFixed(1)} GiB`;
+const kib = b => b >= MiB ? `${(b / MiB).toFixed(2)} MiB` : `${Math.round(b / KiB)} KiB`;
+const int = n => Math.round(n).toLocaleString('en-US');
+const kt = n => n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e7 ? 1 : 2)}M` : n >= 1e5 ? `${Math.round(n / 1e3)}K` : n >= 1e4 ? `${(n / 1e3).toFixed(1)}K` : int(n);
+const tps = v => v >= 100 ? int(v) : v.toFixed(1);
+const pct = f => `${Math.round(f * 100)}%`;
+const delta = d => `${d > 0.004 ? '+' : d < -0.004 ? '−' : '±'}${Math.abs(Math.round(d * 100))}%`;
+const dur = ms => ms < 1000 ? `${(ms / 1000).toFixed(2)} s` : ms < 10000 ? `${(ms / 1000).toFixed(1)} s` : ms < 60000 ? `${Math.round(ms / 1000)} s`
+  : ms < 3600000 ? ms % 60000 === 0 ? `${ms / 60000} min` : `${Math.floor(ms / 60000)} m ${String(Math.floor(ms % 60000 / 1000)).padStart(2, '0')} s` : `${Math.floor(ms / 3600000)} h ${Math.floor(ms % 3600000 / 60000)} m`;
+const ago = at => { const d = NOW - at; return d < 5000 ? 'just now' : d < 60000 ? `${Math.round(d / 1000)} s ago` : d < 3600000 ? `${Math.round(d / 60000)} min ago` : `${Math.round(d / 3600000)} h ago`; };
+const until = at => dur(Math.max(0, at - NOW));
+const clock = at => { const d = new Date(at), today = new Date(NOW).toISOString().slice(0, 10) === d.toISOString().slice(0, 10);
+  return today ? d.toISOString().slice(11, 16) : `${d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })} ${d.getUTCDate()}`; };
+const mmss = ms => `${Math.floor(ms / 60000)}:${String(Math.floor(ms % 60000 / 1000)).padStart(2, '0')}`;
+const niceCeil = v => Math.ceil(v * 1.05 / 5) * 5;
+
+/* ---------- basis. Rule: a runtime's value, or exact arithmetic on one source's counts (a sum, a difference,
+   cached ÷ prompt), is `reported` and unlabelled. What Scope works out across readings (token-weighted rates,
+   counter deltas, vs usual) is `derived`; times Scope stamps itself are `observed`. Everything but `reported` is labelled. ---------- */
+const BASIS = { derived: 'derived', observed: 'observed', 'last-observed': 'last observed', estimate: 'estimate' };
+const val = (text, basis, note) => !basis || basis === 'reported'
+  ? html`<span class="val" data-basis="reported">${text}</span>`
+  : html`<span class="val" data-basis="${basis}">${text}<small class="basis">${note ?? BASIS[basis]}</small></span>`;
+const ICON = {
+  measure: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.6"/></svg>',
+  close: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  down: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>',
+  up: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg>',
+  pause: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10M13 5v10"/></svg>',
+  play: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5l8 5-8 5z"/></svg>',
+  more: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4.5" cy="10" r="1.3"/><circle cx="10" cy="10" r="1.3"/><circle cx="15.5" cy="10" r="1.3"/></svg>',
+};
+const icon = k => new Raw(ICON[k]);
+// ⓘ is a disclosure: a 24 px button (aria-expanded + aria-controls) whose explanation opens in flow below its row.
+const tip = (key, title, paras) => {
+  const id = uid('pop'), open = openPop === key;
+  return { btn: html`<button class="info" type="button" aria-expanded="${open}" aria-controls="${id}" aria-label="About ${title}">i</button>`,
+    pop: html`<div class="pop" id="${id}" role="note" ${attr('hidden', !open)}><strong>${title}</strong>${paras.filter(Boolean).map(p => html`<p>${p}</p>`)}</div>` };
+};
+
+/* ---------- names and messages (panel/present/messages.ts in 2.0) ---------- */
+const RT = { omlx: 'oMLX', lmstudio: 'LM Studio', splash: 'Splash', 'vllm-mlx': 'vllm-mlx', 'mlx-lm': 'mlx-lm', 'llama-server': 'llama-server', ollama: 'Ollama' };
+const rtName = s => s.connection.host === 'bionic' ? 'Bionic' : RT[s.connection.runtime] ?? 'the runtime';
+const connName = s => s.connection.host === 'bionic' ? 'Splash via Bionic' : s.connection.label;
+const PHASE = { decode: 'Generating', prefill: 'Reading context', idle: 'Idle', queued: 'Queued', processing: 'Processing', loading: 'Loading', 'not-loaded': 'No model loaded', unknown: 'Connected' };
+const STATE_WORD = { recovering: 'Recovering', failing: 'Offline', detecting: 'Detecting', unconfigured: 'Not set up' };
+const REASON_WORD = { status_stale: 'Status stale', not_admitting: 'Not admitting', runtime_changed: 'Runtime changed', sleeping: 'Asleep', loading: 'Loading' };
+const phaseLabel = (s, v) => v.paused ? 'Paused' : STATE_WORD[s.status.state] ?? REASON_WORD[s.status.reason] ?? PHASE[s.runtime.phase];
+const PRESSURE = { 1: ['Normal', 'normal'], 2: ['Warning', 'warning'], 4: ['Critical', 'critical'] };
+// notifyutil thermal pressure: a user-facing word, with macOS's own level name kept for the ⓘ. One threshold everywhere.
+const THERMAL = [['Normal', 'nominal'], ['Moderate', 'moderate'], ['Heavy', 'heavy'], ['Severe', 'trapping'], ['Critical', 'sleeping']];
+const THERMAL_WARN = 2;
+const thermalLevel = l => l >= 3 ? 'critical' : l >= THERMAL_WARN ? 'warning' : 'normal';
+const WITHHOLD = {
+  'several-chats': p => `${p.count ?? 2} chats running`, 'subagent-running': () => 'a subagent is running',
+  'other-provider': p => `this chat uses ${p.provider}`, 'model-differs': () => 'chat model differs', 'model-unknown': () => 'chat model unknown',
+  'cannot-count': () => 'runtime can’t count requests', overlap: () => 'overlapping requests', 'outside-turn': () => 'outside this chat’s turn',
+  'joined-mid-turn': () => 'joined mid-turn', 'not-observed': () => 'not observed', 'projects-loading': () => 'projects loading',
+  'projects-error': () => 'project list unavailable', 'too-many-projects': () => 'too many projects', 'auto-off': () => 'auto-labelling off',
+  'all-requests': () => 'all requests',
+};
+const WHY = {
+  inferred: (rt, live) => ['This chat · inferred', live
+    ? `So far only this chat has been running on ${rt}, its model matches, and Scope has seen every reading since the reply started.`
+    : `Only this chat was running on ${rt}, its model matched, and Scope saw the whole reply.`,
+    `Inferred from OpenChamber’s chat activity: ${rt} doesn’t report which chat a request came from. OpenChamber’s own background model calls, such as title generation, can fall inside an inferred turn.`],
+  armed: (rt, live) => ['Next reply · armed', live
+    ? `You armed Next reply, and so far at every step only this chat has been running on ${rt} with a matching model.`
+    : `You armed Next reply, and at every step only this chat was running on ${rt} with a matching model.`,
+    `Still inferred from chat activity, not reported by ${rt}.`],
+  'several-chats': rt => ['Server-wide', `Another chat was running on ${rt} at the same time, so this reading can’t be tied to this chat.`, 'Readings stay server-wide until one chat is running.'],
+  'subagent-running': rt => ['Server-wide', `A subagent of this chat was running on ${rt}, so replies can’t be told apart.`, 'Readings stay server-wide until the subagent finishes.'],
+  'other-provider': (rt, live, p) => ['Server-wide', `This chat runs on ${p.provider}, so what ${rt} is doing belongs to another app or chat.`, `Watch ${p.provider} to label this chat’s readings.`],
+  'model-differs': rt => ['Server-wide', `This chat’s model isn’t the model ${rt} is running, so the reading belongs to another app or chat.`, 'Scope never loads or switches models.'],
+  'not-observed': rt => ['Server-wide', `No Scope view saw this chat’s turn while the reply ran on ${rt}, so it can’t be tied to a chat.`, 'Labels need a Scope view open for the whole reply.'],
+  overlap: rt => ['Server-wide', `More than one request was running on ${rt}, so no reading belongs to a single chat.`, 'Per-request speed comes back when one request runs.'],
+  'cannot-count': rt => ['Server-wide', `${rt} doesn’t report how many requests are running, so no reading can be tied to a chat.`, ''],
+  'all-requests': rt => ['Server-wide', `Everything ${rt} is doing, from any app or chat.`, 'Per-chat labels need per-request readings and one running chat.'],
+};
+const whyOf = (a, s, live) => { const key = a.label === 'inferred' || a.label === 'armed' ? a.label : a.reason; return (WHY[key] ?? WHY['all-requests'])(rtName(s), live, a.params ?? {}); };
+const ALERT = {
+  'runtime-lost': p => [`${RT[p.runtime] ?? 'The runtime'} stopped responding`, 'Scope checks again automatically'],
+  'model-unloaded': p => [`${p.model} was unloaded`, 'Reported by the runtime · Scope never loads models'],
+  'pressure-warning': () => ['macOS memory pressure: warning', 'Reported by the macOS kernel · apps may be compressed or swapped'],
+  'pressure-critical': () => ['macOS memory pressure: critical', 'Reported by the macOS kernel · replies may slow sharply until memory frees up'],
+  'swap-growth': p => [`Swap grew ${gib(p.deltaBytes)} in ${Math.round(p.windowMs / 60000)} min`, 'Within one continuous stretch of readings'],
+  thermal: p => [`Thermal pressure: ${THERMAL[p.level][0].toLowerCase()}`, 'Reported by macOS · the chip may run slower'],
+  'splash-recovering': () => ['Splash was recovering', 'Reported by Splash'],
+  'omlx-prefill-stall': p => ['Prefill progress stopped moving', `No change for ${dur(p.stalledMs ?? 30000)} · reported by oMLX`],
+  'omlx-memory-guard': () => ['oMLX memory guard is active', 'Reported by oMLX · new requests wait until memory frees up · not macOS memory pressure'],
+};
+// Status reasons (src/contract/reasons.ts) → one message. The callout carries it; nothing else in the view repeats it.
+const STATUS = {
+  runtime_unreachable: (s, rt, p) => ({ sev: 'critical', title: `${rt} stopped responding`, since: p.sinceAt, detail: `Nothing answers on :${p.port}. Scope checks again automatically, so start ${rt} and it picks up again.`, action: 'Connection…' }),
+  authentication_failed: (s, rt) => ({ sev: 'critical', title: `${rt} refused Scope’s key`, detail: 'Check the key under Connection. Scope reads it from the runtime’s own config and never stores it.', action: 'Connection…' }),
+  configuration_missing: () => ({ sev: 'warning', title: 'No runtime found', detail: 'Nothing answered on the usual local ports. Start a runtime, or choose one.', action: 'Choose connection' }),
+  unsupported_runtime: (s, rt, p) => ({ sev: 'warning', title: 'Scope doesn’t recognise this runtime', detail: `Something answers on :${p.port}, but not like any runtime Scope supports.`, action: 'Choose connection' }),
+  unsupported_contract: (s, rt) => ({ sev: 'warning', title: `${rt} answered in a shape Scope doesn’t know`, detail: 'Scope shows what it can still read, and checks which runtime this is after 3 tries.' }),
+  detecting: (s, rt, p) => ({ sev: 'info', title: 'Looking for a runtime', detail: `Checking :${p.port} for oMLX, llama-server, Ollama, LM Studio, Splash and vllm-mlx.` }),
+  redetecting: (s, rt, p) => ({ sev: 'info', title: 'Checking which runtime this is', detail: `${rt} stopped answering like itself on :${p.port}.` }),
+  runtime_changed: (s, rt, p) => ({ sev: 'warning', title: `Looks like ${RT[p.detected]} now`, detail: `${connName(s)} is chosen, but ${RT[p.detected]} answers on :${p.port}. Scope never switches on its own.`, action: `Switch to ${RT[p.detected]}` }),
+  loading: () => ({ sev: 'info', title: 'llama-server is loading a model', detail: 'Its health check answers 503 until the model is ready.' }),
+  recovering: (s, rt, p) => ({ sev: 'warning', title: 'Splash is recovering', since: s.status.sinceAt, detail: `It’s restarting its engine after a fault. Scope reads its status every 30 s, so it doesn’t add to the restart.${p.crashTrace ? ' Splash recorded a crash trace; Scope doesn’t show or send it.' : ''}` }),
+  status_stale: (s, rt, p) => ({ sev: 'warning', title: 'Splash’s status is stale', since: p.staleSinceAt, detail: 'Splash says its status hasn’t refreshed, so Scope marks its readings last observed until it does.' }),
+  not_admitting: (s, rt, p) => ({ sev: 'warning', title: 'Splash isn’t accepting new requests', detail: p.cause === 'metal' ? 'Splash reports its Metal device as unhealthy. New requests wait in its queue.' : 'Splash reports memory pressure as critical. New requests wait in its queue.' }),
+  admin_unauthorized: () => ({ sev: 'info', title: 'oMLX admin login refused', detail: 'Scope reads oMLX’s public status instead: server-wide totals only, with no per-request speed, reply history or usage records.', action: 'Connection…' }),
+  lms_unavailable: () => ({ sev: 'info', title: 'Bionic isn’t answering Scope’s check', detail: 'Scope runs lms only after Bionic answers, so lms can never start it. Loaded instances and engines come back when it answers.' }),
+  metrics_required: () => ({ sev: 'info', title: 'Live slots need --metrics', detail: 'This llama-server build can sleep, and reading its slots without /metrics would wake it. Start llama-server with --metrics to see slots and throughput.' }),
+  sleeping: () => ({ sev: 'info', title: 'llama-server is asleep', detail: 'It unloads the model while idle and wakes on the next request. Scope doesn’t read slots or metrics while it sleeps, so it stays asleep.' }),
+};
+const SEV = { critical: 3, warning: 2, info: 1 };
+const SEV_WORD = { critical: 'Critical', warning: 'Warning', info: 'Notice' };
+
+/* ---------- scenarios: a v2 snapshot plus panel-side state ---------- */
+const merge = (a, b) => b === undefined ? a : b === null || typeof b !== 'object' || Array.isArray(b) ? b
+  : Object.fromEntries([...new Set([...Object.keys(a ?? {}), ...Object.keys(b)])].map(k => [k, merge(a?.[k], b[k])]));
+const scenario = id => {
+  const st = fx.states[id] ?? fx.states.decode;
+  const s = merge(fx.snapshots[st.snapshot], st.patch);
+  const v = { ...fx.panel.defaults, ...st.view };
+  const last = s.completions.items.at(-1) ?? null;
+  const lastAttr = 'lastAttr' in (st.view ?? {}) ? v.lastAttr : last?.verdict ? { label: last.verdict.attr, reason: last.verdict.reason } : { label: 'server', reason: 'not-observed' };
+  return { id, st, s, v, last, lastAttr };
+};
+const modelOf = s => s.runtime.request?.model ?? s.runtime.residency[0]?.model ?? s.runtime.catalog.find(m => m.loaded)?.name ?? null;
+const shortModel = m => m.split('/').at(-1);
+const glanceModel = m => shortModel(m).replace(/[-_.](?:\d+bit|mlx|q\d\w*|gguf|splash)$/i, '');
+const statusMsg = s => STATUS[s.status.reason]?.(s, rtName(s), s.status.params ?? {}) ?? null;
+const alertMsgs = s => s.alerts
+  .filter(a => !(a.id === 'runtime-lost' && s.status.state === 'failing') && !(a.id === 'splash-recovering' && s.status.state === 'recovering'))
+  .map(a => { const [title, detail] = ALERT[a.id](a.params); return { id: a.id, sev: a.severity, title, detail, since: a.since }; })
+  .sort((a, b) => SEV[b.sev] - SEV[a.sev] || b.since - a.since);
+
+/* ---------- small parts ---------- */
+// A server-wide label always carries its reason: inside the chip, or (glance only) in a line the chip points to.
+const attrChip = (a, describedBy) => {
+  if (!a) return '';
+  if (a.label === 'inferred') return html`<span class="chip" data-attr="inferred">This chat · inferred</span>`;
+  if (a.label === 'armed') return html`<span class="chip" data-attr="armed" data-outline>Next reply · armed</span>`;
+  if (!a.reason || !WITHHOLD[a.reason]) throw new Error(`server-wide label without a reason: ${JSON.stringify(a)}`);
+  const why = WITHHOLD[a.reason](a.params ?? {});
+  return describedBy ? html`<span class="chip" data-attr="server" data-outline data-reason="${why}" aria-describedby="${describedBy}">Server-wide</span>`
+    : html`<span class="chip" data-attr="server" data-outline data-reason="${why}">Server-wide · ${why}</span>`;
+};
+const attrTip = (a, s, live, key) => { const [title, first, second] = whyOf(a, s, live); return tip(key, title, [first, second]); };
+const masthead = (s, v, compact) => html`<header class="masthead">
+  <div class="brand"><svg class="scope-mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11"/><path d="M3 14h6l3-5 4 10 3-5h6"/></svg><h1>MLX <span>Scope</span></h1></div>
+  ${compact ? '' : html`<div class="status-pill"><span class="connection-dot" aria-hidden="true"></span><span class="phase">${v.approval ? 'Needs approval' : v.frame ? 'Needs restart' : phaseLabel(s, v)}</span>${v.approval || v.frame ? '' : html`<span class="status-sep" aria-hidden="true">·</span><span class="conn">${connName(s)}</span>`}</div>`}
+  <div class="monitor-controls"><button class="icon-btn" type="button" aria-pressed="${!!v.paused}" aria-label="${v.paused ? 'Resume' : 'Pause'}">${icon(v.paused ? 'play' : 'pause')}</button><button class="icon-btn" type="button" aria-label="More options">${icon('more')}</button></div>
+</header>`;
+const TABS = [['live', 'Live'], ['server', 'Server'], ['history', 'History'], ['captures', 'Captures']];
+const PAGE_TABS = [['live', 'Live · History'], ['server', 'Server'], ['captures', 'Captures']];
+// Tabs: roving tabindex, aria-controls/aria-labelledby; arrow keys move between tabs (Stage 8).
+const tabs = (active, page) => html`<nav class="workspace-nav" aria-label="Scope workspaces"><div class="tablist" role="tablist">${(page ? PAGE_TABS : TABS).map(([id, label]) =>
+  html`<button class="tab" role="tab" type="button" id="tab-${id}" aria-controls="panel-${id}" aria-selected="${id === active}" tabindex="${id === active ? 0 : -1}">${label}</button>`)}</div></nav>`;
+const panel = (id, body) => html`<div class="view" role="tabpanel" id="panel-${id}" aria-labelledby="tab-${id}" tabindex="0">${body}</div>`;
+const hiddenPanels = (active, page) => (page ? PAGE_TABS : TABS).filter(([id]) => id !== active).map(([id]) => html`<div role="tabpanel" id="panel-${id}" aria-labelledby="tab-${id}" hidden></div>`);
+const footer = s => html`<footer><span>MLX Scope ${s.service.version} · mock</span><span>Updated just now</span></footer>`;
+const section = (title, right, body, t, extra = '') => html`<section class="insight-section${extra}"><div class="section-heading"><div class="title-row"><h2>${title}</h2>${t?.btn}</div>${right ? html`<span>${right}</span>` : ''}</div>${t?.pop}${body}</section>`;
+
+/* ---------- callouts: the status message and alerts, most severe first; the rest behind "N more" ---------- */
+const calloutBody = m => html`<p class="diag-title"><span class="sr-only">${SEV_WORD[m.sev]}: </span><strong>${m.title}</strong>${m.since ? html`<span class="diag-meta">since ${clock(m.since)}</span>` : ''}</p><p class="diag-meta">${m.detail}</p>${m.action ? html`<button class="link-btn" type="button">${m.action}</button>` : ''}`;
+const callouts = s => {
+  const status = statusMsg(s), msgs = [...(status ? [status] : []), ...alertMsgs(s)].sort((a, b) => SEV[b.sev] - SEV[a.sev]);
+  if (!msgs.length) return '';
+  const [top, ...rest] = msgs, id = uid('more');
+  return html`<div class="connection-diagnosis" data-severity="${top.sev}" role="status">${calloutBody(top)}${rest.length ? html`
+    <button class="link-btn" type="button" aria-expanded="false" aria-controls="${id}">${rest.length} more ${rest.length === 1 ? 'alert' : 'alerts'}</button>
+    <ul class="diag-more" id="${id}" hidden>${rest.map(m => html`<li>${calloutBody(m)}</li>`)}</ul>` : ''}</div>`;
+};
+
+/* ---------- charts: a line exists only where there are readings. Idle is a plain break; hatching means not observed. ---------- */
+const wobble = i => .045 * Math.sin(i * .71) * Math.exp(-i / 28) + .012 * Math.cos(i * 1.93);
+// The panel's own 90 s ring: one sample per poll, from the first decode reading. Nothing before it is drawn.
+const liveSamples = (value, sinceMs, count) => Array.from({ length: count }, (_, i) => {
+  const at = NOW - sinceMs + i * sinceMs / (count - 1);
+  return { at, v: i === count - 1 ? value : value * (1 + wobble(count - 1 - i) * (1 - i / count)) };
+});
+const liveMax = req => req?.decodeTps ? req.decodeTps * 1.06 : 0;
+const liveChart = (samples, ceiling, label, turnAt) => {
+  const x = at => 4 + (1 - (NOW - at) / 90000) * 592, y = v => 116 - v / ceiling * 112;
+  const line = samples.map((p, i) => `${i ? 'L' : 'M'}${x(p.at).toFixed(1)} ${y(p.v).toFixed(1)}`).join(' ');
+  const lo = Math.min(...samples.map(p => p.v)), hi = Math.max(...samples.map(p => p.v)), mark = turnAt != null && NOW - turnAt < 90000 ? x(turnAt) : null;
+  return html`<figure class="signal"><div class="chart-top"><span>${label}</span><span>${ceiling} tok/s</span></div>
+    <div class="plot" role="img" aria-label="${label}, last ${Math.round((NOW - samples[0].at) / 1000)} s: ${tps(lo)} to ${tps(hi)} tokens per second, now ${tps(samples.at(-1).v)}"><svg viewBox="0 0 600 120" preserveAspectRatio="none" aria-hidden="true"><path class="grid" d="M4 4H596 M4 60H596 M4 116H596"/>
+    <path class="trace-area" d="${line} L${x(samples.at(-1).at).toFixed(1)} 116 L${x(samples[0].at).toFixed(1)} 116Z"/><path class="trace" d="${line}"/>${mark == null ? '' : html`<line class="mark" x1="${mark.toFixed(1)}" x2="${mark.toFixed(1)}" y1="4" y2="116"/>`}</svg></div>
+    <figcaption><span>−90s</span><span>Live observations · turn start ┊</span><span>now</span></figcaption></figure>`;
+};
+const trendMax = t => Math.max(0, ...t.series.decodeTps.buckets.filter(Boolean).map(b => b[1]));
+const trendChart = (t, compact, ceiling = niceCeil(trendMax(t) || 20)) => {
+  const series = t.series.decodeTps.buckets, n = series.length, x = i => 4 + i / n * 592, y = v => 116 - v / ceiling * 112;
+  let band = '', line = '', open = false, bandTop = [], bandBottom = [];
+  const flush = () => { if (bandTop.length) band += `M${bandTop.join(' L')} L${bandBottom.reverse().join(' L')}Z `; bandTop = []; bandBottom = []; };
+  series.forEach((b, i) => {
+    if (!b) { open = false; flush(); return; }
+    const cx = (x(i) + x(i + 1)) / 2;
+    line += `${open ? 'L' : 'M'}${cx.toFixed(1)} ${y(b[2]).toFixed(1)} `; open = true;
+    bandTop.push(`${cx.toFixed(1)} ${y(b[1]).toFixed(1)}`); bandBottom.push(`${cx.toFixed(1)} ${y(b[0]).toFixed(1)}`);
+  });
+  flush();
+  const px = at => (at - t.startAt) / t.windowMs * 100, xs = at => 4 + (at - t.startAt) / t.windowMs * 592;
+  const starts = t.marks.filter(m => m.phase === 'started');
+  const spans = starts.map(m => { const end = t.marks.find(e => e.phase === 'completed' && e.at > m.at); return [m.at, end?.at ?? t.serverNow]; });
+  const read = series.filter(Boolean), lo = read.length ? Math.min(...read.map(b => b[0])) : 0, hi = trendMax(t);
+  const summary = read.length ? `Decode speed over the last ${t.windowMs / 60000} min: ${starts.length} turns, ${tps(lo)} to ${tps(hi)} tokens per second; ${t.gaps.map(g => `not observed from ${clock(g.fromAt)} to ${clock(g.toAt)}`).join(', ') || 'observed throughout'}.`
+    : `Nothing observed in the last ${t.windowMs / 60000} min.`;
+  return html`<figure class="signal trend"><div class="chart-top"><span>Decode speed · reported by oMLX</span><span>${ceiling} tok/s</span></div>
+    <div class="plot" role="img" aria-label="${summary}"><svg viewBox="0 0 600 120" preserveAspectRatio="none" aria-hidden="true"><path class="grid" d="M4 4H596 M4 60H596 M4 116H596"/>
+      <path class="band" d="${band}"/><path class="trace" d="${line}"/>
+      ${spans.map(([a, b]) => html`<rect class="turn-span" x="${xs(a).toFixed(1)}" y="117" width="${Math.max(2, xs(b) - xs(a)).toFixed(1)}" height="3"/>`)}
+      ${starts.map(m => html`<line class="mark" x1="${xs(m.at).toFixed(1)}" x2="${xs(m.at).toFixed(1)}" y1="4" y2="116"/>`)}</svg>
+      ${t.gaps.map(g => html`<div class="gap-band" aria-hidden="true" style="left:${px(g.fromAt).toFixed(2)}%;width:${(px(g.toAt) - px(g.fromAt)).toFixed(2)}%"><span>Not observed · Scope wasn’t open</span></div>`)}</div>
+    <figcaption><span>−${t.windowMs / 60000} min</span><span>${compact ? '' : 'Turn times from OpenChamber · readings are server-wide'}</span><span>now</span></figcaption>
+    ${compact ? html`<p class="insight-note">Turn times from OpenChamber · readings are server-wide</p>` : ''}
+    <div class="legend"><span><i></i>last reading · shaded min–max</span><span><i class="tick"></i>this chat’s turns</span><span><i class="hatch"></i>not observed</span></div></figure>`;
+};
+// Work Status sparkline: the service trend's last 15 min. Fewer than 2 readings → no chart, a short line instead.
+const spark = (t, size = '') => {
+  const b = t.series.decodeTps.buckets, take = 45, part = b.slice(-take), read = part.filter(Boolean);
+  if (read.length < 2) return html`<span class="ws-muted ws-grow">Chart starts after 2 readings</span>`;
+  let d = '', open = false;
+  part.forEach((v, i) => { if (!v) { open = false; return; } d += `${open ? 'L' : 'M'}${(i / (take - 1) * 100).toFixed(1)} ${(15 - v[2] / 30 * 13).toFixed(1)} `; open = true; });
+  const lo = Math.min(...read.map(v => v[2])), hi = Math.max(...read.map(v => v[2]));
+  return html`<span class="ws-spark ${size}" role="img" aria-label="Decode speed, last 15 min: ${tps(lo)} to ${tps(hi)} tokens per second"><svg viewBox="0 0 100 16" preserveAspectRatio="none" aria-hidden="true"><path class="axis" d="M0 15.5H100"/><path d="${d}"/></svg></span>`;
+};
+
+/* ---------- Live ---------- */
+const reading = sc => {
+  const { s, v } = sc, r = s.runtime;
+  if (v.paused || (statusMsg(s) && s.status.reason !== 'admin_unauthorized') || r.phase === 'not-loaded') return null;
+  if (r.phase === 'prefill' && r.request) return 'prefill';
+  if (r.request?.decodeTps != null) return 'decode';
+  if (r.slots.length && r.server.active > 1) return 'slots';
+  if (r.residency.some(m => m.source === 'ollama-ps')) return 'ollama';
+  if (s.status.reason === 'admin_unauthorized') return 'server';
+  if (r.phase === 'queued') return 'queued';
+  return 'idle';
+};
+const LABELLED = new Set(['decode', 'prefill', 'slots', 'ollama', 'server']);
+const contextBlock = req => {
+  if (!(req?.contextWindowTokens && req.contextUsedTokens)) return '';
+  const t = tip('ctx', 'Context used', ['Reported prompt plus output against the model’s context limit.', 'Not OpenCode’s compaction threshold.']);
+  return html`<div class="context-headroom"><div class="context-line"><span class="title-row">Context used ${t.btn}</span><span><strong>${kt(req.contextUsedTokens)} of ${kt(req.contextWindowTokens)} tokens</strong><small class="ctx-extra"> · prompt + output</small></span></div>${t.pop}
+  <div class="meter" aria-hidden="true"><i style="width:${pct(req.contextUsedTokens / req.contextWindowTokens)}"></i></div></div>`;
+};
+const heroBody = (sc, kind, ceiling) => {
+  const { s, v } = sc, r = s.runtime, req = r.request, rt = rtName(s);
+  if (v.paused) return html`<p class="coverage-note">Nothing is read while paused, so no reply is recorded.</p>`;
+  if (kind === 'prefill') { const t = tip('basis', `Reported by ${rt}`, [`${rt} reports this request’s prefill progress and speed.`, `The finish time is ${rt}’s own estimate and moves as prefill runs.`]);
+    return html`<section class="prefill-progress" aria-label="Prefill progress">
+      <div class="prefill-values"><strong class="prefill-remaining" data-basis="reported">${pct(req.prefillFraction)}</strong><span class="prefill-completed">${int(req.prefillProcessedTokens)} of ${int(req.prefillTotalTokens)} new tokens read</span></div>
+      <div class="progress-track"><span style="width:${pct(req.prefillFraction)}"></span></div>
+      ${req.prefillEtaMs != null ? html`<div class="prefill-estimate" data-basis="estimate"><span>Prefill finishes in about</span><strong>${dur(req.prefillEtaMs)}</strong><small class="basis">Runtime estimate · may change</small></div>` : ''}</section>
+    <div class="hero-row"><div class="readout"><span class="rate" data-basis="reported">${tps(req.prefillTps)}</span><span class="unit">tokens / second · reading context<br><span class="basis-line">Reported by ${rt} ${t.btn}</span></span></div>${t.pop}</div>`; }
+  if (kind === 'decode') { const t = tip('basis', `Reported by ${rt}`, [`${rt} reports the active request’s average decode speed. Scope doesn’t smooth or estimate it.`]);
+    const count = v.liveSamples ?? 47, firstMs = Math.min(req.elapsedMs, req.outputTokens / req.decodeTps * 1000);
+    return html`<div class="hero-row"><div class="readout"><span class="rate" data-basis="reported">${tps(req.decodeTps)}</span><span class="unit">tokens / second · request average<br><span class="basis-line">Reported by ${rt} ${t.btn}</span></span></div>${t.pop}
+    ${count < 2 ? html`<p class="chart-wait">The chart starts after 2 readings.</p>` : liveChart(liveSamples(req.decodeTps, firstMs, count), ceiling, 'Decode · request average', NOW - req.elapsedMs)}</div>`; }
+  if (kind === 'slots') return html`<div class="hero-row"><div class="readout"><span class="rate is-word">${r.server.active} requests</span><span class="unit">Per-request speed withheld: ${r.server.active} slots are busy</span></div></div>
+    <p class="coverage-note">Server decode ${val(`${tps(r.server.rates.decodeTps)} tok/s over the last ${Math.round(r.server.rates.windowMs / 1000)} s`, 'derived', 'derived from llama-server counters')}</p>`;
+  if (kind === 'ollama') return html`<div class="hero-row"><div class="readout"><span class="rate is-word">${r.residency.length} loaded</span><span class="unit">Ollama reports residency only · no per-request speed</span></div></div>`;
+  if (kind === 'server') return html`<div class="hero-row"><div class="readout"><span class="rate is-word">${r.server.active} running</span><span class="unit">${r.server.queued ? `${r.server.queued} waiting` : 'Nothing waiting'}</span></div></div>`;
+  if (kind === 'queued') return html`<div class="hero-row"><div class="readout"><span class="rate is-word">${r.server.queued} waiting</span><span class="unit">${r.server.active} running</span></div></div>`;
+  if (kind === 'idle') return html`<div class="hero-row"><div class="readout"><span class="rate is-word">Idle</span><span class="unit">Model loaded · ready for the next request</span></div></div>`;
+  return '';
+};
+const nextRow = sc => {
+  const { s, v } = sc, n = v.next ?? { state: 'idle' }, rt = rtName(s);
+  if (v.paused || statusMsg(s) || !s.capabilities['server.completions'] || s.runtime.phase === 'not-loaded') return '';
+  if (v.watch) return html`<div class="next-row"><button class="btn quiet" type="button">Watch ${v.watch}</button><span>Next reply needs this chat’s runtime</span></div>`;
+  if (n.state === 'armed') { const t = tip('armed', 'Next reply · armed', ['Waiting for your next message in this chat. Measures one reply, then stops.', 'Cancels if you switch chats, the runtime goes away, or this view closes.']);
+    return html`<div class="next-row">${attrChip({ label: 'armed' })}${t.btn}<span><time>${mmss(n.leftMs)}</time> left</span><button class="btn quiet" type="button">Cancel</button></div>${t.pop}`; }
+  if (n.state === 'measuring') return html`<div class="next-row"><span class="pulse" aria-hidden="true"></span><span>Measuring next reply · <time>${dur(n.elapsedMs)}</time></span><button class="btn quiet" type="button">Cancel</button></div>`;
+  if (n.state === 'refused') return html`<div class="next-row"><span>Next reply needs this chat’s model running on ${rt}</span></div>`;
+  if (n.state === 'result') return html`<div class="next-row"><button class="btn quiet" type="button">Save to Captures</button><button class="btn quiet" type="button">Measure again</button></div>`;
+  return html`<div class="next-row"><button class="btn quiet" type="button">${icon('measure')} Measure next reply</button><span>One reply in this chat · arms for 2 min</span></div>`;
+};
+const replyStrip = sc => {
+  const { s, v, last, lastAttr } = sc, rt = rtName(s), n = v.next ?? {}, b = fx.panel.baseline, flag = v.regression;
+  if (!s.capabilities['server.completions'] || v.paused) return '';
+  if (n.state === 'result') { const t = tip('reply', 'Last reply · Next reply', ['Measured because you armed Next reply. Turn times come from OpenChamber; the speed is Scope’s last reading of the request.', `Usual ${tps(b.decode.p50)} tok/s (p50, n ${b.decode.n}) for this model and context size.`]);
+    return html`<div class="reply-strip"><div class="reply-head"><span class="label">Last reply</span>${attrChip({ label: 'armed' })}${t.btn}<time>${ago(n.finishedAt)}</time></div>${t.pop}
+    <div class="reply-values">${val(html`<strong>${tps(n.decodeTps)}</strong> tok/s`, 'last-observed')}<span class="val" data-basis="reported"><strong>${int(n.outputTokens)}</strong> out</span><span class="chip" data-basis="derived">${delta(n.vsUsual.delta)} vs usual</span></div>
+    <div class="split">${val(html`Turn <strong>${dur(n.wholeMs)}</strong>`, 'observed')}${val(html`Model · tool <strong>${dur(n.modelMs)} · ${dur(n.waitMs)}</strong>`, 'observed')}</div>${nextRow(sc)}</div>`; }
+  if (!last) return html`<div class="reply-strip"><div class="reply-head"><span class="label">Last reply</span><span>None observed yet · replies appear while Scope is open</span></div>${nextRow(sc)}</div>`;
+  const vs = (last.decodeTps - b.decode.p50) / b.decode.p50;
+  const t = tip('reply', 'Last reply', [flag ? `Median of the last 3 replies ${tps(flag.medianTps)} tok/s against usual ${tps(flag.p50)} (p50, n ${flag.n}).` : `Usual ${tps(b.decode.p50)} tok/s (p50, n ${b.decode.n}) for this model and context size.`,
+    flag ? `Observed during these replies, not necessarily the cause: ${flag.cofactors.join('; ')}.` : null,
+    last.basis === 'last-observed' ? `${rt} doesn’t report completions or TTFT, so this is Scope’s last reading of the request.` : null]);
+  return html`<div class="reply-strip"><div class="reply-head"><span class="label">Last reply</span>${attrChip(lastAttr)}${t.btn}<time>${ago(last.finishedAt)}</time></div>${t.pop}
+    <div class="reply-values">${val(html`<strong>${tps(last.decodeTps)}</strong> tok/s`, last.basis)}<span class="val" data-basis="reported"><strong>${int(last.outputTokens)}</strong> out</span>${last.ttftMs ? html`<span class="val" data-basis="reported">TTFT <strong>${dur(last.ttftMs)}</strong></span>` : ''}
+      ${flag ? html`<span class="chip" data-tone="warn" data-basis="derived">Slower · ${delta(flag.delta)} · last 3</span>` : html`<span class="chip" data-basis="derived">${delta(vs)} vs usual</span>`}</div>${nextRow(sc)}</div>`;
+};
+// With no reading and no reply to show, the hero steps aside: the callout above already says why.
+const hero = (sc, ceiling) => {
+  const { s, v } = sc, kind = reading(sc), title = modelOf(s) ?? connName(s), live = kind === 'decode' || kind === 'prefill';
+  if (!kind && !sc.last && !v.paused) return '';
+  const a = LABELLED.has(kind) ? attrTip(v.attr, s, live, 'attr') : null;
+  return html`<section class="hero-card" aria-label="Inference activity"><div class="hero-top"><h2 class="model-name" translate="no"><span>${title}</span></h2>${a ? html`<span class="title-row">${attrChip(v.attr)}${a.btn}</span>` : ''}</div>${a?.pop}
+    ${heroBody(sc, kind, ceiling)}${kind ? contextBlock(s.runtime.request) : ''}${replyStrip(sc)}</section>`;
+};
+const tiles = sc => {
+  const req = sc.s.runtime.request, srv = sc.s.runtime.server;
+  if (!req || sc.v.paused || !sc.s.capabilities['request.tokens']) return '';
+  // While prefill runs there is no output yet, and the prompt size is the context line: three tiles.
+  const first = req.outputTokens != null ? html`<div><span class="metric-label">Output</span><strong data-basis="reported">${kt(req.outputTokens)}</strong><span class="metric-detail">tokens so far</span></div>` : '';
+  return html`<div class="metrics" data-count="${first ? 4 : 3}" aria-label="Current request">${first}
+    <div><span class="metric-label">Elapsed</span><strong data-basis="reported">${dur(req.elapsedMs)}</strong><span class="metric-detail">since it started</span></div>
+    <div><span class="metric-label">Input reused</span><strong data-basis="reported">${pct(req.cachedTokens / req.promptTokens)}</strong><span class="metric-detail">${kt(req.cachedTokens)} cached</span><div class="meter" aria-hidden="true"><i style="width:${pct(req.cachedTokens / req.promptTokens)}"></i></div></div>
+    <div><span class="metric-label">Requests</span><strong data-basis="reported">${srv.active}</strong><span class="metric-detail">${srv.queued ? `${srv.queued} queued` : 'Queue clear'}</span></div></div>`;
+};
+const LABEL = shortLabels
+  ? { gpuMem: 'GPU memory · driver-reported', power: 'Chip power · estimate' }
+  : { gpuMem: 'GPU memory (driver-reported, not model size)', power: 'Chip power (CPU+GPU+ANE, macmon estimate) · includes all apps · not wall power' };
+const macCard = sc => {
+  const { s, v } = sc, h = s.host, m = h.mac, req = s.runtime.request, rt = rtName(s), mem = s.runtime.memory;
+  if (v.paused) return '';
+  const [pLabel, pLevel] = PRESSURE[m.pressureLevel] ?? [];
+  const model = mem.modelBytes ?? mem.metalBytes, kind = mem.modelBytes != null ? 'model memory' : 'Metal memory';
+  const stale = s.status.state === 'recovering' || s.status.reason === 'status_stale';
+  const perJ = req?.decodeTps && s.runtime.server.active === 1 && h.power?.coverageFraction >= .8 ? req.decodeTps / h.power.chipW : null;
+  const bJ = fx.panel.baseline.tokPerW;
+  const t = tip('mac', 'This Mac', ['Whole Mac, not the model alone. RAM is physical memory minus free memory: it includes reclaimable pages, so it isn’t Activity Monitor’s Memory Used.',
+    'GPU readings come from the graphics driver and never drive an alert. GPU memory includes reserved memory and other apps, so it isn’t the model’s size.',
+    model != null ? `The wired-limit meter is ${rt}’s own reported ${kind} and never alerts.` : null,
+    h.power ? `Chip power is macmon’s CPU+GPU+ANE estimate: it includes every app and isn’t wall power. tok/J is tokens per second per watt, only while one request decodes; usual ${bJ.p50.toFixed(2)} (estimate baseline, n ${bJ.n}).` : 'Chip power needs macmon; Scope never installs it.']);
+  const th = h.thermal ? tip('thermal', 'Thermal pressure (macOS)', [`macOS reports thermal pressure level ${h.thermal.level} of 4 (“${THERMAL[h.thermal.level][1]}”), read with notifyutil.`, `Scope warns from ${THERMAL[THERMAL_WARN][0]} (level ${THERMAL_WARN}) up.`]) : null;
+  return html`<section class="machine" aria-label="This Mac"><div class="title-row"><h2 class="machine-title">This Mac</h2>${t.btn}</div>${t.pop}
+    <div class="machine-line"><div><span class="machine-label">CPU</span><strong>${pct(h.cpuFraction)}</strong><div class="meter" aria-hidden="true"><i style="width:${pct(h.cpuFraction)}"></i></div></div>
+      <div><span class="machine-label">RAM</span><strong>${(h.memUsedBytes / GiB).toFixed(1)} / ${Math.round(h.memTotalBytes / GiB)} GiB</strong><div class="meter" aria-hidden="true"><i style="width:${pct(h.memUsedBytes / h.memTotalBytes)}"></i></div></div>
+      <div><span class="machine-label">Swap</span><strong>${gib(m.swapUsedBytes)}</strong></div></div>
+    <div class="mac-rows">
+      ${pLabel ? html`<div class="mac-row"><span>macOS memory pressure (kernel)</span><strong class="level" data-level="${pLevel}">${pLabel}</strong></div>` : ''}
+      ${th ? html`<div class="mac-row"><span class="title-row">Thermal pressure (macOS) ${th.btn}</span><strong class="level" data-level="${thermalLevel(h.thermal.level)}">${THERMAL[h.thermal.level][0]}</strong>${th.pop}</div>` : ''}
+    </div>
+    <details class="host-details" ${attr('open', detailsOpen)}><summary>Mac details</summary><div class="mac-rows">
+      ${h.gpu?.busyFraction != null ? html`<div class="mac-row"><span>GPU busy (driver-reported)</span><strong>${pct(h.gpu.busyFraction)}</strong><div class="meter" aria-hidden="true"><i style="width:${pct(h.gpu.busyFraction)}"></i></div></div>` : ''}
+      ${h.gpu?.allocBytes != null ? html`<div class="mac-row"><span>${LABEL.gpuMem}</span><strong>${gib(h.gpu.allocBytes)}</strong></div>` : ''}
+      ${model != null && m.wiredLimitBytes ? html`<div class="mac-row"><span>${rt} ${kind} vs macOS GPU wired limit</span>${val(`${pct(model / m.wiredLimitBytes)} of ${gib(m.wiredLimitBytes)}`, stale ? 'last-observed' : 'reported')}<div class="meter" aria-hidden="true"><i style="width:${pct(model / m.wiredLimitBytes)}"></i></div></div>` : ''}
+      ${h.runtimeProcess ? html`<div class="mac-row"><span>${RT[h.runtimeProcess.runtime]} process listening on :${h.runtimeProcess.port}</span>${val(gib(h.runtimeProcess.footprintBytes), 'observed', 'macOS footprint')}</div>` : ''}
+      ${h.power ? html`<div class="mac-row"><span>${LABEL.power}</span>${val(`${h.power.chipW.toFixed(1)} W`, 'estimate')}</div>` : ''}
+      ${perJ != null ? html`<div class="mac-row"><span>tok/J · this request</span>${val(`${perJ.toFixed(2)} · ${delta((perJ - bJ.p50) / bJ.p50)} vs usual`, 'estimate')}</div>` : ''}
+    </div></details></section>`;
+};
+const liveBody = (sc, ceiling) => html`${callouts(sc.s)}${hero(sc, ceiling)}${tiles(sc)}${macCard(sc)}`;
+
+/* ---------- Server ---------- */
+const REPORTS = [['request.decodeRate', 'per-request speed'], ['request.prefillProgress', 'prefill progress'], ['server.requests', 'request counts'], ['server.cache', 'cache'],
+  ['server.memory.model', 'model memory'], ['server.memory.metal', 'Metal memory'], ['server.averages', 'server averages'], ['server.latency', 'latency percentiles'], ['server.slots', 'slots'],
+  ['server.rates', 'throughput'], ['server.speculative', 'speculative decoding'], ['server.residency', 'loaded models'], ['server.engines', 'engines'], ['server.usage', 'usage history'], ['server.completions', 'replies']];
+const runtimeCard = s => {
+  const c = s.connection, reports = REPORTS.filter(([k]) => s.capabilities[k]).map(([, t]) => t), comp = s.capabilities['server.completions'];
+  const status = { ready: s.status.reason === 'sleeping' ? 'Asleep' : 'Ready', degraded: 'Limited', recovering: 'Recovering', failing: 'Not responding', detecting: 'Detecting', unconfigured: 'Not set up' }[s.status.state];
+  return section('Runtime', status, html`<dl class="kv">
+    <div><dt>Runtime</dt><dd>${connName(s)}</dd></div>
+    ${c.runtime ? html`<div><dt>Version</dt><dd>${c.version ?? (c.runtime === 'splash' ? 'Not reported · 1.1 features detected' : 'Not reported')}</dd></div>` : ''}
+    ${c.engine ? html`<div><dt>Engine</dt><dd>${c.engine === 'splash' ? 'Splash runtime pack' : c.engine}</dd></div>` : ''}
+    ${c.detection.probe ? html`<div><dt>Detected</dt><dd>${c.detection.probe} answered · ${c.detection.confidence} confidence</dd></div>` : ''}
+    <div class="kv-block"><dt>Reports</dt><dd class="chips">${reports.length ? reports.map(r => html`<span class="chip">${r}</span>`) : 'Nothing yet'}</dd></div>
+    ${c.runtime ? html`<div><dt>Replies recorded as</dt><dd>${comp ? { reported: 'Reported by the runtime', 'last-observed': 'Last observed by Scope', derived: 'Derived from counters', observed: 'Observed by Scope' }[comp.basis] : `None · ${rtName(s)} doesn’t report them`}</dd></div>` : ''}</dl>`);
+};
+const memoryCard = s => {
+  const m = s.runtime.memory, stale = s.status.state === 'recovering' || s.status.reason === 'status_stale';
+  if (m.metalBytes != null) return section('Runtime memory', `Splash · ${stale ? 'last observed' : 'reported'}`, html`<div class="values-2"><div><span>Metal memory</span><strong>${gib(m.metalBytes)}</strong></div><div><span>Metal peak</span><strong>${gib(m.metalPeakBytes)}</strong></div></div>`,
+    tip('mem', 'Runtime memory', ['Splash’s own Metal allocation, kept separate from process memory.', 'Live → This Mac compares it with the macOS GPU wired limit.']));
+  if (m.modelBytes == null) return '';
+  return section('Runtime memory', `${rtName(s)} · reported`, html`<div class="values-2"><div><span>Model memory</span><strong>${gib(m.modelBytes)}</strong></div><div><span>Engine-pool ceiling</span><strong>${gib(m.ceilingBytes)}</strong></div></div>
+    <div class="meter" style="margin-top:10px" aria-hidden="true"><i style="width:${pct(m.modelBytes / m.ceilingBytes)}"></i></div>`,
+    tip('mem', 'Runtime memory', ['oMLX’s model allocation against its engine-pool ceiling, as oMLX reports them. Not per-chat memory.', 'The oMLX process footprint and the macOS GPU wired limit are on Live → This Mac.']));
+};
+const cacheCard = s => {
+  const req = s.runtime.request, c = s.runtime.server.cache;
+  if (!c) return '';
+  return section('Cache & input', req ? 'Current request' : 'Server cache', html`${req ? html`<div class="values-2 big-values"><div><span>Reused tokens</span><strong data-basis="reported">${int(req.cachedTokens)}</strong></div><div><span>Not reused</span><strong data-basis="reported">${int(req.promptTokens - req.cachedTokens)}</strong></div></div>
+    <div class="cache-input-bar" aria-hidden="true"><span style="width:${pct(req.cachedTokens / req.promptTokens)}"></span></div>` : ''}
+    <div class="values-2"><div><span>RAM cache</span><strong>${gib(c.ramBytes)}</strong><small>${c.ramEntries} entries</small></div><div><span>SSD cache</span><strong>${gib(c.ssdBytes)}</strong><small>${c.ssdEntries} entries</small></div></div>`,
+    tip('cache', 'Cache & input', ['Reused and not-reused tokens are oMLX’s counts for the current request.', 'Unreused input is not necessarily the size of a prefill stage.']));
+};
+const residencyCard = s => {
+  const list = s.runtime.residency;
+  if (!list.length) return '';
+  const src = list[0].source, many = list.length > 1;
+  const rows = list.map(m => {
+    if (m.source === 'ollama-ps') return html`<li class="resident-row" data-loaded="true"><div class="resident-heading"><strong translate="no">${m.model}</strong><span class="chip">unloads in ${until(m.unloadsAt)}</span></div>
+      <div class="resident-reading"><span>${gib(m.bytes)} loaded</span><span>GPU-resident (Ollama-reported) ${gib(m.gpuResidentBytes)} · ${pct(m.gpuResidentBytes / m.bytes)}</span></div>
+      <div class="meter" aria-hidden="true"><i style="width:${pct(m.gpuResidentBytes / m.bytes)}"></i></div></li>`;
+    return html`<li class="resident-row" data-loaded="true"><div class="resident-heading"><strong translate="no">${m.model}</strong><span class="chip" ${attr('data-tone="accent"', m.phase !== 'idle')}>${PHASE[m.phase]}</span></div>
+      ${src === 'lms-ps' || many ? html`<div class="resident-reading"><span>${gib(m.bytes)} ${src === 'lms-ps' ? 'loaded' : 'allocated'}</span></div>` : ''}</li>`;
+  });
+  const title = src === 'lms-ps' ? 'Loaded instances' : 'Loaded models';
+  const right = src === 'lms-ps' ? 'lms ps · refreshed on load/unload' : `${list.length} loaded`;
+  const note = src === 'ollama-ps' ? ['Ollama reports residency only: how much of each model it holds on the GPU.', 'Apple silicon shares one memory pool, so GPU-resident is not a separate memory.']
+    : src === 'lms-ps' ? ['From LM Studio’s CLI with the no-wake server path, so it never starts Bionic.', 'Context sizes and formats are in the model inventory below.']
+    : ['Models the runtime reports as loaded. Not assigned to a chat.', many ? null : 'With one model loaded, its memory is the Runtime memory figure.'];
+  return section(title, right, html`<ul class="resident-list">${rows}</ul>`, tip('resident', title, note));
+};
+const sessionCard = s => {
+  const a = s.runtime.server.averages;
+  if (!a) return '';
+  const stale = s.status.state === 'recovering' || s.status.reason === 'status_stale';
+  const b = stale ? 'last-observed' : 'reported', since = stale ? `before ${clock(s.status.sinceAt)}` : a.uptimeMs ? `${dur(a.uptimeMs)} · since start` : 'Since the log stream started';
+  return section('Server session', since, html`<div class="values-2">${a.decodeTps != null ? html`<div><span>Decode average</span><strong>${val(`${tps(a.decodeTps)} tok/s`, b)}</strong></div>` : ''}${a.prefillTps != null ? html`<div><span>Prefill average</span><strong>${val(`${tps(a.prefillTps)} tok/s`, b)}</strong></div>` : ''}${a.cacheEfficiencyFraction != null ? html`<div><span>Cache efficiency</span><strong>${val(pct(a.cacheEfficiencyFraction), b)}</strong></div>` : ''}
+    <div><span>Completed</span><strong>${val(int(a.requestsTotal), b)}</strong>${a.failedTotal ? html`<small>${a.failedTotal} failed</small>` : ''}</div></div>`,
+    tip('session', 'Server session', ['Across all models and apps that used this runtime, as the runtime reports them.']));
+};
+const latencyCard = s => {
+  const hg = s.runtime.server.histograms;
+  if (!hg) return '';
+  const q = (label, x) => html`<div><span>${label} p50 · p95</span><strong>${dur(x.p50)} · ${dur(x.p95)}</strong><small>n ${int(x.n)}</small></div>`;
+  return section('Latency', s.status.state === 'recovering' || s.status.reason === 'status_stale' ? 'Splash native · last observed' : 'Splash native', html`<div class="values-2">${q('TTFT', hg.ttftMs)}${q('Between tokens', hg.itlMs)}</div>`,
+    tip('latency', 'Latency', ['Splash’s own percentiles over its last 4,096 samples, across all clients.', 'Splash reports p95; Scope’s own baselines use p90.']));
+};
+const slotsCard = s => {
+  const slots = s.runtime.slots;
+  if (!slots.length) return '';
+  const busy = slots.filter(x => x.busy).length;
+  return section('Slots', `${busy} of ${slots.length} busy`, html`<ul class="resident-list">${slots.map(x => html`<li class="resident-row"><div class="resident-heading"><strong>Slot ${x.id}</strong><span class="chip" ${attr('data-tone="accent"', x.busy)}>${x.busy ? 'Busy' : 'Idle'}</span></div>
+      <div class="resident-reading"><span>${x.busy ? `${int(x.decodedTokens)} decoded · ${kt(x.promptTokens)} prompt` : 'Waiting'}</span><span>${kt(x.contextWindowTokens)} context</span></div></li>`)}</ul>`,
+    tip('slots', 'Slots', ['Numbers only: Scope never reads prompts from /slots.', 'It polls /slots only while /metrics shows work, so a sleeping server stays asleep.']));
+};
+const ratesCard = s => {
+  const r = s.runtime.server.rates;
+  if (!r) return '';
+  return section('Server throughput', `last ${Math.round(r.windowMs / 1000)} s`, html`<div class="values-3"><div><span>Prompt</span><strong>${val(`${int(r.promptTps)} tok/s`, 'derived')}</strong></div><div><span>Decode</span><strong>${val(`${tps(r.decodeTps)} tok/s`, 'derived')}</strong></div><div><span>Processing · deferred</span><strong>${s.runtime.server.active} · ${s.runtime.server.queued}</strong></div></div>`,
+    tip('rates', 'Server throughput', ['Worked out from llama-server’s running totals, never its windowed gauges (every scrape resets those).']));
+};
+const specCard = s => {
+  const sp = s.runtime.server.speculative;
+  if (!sp) return '';
+  return section('Speculative decoding', `last ${Math.round(sp.windowMs / 60000)} min`, html`<div class="values-2"><div><span>Draft acceptance</span><strong>${val(pct(sp.acceptanceFraction), 'derived')}</strong></div><div><span>Accepted</span><strong>${int(sp.acceptedTokens)} of ${int(sp.draftedTokens)}</strong></div></div>
+    <div class="meter" style="margin-top:10px" aria-hidden="true"><i style="width:${pct(sp.acceptanceFraction)}"></i></div>`,
+    tip('spec', 'Speculative decoding', ['Server-wide, from llama-server’s counters.', 'Higher acceptance means the draft model guesses more tokens that the main model keeps.']));
+};
+const enginesCard = s => {
+  const e = s.runtime.engines;
+  if (!e.length) return '';
+  return section('Engines', 'lms runtime ls · cached 10 min', html`<ul class="resident-list">${e.map(x => html`<li class="resident-row"><div class="resident-heading"><strong>${x.name} ${x.version}</strong><span class="chip" ${attr('data-tone="accent"', x.selected)}>${x.selected ? 'In use' : 'Installed'}</span></div></li>`)}</ul>`,
+    tip('engines', 'Engines', ['Read only while this tab is visible. Scope never installs, selects or updates engines.']));
+};
+const catalogCard = s => {
+  const c = s.runtime.catalog;
+  if (!c.length) return '';
+  return section('Model inventory', `${c.filter(m => m.loaded).length} loaded · ${c.length} listed`, html`<ul class="resident-list">${c.map(m => html`<li class="resident-row" data-loaded="${!!m.loaded}"><div class="resident-heading"><strong translate="no">${m.name}</strong><span class="chips">${m.format ? html`<span class="chip" ${attr('data-tone="accent"', m.format === 'splash')}>${m.format}</span>` : ''}${m.vision ? html`<span class="chip">vision · ${m.inputModalities.join(' + ')}</span>` : ''}</span></div>
+      <div class="resident-reading"><span>${m.loaded ? 'Loaded' : 'Available'}</span><span>${kt(m.contextWindowTokens)} context</span></div></li>`)}</ul>`);
+};
+const serverBody = sc => { const s = sc.s; return html`${callouts(s)}${runtimeCard(s)}${slotsCard(s)}${ratesCard(s)}${specCard(s)}${latencyCard(s)}${memoryCard(s)}${cacheCard(s)}${residencyCard(s)}${enginesCard(s)}${catalogCard(s)}${sessionCard(s)}`; };
+
+/* ---------- History ---------- */
+const ledgerRow = r => {
+  if (r.kind === 'gap') return html`<li class="led-row" data-kind="gap"><div class="gap-row"><span>Not observed · Scope wasn’t open · ${clock(r.fromAt)}–${clock(r.toAt)}</span></div></li>`;
+  if (r.kind === 't') return html`<li class="led-row" data-kind="t"><time>${clock(r.endedAt)}</time><div class="led-main"><strong>Turn · ${r.steps} steps</strong>${val(dur(r.endedAt - r.startedAt - r.waitMs), 'observed', 'observed · waits excluded')}
+    ${val(`${tps(r.wDecodeTps)} tok/s token-weighted`, 'derived')}<span>${int(r.outputTokens)} out · ${pct(r.cacheReuseFraction)} of input reused</span>${attrChip(r.attr)}</div></li>`;
+  return html`<li class="led-row"><time>${clock(r.finishedAt)}</time><div class="led-main">${val(html`<strong>${tps(r.decodeTps)} tok/s</strong>`, r.basis)}<span>${int(r.outputTokens)} out · ${kt(r.promptTokens)} in${r.cachedTokens ? ` (${kt(r.cachedTokens)} cached)` : ''}</span>${attrChip(r.attr)}</div></li>`;
+};
+const repliesCard = empty => {
+  const c = fx.panel.basisCounts, t = tip('replies', 'Replies', ['Each reply Scope saw finish while any Scope view was open, with its label.', 'A turn summary appears only when every step in it is attributed. Rows with no verdict read “Server-wide · not observed”.', 'oMLX doesn’t report completions, so its rows are Scope’s last reading of the request.']);
+  if (empty) return section('Replies', 'Observed while Scope was open', html`<p class="empty">No replies yet. Scope records a reply when it finishes while any Scope view is open. Your 1.6 captures are in Captures.</p>`, t);
+  return section('Replies', 'Observed while Scope was open', html`<div class="counts">${Object.entries(c).filter(([, n]) => n).map(([b, n]) => html`<span class="chip">${n} ${BASIS[b] ?? b}</span>`)}<span class="chip">1 gap</span></div>
+    <ol class="ledger">${fx.panel.ledger.map(ledgerRow)}</ol>`, t);
+};
+const baselineCard = empty => {
+  const b = fx.panel.baseline, t = tip('baseline', 'Usual speed', ['Last 14 days, up to 50 replies, excluding the current 30 min. p50 needs 5 replies and p90 needs 10.', 'Overlapping, aggregate and gap rows are left out, and so are oMLX rows for TTFT and token statistics.']);
+  if (empty) return section('Usual speed', html`<span translate="no">Example-27B-4bit</span>`, html`<p class="empty">Needs 5 replies for this model and context size.</p>`, t);
+  return section('Usual speed', html`<span translate="no">Example-27B-4bit</span> · ${b.ctxBucket}`, html`<div class="values-3">
+      <div><span>Decode p50</span><strong>${tps(b.decode.p50)} tok/s</strong><small>n ${b.decode.n}</small></div>
+      <div><span>Decode p90</span><strong>${tps(b.decode.p90)} tok/s</strong><small>n ${b.decode.n}</small></div>
+      <div><span>Prefill p50</span><strong>${tps(b.prefill.p50)} tok/s</strong><small>n ${b.prefill.n}</small></div></div>
+    <dl class="kv"><div><dt>tok/J, usual</dt><dd>${val(`${b.tokPerW.p50.toFixed(2)} · n ${b.tokPerW.n}`, 'estimate', 'estimate baseline')}</dd></div><div><dt>TTFT</dt><dd>No baseline · oMLX doesn’t report it</dd></div></dl>
+    <div class="actions"><button class="btn" type="button">Copy baseline summary</button><span class="insight-note" style="margin:0">Models become “Model A, B”</span></div>`, t);
+};
+const usageCard = () => {
+  const u = fx.usage, max = Math.max(...u.buckets.map(b => b.outputTokens)), day = at => `${new Date(at).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })} ${new Date(at).getUTCDate()}`;
+  return section('Recorded by oMLX', html`<span class="seg">${['7d', '30d', '90d'].map(r => html`<button type="button" aria-pressed="${r === u.range}">${r}</button>`)}</span>`, html`
+    <div class="usage-bars" role="img" aria-label="Output tokens per day: ${u.buckets.map(b => `${day(b.at)} ${kt(b.outputTokens)}`).join(', ')}">${u.buckets.map(b => html`<div aria-hidden="true"><i style="height:${Math.max(2, b.outputTokens / max * 72).toFixed(0)}px"></i></div>`)}</div>
+    <div class="usage-days" aria-hidden="true">${u.buckets.map(b => html`<span>${new Date(b.at).toISOString().slice(8, 10)}</span>`)}</div>
+    <div class="values-3"><div><span>Requests</span><strong>${int(u.totals.requests)}</strong></div><div><span>Prompt</span><strong>${kt(u.totals.promptTokens)}</strong><small>${kt(u.totals.cachedTokens)} cached</small></div><div><span>Output</span><strong>${kt(u.totals.outputTokens)}</strong></div></div>`,
+    tip('usage', 'Recorded by oMLX', [`oMLX’s own records for every app that used it: output tokens per day. Refreshed ${ago(u.cachedAt)}.`, 'Never merged into Scope’s history, and it has no TTFT.']));
+};
+const storageCard = mode => {
+  const st = mode === 'full' ? fx.panel.storageFull : mode === 'empty' ? { ...fx.panel.storage, usedBytes: 2048, replies: 0, days: 0 } : fx.panel.storage;
+  const t = tip('storage', 'Reply history', ['In OpenChamber’s extension storage on this Mac, which backups include.', 'Saved by whichever Scope view is recording (page, panel or Work Status) at most every 5 min, or when it hides. Nothing is written while idle. Model names never leave this Mac.']);
+  return html`<section class="insight-section storage" data-full="${mode === 'full'}"><div class="section-heading"><div class="title-row"><h2>Reply history</h2>${t.btn}</div><span>${mode === 'paused' ? html`<span class="chip" data-tone="warn">Recording paused</span>` : 'Stored on this Mac'}</span></div>${t.pop}
+    ${mode === 'full' ? html`<div class="connection-diagnosis" data-severity="warning" role="status"><p class="diag-title"><span class="sr-only">Warning: </span><strong>History is full</strong></p><p class="diag-meta">After each save Scope removes the oldest replies, so it holds ${st.days} of your ${st.retentionDays} days. Shorten retention or clear to make room.</p></div>` : ''}
+    ${mode === 'confirm' ? html`<div class="connection-diagnosis" data-severity="critical" role="alertdialog" aria-labelledby="clear-title"><p class="diag-title"><strong id="clear-title">Clear ${int(st.replies)} replies and the baselines built from them?</strong></p><p class="diag-meta">This can’t be undone. Captures are kept.</p><div class="actions"><button class="btn danger" type="button">Clear history</button><button class="btn" type="button">Cancel</button></div></div>` : ''}
+    ${mode === 'confirm' ? '' : html`<div class="storage-line"><strong>${kib(st.usedBytes)}</strong><span>${mode === 'full' ? 'at the limit' : `of ${kib(st.capBytes)}`} · ${int(st.replies)} replies · ${st.days} days</span></div>
+    <div class="meter" aria-hidden="true"><i style="width:${pct(st.usedBytes / st.capBytes)}"></i></div>
+    <div class="storage-controls"><label>Keep <select class="btn"><option>${st.retentionDays} days</option></select></label><button class="btn" type="button">${mode === 'paused' ? 'Resume recording' : 'Pause recording'}</button><button class="btn" type="button">Clear…</button></div>`}</section>`;
+};
+const alertLogCard = (s, empty) => {
+  const log = s.alertLog.length ? s.alertLog : fx.snapshots['omlx-decode'].alertLog, t = tip('alog', 'Alert log', ['Kept in the service’s memory only, so it clears when the service restarts.']);
+  return section('Alert log', 'Last 20 · while Scope was open', empty ? html`<p class="empty">No alerts while Scope was open.</p>`
+    : html`<ol class="alog">${log.map(a => html`<li><time>${clock(a.since)}</time><span><i class="sev" data-severity="${a.severity}" aria-hidden="true"></i><span class="sr-only">${SEV_WORD[a.severity]}: </span>${ALERT[a.id](a.params)[0]}</span><small>${a.until ? dur(a.until - a.since) : 'active'}</small></li>`)}</ol>`, t);
+};
+const historyBody = (sc, page, ceiling) => {
+  const empty = sc.v.history === 'empty', trend = empty ? fx.trendFresh : fx.trend;
+  const t = tip('trend', 'Trend', ['Decode speed as oMLX reports it, in 20 s buckets: the line is each bucket’s last reading and the band its min–max.', 'The line breaks while nothing is generating. Hatched spans weren’t observed because no Scope view was open. Nothing is interpolated.']);
+  return html`${page ? html`<div class="col-title"><h2>History</h2><span>Observed while Scope was open · stored on this Mac</span></div>` : ''}
+  ${section('Trend', html`<span class="seg">${['15 min', '30 min', '60 min'].map(w => html`<button type="button" aria-pressed="${w === '60 min'}">${w}</button>`)}</span>`, trendChart(trend, !page, ceiling), t)}
+  ${repliesCard(empty)}${baselineCard(empty)}${sc.s.capabilities['server.usage'] ? usageCard() : ''}${storageCard(empty ? 'empty' : sc.v.storage)}${alertLogCard(sc.s, empty)}`;
+};
+
+/* ---------- Captures ---------- */
+const capturesBody = sc => {
+  const saved = fx.panel.captures, armed = sc.v.next?.state === 'armed';
+  const t = tip('capture-next', 'Next reply', ['Arms for 2 min and measures one reply on this chat’s model, then stops.', 'Cancels if you switch chats, the runtime goes away, or this view closes. It won’t arm when the chat uses another runtime or model; it offers to watch that runtime instead.']);
+  return html`<section class="capture-card"><div class="section-heading"><div class="title-row"><h2>Next reply</h2>${t.btn}</div>${armed ? html`<span class="title-row">${attrChip({ label: 'armed' })}</span>` : ''}</div>${t.pop}
+    <p class="insight-note">Measures your next reply in this chat, then stops.</p>
+    <div class="actions">${armed ? html`<span class="insight-note" style="margin:0"><strong style="color:var(--scope-fg)">${mmss(sc.v.next.leftMs)}</strong> left</span><button class="btn" type="button">Cancel</button>` : html`<button class="btn primary" type="button">${icon('measure')} Measure next reply</button>`}</div></section>
+  <section class="capture-card"><div class="section-heading"><h2>Window</h2><span>Server-wide</span></div>
+    <p class="insight-note">Averages everything the runtime does for 30 or 60 s.</p>
+    <div class="actions"><select class="btn" aria-label="Window length"><option>60 s</option><option>30 s</option></select><button class="btn" type="button">Start capture</button></div>
+    <p class="notice" style="margin-top:12px">Monitoring keeps running while you capture.</p></section>
+  ${section('Saved', `${saved.length} of 12 · oldest replaced when full`, html`<ol class="ledger">${saved.map(c => html`<li class="led-row"><time>${clock(c.at)}</time><div class="led-main">${val(html`<strong>${tps(c.decodeTps)} tok/s</strong>`, 'reported')}<span translate="no">${c.kind === 'next-reply' ? 'Next reply' : `Window ${c.windowMs / 1000} s`} · ${c.model}</span>${attrChip(c.attr)}<button class="btn quiet" type="button">Compare</button></div></li>`)}</ol>
+    <div class="actions"><button class="btn" type="button">Copy</button><button class="btn" type="button">Add to chat draft</button><span class="insight-note" style="margin:0">Never includes model names</span></div>`)}`;
+};
+
+/* ---------- Needs approval, needs a restart ---------- */
+const approvalView = () => html`<div class="view"><section class="approval-card" aria-labelledby="approval-title">
+  <h2 id="approval-title">MLX Scope 2.0 needs one approval</h2>
+  <p>GPU, thermal and process readings; chat activity for per-chat labels (Scope sees project names, folders, chat titles and activity but never stores, shows or sends them); reply history stored locally.</p>
+  <ol class="steps"><li>Open Settings → Extensions → MLX Scope.</li><li>Choose Review permissions, then approve.</li></ol>
+  <details class="grant" open><summary>What the approval lists, and why</summary><dl class="kv">
+    <div><dt>Chat activity (sessions)</dt><dd>OpenChamber’s wording covers listing projects and sessions and creating or opening sessions. Scope uses only the listing and activity part, to label readings “This chat · inferred”. It never creates or opens a session and never sees conversation content.</dd></div>
+    <div><dt>GPU readings</dt><dd><code>/usr/sbin/ioreg</code></dd></div>
+    <div><dt>Thermal pressure</dt><dd><code>/usr/bin/notifyutil</code></dd></div>
+    <div><dt>oMLX process memory</dt><dd><code>/usr/sbin/lsof</code>, <code>/usr/bin/footprint</code></dd></div>
+    <div><dt>LM Studio and Bionic</dt><dd><code>~/.lmstudio/bin/lms</code>, <code>~/.cache/lm-studio/bin/lms</code> · never starts either app</dd></div>
+    <div><dt>Chip power (optional)</dt><dd><code>/opt/homebrew/bin/macmon</code>, <code>/usr/local/bin/macmon</code> · only if you installed macmon</dd></div>
+    <div><dt>Memory (as in 1.x)</dt><dd><code>/usr/bin/vm_stat</code>, <code>/usr/sbin/sysctl</code></dd></div></dl></details>
+  <p class="insight-note">Nothing is read until you approve. Your saved 1.6 captures are kept. No sudo, osascript or powermetrics.</p></section></div>`;
+const restartView = () => html`<div class="view"><section class="approval-card" aria-labelledby="restart-title">
+  <h2 id="restart-title">MLX Scope needs a restart</h2>
+  <p>The panel was updated, but its local service is still the old version.</p>
+  <ol class="steps"><li>Open Settings → Extensions → MLX Scope.</li><li>Pause it, then resume it.</li></ol>
+  <p class="insight-note">Your history and captures are kept.</p></section></div>`;
+
+/* ---------- surfaces ---------- */
+const scopeAttrs = (s, v, surf) => new Raw(`data-surface="${surf}" data-phase="${s.status.state === 'recovering' || s.status.reason === 'status_stale' ? 'reconnecting' : s.status.state === 'failing' ? 'offline' : ['detecting', 'unconfigured'].includes(s.status.state) ? 'detecting' : s.runtime.phase}" data-stale="${s.status.state === 'failing'}" data-approval="${!!(v.approval || v.frame)}" data-paused="${!!v.paused}"`);
+// Side by side on the page, the live chart and the trend share one y-scale.
+const sharedCeiling = sc => niceCeil(Math.max(liveMax(sc.s.runtime.request), trendMax(sc.v.history === 'empty' ? fx.trendFresh : fx.trend), 20));
+const rail = () => {
+  const tab = q.get('tab') || 'live', sc = scenario(q.get('state') || 'decode'), { s, v } = sc, ceiling = sharedCeiling(sc);
+  if (q.get('compact')) return compactRail(sc);
+  if (v.approval || v.frame) return html`<main class="scope" ${scopeAttrs(s, v, 'panel')}>${masthead(s, v)}${v.approval ? approvalView() : restartView()}${footer(s)}</main>`;
+  const body = tab === 'server' ? serverBody(sc) : tab === 'history' ? historyBody(sc, false, ceiling) : tab === 'captures' ? capturesBody(sc) : liveBody(sc, ceiling);
+  return html`<main class="scope" ${scopeAttrs(s, v, 'panel')}>${masthead(s, v)}${tabs(tab)}${panel(tab, body)}${hiddenPanels(tab)}${footer(s)}</main>`;
+};
+const page = () => {
+  const sc = scenario(q.get('state') || 'decode'), { s, v } = sc, ceiling = sharedCeiling(sc);
+  if (v.approval || v.frame) return html`<main class="scope" ${scopeAttrs(s, v, 'page')}>${masthead(s, v)}${v.approval ? approvalView() : restartView()}${footer(s)}</main>`;
+  return html`<main class="scope" ${scopeAttrs(s, v, 'page')}>${masthead(s, v)}${tabs('live', true)}
+    <div class="page-cols" role="tabpanel" id="panel-live" aria-labelledby="tab-live" tabindex="0"><div class="view page-live"><div class="col-title"><h2>Live</h2><span>90 s · this chat when inferred</span></div>${liveBody(sc, ceiling)}</div>
+    <div class="view">${historyBody(sc, true, ceiling)}</div></div>${hiddenPanels('live', true)}${footer(s)}</main>`;
+};
+
+/* ---------- the glance: Work Status section and rail Compact. Line 1: phase dot · model · reading · label; line 2: sparkline, chips, the view switch; line 3: the top alert ---------- */
+const dot = tone => html`<span class="ws-dot" data-tone="${tone}" aria-hidden="true"></span>`;
+const toggle = expanded => html`<button class="ws-toggle" type="button" aria-expanded="${expanded}" aria-label="${expanded ? 'Show the glance view' : 'Show turn stats'}">${icon(expanded ? 'up' : 'down')}</button>`;
+// Chips appear only when they say something: pressure and thermal when not normal, GPU busy while a request runs. An alert on line 3 is not repeated as a chip.
+const wsChips = (s, { gpu = true, skip = [] } = {}) => {
+  const [p, lvl] = PRESSURE[s.host.mac.pressureLevel] ?? [], th = s.host.thermal;
+  return html`${p && lvl !== 'normal' && !skip.includes('pressure') ? html`<span class="chip" data-tone="${lvl === 'critical' ? 'bad' : 'warn'}">Pressure ${p.toLowerCase()}</span>` : ''}${th && th.level >= THERMAL_WARN && !skip.includes('thermal') ? html`<span class="chip" data-tone="${thermalLevel(th.level) === 'critical' ? 'bad' : 'warn'}">${THERMAL[th.level][0]} heat</span>` : ''}${gpu && s.host.gpu?.busyFraction != null ? html`<span class="chip">GPU ${pct(s.host.gpu.busyFraction)} busy</span>` : ''}`;
+};
+const chipOf = id => /^pressure/.test(id) ? 'pressure' : id === 'thermal' ? 'thermal' : null;
+const alertLine = s => {
+  const msgs = alertMsgs(s);
+  if (!msgs.length) return null;
+  const [top, ...rest] = msgs, chipped = new Set(['pressure', 'thermal'].filter(k => k !== chipOf(top.id)));
+  const more = rest.filter(m => !chipped.has(chipOf(m.id))).length;
+  return { skip: [chipOf(top.id)].filter(Boolean), line: html`<div class="ws-line"><span class="ws-alert ws-grow" data-severity="${top.sev}"><span class="sr-only">${SEV_WORD[top.sev]}: </span>${top.title}</span>${more ? html`<span class="ws-muted">+${more} more</span>` : ''}</div>` };
+};
+const decodeLine1 = (s, a) => { const r = s.runtime.request; return html`<div class="ws-line">${dot('live')}<span class="ws-model" translate="no">${glanceModel(r.model)}</span><span class="ws-rate">${tps(r.decodeTps)} <small>tok/s</small></span>${a}</div>`; };
+const tsRows = rows => html`<dl class="ts-rows">${rows.filter(Boolean).map(([l, value, b, note]) => html`<dt>${l}</dt><dd data-basis="${b}">${value}${b === 'reported' ? '' : html`<small class="basis">${note ?? BASIS[b]}</small>`}</dd>`)}</dl>`;
+const WS = {
+  decode: { h: 56, cap: 'Decode · 56 px. Glance tier: line 2 is the 15 min sparkline and only chips that say something; the chevron opens Turn stats.', render: () => { const { s, v } = scenario('decode');
+    return html`${decodeLine1(s, attrChip(v.attr))}<div class="ws-line">${spark(fx.trend)}${wsChips(s)}${toggle(false)}</div>`; } },
+  idle: { h: 56, cap: 'Idle · 56 px. The last reply keeps its label.', render: () => { const { s, last, lastAttr } = scenario('idle');
+    return html`<div class="ws-line">${dot('idle')}<span>Idle</span><span class="ws-model" translate="no">${glanceModel(modelOf(s))}</span>${attrChip(lastAttr)}</div>
+      <div class="ws-line">${spark(fx.trend, 'sm')}<span class="ws-grow" data-basis="${last.basis}">Last reply <b>${tps(last.decodeTps)}</b> <small>tok/s</small> <small class="basis">${BASIS[last.basis]}</small></span>${toggle(false)}</div>`; } },
+  prefill: { h: 56, cap: 'Prefill · 56 px. Progress and the finish time share line 2; the time is oMLX’s own estimate and says so.', render: () => { const { s, v } = scenario('prefill'), r = s.runtime.request;
+    return html`<div class="ws-line">${dot('prefill')}<span class="ws-model" translate="no">${glanceModel(r.model)}</span>${attrChip(v.attr)}</div>
+      <div class="ws-line"><span class="ws-rate">${pct(r.prefillFraction)} <small>of prompt read</small></span><span class="ws-grow" data-basis="estimate">· ${dur(r.prefillEtaMs)} left <small class="basis">estimate</small></span>${toggle(false)}</div>`; } },
+  first: { h: 56, cap: 'First readings · 56 px. No chart until 2 readings; the line says so instead.', render: () => { const { s, v } = scenario('first-readings');
+    return html`${decodeLine1(s, attrChip(v.attr))}<div class="ws-line">${spark(fx.trendFresh)}${toggle(false)}</div>`; } },
+  alert: { h: 80, cap: 'Alert · 80 px. Line 3 is the most severe alert, coloured by severity; “+N more” skips alerts already shown as chips.', render: () => { const { s, v } = scenario('pressure'), a = alertLine(s);
+    return html`${decodeLine1(s, attrChip(v.attr))}<div class="ws-line">${spark(fx.trend)}${wsChips(s, { skip: a.skip })}${toggle(false)}</div>${a.line}`; } },
+  withheld: { h: 56, cap: 'Withheld · 56 px. A short “Server-wide” chip; its reason is line 2 (and the chip’s description).', render: () => { const { s, v } = scenario('withheld-chats'), id = uid('why');
+    return html`${decodeLine1(s, attrChip(v.attr, id))}<div class="ws-line">${spark(fx.trend, 'sm')}<span class="ws-muted ws-grow" id="${id}">${WITHHOLD[v.attr.reason](v.attr.params)}</span>${wsChips(s)}${toggle(false)}</div>`; } },
+  offline: { h: 56, cap: 'Offline · 56 px. One message; the last reply stays in History.', render: () => { const { s } = scenario('offline'), m = statusMsg(s);
+    return html`<div class="ws-line">${dot('bad')}<span class="ws-grow"><span class="sr-only">Critical: </span>${m.title}</span><span class="ws-muted">since ${clock(m.since)}</span></div>
+      <div class="ws-line"><span class="ws-muted ws-grow">Scope checks again automatically</span></div>`; } },
+  recovering: { h: 56, cap: 'Splash recovering · 56 px.', render: () => { const { s } = scenario('splash-recovering'), m = statusMsg(s);
+    return html`<div class="ws-line">${dot('warn')}<span class="ws-grow">${m.title}</span><span class="ws-muted">since ${clock(m.since)}</span></div>
+      <div class="ws-line"><span class="ws-muted ws-grow">Scope reads its status every 30 s</span></div>`; } },
+  approval: { h: 56, cap: 'Needs approval · 56 px. Nothing is read until approved.', render: () => html`<div class="ws-line">${dot('idle')}<span class="ws-grow">MLX Scope 2.0 needs one approval</span></div>
+      <div class="ws-line"><span class="ws-muted ws-grow">Settings → Extensions → MLX Scope</span></div>` },
+  armed: { h: 56, cap: 'Next reply armed · 56 px. Cancels if this section closes.', render: () => { const { s, v } = scenario('next-armed');
+    return html`<div class="ws-line">${dot('idle')}<span>Idle</span><span class="ws-model" translate="no">${glanceModel(modelOf(s))}</span>${attrChip({ label: 'armed' })}</div>
+      <div class="ws-line"><span class="ws-muted ws-grow">Waiting for a message · <b>${mmss(v.next.leftMs)}</b> left</span><button class="ws-btn" type="button">Cancel</button></div>`; } },
+  measuring: { h: 56, cap: 'Next reply measuring · 56 px. Line 1 is the measurement; line 2 only its state.', render: () => { const { s, v } = scenario('next-measuring');
+    return html`${decodeLine1(s, attrChip(v.attr))}<div class="ws-line"><span class="pulse" aria-hidden="true"></span><span class="ws-muted ws-grow">Measuring next reply · ${dur(v.next.elapsedMs)}</span><button class="ws-btn" type="button">Cancel</button></div>`; } },
+  nonlocal: { h: 24, cap: 'Non-local chat · 24 px, whichever view is chosen.', render: () => html`<div class="ws-line">${dot('idle')}<span class="ws-muted ws-grow">Chat uses a non-local model</span></div>` },
+  tip: { h: 96, cap: 'One-time tip · 96 px, one dismiss control, remembered in pref.v2.', render: () => { const { s, v } = scenario('decode');
+    return html`${decodeLine1(s, attrChip(v.attr))}<div class="connection-diagnosis" data-severity="info" role="note"><span>Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place</span><button class="close" type="button" aria-label="Dismiss tip">${icon('close')}</button></div>`; } },
+  firstrun: { h: 80, cap: 'First ledger write from any surface · 80 px.', render: () => { const { s, lastAttr } = scenario('idle');
+    return html`<div class="ws-line">${dot('idle')}<span>Idle</span><span class="ws-model" translate="no">${glanceModel(modelOf(s))}</span>${attrChip(lastAttr)}</div>
+      <div class="connection-diagnosis" data-severity="info" role="status"><span>Recording reply history locally · <button class="link-btn" type="button">Open Scope to manage</button></span><button class="close" type="button" aria-label="Dismiss">${icon('close')}</button></div>`; } },
+  // Turn stats replacement (≤ 200 px): the host's label/value rows, runtime-exact where the runtime reports, a muted basis suffix otherwise.
+  turnstats: { h: 184, cap: 'Turn stats · expanded, 184 px. Splash via Bionic reports every row. The chevron switches back to the 56 px glance; the choice is kept in pref.v2.', render: () => {
+    const t = fx.panel.turnStats.bionic, s = fx.snapshots.bionic;
+    return html`<div class="ts-head">${dot('idle')}<span class="ws-rate">Last turn</span><span class="ws-muted">· ${t.steps} steps</span>${attrChip({ label: 'inferred' })}${toggle(true)}</div>
+      ${tsRows([['Response', `${tps(t.wDecodeTps)} tok/s`, 'derived'], ['Turn time', dur(t.wholeMs), 'observed'], ['Model · tool time', `${dur(t.modelMs)} · ${dur(t.waitMs)}`, 'observed'],
+        ['First TTFT', dur(t.firstTtftMs), 'reported'], ['Tokens in · out', `${kt(t.promptTokens)} · ${int(t.outputTokens)}`, 'reported'], ['Cache %', pct(t.cachedTokens / t.promptTokens), 'reported'],
+        ['Context used', `${kt(t.contextUsedTokens)} of ${kt(t.contextWindowTokens)}`, 'reported'], ['vs usual', `${delta(t.vsUsual.delta)} · n ${t.vsUsual.n}`, 'derived']])}
+      <div class="ws-line">${spark(fx.trend, 'wide')}${wsChips(s, { gpu: false })}</div>`; } },
+  'turnstats-live': { h: 152, cap: 'Turn stats · a turn in progress (oMLX, step 1 decoding), 152 px. vs usual appears when the turn ends; while prefill runs, Response reads “Reading 64% · about 18 s left”.', render: () => {
+    const t = fx.panel.turnStats.live, s = fx.snapshots['omlx-decode'];
+    return html`<div class="ts-head">${dot('live')}<span class="ws-rate">This turn</span><span class="ws-muted">· step ${t.step}</span>${attrChip({ label: 'inferred' })}${toggle(true)}</div>
+      ${tsRows([['Response now', `${tps(t.decodeTps)} tok/s`, 'reported'], ['Turn time', `${dur(t.wholeMs)} so far`, 'observed'], ['Model · tool time', `${dur(t.modelMs)} · ${dur(t.waitMs)}`, 'observed'],
+        ['Tokens in · out', `${kt(t.promptTokens)} · ${int(t.outputTokens)}`, 'reported'], ['Cache %', pct(t.cachedTokens / t.promptTokens), 'reported'], ['Context used', `${kt(t.contextUsedTokens)} of ${kt(t.contextWindowTokens)}`, 'reported']])}
+      <div class="ws-line">${spark(fx.trend, 'wide')}${wsChips(s)}</div>`; } },
+  'turnstats-withheld': { h: 168, cap: 'Turn stats · last turn withheld (2 chats), 168 px. No turn summary; the slot shows the last reply, server-wide.', render: () => {
+    const w = fx.panel.turnStats.withheld, s = fx.snapshots.bionic, c = s.completions.items.find(x => x.seq === w.seq), id = uid('why'), b = fx.panel.bionicBaseline;
+    return html`<div class="ts-head">${dot('idle')}<span class="ws-rate">Last reply</span>${attrChip({ label: 'withheld', reason: w.reason, params: w.params }, id)}${toggle(true)}</div>
+      <div class="ts-reason" id="${id}">${WITHHOLD[w.reason](w.params)} · no turn summary</div>
+      ${tsRows([['Response', `${tps(c.decodeTps)} tok/s`, 'reported'], ['TTFT', dur(c.ttftMs), 'reported'], ['Tokens in · out', `${kt(c.promptTokens)} · ${int(c.outputTokens)}`, 'reported'],
+        ['Cache %', pct(c.cachedTokens / c.promptTokens), 'reported'], ['Context used', `${kt(c.promptTokens + c.outputTokens)} of 262K`, 'reported'], ['vs usual', `${delta((c.decodeTps - b.decode.p50) / b.decode.p50)} · n ${b.decode.n}`, 'derived']])}
+      <div class="ws-line">${spark(fx.trend, 'wide')}${wsChips(s, { gpu: false })}</div>`; } },
+  'turnstats-omlx': { h: 168, cap: 'Turn stats · oMLX, 168 px. oMLX doesn’t report TTFT, so that row is left out; token counts are Scope’s last readings.', render: () => {
+    const t = fx.panel.turnStats.omlx, s = fx.snapshots['omlx-idle'];
+    return html`<div class="ts-head">${dot('idle')}<span class="ws-rate">Last turn</span><span class="ws-muted">· ${t.steps} steps</span>${attrChip({ label: 'inferred' })}${toggle(true)}</div>
+      ${tsRows([['Response', `${tps(t.wDecodeTps)} tok/s`, 'derived'], ['Turn time', dur(t.wholeMs), 'observed'], ['Model · tool time', `${dur(t.modelMs)} · ${dur(t.waitMs)}`, 'observed'],
+        ['Tokens in · out', `${kt(t.promptTokens)} · ${int(t.outputTokens)}`, 'last-observed'], ['Cache %', pct(t.cachedTokens / t.promptTokens), 'last-observed'],
+        ['Context used', `${kt(t.contextUsedTokens)} of ${kt(t.contextWindowTokens)}`, 'last-observed'], ['vs usual', `${delta(t.vsUsual.delta)} · n ${t.vsUsual.n}`, 'derived']])}
+      <div class="ws-line">${spark(fx.trend, 'wide')}${wsChips(s, { gpu: false })}</div>`; } },
+};
+const GLANCE_ORDER = ['decode', 'idle', 'prefill', 'first', 'alert', 'withheld', 'measuring', 'armed', 'offline', 'recovering', 'approval', 'nonlocal', 'tip', 'firstrun'];
+const TURN_ORDER = ['turnstats', 'turnstats-live', 'turnstats-withheld', 'turnstats-omlx'];
+const wsShot = (id, headRight) => html`<div class="ws-shot" data-ws="${id}"><div class="ws-head"><span>MLX Scope</span><span>${headRight ?? `setHeight(${WS[id].h})`}</span></div><div class="ws" data-variant="${id}" style="height:${WS[id].h}px">${WS[id].render()}</div></div>`;
+// Rail Compact (view.compact): the same glance at panel width, ≤ 160 px tall.
+const compactRail = sc => {
+  const { s, v } = sc, a = alertLine(s), kind = reading(sc), server = v.attr?.reason, id = uid('why');
+  const line1 = kind === 'decode' ? decodeLine1(s, attrChip(v.attr, server ? id : null)) : html`<div class="ws-line">${dot('idle')}<span>${phaseLabel(s, v)}</span><span class="ws-model" translate="no">${glanceModel(modelOf(s) ?? connName(s))}</span></div>`;
+  return html`<main class="scope" data-compact="true" ${scopeAttrs(s, v, 'panel')}>${masthead(s, v, true)}<section class="compact-glance" aria-label="MLX Scope glance"><div class="ws" data-variant="compact" style="height:${a ? 80 : 56}px">
+    ${line1}<div class="ws-line">${spark(fx.trend)}${kind === 'decode' && server ? html`<span class="ws-muted ws-grow" id="${id}">${WITHHOLD[server](v.attr.params ?? {})}</span>` : ''}${wsChips(s, { skip: a?.skip ?? [], gpu: !(kind === 'decode' && server) })}<button class="ws-btn" type="button" style="margin-left:auto">Expand</button></div>${a?.line}</div></section></main>`;
+};
+const statusSurface = () => {
+  const variant = q.get('variant') || 'all';
+  if (variant !== 'all') return html`<main class="scope ws-stage" data-surface="status">${wsShot(variant)}</main>`;
+  const hostTurnStats = html`<div class="ws-shot"><div class="ws-head"><span>Turn stats</span><span>host · approximate</span></div><div class="host-rows">
+    <span>Response</span><b>~38 tok/s</b><span>Whole turn</span><b>~28 tok/s</b><span>Model · tool time</span><b>1m 15s · 37s</b><span>Avg TTFT</span><b>~0.5 s</b><span>Tokens in · out</span><b>54.4K · 3.1K</b><span>Cache</span><b>61%</b><span>Cost</span><b>$0.00</b></div></div>`;
+  return html`<main class="scope ws-stage" data-surface="status">
+    <div class="frames">${GLANCE_ORDER.map(id => html`<figure>${wsShot(id)}<p class="ws-caption">${WS[id].cap}</p></figure>`)}</div>
+    <div class="frames">
+      <figure><div class="host-stack"><div class="host-collapsed"><span>Session</span><span>›</span></div><div class="host-collapsed"><span>Usage</span><span>›</span></div>${wsShot('turnstats', 'in Turn stats’ place')}<div class="host-collapsed"><span>Subagents</span><span>›</span></div></div>
+        <p class="annotation"><b>Board note, not rendered:</b> the host’s own Turn stats is hidden in Panel sections, and MLX Scope is dragged into its place.</p>
+        <p class="ws-caption">${WS.turnstats.cap}</p></figure>
+      ${TURN_ORDER.slice(1).map(id => html`<figure>${wsShot(id)}<p class="ws-caption">${WS[id].cap}</p></figure>`)}
+      <figure>${hostTurnStats}<p class="ws-caption">For comparison: the host’s Turn stats. Scope keeps its label/value rows and order, drops Cost, renames “Whole turn” to a duration (“Turn time”) and “Avg TTFT” to “First TTFT”, and adds Context used and vs usual.</p></figure></div></main>`;
+};
+
+/* ---------- review board ---------- */
+const frame = (params, width, caption, height = 600) => { const qs = new URLSearchParams({ ...params, theme }).toString();
+  return html`<figure><figcaption>${caption}</figcaption><iframe title="${caption}" src="?${qs}" data-key="?${qs}" width="${width}" height="${height}" loading="lazy"></iframe></figure>`; };
+const LIVE_STATES = ['withheld-chats', 'withheld-subagent', 'other-provider', 'armed-refusal', 'first-readings', 'prefill', 'prefill-stall', 'paused', 'next-armed', 'next-measuring', 'next-result',
+  'splash-recovering', 'splash-stale', 'splash-not-admitting', 'offline', 'runtime-changed', 'detecting', 'unconfigured', 'contract-mismatch', 'needs-approval', 'admin-unauthorized',
+  'pressure', 'pressure-critical', 'thermal', 'model-unloaded', 'memory-guard'];
+const SERVER_STATES = ['llama', 'llama-sleeping', 'llama-metrics', 'ollama', 'bionic', 'lms-unavailable'];
+const HISTORY_STATES = ['storage-full', 'history-empty', 'recording-paused', 'clear-confirm'];
+const board = () => {
+  const example = scenario('decode').s, params = { port: 8000, detected: 'splash', sinceAt: NOW - 60000, staleSinceAt: NOW - 120000, crashTrace: true, cause: 'metal' };
+  const copy = [['This chat · inferred (live)', WHY.inferred('oMLX', true).slice(1).join(' ')], ['This chat · inferred (finished)', WHY.inferred('oMLX', false).slice(1).join(' ')],
+    ['Next reply · armed', WHY.armed('oMLX', false).slice(1).join(' ')], ['Server-wide · 2 chats running', WHY['several-chats']('oMLX').slice(1).join(' ')],
+    ['Server-wide · a subagent is running', WHY['subagent-running']('oMLX').slice(1).join(' ')], ['Server-wide · this chat uses Splash', WHY['other-provider']('oMLX', false, { provider: 'Splash' }).slice(1).join(' ')],
+    ['Server-wide · not observed', WHY['not-observed']('oMLX').slice(1).join(' ')], ['Server-wide · all requests', WHY['all-requests']('oMLX').slice(1).join(' ')],
+    ['Reported by oMLX · request average', 'oMLX reports the active request’s average decode speed. Scope doesn’t smooth or estimate it.'],
+    ['GPU busy (driver-reported)', 'Mac card, and the Work Status chip “GPU 87% busy” while a request runs. Never a headline, a score or an alert.'],
+    ['GPU memory (driver-reported, not model size)', 'ioreg Alloc; includes reserved memory and other apps. No alert uses it.'],
+    ['Chip power', 'Chip power (CPU+GPU+ANE, macmon estimate) · includes all apps · not wall power.'], ['tok/J', 'Tokens per joule, which is tok/s per watt; one name everywhere. Only while one request decodes, labelled estimate.'],
+    ['Thermal pressure (macOS)', 'Normal · Moderate · Heavy · Severe · Critical for notifyutil levels 0–4; the ⓘ keeps macOS’s own name (nominal … sleeping). Warns from Heavy everywhere.'],
+    ['GPU-resident (Ollama-reported)', 'Ollama’s own GPU-resident size, never relabelled as video memory.'],
+    ['Not observed · Scope wasn’t open', 'Hatched gap in History; nothing is interpolated. A line break without hatching means nothing was generating.'],
+    ['The chart starts after 2 readings.', 'Live hero and Work Status, before a second reading exists.'],
+    ...Object.entries(STATUS).map(([k, f]) => { const m = f(example, 'oMLX', params); return [`status · ${k}`, `${m.title}. ${m.detail}${m.action ? ` [${m.action}]` : ''}`]; }),
+    ['frame · contract_mismatch', 'MLX Scope needs a restart. The panel was updated, but its local service is still the old version. 1. Open Settings → Extensions → MLX Scope. 2. Pause it, then resume it.'],
+    ['frame · needs_approval', 'Copy per plan §6, plus the sessions-grant scope from SPIKES S11.'], ['frame · service_failed, host_*', 'Unchanged from 1.6 (panel/host-errors.ts).']];
+  const theOther = theme === 'dark' ? 'light' : 'dark';
+  return html`<div class="board"><header><h1>MLX Scope 2.0 · G2 mock</h1><a class="btn" href="?${new URLSearchParams({ theme: theOther })}">Switch to ${theOther}</a></header>
+    <p>Static and self-contained. Real 1.6 tokens (panel/style.css), 1.6 cards, hero, callout and segmented tabs; synthetic v2 fixtures (2.0-mock-fixtures.json, contract in 2.0-contract.md). Every value that isn’t reported by its source carries its basis; attribution always says inferred or armed, and server-wide always says why; GPU memory is never called video memory; nothing alerts on the GPU; a chart line exists only where there are readings.</p>
+    <section><h2>Rail panel · four tabs</h2><p>Decode, this chat · inferred. Mac details is collapsed by default, as in 1.6.</p>
+      ${TABS.map(([tab]) => html`<div class="frames">${frame({ surface: 'rail', tab, state: 'decode' }, 320, `${tab} · 320`)}${frame({ surface: 'rail', tab, state: 'decode' }, 430, `${tab} · 430`)}</div>`)}
+      <div class="frames">${frame({ surface: 'rail', tab: 'live', state: 'decode', pop: 'attr' }, 430, 'ⓘ open · the explanation opens in flow, under its row')}${frame({ surface: 'rail', tab: 'live', state: 'decode', details: 'open' }, 320, 'Mac details open')}${frame({ surface: 'rail', state: 'decode', compact: 1 }, 320, 'Compact rail · the glance, ≤ 160 px', 180)}${frame({ surface: 'rail', state: 'pressure', compact: 1 }, 320, 'Compact rail · with an alert', 180)}</div></section>
+    <section><h2>Live states · 320</h2><div class="frames">${LIVE_STATES.map(state => frame({ surface: 'rail', tab: 'live', state }, 320, fx.states[state].title))}</div></section>
+    <section><h2>Server, History and Captures states · 320</h2><div class="frames">${SERVER_STATES.map(state => frame({ surface: 'rail', tab: 'server', state }, 320, fx.states[state].title))}${HISTORY_STATES.map(state => frame({ surface: 'rail', tab: 'history', state }, 320, fx.states[state].title))}${frame({ surface: 'rail', tab: 'captures', state: 'next-armed' }, 320, 'Captures · Next reply armed')}</div></section>
+    <section><h2>Work Status section · 280</h2><div class="frames">${frame({ surface: 'status' }, 1100, 'Every state, and the Turn stats replacement in place', 1400)}</div></section>
+    <section><h2>Full page · 1,160</h2><div class="wide-frame">${frame({ surface: 'page', state: 'decode' }, 1160, 'Two columns: Live | History (Live stays in view while History scrolls)')}</div>
+      <div class="wide-frame">${['pressure', 'offline', 'needs-approval'].map(state => frame({ surface: 'page', state }, 1160, `Page · ${fx.states[state].title}`))}</div></section>
+    <section><h2>Interaction and accessibility (Stage 8 builds these)</h2><ul class="spec">
+      <li>ⓘ is a disclosure: a 24 × 24 px button with aria-expanded and aria-controls. Enter or Space toggles it; Esc closes it and returns focus to the button; one is open at a time. The explanation opens in flow under its row, so it never covers a reading. Nothing explanatory lives in a title tooltip.</li>
+      <li>Tabs: role tablist/tab/tabpanel, aria-controls and aria-labelledby, roving tabindex (the selected tab is 0, the others −1), ←/→/Home/End move between tabs.</li>
+      <li>Charts: each plot is role="img" with a one-sentence summary (range, latest value, turns, gaps); the usage bars list every day in their label.</li>
+      <li>Severity is also text (“Warning:”) for screen readers, in callouts, the alert log and the Work Status alert line.</li>
+      <li>Text is at least 10 px, and all text passes WCAG AA 4.5:1 on the synthetic host tokens in both themes (checked by shoot-2.0-mock.mjs).</li>
+      <li>Each fact appears once per view: a status message lives in its callout and the hero doesn’t repeat it; further alerts sit behind “N more”.</li></ul></section>
+    <section><h2>Basis rule</h2><ul class="spec">
+      <li><b>reported</b> (no label): a value the runtime, driver or kernel reports, and exact arithmetic on one source’s counts: a sum, a difference, cached ÷ prompt. So Input reused, Not reused and Cache % are unlabelled everywhere.</li>
+      <li><b>derived</b>: what Scope works out across readings: token-weighted rates, counter deltas, vs usual.</li>
+      <li><b>observed</b>: times Scope stamps itself (turn and model time); <b>last observed</b>: Scope’s last reading before a request left view; <b>estimate</b>: the source’s own estimate (macmon power, prefill finish time).</li></ul></section>
+    <section><h2>Owner decision · Mac-card label length</h2><p>The fixed wording (SPIKES / G1) wraps to 3 lines at 320 px. Option B shortens the two labels and keeps the full wording in the This Mac ⓘ.</p>
+      <div class="frames">${frame({ surface: 'rail', tab: 'live', state: 'decode', details: 'open' }, 320, 'A · fixed wording')}${frame({ surface: 'rail', tab: 'live', state: 'decode', details: 'open', labels: 'short' }, 320, 'B · “Chip power · estimate”, “GPU memory · driver-reported”')}</div></section>
+    <section><h2>ⓘ, label and status copy</h2><table class="copy-table">${copy.map(([k, v]) => html`<tr><th>${k}</th><td>${v}</td></tr>`)}</table></section>
+    <section><h2>Other decisions for the owner</h2><ul class="defaults">
+      <li>Mac-card labels: A (fixed wording) or B (short, full wording in the ⓘ), above.</li>
+      <li>Accept --scope-bad (derived from the host error colour; critical alerts and offline only). It turns 1.6’s offline dot from amber to red.</li>
+      <li>tok/J everywhere (decision 11), instead of plan §5.4’s “tok/s per W”. Same quantity.</li>
+      <li>Scope baselines keep p50/p90 (plan §5.6); Splash’s native latency stays p50/p95 as Splash reports it.</li>
+      <li>Thermal warns from Heavy (level 2) in the Mac card, the Work Status chip and the alert.</li>
+      <li>Hiding the host’s Turn stats also hides it for cloud chats, where Scope shows only “Chat uses a non-local model”. Keep the tip as is, or add “cloud chats lose Turn stats” to it?</li></ul></section>
+    <section><h2>Defaults for the owner to confirm</h2><ul class="defaults"><li>History on, with the first-run notice “Recording reply history locally · Open Scope to manage”.</li><li>Toasts: critical only.</li><li>Auto-labelling (“This chat · inferred”) on.</li><li>Retention: 30 days.</li><li>Whether the Work Status section may toast when it is the only visible Scope view.</li></ul></section></div>`;
+};
+
+const app = document.getElementById('app');
+app.innerHTML = emit(surface === 'rail' ? rail() : surface === 'page' ? page() : surface === 'status' ? statusSurface() : board());
+// Mock interactions: disclosures (ⓘ, "N more") toggle in place; Esc closes the open ⓘ and returns focus to its button.
+addEventListener('click', e => {
+  const b = e.target.closest('button[aria-controls]:not([role="tab"])');
+  if (!b) return;
+  const target = document.getElementById(b.getAttribute('aria-controls')), open = b.getAttribute('aria-expanded') !== 'true';
+  if (b.classList.contains('info')) for (const other of document.querySelectorAll('.info[aria-expanded="true"]')) if (other !== b) { other.setAttribute('aria-expanded', 'false'); document.getElementById(other.getAttribute('aria-controls')).hidden = true; }
+  b.setAttribute('aria-expanded', String(open)); target.hidden = !open;
+});
+addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const b = document.querySelector('.info[aria-expanded="true"]');
+  if (b) { b.setAttribute('aria-expanded', 'false'); document.getElementById(b.getAttribute('aria-controls')).hidden = true; b.focus(); }
+});
+if (surface === 'board') addEventListener('message', e => { const f = [...document.querySelectorAll('iframe')].find(x => x.contentWindow === e.source); if (f && e.data?.mockHeight) f.height = e.data.mockHeight; });
+else if (parent !== window) { const post = () => parent.postMessage({ mockHeight: document.documentElement.scrollHeight }, '*'); post(); addEventListener('load', post); }
+document.body.dataset.ready = 'true';
+</script>
+</body>
+</html>

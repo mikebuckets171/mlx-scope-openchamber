@@ -1,0 +1,8 @@
+{"timestamp":1790683200000,"data":{"type":"server.log","content":"[2026-09-29 12:00:00][DEBUG] Received request: POST to /v1/chat/completions with body [Sensitive]","level":"debug"}}
+{"timestamp":1790683200040,"data":{"type":"server.log","content":"[2026-09-29 12:00:00][INFO][publisher/example-27b-splash] Running chat completion on conversation with 3 messages.","level":"info"}}
+{"timestamp":1790683200052,"data":{"type":"server.log","content":"[2026-09-29 12:00:00][INFO][publisher/example-27b-splash] Streaming response...","level":"info"}}
+{"timestamp":1790683200061,"data":{"type":"server.log","content":"[2026-09-29 12:00:00][INFO][publisher/example-27b-splash] Prompt processing progress: 0.0%","level":"info"}}
+{"timestamp":1790683201180,"data":{"type":"server.log","content":"[2026-09-29 12:00:01][INFO][publisher/example-27b-splash] Prompt processing progress: 37.5%","level":"info"}}
+{"timestamp":1790683201795,"data":{"type":"server.log","content":"[2026-09-29 12:00:01][INFO][publisher/example-27b-splash] Prompt processing progress: 100.0%","level":"info"}}
+{"timestamp":1790683214420,"data":{"type":"server.log","content":"[2026-09-29 12:00:14][DEBUG] 12:00:14 Done · input 1,536 · cached 1,024 · output 812 · TTFT 1.8s · 64.2 tok/s","level":"debug"}}
+{"timestamp":1790683214431,"data":{"type":"server.log","content":"[2026-09-29 12:00:14][INFO][publisher/example-27b-splash] Finished streaming response","level":"info"}}

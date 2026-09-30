@@ -1,0 +1,3907 @@
+{
+ "_about": "Synthetic fixtures for the MLX Scope 2.0 G2 mock. Contract v2 shapes (docs/design/2.0-contract.md). No real models, paths, identifiers or readings.",
+ "serverNow": 1790690700000,
+ "snapshots": {
+  "omlx-decode": {
+   "contractVersion": 2,
+   "serverNow": 1790690700000,
+   "service": {
+    "version": "2.0.0",
+    "instance": "5c1e0a7b"
+   },
+   "connection": {
+    "id": "omlx",
+    "label": "Local oMLX",
+    "runtime": "omlx",
+    "version": "0.7.0rc1",
+    "generation": 3,
+    "choices": [
+     {
+      "id": "omlx",
+      "label": "Local oMLX",
+      "runtime": "omlx"
+     },
+     {
+      "id": "bionic",
+      "label": "Splash (Bionic)",
+      "runtime": "lmstudio"
+     },
+     {
+      "id": "splash",
+      "label": "Splash",
+      "runtime": "splash"
+     }
+    ],
+    "detection": {
+     "basis": "probe",
+     "confidence": "high",
+     "probe": "/health"
+    }
+   },
+   "status": {
+    "state": "ready",
+    "reason": null,
+    "params": {}
+   },
+   "capabilities": {
+    "request.decodeRate": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.prefillRate": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.prefillProgress": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.prefillEta": {
+     "scope": "request",
+     "basis": "estimate"
+    },
+    "request.tokens": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.elapsed": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.context": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "server.requests": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.averages": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.cache": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.memory.model": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.memory.ceiling": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.residency": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.usage": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.completions": {
+     "scope": "server",
+     "basis": "last-observed"
+    },
+    "host.cpu": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.memory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.swap": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.pressure": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.wiredLimit": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuBusy": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuMemory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.thermal": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.power": {
+     "scope": "host",
+     "basis": "estimate"
+    },
+    "host.footprint": {
+     "scope": "host",
+     "basis": "observed"
+    }
+   },
+   "runtime": {
+    "phase": "decode",
+    "request": {
+     "model": "Example-27B-4bit",
+     "decodeTps": 26.4,
+     "promptTokens": 52100,
+     "cachedTokens": 43000,
+     "outputTokens": 612,
+     "elapsedMs": 38200,
+     "contextWindowTokens": 131072,
+     "contextUsedTokens": 52712
+    },
+    "server": {
+     "active": 1,
+     "queued": 0,
+     "averages": {
+      "decodeTps": 23.2,
+      "prefillTps": 598.2,
+      "cacheEfficiencyFraction": 0.823,
+      "requestsTotal": 381,
+      "uptimeMs": 51420000
+     },
+     "cache": {
+      "ramBytes": 3435973837,
+      "ssdBytes": 24051816858,
+      "ramEntries": 7,
+      "ssdEntries": 188,
+      "lastLookup": "hit"
+     }
+    },
+    "memory": {
+     "modelBytes": 18360985190,
+     "ceilingBytes": 40802189312
+    },
+    "residency": [
+     {
+      "model": "Example-27B-4bit",
+      "phase": "decode",
+      "source": "runtime",
+      "active": 1,
+      "queued": 0,
+      "bytes": 18360985190,
+      "decodeTps": 26.4,
+      "contextWindowTokens": 131072
+     }
+    ],
+    "slots": [],
+    "catalog": [],
+    "engines": []
+   },
+   "host": {
+    "sampledAt": 1790690699200,
+    "cpuFraction": 0.31,
+    "memTotalBytes": 51539607552,
+    "memUsedBytes": 38762079846,
+    "mac": {
+     "sampledAt": 1790690695800,
+     "pressureLevel": 1,
+     "wiredLimitBytes": 42949672960,
+     "swapUsedBytes": 1181116006,
+     "wiredBytes": 4831838208,
+     "compressedBytes": 3006477107
+    },
+    "gpu": {
+     "sampledAt": 1790690697900,
+     "busyFraction": 0.87,
+     "allocBytes": 26414048870
+    },
+    "thermal": {
+     "sampledAt": 1790690679000,
+     "level": 0
+    },
+    "runtimeProcess": {
+     "sampledAt": 1790690693600,
+     "runtime": "omlx",
+     "port": 8000,
+     "footprintBytes": 35862976922
+    },
+    "power": {
+     "sampledAt": 1790690699100,
+     "field": "all_power",
+     "chipW": 38.4,
+     "cpuW": 4.6,
+     "gpuW": 33.5,
+     "aneW": 0.3,
+     "coverageFraction": 0.97
+    }
+   },
+   "completions": {
+    "instance": "5c1e0a7b",
+    "cursor": 57,
+    "reset": false,
+    "items": [
+     {
+      "seq": 57,
+      "finishedAt": 1790690639000,
+      "startedAt": 1790690591000,
+      "model": "Example-27B-4bit",
+      "basis": "last-observed",
+      "promptTokens": 49800,
+      "cachedTokens": 41200,
+      "outputTokens": 1104,
+      "prefillMs": 14100,
+      "decodeTps": 24.9,
+      "prefillTps": 598,
+      "overlapped": false,
+      "verdict": {
+       "attr": "inferred",
+       "at": 1790690640000
+      },
+      "host": {
+       "pressureMax": 1,
+       "swapDeltaBytes": 0,
+       "gpuAllocMaxBytes": 26628797235,
+       "thermalMaxLevel": 0,
+       "energyJ": 1702.4,
+       "powerCoverage": 0.96
+      }
+     }
+    ]
+   },
+   "marksHead": 12,
+   "alerts": [],
+   "alertLog": [
+    {
+     "id": "swap-growth",
+     "severity": "info",
+     "since": 1790679180000,
+     "until": 1790679480000,
+     "params": {
+      "deltaBytes": 1288490189,
+      "windowMs": 240000
+     }
+    },
+    {
+     "id": "model-unloaded",
+     "severity": "info",
+     "since": 1790673900000,
+     "until": 1790674020000,
+     "params": {
+      "model": "Example-35B-A3B-4bit"
+     }
+    },
+    {
+     "id": "runtime-lost",
+     "severity": "critical",
+     "since": 1790668920000,
+     "until": 1790669280000,
+     "params": {
+      "runtime": "omlx"
+     }
+    },
+    {
+     "id": "pressure-warning",
+     "severity": "warning",
+     "since": 1790597100000,
+     "until": 1790597640000,
+     "params": {
+      "level": 2
+     }
+    }
+   ],
+   "lease": {
+    "leader": true,
+    "epoch": 4,
+    "ttlMs": 12000,
+    "leaderSurface": "panel"
+   },
+   "nextPollMs": 500
+  },
+  "omlx-prefill": {
+   "contractVersion": 2,
+   "serverNow": 1790690700000,
+   "service": {
+    "version": "2.0.0",
+    "instance": "5c1e0a7b"
+   },
+   "connection": {
+    "id": "omlx",
+    "label": "Local oMLX",
+    "runtime": "omlx",
+    "version": "0.7.0rc1",
+    "generation": 3,
+    "choices": [
+     {
+      "id": "omlx",
+      "label": "Local oMLX",
+      "runtime": "omlx"
+     },
+     {
+      "id": "bionic",
+      "label": "Splash (Bionic)",
+      "runtime": "lmstudio"
+     },
+     {
+      "id": "splash",
+      "label": "Splash",
+      "runtime": "splash"
+     }
+    ],
+    "detection": {
+     "basis": "probe",
+     "confidence": "high",
+     "probe": "/health"
+    }
+   },
+   "status": {
+    "state": "ready",
+    "reason": null,
+    "params": {}
+   },
+   "capabilities": {
+    "request.decodeRate": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.prefillRate": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.prefillProgress": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.prefillEta": {
+     "scope": "request",
+     "basis": "estimate"
+    },
+    "request.tokens": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.elapsed": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.context": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "server.requests": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.averages": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.cache": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.memory.model": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.memory.ceiling": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.residency": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.usage": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.completions": {
+     "scope": "server",
+     "basis": "last-observed"
+    },
+    "host.cpu": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.memory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.swap": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.pressure": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.wiredLimit": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuBusy": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuMemory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.thermal": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.power": {
+     "scope": "host",
+     "basis": "estimate"
+    },
+    "host.footprint": {
+     "scope": "host",
+     "basis": "observed"
+    }
+   },
+   "runtime": {
+    "phase": "prefill",
+    "request": {
+     "model": "Example-27B-4bit",
+     "prefillTps": 184.5,
+     "prefillProcessedTokens": 5824,
+     "prefillTotalTokens": 9100,
+     "prefillFraction": 0.64,
+     "prefillEtaMs": 17800,
+     "promptTokens": 52100,
+     "cachedTokens": 43000,
+     "elapsedMs": 31600,
+     "contextWindowTokens": 131072,
+     "contextUsedTokens": 52100
+    },
+    "server": {
+     "active": 1,
+     "queued": 0,
+     "averages": {
+      "decodeTps": 23.2,
+      "prefillTps": 598.2,
+      "cacheEfficiencyFraction": 0.823,
+      "requestsTotal": 381,
+      "uptimeMs": 51420000
+     },
+     "cache": {
+      "ramBytes": 3435973837,
+      "ssdBytes": 24051816858,
+      "ramEntries": 7,
+      "ssdEntries": 188,
+      "lastLookup": "hit"
+     }
+    },
+    "memory": {
+     "modelBytes": 18360985190,
+     "ceilingBytes": 40802189312
+    },
+    "residency": [
+     {
+      "model": "Example-27B-4bit",
+      "phase": "prefill",
+      "source": "runtime",
+      "active": 1,
+      "queued": 0,
+      "bytes": 18360985190,
+      "contextWindowTokens": 131072,
+      "prefillFraction": 0.64
+     }
+    ],
+    "slots": [],
+    "catalog": [],
+    "engines": []
+   },
+   "host": {
+    "sampledAt": 1790690699200,
+    "cpuFraction": 0.31,
+    "memTotalBytes": 51539607552,
+    "memUsedBytes": 38762079846,
+    "mac": {
+     "sampledAt": 1790690695800,
+     "pressureLevel": 1,
+     "wiredLimitBytes": 42949672960,
+     "swapUsedBytes": 1181116006,
+     "wiredBytes": 4831838208,
+     "compressedBytes": 3006477107
+    },
+    "gpu": {
+     "sampledAt": 1790690697900,
+     "busyFraction": 0.94,
+     "allocBytes": 26414048870
+    },
+    "thermal": {
+     "sampledAt": 1790690679000,
+     "level": 0
+    },
+    "runtimeProcess": {
+     "sampledAt": 1790690693600,
+     "runtime": "omlx",
+     "port": 8000,
+     "footprintBytes": 35862976922
+    },
+    "power": {
+     "sampledAt": 1790690699100,
+     "field": "all_power",
+     "chipW": 44.1,
+     "cpuW": 4.6,
+     "gpuW": 33.5,
+     "aneW": 0.3,
+     "coverageFraction": 0.97
+    }
+   },
+   "completions": {
+    "instance": "5c1e0a7b",
+    "cursor": 57,
+    "reset": false,
+    "items": [
+     {
+      "seq": 57,
+      "finishedAt": 1790690639000,
+      "startedAt": 1790690591000,
+      "model": "Example-27B-4bit",
+      "basis": "last-observed",
+      "promptTokens": 49800,
+      "cachedTokens": 41200,
+      "outputTokens": 1104,
+      "prefillMs": 14100,
+      "decodeTps": 24.9,
+      "prefillTps": 598,
+      "overlapped": false,
+      "verdict": {
+       "attr": "inferred",
+       "at": 1790690640000
+      },
+      "host": {
+       "pressureMax": 1,
+       "swapDeltaBytes": 0,
+       "gpuAllocMaxBytes": 26628797235,
+       "thermalMaxLevel": 0,
+       "energyJ": 1702.4,
+       "powerCoverage": 0.96
+      }
+     }
+    ]
+   },
+   "marksHead": 12,
+   "alerts": [],
+   "alertLog": [
+    {
+     "id": "swap-growth",
+     "severity": "info",
+     "since": 1790679180000,
+     "until": 1790679480000,
+     "params": {
+      "deltaBytes": 1288490189,
+      "windowMs": 240000
+     }
+    },
+    {
+     "id": "model-unloaded",
+     "severity": "info",
+     "since": 1790673900000,
+     "until": 1790674020000,
+     "params": {
+      "model": "Example-35B-A3B-4bit"
+     }
+    },
+    {
+     "id": "runtime-lost",
+     "severity": "critical",
+     "since": 1790668920000,
+     "until": 1790669280000,
+     "params": {
+      "runtime": "omlx"
+     }
+    },
+    {
+     "id": "pressure-warning",
+     "severity": "warning",
+     "since": 1790597100000,
+     "until": 1790597640000,
+     "params": {
+      "level": 2
+     }
+    }
+   ],
+   "lease": {
+    "leader": true,
+    "epoch": 4,
+    "ttlMs": 12000,
+    "leaderSurface": "panel"
+   },
+   "nextPollMs": 500
+  },
+  "omlx-idle": {
+   "contractVersion": 2,
+   "serverNow": 1790690700000,
+   "service": {
+    "version": "2.0.0",
+    "instance": "5c1e0a7b"
+   },
+   "connection": {
+    "id": "omlx",
+    "label": "Local oMLX",
+    "runtime": "omlx",
+    "version": "0.7.0rc1",
+    "generation": 3,
+    "choices": [
+     {
+      "id": "omlx",
+      "label": "Local oMLX",
+      "runtime": "omlx"
+     },
+     {
+      "id": "bionic",
+      "label": "Splash (Bionic)",
+      "runtime": "lmstudio"
+     },
+     {
+      "id": "splash",
+      "label": "Splash",
+      "runtime": "splash"
+     }
+    ],
+    "detection": {
+     "basis": "probe",
+     "confidence": "high",
+     "probe": "/health"
+    }
+   },
+   "status": {
+    "state": "ready",
+    "reason": null,
+    "params": {}
+   },
+   "capabilities": {
+    "request.decodeRate": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.prefillRate": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.prefillProgress": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.prefillEta": {
+     "scope": "request",
+     "basis": "estimate"
+    },
+    "request.tokens": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.elapsed": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "request.context": {
+     "scope": "request",
+     "basis": "reported"
+    },
+    "server.requests": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.averages": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.cache": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.memory.model": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.memory.ceiling": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.residency": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.usage": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.completions": {
+     "scope": "server",
+     "basis": "last-observed"
+    },
+    "host.cpu": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.memory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.swap": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.pressure": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.wiredLimit": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuBusy": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuMemory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.thermal": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.power": {
+     "scope": "host",
+     "basis": "estimate"
+    },
+    "host.footprint": {
+     "scope": "host",
+     "basis": "observed"
+    }
+   },
+   "runtime": {
+    "phase": "idle",
+    "request": null,
+    "server": {
+     "active": 0,
+     "queued": 0,
+     "averages": {
+      "decodeTps": 23.2,
+      "prefillTps": 598.2,
+      "cacheEfficiencyFraction": 0.823,
+      "requestsTotal": 381,
+      "uptimeMs": 51420000
+     },
+     "cache": {
+      "ramBytes": 3435973837,
+      "ssdBytes": 24051816858,
+      "ramEntries": 7,
+      "ssdEntries": 188,
+      "lastLookup": "hit"
+     }
+    },
+    "memory": {
+     "modelBytes": 18360985190,
+     "ceilingBytes": 40802189312
+    },
+    "residency": [
+     {
+      "model": "Example-27B-4bit",
+      "phase": "idle",
+      "source": "runtime",
+      "active": 0,
+      "queued": 0,
+      "bytes": 18360985190,
+      "contextWindowTokens": 131072
+     }
+    ],
+    "slots": [],
+    "catalog": [],
+    "engines": []
+   },
+   "host": {
+    "sampledAt": 1790690699200,
+    "cpuFraction": 0.06,
+    "memTotalBytes": 51539607552,
+    "memUsedBytes": 37795712205,
+    "mac": {
+     "sampledAt": 1790690695800,
+     "pressureLevel": 1,
+     "wiredLimitBytes": 42949672960,
+     "swapUsedBytes": 1181116006,
+     "wiredBytes": 4831838208,
+     "compressedBytes": 3006477107
+    },
+    "gpu": {
+     "sampledAt": 1790690697900,
+     "busyFraction": 0.02,
+     "allocBytes": 25662429594
+    },
+    "thermal": {
+     "sampledAt": 1790690679000,
+     "level": 0
+    },
+    "runtimeProcess": {
+     "sampledAt": 1790690693600,
+     "runtime": "omlx",
+     "port": 8000,
+     "footprintBytes": 35862976922
+    },
+    "power": {
+     "sampledAt": 1790690699100,
+     "field": "all_power",
+     "chipW": 3.1,
+     "cpuW": 2.2,
+     "gpuW": 0.8,
+     "aneW": 0.1,
+     "coverageFraction": 0.97
+    }
+   },
+   "completions": {
+    "instance": "5c1e0a7b",
+    "cursor": 57,
+    "reset": false,
+    "items": [
+     {
+      "seq": 57,
+      "finishedAt": 1790690639000,
+      "startedAt": 1790690591000,
+      "model": "Example-27B-4bit",
+      "basis": "last-observed",
+      "promptTokens": 49800,
+      "cachedTokens": 41200,
+      "outputTokens": 1104,
+      "prefillMs": 14100,
+      "decodeTps": 24.9,
+      "prefillTps": 598,
+      "overlapped": false,
+      "verdict": {
+       "attr": "inferred",
+       "at": 1790690640000
+      },
+      "host": {
+       "pressureMax": 1,
+       "swapDeltaBytes": 0,
+       "gpuAllocMaxBytes": 26628797235,
+       "thermalMaxLevel": 0,
+       "energyJ": 1702.4,
+       "powerCoverage": 0.96
+      }
+     }
+    ]
+   },
+   "marksHead": 12,
+   "alerts": [],
+   "alertLog": [
+    {
+     "id": "swap-growth",
+     "severity": "info",
+     "since": 1790679180000,
+     "until": 1790679480000,
+     "params": {
+      "deltaBytes": 1288490189,
+      "windowMs": 240000
+     }
+    },
+    {
+     "id": "model-unloaded",
+     "severity": "info",
+     "since": 1790673900000,
+     "until": 1790674020000,
+     "params": {
+      "model": "Example-35B-A3B-4bit"
+     }
+    },
+    {
+     "id": "runtime-lost",
+     "severity": "critical",
+     "since": 1790668920000,
+     "until": 1790669280000,
+     "params": {
+      "runtime": "omlx"
+     }
+    },
+    {
+     "id": "pressure-warning",
+     "severity": "warning",
+     "since": 1790597100000,
+     "until": 1790597640000,
+     "params": {
+      "level": 2
+     }
+    }
+   ],
+   "lease": {
+    "leader": true,
+    "epoch": 4,
+    "ttlMs": 12000,
+    "leaderSurface": "panel"
+   },
+   "nextPollMs": 2000
+  },
+  "omlx-offline": {
+   "contractVersion": 2,
+   "serverNow": 1790690700000,
+   "service": {
+    "version": "2.0.0",
+    "instance": "5c1e0a7b"
+   },
+   "connection": {
+    "id": "omlx",
+    "label": "Local oMLX",
+    "runtime": "omlx",
+    "version": "0.7.0rc1",
+    "generation": 3,
+    "choices": [
+     {
+      "id": "omlx",
+      "label": "Local oMLX",
+      "runtime": "omlx"
+     },
+     {
+      "id": "bionic",
+      "label": "Splash (Bionic)",
+      "runtime": "lmstudio"
+     },
+     {
+      "id": "splash",
+      "label": "Splash",
+      "runtime": "splash"
+     }
+    ],
+    "detection": {
+     "basis": "probe",
+     "confidence": "high",
+     "probe": "/health"
+    }
+   },
+   "status": {
+    "state": "failing",
+    "reason": "runtime_unreachable",
+    "params": {
+     "port": 8000,
+     "sinceAt": 1790690510000
+    },
+    "sinceAt": 1790690510000
+   },
+   "capabilities": {
+    "host.cpu": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.memory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.swap": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.pressure": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.wiredLimit": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuBusy": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuMemory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.thermal": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.power": {
+     "scope": "host",
+     "basis": "estimate"
+    },
+    "server.completions": {
+     "scope": "server",
+     "basis": "last-observed"
+    }
+   },
+   "runtime": {
+    "phase": "unknown",
+    "request": null,
+    "server": {
+     "active": null,
+     "queued": null
+    },
+    "memory": {},
+    "residency": [],
+    "slots": [],
+    "catalog": [],
+    "engines": []
+   },
+   "host": {
+    "sampledAt": 1790690699200,
+    "cpuFraction": 0.04,
+    "memTotalBytes": 51539607552,
+    "memUsedBytes": 19649475379,
+    "mac": {
+     "sampledAt": 1790690695800,
+     "pressureLevel": 1,
+     "wiredLimitBytes": 42949672960,
+     "swapUsedBytes": 1181116006,
+     "wiredBytes": 4831838208,
+     "compressedBytes": 3006477107
+    },
+    "gpu": {
+     "sampledAt": 1790690697900,
+     "busyFraction": 0.01,
+     "allocBytes": 3328599654
+    },
+    "thermal": {
+     "sampledAt": 1790690679000,
+     "level": 0
+    },
+    "power": {
+     "sampledAt": 1790690699100,
+     "field": "all_power",
+     "chipW": 2.4,
+     "cpuW": 1.9,
+     "gpuW": 0.4,
+     "aneW": 0.1,
+     "coverageFraction": 0.98
+    }
+   },
+   "completions": {
+    "instance": "5c1e0a7b",
+    "cursor": 57,
+    "reset": false,
+    "items": [
+     {
+      "seq": 57,
+      "finishedAt": 1790690430000,
+      "startedAt": 1790690380000,
+      "model": "Example-27B-4bit",
+      "basis": "last-observed",
+      "promptTokens": 49800,
+      "cachedTokens": 41200,
+      "outputTokens": 1104,
+      "prefillMs": 14100,
+      "decodeTps": 24.9,
+      "prefillTps": 598,
+      "overlapped": false,
+      "verdict": {
+       "attr": "inferred",
+       "at": 1790690431000
+      },
+      "host": {
+       "pressureMax": 1,
+       "swapDeltaBytes": 0,
+       "gpuAllocMaxBytes": 26628797235,
+       "thermalMaxLevel": 0,
+       "energyJ": 1702.4,
+       "powerCoverage": 0.96
+      }
+     }
+    ]
+   },
+   "marksHead": 12,
+   "alerts": [
+    {
+     "id": "runtime-lost",
+     "severity": "critical",
+     "since": 1790690510000,
+     "params": {
+      "runtime": "omlx"
+     },
+     "badge": true,
+     "toastSeq": 3
+    }
+   ],
+   "alertLog": [
+    {
+     "id": "swap-growth",
+     "severity": "info",
+     "since": 1790679180000,
+     "until": 1790679480000,
+     "params": {
+      "deltaBytes": 1288490189,
+      "windowMs": 240000
+     }
+    },
+    {
+     "id": "model-unloaded",
+     "severity": "info",
+     "since": 1790673900000,
+     "until": 1790674020000,
+     "params": {
+      "model": "Example-35B-A3B-4bit"
+     }
+    },
+    {
+     "id": "runtime-lost",
+     "severity": "critical",
+     "since": 1790668920000,
+     "until": 1790669280000,
+     "params": {
+      "runtime": "omlx"
+     }
+    },
+    {
+     "id": "pressure-warning",
+     "severity": "warning",
+     "since": 1790597100000,
+     "until": 1790597640000,
+     "params": {
+      "level": 2
+     }
+    }
+   ],
+   "lease": {
+    "leader": true,
+    "epoch": 4,
+    "ttlMs": 12000,
+    "leaderSurface": "panel"
+   },
+   "nextPollMs": 4000
+  },
+  "splash-recovering": {
+   "contractVersion": 2,
+   "serverNow": 1790690700000,
+   "service": {
+    "version": "2.0.0",
+    "instance": "5c1e0a7b"
+   },
+   "connection": {
+    "id": "splash",
+    "label": "Splash",
+    "runtime": "splash",
+    "generation": 5,
+    "choices": [
+     {
+      "id": "omlx",
+      "label": "Local oMLX",
+      "runtime": "omlx"
+     },
+     {
+      "id": "bionic",
+      "label": "Splash (Bionic)",
+      "runtime": "lmstudio"
+     },
+     {
+      "id": "splash",
+      "label": "Splash",
+      "runtime": "splash"
+     }
+    ],
+    "detection": {
+     "basis": "probe",
+     "confidence": "high",
+     "probe": "/status"
+    }
+   },
+   "status": {
+    "state": "recovering",
+    "reason": "recovering",
+    "params": {
+     "retryInMs": 30000,
+     "crashTrace": true
+    },
+    "sinceAt": 1790690605000
+   },
+   "capabilities": {
+    "server.requests": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.averages": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.latency": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.memory.metal": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.catalog": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.completions": {
+     "scope": "server",
+     "basis": "derived"
+    },
+    "host.cpu": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.memory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.swap": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.pressure": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.wiredLimit": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuBusy": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuMemory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.thermal": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.power": {
+     "scope": "host",
+     "basis": "estimate"
+    }
+   },
+   "runtime": {
+    "phase": "unknown",
+    "request": null,
+    "server": {
+     "active": null,
+     "queued": null,
+     "averages": {
+      "decodeTps": 47.2,
+      "requestsTotal": 17,
+      "failedTotal": 1
+     },
+     "histograms": {
+      "ttftMs": {
+       "p50": 410,
+       "p95": 1260,
+       "n": 212,
+       "window": "native-last-4096"
+      },
+      "itlMs": {
+       "p50": 21,
+       "p95": 38,
+       "n": 4096,
+       "window": "native-last-4096"
+      }
+     }
+    },
+    "memory": {
+     "metalBytes": 13421772800,
+     "metalPeakBytes": 13958643712
+    },
+    "residency": [],
+    "slots": [],
+    "catalog": [
+     {
+      "name": "example/Example-27B-Splash",
+      "format": "splash",
+      "loaded": true,
+      "contextWindowTokens": 262144,
+      "vision": true,
+      "inputModalities": [
+       "text",
+       "image"
+      ]
+     }
+    ],
+    "engines": []
+   },
+   "host": {
+    "sampledAt": 1790690699200,
+    "cpuFraction": 0.12,
+    "memTotalBytes": 51539607552,
+    "memUsedBytes": 31568009626,
+    "mac": {
+     "sampledAt": 1790690695800,
+     "pressureLevel": 1,
+     "wiredLimitBytes": 42949672960,
+     "swapUsedBytes": 1181116006,
+     "wiredBytes": 4831838208,
+     "compressedBytes": 3006477107
+    },
+    "gpu": {
+     "sampledAt": 1790690697900,
+     "busyFraction": 0.03,
+     "allocBytes": 17931488461
+    },
+    "thermal": {
+     "sampledAt": 1790690679000,
+     "level": 0
+    },
+    "power": {
+     "sampledAt": 1790690699100,
+     "field": "all_power",
+     "chipW": 5.2,
+     "cpuW": 4.1,
+     "gpuW": 0.9,
+     "aneW": 0.2,
+     "coverageFraction": 0.97
+    }
+   },
+   "completions": {
+    "instance": "5c1e0a7b",
+    "cursor": 17,
+    "reset": false,
+    "items": []
+   },
+   "marksHead": 3,
+   "alerts": [
+    {
+     "id": "splash-recovering",
+     "severity": "warning",
+     "since": 1790690605000,
+     "params": {},
+     "badge": true
+    }
+   ],
+   "alertLog": [
+    {
+     "id": "swap-growth",
+     "severity": "info",
+     "since": 1790679180000,
+     "until": 1790679480000,
+     "params": {
+      "deltaBytes": 1288490189,
+      "windowMs": 240000
+     }
+    },
+    {
+     "id": "model-unloaded",
+     "severity": "info",
+     "since": 1790673900000,
+     "until": 1790674020000,
+     "params": {
+      "model": "Example-35B-A3B-4bit"
+     }
+    },
+    {
+     "id": "runtime-lost",
+     "severity": "critical",
+     "since": 1790668920000,
+     "until": 1790669280000,
+     "params": {
+      "runtime": "omlx"
+     }
+    },
+    {
+     "id": "pressure-warning",
+     "severity": "warning",
+     "since": 1790597100000,
+     "until": 1790597640000,
+     "params": {
+      "level": 2
+     }
+    }
+   ],
+   "lease": {
+    "leader": true,
+    "epoch": 4,
+    "ttlMs": 12000,
+    "leaderSurface": "panel"
+   },
+   "nextPollMs": 2000
+  },
+  "llama-slots": {
+   "contractVersion": 2,
+   "serverNow": 1790690700000,
+   "service": {
+    "version": "2.0.0",
+    "instance": "5c1e0a7b"
+   },
+   "connection": {
+    "id": "llama",
+    "label": "llama-server",
+    "runtime": "llama-server",
+    "version": "b10542",
+    "generation": 2,
+    "choices": [
+     {
+      "id": "llama",
+      "label": "llama-server",
+      "runtime": "llama-server"
+     },
+     {
+      "id": "omlx",
+      "label": "Local oMLX",
+      "runtime": "omlx"
+     },
+     {
+      "id": "bionic",
+      "label": "Splash (Bionic)",
+      "runtime": "lmstudio"
+     },
+     {
+      "id": "splash",
+      "label": "Splash",
+      "runtime": "splash"
+     }
+    ],
+    "detection": {
+     "basis": "probe",
+     "confidence": "high",
+     "probe": "/props"
+    }
+   },
+   "status": {
+    "state": "ready",
+    "reason": null,
+    "params": {}
+   },
+   "capabilities": {
+    "server.requests": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.slots": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.rates": {
+     "scope": "server",
+     "basis": "derived"
+    },
+    "server.speculative": {
+     "scope": "server",
+     "basis": "derived"
+    },
+    "server.catalog": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.completions": {
+     "scope": "server",
+     "basis": "observed"
+    },
+    "host.cpu": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.memory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.swap": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.pressure": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.wiredLimit": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuBusy": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuMemory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.thermal": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.power": {
+     "scope": "host",
+     "basis": "estimate"
+    }
+   },
+   "runtime": {
+    "phase": "processing",
+    "request": null,
+    "server": {
+     "active": 2,
+     "queued": 0,
+     "rates": {
+      "promptTps": 812,
+      "decodeTps": 98.4,
+      "windowMs": 60000
+     },
+     "speculative": {
+      "draftedTokens": 5120,
+      "acceptedTokens": 3584,
+      "acceptanceFraction": 0.7,
+      "windowMs": 600000
+     }
+    },
+    "memory": {},
+    "residency": [],
+    "slots": [
+     {
+      "id": 0,
+      "busy": true,
+      "contextWindowTokens": 32768,
+      "decodedTokens": 412,
+      "remainingTokens": 612,
+      "promptTokens": 3180
+     },
+     {
+      "id": 1,
+      "busy": true,
+      "contextWindowTokens": 32768,
+      "decodedTokens": 1290,
+      "promptTokens": 8420
+     },
+     {
+      "id": 2,
+      "busy": false,
+      "contextWindowTokens": 32768
+     },
+     {
+      "id": 3,
+      "busy": false,
+      "contextWindowTokens": 32768
+     }
+    ],
+    "catalog": [
+     {
+      "name": "example-8b-instruct-q4_k_m.gguf",
+      "format": "gguf",
+      "loaded": true,
+      "contextWindowTokens": 32768
+     }
+    ],
+    "engines": []
+   },
+   "host": {
+    "sampledAt": 1790690699200,
+    "cpuFraction": 0.22,
+    "memTotalBytes": 51539607552,
+    "memUsedBytes": 23407571763,
+    "mac": {
+     "sampledAt": 1790690695800,
+     "pressureLevel": 1,
+     "wiredLimitBytes": 42949672960,
+     "swapUsedBytes": 1181116006,
+     "wiredBytes": 4831838208,
+     "compressedBytes": 3006477107
+    },
+    "gpu": {
+     "sampledAt": 1790690697900,
+     "busyFraction": 0.91,
+     "allocBytes": 8804682957
+    },
+    "thermal": {
+     "sampledAt": 1790690679000,
+     "level": 0
+    },
+    "power": {
+     "sampledAt": 1790690699100,
+     "field": "all_power",
+     "chipW": 29.7,
+     "cpuW": 3.9,
+     "gpuW": 25.6,
+     "aneW": 0.2,
+     "coverageFraction": 0.95
+    }
+   },
+   "completions": {
+    "instance": "5c1e0a7b",
+    "cursor": 9,
+    "reset": false,
+    "items": []
+   },
+   "marksHead": 0,
+   "alerts": [],
+   "alertLog": [],
+   "lease": {
+    "leader": true,
+    "epoch": 4,
+    "ttlMs": 12000,
+    "leaderSurface": "panel"
+   },
+   "nextPollMs": 500
+  },
+  "ollama-residency": {
+   "contractVersion": 2,
+   "serverNow": 1790690700000,
+   "service": {
+    "version": "2.0.0",
+    "instance": "5c1e0a7b"
+   },
+   "connection": {
+    "id": "ollama",
+    "label": "Ollama",
+    "runtime": "ollama",
+    "version": "0.12.3",
+    "generation": 1,
+    "choices": [
+     {
+      "id": "ollama",
+      "label": "Ollama",
+      "runtime": "ollama"
+     },
+     {
+      "id": "omlx",
+      "label": "Local oMLX",
+      "runtime": "omlx"
+     },
+     {
+      "id": "bionic",
+      "label": "Splash (Bionic)",
+      "runtime": "lmstudio"
+     },
+     {
+      "id": "splash",
+      "label": "Splash",
+      "runtime": "splash"
+     }
+    ],
+    "detection": {
+     "basis": "probe",
+     "confidence": "high",
+     "probe": "/api/version"
+    }
+   },
+   "status": {
+    "state": "ready",
+    "reason": null,
+    "params": {}
+   },
+   "capabilities": {
+    "server.residency": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "host.cpu": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.memory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.swap": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.pressure": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.wiredLimit": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuBusy": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuMemory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.thermal": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.power": {
+     "scope": "host",
+     "basis": "estimate"
+    }
+   },
+   "runtime": {
+    "phase": "unknown",
+    "request": null,
+    "server": {
+     "active": null,
+     "queued": null
+    },
+    "memory": {},
+    "residency": [
+     {
+      "model": "example:14b",
+      "phase": "unknown",
+      "source": "ollama-ps",
+      "bytes": 12025908429,
+      "gpuResidentBytes": 10844792422,
+      "unloadsAt": 1790690912000,
+      "contextWindowTokens": 8192
+     },
+     {
+      "model": "example-embed:latest",
+      "phase": "unknown",
+      "source": "ollama-ps",
+      "bytes": 644245094,
+      "gpuResidentBytes": 644245094,
+      "unloadsAt": 1790690738000,
+      "contextWindowTokens": 2048
+     }
+    ],
+    "slots": [],
+    "catalog": [],
+    "engines": []
+   },
+   "host": {
+    "sampledAt": 1790690699200,
+    "cpuFraction": 0.05,
+    "memTotalBytes": 51539607552,
+    "memUsedBytes": 26199300506,
+    "mac": {
+     "sampledAt": 1790690695800,
+     "pressureLevel": 1,
+     "wiredLimitBytes": 42949672960,
+     "swapUsedBytes": 1181116006,
+     "wiredBytes": 4831838208,
+     "compressedBytes": 3006477107
+    },
+    "gpu": {
+     "sampledAt": 1790690697900,
+     "busyFraction": 0.01,
+     "allocBytes": 13207024435
+    },
+    "thermal": {
+     "sampledAt": 1790690679000,
+     "level": 0
+    },
+    "power": {
+     "sampledAt": 1790690699100,
+     "field": "all_power",
+     "chipW": 2.9,
+     "cpuW": 2.1,
+     "gpuW": 0.7,
+     "aneW": 0.1,
+     "coverageFraction": 0.97
+    }
+   },
+   "completions": {
+    "instance": "5c1e0a7b",
+    "cursor": 0,
+    "reset": false,
+    "items": []
+   },
+   "marksHead": 0,
+   "alerts": [],
+   "alertLog": [],
+   "lease": {
+    "leader": true,
+    "epoch": 4,
+    "ttlMs": 12000,
+    "leaderSurface": "panel"
+   },
+   "nextPollMs": 2000
+  },
+  "bionic": {
+   "contractVersion": 2,
+   "serverNow": 1790690700000,
+   "service": {
+    "version": "2.0.0",
+    "instance": "5c1e0a7b"
+   },
+   "connection": {
+    "id": "bionic",
+    "label": "Splash (Bionic)",
+    "runtime": "lmstudio",
+    "engine": "splash",
+    "host": "bionic",
+    "version": "1.1.6",
+    "generation": 7,
+    "choices": [
+     {
+      "id": "omlx",
+      "label": "Local oMLX",
+      "runtime": "omlx"
+     },
+     {
+      "id": "bionic",
+      "label": "Splash (Bionic)",
+      "runtime": "lmstudio"
+     },
+     {
+      "id": "splash",
+      "label": "Splash",
+      "runtime": "splash"
+     }
+    ],
+    "detection": {
+     "basis": "probe",
+     "confidence": "high",
+     "probe": "/lmstudio-greeting"
+    }
+   },
+   "status": {
+    "state": "ready",
+    "reason": null,
+    "params": {}
+   },
+   "capabilities": {
+    "server.requests": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.averages": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.residency": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.catalog": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.engines": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "server.completions": {
+     "scope": "server",
+     "basis": "reported"
+    },
+    "host.cpu": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.memory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.swap": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.pressure": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.wiredLimit": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuBusy": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.gpuMemory": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.thermal": {
+     "scope": "host",
+     "basis": "reported"
+    },
+    "host.power": {
+     "scope": "host",
+     "basis": "estimate"
+    }
+   },
+   "runtime": {
+    "phase": "idle",
+    "request": null,
+    "server": {
+     "active": 0,
+     "queued": null,
+     "averages": {
+      "decodeTps": 37.9,
+      "cacheEfficiencyFraction": 0.612,
+      "requestsTotal": 23
+     }
+    },
+    "memory": {},
+    "residency": [
+     {
+      "model": "example-27b-splash",
+      "phase": "idle",
+      "source": "lms-ps",
+      "bytes": 18683107738,
+      "contextWindowTokens": 262144
+     }
+    ],
+    "slots": [],
+    "catalog": [
+     {
+      "name": "example-27b-splash",
+      "format": "splash",
+      "loaded": true,
+      "contextWindowTokens": 262144
+     },
+     {
+      "name": "example-35b-a3b-splash",
+      "format": "splash",
+      "loaded": false,
+      "contextWindowTokens": 262144
+     },
+     {
+      "name": "example-embed-v1.5",
+      "format": "gguf",
+      "loaded": false,
+      "contextWindowTokens": 2048
+     }
+    ],
+    "engines": [
+     {
+      "name": "splash",
+      "version": "0.0.5",
+      "selected": true
+     },
+     {
+      "name": "mlx-llm",
+      "version": "0.28.1",
+      "selected": false
+     },
+     {
+      "name": "llama.cpp",
+      "version": "1.52.0",
+      "selected": false
+     }
+    ]
+   },
+   "host": {
+    "sampledAt": 1790690699200,
+    "cpuFraction": 0.07,
+    "memTotalBytes": 51539607552,
+    "memUsedBytes": 36399847834,
+    "mac": {
+     "sampledAt": 1790690695800,
+     "pressureLevel": 1,
+     "wiredLimitBytes": 42949672960,
+     "swapUsedBytes": 1181116006,
+     "wiredBytes": 4831838208,
+     "compressedBytes": 3006477107
+    },
+    "gpu": {
+     "sampledAt": 1790690697900,
+     "busyFraction": 0.02,
+     "allocBytes": 21260088115
+    },
+    "thermal": {
+     "sampledAt": 1790690679000,
+     "level": 0
+    },
+    "power": {
+     "sampledAt": 1790690699100,
+     "field": "all_power",
+     "chipW": 3.4,
+     "cpuW": 2.5,
+     "gpuW": 0.8,
+     "aneW": 0.1,
+     "coverageFraction": 0.97
+    }
+   },
+   "completions": {
+    "instance": "5c1e0a7b",
+    "cursor": 23,
+    "reset": false,
+    "items": [
+     {
+      "seq": 21,
+      "finishedAt": 1790690579000,
+      "startedAt": 1790690552000,
+      "model": "example-27b-splash",
+      "basis": "reported",
+      "promptTokens": 17900,
+      "cachedTokens": 11020,
+      "outputTokens": 1310,
+      "ttftMs": 520,
+      "decodeTps": 37.8,
+      "overlapped": false,
+      "verdict": {
+       "attr": "inferred",
+       "at": 1790690580000
+      },
+      "host": {
+       "pressureMax": 1,
+       "swapDeltaBytes": 0,
+       "thermalMaxLevel": 0,
+       "energyJ": 1450.2,
+       "powerCoverage": 0.97
+      }
+     },
+     {
+      "seq": 22,
+      "finishedAt": 1790690616000,
+      "startedAt": 1790690597000,
+      "model": "example-27b-splash",
+      "basis": "reported",
+      "promptTokens": 18120,
+      "cachedTokens": 11180,
+      "outputTokens": 702,
+      "ttftMs": 470,
+      "decodeTps": 38.1,
+      "overlapped": false,
+      "verdict": {
+       "attr": "inferred",
+       "at": 1790690617000
+      },
+      "host": {
+       "pressureMax": 1,
+       "swapDeltaBytes": 0,
+       "thermalMaxLevel": 0,
+       "energyJ": 772.6,
+       "powerCoverage": 0.97
+      }
+     },
+     {
+      "seq": 23,
+      "finishedAt": 1790690658000,
+      "startedAt": 1790690629000,
+      "model": "example-27b-splash",
+      "basis": "reported",
+      "promptTokens": 18400,
+      "cachedTokens": 11260,
+      "outputTokens": 1092,
+      "ttftMs": 510,
+      "decodeTps": 38.6,
+      "overlapped": false,
+      "verdict": {
+       "attr": "inferred",
+       "at": 1790690659000
+      },
+      "host": {
+       "pressureMax": 1,
+       "swapDeltaBytes": 0,
+       "thermalMaxLevel": 0,
+       "energyJ": 1163.9,
+       "powerCoverage": 0.97
+      }
+     }
+    ]
+   },
+   "marksHead": 8,
+   "alerts": [],
+   "alertLog": [],
+   "lease": {
+    "leader": true,
+    "epoch": 4,
+    "ttlMs": 12000,
+    "leaderSurface": "status"
+   },
+   "nextPollMs": 3000
+  }
+ },
+ "trend": {
+  "contractVersion": 2,
+  "serverNow": 1790690700000,
+  "windowMs": 3600000,
+  "bucketMs": 20000,
+  "startAt": 1790687100000,
+  "series": {
+   "decodeTps": {
+    "basis": "reported",
+    "buckets": [
+     null,
+     null,
+     null,
+     null,
+     [
+      24.6,
+      26.4,
+      25.2
+     ],
+     [
+      21.8,
+      25.8,
+      23.9
+     ],
+     [
+      21.8,
+      26.1,
+      24.5
+     ],
+     [
+      21.9,
+      25.9,
+      24.9
+     ],
+     [
+      22.5,
+      25.5,
+      24.6
+     ],
+     [
+      21.9,
+      25,
+      24
+     ],
+     [
+      22.2,
+      26.4,
+      25.4
+     ],
+     [
+      22.7,
+      25.7,
+      25.1
+     ],
+     [
+      21.9,
+      25.9,
+      24.5
+     ],
+     [
+      21.5,
+      26.4,
+      24.1
+     ],
+     [
+      24.4,
+      26.2,
+      25.0
+     ],
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     [
+      23.8,
+      25.6,
+      24
+     ],
+     [
+      22.1,
+      26.1,
+      25.3
+     ],
+     [
+      22.8,
+      25.3,
+      24.4
+     ],
+     [
+      22.1,
+      25.6,
+      23.7
+     ],
+     [
+      21.5,
+      25,
+      23.4
+     ],
+     [
+      22.4,
+      26,
+      25.3
+     ],
+     [
+      22.1,
+      25.2,
+      23.8
+     ],
+     [
+      22.5,
+      25.5,
+      24.2
+     ],
+     [
+      23.8,
+      25.8,
+      24.6
+     ],
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     [
+      21.5,
+      25.6,
+      24.7
+     ],
+     [
+      21.9,
+      25.9,
+      24.3
+     ],
+     [
+      22.1,
+      26,
+      25.3
+     ],
+     [
+      22.3,
+      26,
+      24.1
+     ],
+     [
+      22,
+      25.5,
+      23.8
+     ],
+     [
+      24.3,
+      26.2,
+      25.0
+     ],
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     [
+      24.1,
+      26.1,
+      24.9
+     ],
+     [
+      23.9,
+      27.6,
+      25.6
+     ],
+     [
+      23.1,
+      26.2,
+      24.9
+     ],
+     [
+      23.1,
+      26.2,
+      25.6
+     ],
+     [
+      22.7,
+      27.4,
+      26.4
+     ],
+     [
+      22.6,
+      27.2,
+      24.8
+     ],
+     [
+      24,
+      26.4,
+      24.9
+     ],
+     [
+      24,
+      27,
+      25.4
+     ],
+     [
+      22.9,
+      26.8,
+      25.6
+     ],
+     [
+      23.6,
+      27.4,
+      25.4
+     ],
+     [
+      23.4,
+      27.4,
+      25
+     ],
+     [
+      24.1,
+      26,
+      25.5
+     ],
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     [
+      24.0,
+      26,
+      24.8
+     ],
+     [
+      22.5,
+      26.9,
+      25.5
+     ],
+     [
+      23.6,
+      26.4,
+      24.9
+     ],
+     [
+      23.2,
+      26.1,
+      25.3
+     ],
+     [
+      22.9,
+      27.1,
+      25.4
+     ],
+     [
+      24,
+      26.2,
+      25.8
+     ],
+     [
+      23.8,
+      27.1,
+      26.4
+     ],
+     [
+      23.9,
+      27.4,
+      26.6
+     ],
+     [
+      22.5,
+      27.5,
+      26.2
+     ],
+     [
+      24.3,
+      26.4,
+      25.5
+     ],
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     [
+      23.8,
+      25.9,
+      24.6
+     ],
+     [
+      23.9,
+      25.6,
+      24.9
+     ],
+     null,
+     [
+      24.5,
+      26.4,
+      25.1
+     ],
+     [
+      23.2,
+      26.6,
+      25.4
+     ]
+    ]
+   }
+  },
+  "gaps": [
+   {
+    "fromAt": 1790688240000,
+    "toAt": 1790689560000
+   }
+  ],
+  "marks": [
+   {
+    "seq": 1,
+    "at": 1790687190000,
+    "phase": "started"
+   },
+   {
+    "seq": 2,
+    "at": 1790687388000,
+    "phase": "completed"
+   },
+   {
+    "seq": 3,
+    "at": 1790687694000,
+    "phase": "started"
+   },
+   {
+    "seq": 4,
+    "at": 1790687856000,
+    "phase": "completed"
+   },
+   {
+    "seq": 5,
+    "at": 1790688060000,
+    "phase": "started"
+   },
+   {
+    "seq": 6,
+    "at": 1790688168000,
+    "phase": "completed"
+   },
+   {
+    "seq": 7,
+    "at": 1790689644000,
+    "phase": "started"
+   },
+   {
+    "seq": 8,
+    "at": 1790689866000,
+    "phase": "completed"
+   },
+   {
+    "seq": 9,
+    "at": 1790690142000,
+    "phase": "started"
+   },
+   {
+    "seq": 10,
+    "at": 1790690641000,
+    "phase": "completed"
+   },
+   {
+    "seq": 11,
+    "at": 1790690661000,
+    "phase": "started"
+   }
+  ]
+ },
+ "usage": {
+  "contractVersion": 2,
+  "serverNow": 1790690700000,
+  "available": true,
+  "range": "7d",
+  "cachedAt": 1790690520000,
+  "basis": "reported",
+  "granularity": "day",
+  "buckets": [
+   {
+    "at": 1790121600000,
+    "requests": 52,
+    "promptTokens": 2410000,
+    "cachedTokens": 1830000,
+    "outputTokens": 162000
+   },
+   {
+    "at": 1790208000000,
+    "requests": 71,
+    "promptTokens": 3100000,
+    "cachedTokens": 2440000,
+    "outputTokens": 231000
+   },
+   {
+    "at": 1790294400000,
+    "requests": 38,
+    "promptTokens": 1720000,
+    "cachedTokens": 1300000,
+    "outputTokens": 121000
+   },
+   {
+    "at": 1790380800000,
+    "requests": 0,
+    "promptTokens": 0,
+    "cachedTokens": 0,
+    "outputTokens": 0
+   },
+   {
+    "at": 1790467200000,
+    "requests": 64,
+    "promptTokens": 2880000,
+    "cachedTokens": 2250000,
+    "outputTokens": 207000
+   },
+   {
+    "at": 1790553600000,
+    "requests": 96,
+    "promptTokens": 4350000,
+    "cachedTokens": 3410000,
+    "outputTokens": 318000
+   },
+   {
+    "at": 1790640000000,
+    "requests": 91,
+    "promptTokens": 3780000,
+    "cachedTokens": 2670000,
+    "outputTokens": 271000
+   }
+  ],
+  "totals": {
+   "requests": 412,
+   "promptTokens": 18240000,
+   "cachedTokens": 13900000,
+   "outputTokens": 1310000
+  },
+  "models": [
+   {
+    "model": "Example-27B-4bit",
+    "requests": 371,
+    "promptTokens": 16810000,
+    "outputTokens": 1190000
+   },
+   {
+    "model": "Example-35B-A3B-4bit",
+    "requests": 41,
+    "promptTokens": 1430000,
+    "outputTokens": 120000
+   }
+  ]
+ },
+ "panel": {
+  "defaults": {
+   "attr": {
+    "label": "inferred"
+   },
+   "next": {
+    "state": "idle"
+   }
+  },
+  "ledger": [
+   {
+    "kind": "t",
+    "startedAt": 1790690142000,
+    "endedAt": 1790690640000,
+    "rt": "omlx",
+    "model": "Example-27B-4bit",
+    "steps": 3,
+    "outputTokens": 3284,
+    "wDecodeTps": 25.2,
+    "waitMs": 332000,
+    "cacheReuseFraction": 0.84,
+    "attr": {
+     "label": "inferred"
+    },
+    "id": 3,
+    "promptTokens": 142200,
+    "cachedTokens": 119800
+   },
+   {
+    "kind": "r",
+    "finishedAt": 1790690640000,
+    "rt": "omlx",
+    "model": "Example-27B-4bit",
+    "basis": "last-observed",
+    "decodeTps": 24.9,
+    "outputTokens": 1104,
+    "promptTokens": 49800,
+    "cachedTokens": 41200,
+    "attr": {
+     "label": "inferred"
+    },
+    "turn": 3
+   },
+   {
+    "kind": "r",
+    "finishedAt": 1790690316000,
+    "rt": "omlx",
+    "model": "Example-27B-4bit",
+    "basis": "last-observed",
+    "decodeTps": 25.6,
+    "outputTokens": 862,
+    "promptTokens": 47300,
+    "cachedTokens": 39900,
+    "attr": {
+     "label": "inferred"
+    },
+    "turn": 3
+   },
+   {
+    "kind": "r",
+    "finishedAt": 1790690214000,
+    "rt": "omlx",
+    "model": "Example-27B-4bit",
+    "basis": "last-observed",
+    "decodeTps": 25.1,
+    "outputTokens": 1318,
+    "promptTokens": 45100,
+    "cachedTokens": 38700,
+    "attr": {
+     "label": "inferred"
+    },
+    "turn": 3
+   },
+   {
+    "kind": "r",
+    "finishedAt": 1790689866000,
+    "rt": "omlx",
+    "model": "Example-27B-4bit",
+    "basis": "last-observed",
+    "decodeTps": 24.3,
+    "outputTokens": 2210,
+    "promptTokens": 38200,
+    "cachedTokens": 30100,
+    "attr": {
+     "label": "armed"
+    }
+   },
+   {
+    "kind": "r",
+    "finishedAt": 1790689758000,
+    "rt": "omlx",
+    "model": "Example-27B-4bit",
+    "basis": "last-observed",
+    "decodeTps": 23.8,
+    "outputTokens": 604,
+    "promptTokens": 36100,
+    "cachedTokens": 0,
+    "attr": {
+     "label": "withheld",
+     "reason": "several-chats",
+     "params": {
+      "count": 2
+     }
+    },
+    "overlapped": true
+   },
+   {
+    "kind": "gap",
+    "fromAt": 1790688240000,
+    "toAt": 1790689560000
+   },
+   {
+    "kind": "r",
+    "finishedAt": 1790688168000,
+    "rt": "omlx",
+    "model": "Example-27B-4bit",
+    "basis": "last-observed",
+    "decodeTps": 24.4,
+    "outputTokens": 1502,
+    "promptTokens": 30400,
+    "cachedTokens": 26900,
+    "attr": {
+     "label": "withheld",
+     "reason": "subagent-running"
+    }
+   },
+   {
+    "kind": "r",
+    "finishedAt": 1790687856000,
+    "rt": "omlx",
+    "model": "Example-27B-4bit",
+    "basis": "last-observed",
+    "decodeTps": 24,
+    "outputTokens": 988,
+    "promptTokens": 28800,
+    "cachedTokens": 25100,
+    "attr": {
+     "label": "inferred"
+    }
+   },
+   {
+    "kind": "r",
+    "finishedAt": 1790687388000,
+    "rt": "omlx",
+    "model": "Example-27B-4bit",
+    "basis": "last-observed",
+    "decodeTps": 23.6,
+    "outputTokens": 1740,
+    "promptTokens": 26100,
+    "cachedTokens": 0,
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    }
+   }
+  ],
+  "basisCounts": {
+   "last-observed": 41,
+   "reported": 0,
+   "observed": 0,
+   "derived": 0
+  },
+  "baseline": {
+   "key": "omlx|Example-27B-4bit|32–64K",
+   "ctxBucket": "32–64K context",
+   "decode": {
+    "p50": 25.7,
+    "p90": 27.9,
+    "n": 23
+   },
+   "prefill": {
+    "p50": 598,
+    "p90": 655,
+    "n": 18
+   },
+   "tokPerW": {
+    "p50": 0.72,
+    "n": 14,
+    "basis": "estimate"
+   }
+  },
+  "bionicBaseline": {
+   "decode": {
+    "p50": 37.4,
+    "p90": 38.9,
+    "n": 23
+   },
+   "ttft": {
+    "p50": 0.49,
+    "p90": 0.61,
+    "n": 23
+   }
+  },
+  "storage": {
+   "usedBytes": 421888,
+   "capBytes": 1310720,
+   "namespaceBytes": 479232,
+   "keys": 31,
+   "replies": 1406,
+   "days": 12,
+   "retentionDays": 30,
+   "paused": false
+  },
+  "storageFull": {
+   "usedBytes": 1310720,
+   "capBytes": 1310720,
+   "namespaceBytes": 1424384,
+   "keys": 64,
+   "replies": 7702,
+   "days": 19,
+   "retentionDays": 30,
+   "paused": false
+  },
+  "captures": [
+   {
+    "at": 1790689380000,
+    "kind": "next-reply",
+    "model": "Example-27B-4bit",
+    "decodeTps": 25.1,
+    "outputTokens": 1204,
+    "attr": {
+     "label": "armed"
+    }
+   },
+   {
+    "at": 1790679900000,
+    "kind": "window",
+    "windowMs": 60000,
+    "model": "Example-27B-4bit",
+    "decodeTps": 24.6,
+    "outputTokens": 1480,
+    "attr": {
+     "label": "server",
+     "reason": "all-requests"
+    }
+   },
+   {
+    "at": 1790597100000,
+    "kind": "window",
+    "windowMs": 30000,
+    "model": "Example-35B-A3B-4bit",
+    "decodeTps": 61.3,
+    "outputTokens": 1830,
+    "attr": {
+     "label": "server",
+     "reason": "all-requests"
+    }
+   }
+  ],
+  "prefs": {
+   "history": true,
+   "retentionDays": 30,
+   "toasts": "critical",
+   "autoLabel": true,
+   "statusMayToast": "owner decides"
+  },
+  "turnStats": {
+   "bionic": {
+    "startedAt": 1790690546000,
+    "endedAt": 1790690658000,
+    "steps": 3,
+    "wholeMs": 112000,
+    "modelMs": 75000,
+    "waitMs": 37000,
+    "firstTtftMs": 520,
+    "promptTokens": 54420,
+    "cachedTokens": 33460,
+    "outputTokens": 3104,
+    "wDecodeTps": 38.1,
+    "cacheReuseFraction": 0.615,
+    "contextUsedTokens": 19492,
+    "contextWindowTokens": 262144,
+    "basis": "reported",
+    "vsUsual": {
+     "delta": 0.019,
+     "n": 23
+    }
+   },
+   "live": {
+    "startedAt": 1790690661000,
+    "step": 1,
+    "phase": "decode",
+    "wholeMs": 39000,
+    "modelMs": 38200,
+    "waitMs": 800,
+    "decodeTps": 26.4,
+    "promptTokens": 52100,
+    "cachedTokens": 43000,
+    "outputTokens": 612,
+    "cacheReuseFraction": 0.825,
+    "contextUsedTokens": 52712,
+    "contextWindowTokens": 131072,
+    "basis": "last-observed"
+   },
+   "omlx": {
+    "startedAt": 1790690142000,
+    "endedAt": 1790690640000,
+    "steps": 3,
+    "wholeMs": 498000,
+    "modelMs": 166000,
+    "waitMs": 332000,
+    "promptTokens": 142200,
+    "cachedTokens": 119800,
+    "outputTokens": 3284,
+    "wDecodeTps": 25.2,
+    "cacheReuseFraction": 0.842,
+    "contextUsedTokens": 50904,
+    "contextWindowTokens": 131072,
+    "basis": "last-observed",
+    "vsUsual": {
+     "delta": -0.019,
+     "n": 23
+    }
+   },
+   "withheld": {
+    "seq": 23,
+    "reason": "several-chats",
+    "params": {
+     "count": 2
+    }
+   }
+  }
+ },
+ "states": {
+  "decode": {
+   "title": "Decode · This chat · inferred",
+   "snapshot": "omlx-decode"
+  },
+  "withheld-chats": {
+   "title": "Withheld · 2 chats running",
+   "snapshot": "omlx-decode",
+   "view": {
+    "attr": {
+     "label": "withheld",
+     "reason": "several-chats",
+     "params": {
+      "count": 2
+     }
+    },
+    "lastAttr": {
+     "label": "withheld",
+     "reason": "several-chats",
+     "params": {
+      "count": 2
+     }
+    }
+   }
+  },
+  "withheld-subagent": {
+   "title": "Withheld · subagent running",
+   "snapshot": "omlx-decode",
+   "view": {
+    "attr": {
+     "label": "withheld",
+     "reason": "subagent-running"
+    },
+    "lastAttr": {
+     "label": "withheld",
+     "reason": "subagent-running"
+    }
+   }
+  },
+  "other-provider": {
+   "title": "This chat uses Splash · Watch Splash",
+   "snapshot": "omlx-decode",
+   "view": {
+    "attr": {
+     "label": "withheld",
+     "reason": "other-provider",
+     "params": {
+      "provider": "Splash"
+     }
+    },
+    "lastAttr": {
+     "label": "withheld",
+     "reason": "other-provider",
+     "params": {
+      "provider": "Splash"
+     }
+    },
+    "watch": "Splash"
+   }
+  },
+  "armed-refusal": {
+   "title": "Next reply won’t arm · chat model differs",
+   "snapshot": "omlx-idle",
+   "view": {
+    "lastAttr": {
+     "label": "withheld",
+     "reason": "model-differs"
+    },
+    "next": {
+     "state": "refused",
+     "reason": "model-differs"
+    }
+   }
+  },
+  "first-readings": {
+   "title": "First readings · no chart yet",
+   "snapshot": "omlx-decode",
+   "patch": {
+    "runtime": {
+     "request": {
+      "decodeTps": 24.8,
+      "outputTokens": 14,
+      "elapsedMs": 15100,
+      "contextUsedTokens": 52114
+     },
+     "residency": [
+      {
+       "model": "Example-27B-4bit",
+       "phase": "decode",
+       "source": "runtime",
+       "active": 1,
+       "queued": 0,
+       "bytes": 18360985190,
+       "decodeTps": 24.8,
+       "contextWindowTokens": 131072
+      }
+     ]
+    }
+   },
+   "view": {
+    "liveSamples": 1
+   }
+  },
+  "prefill": {
+   "title": "oMLX prefill with ETA",
+   "snapshot": "omlx-prefill"
+  },
+  "prefill-stall": {
+   "title": "oMLX prefill stalled",
+   "snapshot": "omlx-prefill",
+   "patch": {
+    "runtime": {
+     "request": {
+      "prefillStale": true,
+      "prefillEtaMs": null
+     }
+    },
+    "alerts": [
+     {
+      "id": "omlx-prefill-stall",
+      "severity": "warning",
+      "since": 1790690655000,
+      "params": {
+       "stalledMs": 45000
+      },
+      "badge": true
+     }
+    ]
+   }
+  },
+  "idle": {
+   "title": "Idle",
+   "snapshot": "omlx-idle"
+  },
+  "paused": {
+   "title": "Paused",
+   "snapshot": "omlx-decode",
+   "view": {
+    "paused": true
+   }
+  },
+  "next-armed": {
+   "title": "Next reply · armed",
+   "snapshot": "omlx-idle",
+   "view": {
+    "next": {
+     "state": "armed",
+     "leftMs": 108000
+    }
+   }
+  },
+  "next-measuring": {
+   "title": "Next reply · measuring",
+   "snapshot": "omlx-decode",
+   "view": {
+    "attr": {
+     "label": "armed"
+    },
+    "next": {
+     "state": "measuring",
+     "elapsedMs": 38200
+    }
+   }
+  },
+  "next-result": {
+   "title": "Next reply · result",
+   "snapshot": "omlx-idle",
+   "view": {
+    "next": {
+     "state": "result",
+     "finishedAt": 1790690691000,
+     "decodeTps": 25.1,
+     "outputTokens": 1204,
+     "promptTokens": 53400,
+     "cachedTokens": 44800,
+     "wholeMs": 38000,
+     "modelMs": 31000,
+     "waitMs": 7000,
+     "vsUsual": {
+      "delta": -0.023,
+      "n": 23
+     }
+    }
+   }
+  },
+  "splash-recovering": {
+   "title": "Splash recovering",
+   "snapshot": "splash-recovering",
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "splash-stale": {
+   "title": "Splash status stale",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "status_stale",
+     "params": {
+      "staleSinceAt": 1790690580000
+     },
+     "sinceAt": 1790690580000
+    },
+    "runtime": {
+     "phase": "idle"
+    },
+    "alerts": []
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "splash-not-admitting": {
+   "title": "Splash not admitting",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "not_admitting",
+     "params": {
+      "cause": "metal"
+     },
+     "sinceAt": 1790690640000
+    },
+    "runtime": {
+     "phase": "idle",
+     "server": {
+      "active": 0,
+      "queued": 2
+     }
+    },
+    "alerts": []
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "offline": {
+   "title": "Offline · runtime lost",
+   "snapshot": "omlx-offline",
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    }
+   }
+  },
+  "runtime-changed": {
+   "title": "Looks like Splash now",
+   "snapshot": "omlx-idle",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "runtime_changed",
+     "params": {
+      "detected": "splash",
+      "port": 8000
+     },
+     "sinceAt": 1790690680000
+    },
+    "runtime": {
+     "phase": "unknown",
+     "residency": []
+    },
+    "completions": {
+     "items": []
+    }
+   }
+  },
+  "detecting": {
+   "title": "Detecting",
+   "snapshot": "omlx-offline",
+   "patch": {
+    "connection": {
+     "id": "auto",
+     "label": "Automatic",
+     "runtime": null,
+     "version": null,
+     "detection": {
+      "basis": "probe",
+      "confidence": "low",
+      "probe": null
+     }
+    },
+    "status": {
+     "state": "detecting",
+     "reason": "detecting",
+     "params": {
+      "port": 8000
+     },
+     "sinceAt": 1790690696000
+    },
+    "alerts": [],
+    "completions": {
+     "cursor": 0,
+     "items": []
+    }
+   }
+  },
+  "unconfigured": {
+   "title": "No runtime found",
+   "snapshot": "omlx-offline",
+   "patch": {
+    "connection": {
+     "id": "auto",
+     "label": "Automatic",
+     "runtime": null,
+     "version": null,
+     "detection": {
+      "basis": "probe",
+      "confidence": "low",
+      "probe": null
+     }
+    },
+    "status": {
+     "state": "unconfigured",
+     "reason": "configuration_missing",
+     "params": {},
+     "sinceAt": 1790690600000
+    },
+    "alerts": [],
+    "completions": {
+     "cursor": 0,
+     "items": []
+    }
+   }
+  },
+  "contract-mismatch": {
+   "title": "Version skew · restart the service",
+   "snapshot": "omlx-idle",
+   "view": {
+    "frame": "contract_mismatch"
+   }
+  },
+  "needs-approval": {
+   "title": "Needs approval",
+   "snapshot": "omlx-idle",
+   "view": {
+    "approval": true
+   }
+  },
+  "admin-unauthorized": {
+   "title": "oMLX admin refused · public status",
+   "snapshot": "omlx-decode",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "admin_unauthorized",
+     "params": {},
+     "sinceAt": 1790690400000
+    },
+    "capabilities": {
+     "request.decodeRate": null,
+     "request.prefillRate": null,
+     "request.prefillProgress": null,
+     "request.prefillEta": null,
+     "request.tokens": null,
+     "request.elapsed": null,
+     "request.context": null,
+     "server.cache": null,
+     "server.usage": null,
+     "server.completions": null
+    },
+    "runtime": {
+     "request": null,
+     "server": {
+      "cache": null
+     }
+    },
+    "completions": {
+     "items": []
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "all-requests"
+    },
+    "lastAttr": null
+   }
+  },
+  "pressure": {
+   "title": "Pressure warning + swap growth",
+   "snapshot": "omlx-decode",
+   "patch": {
+    "host": {
+     "mac": {
+      "pressureLevel": 2,
+      "swapUsedBytes": 2576980378
+     },
+     "memUsedBytes": 48640504627
+    },
+    "alerts": [
+     {
+      "id": "pressure-warning",
+      "severity": "warning",
+      "since": 1790690510000,
+      "params": {
+       "level": 2
+      },
+      "badge": true
+     },
+     {
+      "id": "swap-growth",
+      "severity": "info",
+      "since": 1790690540000,
+      "params": {
+       "deltaBytes": 1395864371,
+       "windowMs": 240000
+      },
+      "badge": true,
+      "toastSeq": 7
+     }
+    ],
+    "completions": {
+     "items": [
+      {
+       "seq": 57,
+       "finishedAt": 1790690639000,
+       "startedAt": 1790690591000,
+       "model": "Example-27B-4bit",
+       "basis": "last-observed",
+       "promptTokens": 49800,
+       "cachedTokens": 41200,
+       "outputTokens": 1104,
+       "prefillMs": 14100,
+       "decodeTps": 21,
+       "prefillTps": 598,
+       "overlapped": false,
+       "verdict": {
+        "attr": "inferred",
+        "at": 1790690640000
+       },
+       "host": {
+        "pressureMax": 2,
+        "swapDeltaBytes": 966367642,
+        "gpuAllocMaxBytes": 26628797235,
+        "thermalMaxLevel": 0,
+        "energyJ": 1702.4,
+        "powerCoverage": 0.96
+       }
+      }
+     ]
+    },
+    "runtime": {
+     "request": {
+      "decodeTps": 21.2
+     },
+     "residency": [
+      {
+       "model": "Example-27B-4bit",
+       "phase": "decode",
+       "source": "runtime",
+       "active": 1,
+       "queued": 0,
+       "bytes": 18360985190,
+       "decodeTps": 21.2,
+       "contextWindowTokens": 131072
+      }
+     ]
+    }
+   },
+   "view": {
+    "regression": {
+     "medianTps": 21.2,
+     "p50": 25.7,
+     "n": 23,
+     "delta": -0.175,
+     "cofactors": [
+      "macOS memory pressure: warning",
+      "swap grew 1.3 GiB"
+     ]
+    }
+   }
+  },
+  "pressure-critical": {
+   "title": "Pressure critical",
+   "snapshot": "omlx-decode",
+   "patch": {
+    "host": {
+     "mac": {
+      "pressureLevel": 4,
+      "swapUsedBytes": 6442450944
+     },
+     "memUsedBytes": 50465865728
+    },
+    "runtime": {
+     "request": {
+      "decodeTps": 14.6
+     },
+     "residency": [
+      {
+       "model": "Example-27B-4bit",
+       "phase": "decode",
+       "source": "runtime",
+       "active": 1,
+       "queued": 0,
+       "bytes": 18360985190,
+       "decodeTps": 14.6,
+       "contextWindowTokens": 131072
+      }
+     ]
+    },
+    "alerts": [
+     {
+      "id": "pressure-critical",
+      "severity": "critical",
+      "since": 1790690580000,
+      "params": {
+       "level": 4
+      },
+      "badge": true,
+      "toastSeq": 9
+     },
+     {
+      "id": "swap-growth",
+      "severity": "info",
+      "since": 1790690520000,
+      "params": {
+       "deltaBytes": 3865470566,
+       "windowMs": 300000
+      },
+      "badge": true
+     }
+    ]
+   }
+  },
+  "thermal": {
+   "title": "Thermal pressure heavy",
+   "snapshot": "omlx-decode",
+   "patch": {
+    "host": {
+     "thermal": {
+      "level": 2
+     }
+    },
+    "alerts": [
+     {
+      "id": "thermal",
+      "severity": "warning",
+      "since": 1790690560000,
+      "params": {
+       "level": 2
+      },
+      "badge": true,
+      "toastSeq": 8
+     }
+    ]
+   }
+  },
+  "model-unloaded": {
+   "title": "Model unloaded",
+   "snapshot": "omlx-idle",
+   "patch": {
+    "runtime": {
+     "phase": "not-loaded",
+     "residency": [],
+     "memory": {
+      "modelBytes": null
+     }
+    },
+    "host": {
+     "runtimeProcess": {
+      "footprintBytes": 1395864371
+     }
+    },
+    "alerts": [
+     {
+      "id": "model-unloaded",
+      "severity": "info",
+      "since": 1790690670000,
+      "params": {
+       "model": "Example-27B-4bit"
+      },
+      "badge": true,
+      "toastSeq": 10
+     }
+    ]
+   }
+  },
+  "memory-guard": {
+   "title": "oMLX memory guard",
+   "snapshot": "omlx-idle",
+   "patch": {
+    "runtime": {
+     "phase": "queued",
+     "server": {
+      "active": 0,
+      "queued": 1
+     }
+    },
+    "alerts": [
+     {
+      "id": "omlx-memory-guard",
+      "severity": "warning",
+      "since": 1790690650000,
+      "params": {},
+      "badge": true
+     }
+    ]
+   }
+  },
+  "llama": {
+   "title": "llama-server slots + speculative decoding",
+   "snapshot": "llama-slots",
+   "view": {
+    "attr": {
+     "label": "withheld",
+     "reason": "overlap"
+    },
+    "lastAttr": null
+   }
+  },
+  "llama-sleeping": {
+   "title": "llama-server asleep",
+   "snapshot": "llama-slots",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": "sleeping",
+     "params": {},
+     "sinceAt": 1790690400000
+    },
+    "runtime": {
+     "phase": "idle",
+     "server": {
+      "active": 0,
+      "queued": 0,
+      "rates": null,
+      "speculative": null
+     },
+     "slots": []
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "llama-metrics": {
+   "title": "llama-server without --metrics",
+   "snapshot": "llama-slots",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "metrics_required",
+     "params": {},
+     "sinceAt": 1790690400000
+    },
+    "capabilities": {
+     "server.slots": null,
+     "server.rates": null,
+     "server.speculative": null,
+     "server.requests": null,
+     "server.completions": null
+    },
+    "runtime": {
+     "phase": "unknown",
+     "server": {
+      "active": null,
+      "queued": null,
+      "rates": null,
+      "speculative": null
+     },
+     "slots": []
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "cannot-count"
+    },
+    "lastAttr": null
+   }
+  },
+  "ollama": {
+   "title": "Ollama residency",
+   "snapshot": "ollama-residency",
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "cannot-count"
+    },
+    "lastAttr": null
+   }
+  },
+  "bionic": {
+   "title": "Splash via Bionic · Engines",
+   "snapshot": "bionic"
+  },
+  "lms-unavailable": {
+   "title": "Bionic not answering · no lms",
+   "snapshot": "bionic",
+   "patch": {
+    "status": {
+     "state": "degraded",
+     "reason": "lms_unavailable",
+     "params": {},
+     "sinceAt": 1790690620000
+    },
+    "capabilities": {
+     "server.residency": null,
+     "server.engines": null
+    },
+    "runtime": {
+     "phase": "unknown",
+     "residency": [],
+     "engines": []
+    }
+   }
+  },
+  "storage-full": {
+   "title": "History storage full",
+   "snapshot": "omlx-idle",
+   "view": {
+    "storage": "full"
+   }
+  },
+  "history-empty": {
+   "title": "History after a fresh upgrade",
+   "snapshot": "omlx-idle",
+   "view": {
+    "history": "empty"
+   }
+  },
+  "recording-paused": {
+   "title": "Recording paused",
+   "snapshot": "omlx-idle",
+   "view": {
+    "storage": "paused"
+   }
+  },
+  "clear-confirm": {
+   "title": "Clear history · confirmation",
+   "snapshot": "omlx-idle",
+   "view": {
+    "storage": "confirm"
+   }
+  }
+ },
+ "trendFresh": {
+  "contractVersion": 2,
+  "serverNow": 1790690700000,
+  "windowMs": 3600000,
+  "bucketMs": 20000,
+  "startAt": 1790687100000,
+  "series": {
+   "decodeTps": {
+    "basis": "reported",
+    "buckets": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ]
+   }
+  },
+  "gaps": [
+   {
+    "fromAt": 1790687100000,
+    "toAt": 1790690580000
+   }
+  ],
+  "marks": []
+ }
+}

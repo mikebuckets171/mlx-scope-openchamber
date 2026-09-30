@@ -1,0 +1,4 @@
+# TYPE fx_unicode gauge
+fx_unicode{name="日本語のラベル"} 1
+fx_unicode{name="emoji 🦙 llama"} 2
+fx_unicode{name="combining é"} 3

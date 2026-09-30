@@ -2,102 +2,231 @@
 
 Lightweight local model monitoring for OpenChamber.
 
-Keep useful runtime readings beside your conversation. MLX Scope observes oMLX,
-Splash in Bionic, LM Studio, vllm-mlx, mlx-lm, and standalone Splash through their
-supported passive APIs. Each view shows only what that server actually reports;
-readings a runtime doesn't provide are left out rather than listed as unavailable.
+MLX Scope keeps honest runtime readings beside your conversation. It observes oMLX, Splash in Bionic, LM Studio,
+llama.cpp `llama-server`, Ollama, vllm-mlx, mlx-lm and standalone Splash through their supported passive APIs, plus the
+Mac they run on. It never sends inference, loads or unloads a model, or starts a runtime. Each view shows only what that
+server actually reports: a reading a runtime doesn't provide is left out rather than shown as a dash or a zero, and every
+value that is not reported directly by the runtime says how it was obtained.
 
-| Runtime | Available readings |
+| Runtime | Readings |
 | --- | --- |
-| **oMLX** | Prefill remaining and stage estimate, generation and recent output speed, context/reuse, model activity, cache and process readings |
-| **Splash via Bionic** *(recommended for Splash)* | Shown as "Splash via Bionic". Your Splash models with a Splash badge and which one is loaded; live prompt reading and generating; exact tok/s, first-token time, context use and input reuse for each finished response |
-| **LM Studio** | Available and loaded models, format, and context limits; with the `lms` CLI installed, the same live request state and exact per-response figures as Bionic |
+| **oMLX** | Prefill remaining and stage estimate, generation and recent output speed, context and reuse, model activity, cache, process footprint, and a 7/30/90-day usage card "Recorded by oMLX" |
+| **Splash via Bionic** *(recommended for Splash)* | Your Splash models with a Splash badge and which one is loaded; live prompt reading and generating; exact tok/s, first-token time, context use and input reuse for each finished response; loaded instances and an Engines card from `lms` |
+| **LM Studio** | Available and loaded models, format and context limits; with the `lms` CLI installed, the same live request state and exact per-response figures as Bionic |
+| **llama-server** | Health, context, model and slots, with live speed while exactly one slot is busy; server rates and speculative-decoding acceptance with `--metrics` |
+| **Ollama** | Which models are resident, their GPU-resident size as Ollama reports it, and when each unloads. Ollama reports residency only |
 | **vllm-mlx** | Reported request activity, queue, output and speed; prefill and reuse where the engine exposes usable data |
-| **mlx-lm** | Server availability and available model catalogue |
-| **Splash (standalone `splash serve`)** | Loaded model and context, idle/generating state with in-flight requests, server decode speed across all requests, completed/failed counters, and GPU (Metal) memory now/peak |
+| **mlx-lm** | Server availability and the available model catalogue |
+| **Splash (standalone `splash serve`)** | Loaded model and context, idle/generating/recovering state, server decode speed, first-token and inter-token p50/p95 from Splash itself, completed/failed counters, vision chips, and GPU (Metal) memory now/peak |
 
-All runtimes include host CPU, memory, and macOS wired/compressed/swap readings
-when available. OpenAI-compatible inference does not imply equivalent monitoring.
+On macOS, every runtime also gets host readings: CPU, memory, swap, the kernel's memory pressure level, the GPU
+wired-memory limit, GPU busy and GPU memory as the graphics driver reports them, thermal pressure, and optionally a chip
+power estimate. OpenAI-compatible inference does not imply equivalent monitoring; see [Compatibility](docs/COMPATIBILITY.md).
 
 ### Using Splash in Bionic
 
 1. Keep Bionic's Local Model API on (for example `http://127.0.0.1:1234/v1`) and add it as a provider in OpenChamber or OpenCode.
 2. Make sure Bionic's `lms` command-line tool is installed (`~/.lmstudio/bin/lms`) for live request activity.
 3. Open MLX Scope and leave the connection on **Automatic**. It shows "Splash via Bionic". Don't choose the standalone Splash runtime; that is only for `splash serve`.
-See [Compatibility](docs/COMPATIBILITY.md) for the exact limits.
 
-oMLX already has a monitoring dashboard. MLX Scope keeps the useful readings in
-the OpenChamber workflow, in a narrow panel or a full-page view that follows the
-host's colors and typography.
+## Where MLX Scope shows up
 
-- **Live:** current readings, prominent prefill when reported, and host and runtime
-  memory with their separate scopes made clear.
-- **Compare:** observe 30 or 60 seconds, pin a reference, and compare another
-  capture. Inventory-only connections capture host resources.
-- **Saved:** keep the 12 newest manually saved observations in OpenChamber storage.
-  Saved reports omit model names, request identifiers, paths, and chat content.
+- **Work Status section.** A section in the chat's Work Status panel. Its glance line shows the phase, a short model
+  name, the speed and the per-chat label, with a 15-minute sparkline, memory pressure, GPU and thermal chips, and the top
+  alert. It is 56 px tall, 80 px with an alert, and a single 24 px line, "Chat uses a non-local model", in a chat that
+  uses a cloud model. The section runs only while the Work Status panel is open and the section is expanded, and it
+  uses a lighter set of Mac probes than the panel.
+- **A Turn stats replacement.** Expanded (up to 200 px), the section uses the host's Turn stats rows with runtime-exact
+  values: Response, Turn time, Model · tool time, First TTFT, Tokens in · out, Cache %, Context used and vs usual. Turn
+  time and Model · tool time appear only for turns labelled as this chat's; a row the runtime can't report is left out
+  (for example First TTFT on oMLX); cost is not shown for local models. To swap them:
+  1. Open a chat's **Work Status** panel.
+  2. In **Panel sections**, hide **Turn stats**.
+  3. Drag **MLX Scope** into its place. To undo, show Turn stats again.
 
-The secondary **Share** menu copies a sanitized report or appends it to the current
-draft. Nothing is sent automatically.
+  Scope shows these steps once as a tip you can dismiss. **The trade-off:** hiding Turn stats hides it in every chat,
+  including cloud chats, so cloud chats have no per-turn speed while the swap is in place. The host's menu names and
+  Turn stats rows are verified in Stage 12 on OpenChamber 2.0.4.
+- **Rail panel.** Four tabs: **Live**, **Server**, **History** and **Captures**. Compact mode is the Work Status glance
+  view. Open it from the rail, or from **Open MLX Scope** in a chat's session menu.
+- **Full page.** Live and History side by side, from OpenChamber's **Extension pages** menu.
+- **`/scope`.** A slash command that attaches a sanitized diagnostics chip to your message; see
+  [`/scope` diagnostics](#scope-diagnostics).
+
+A view that is hidden (a rail tab behind another tab, a collapsed section, a closed page, a hidden window) makes no
+requests. With several views open, one visible view at a time records history and raises toasts.
+
+## Per-chat labels
+
+Readings are **server-wide** unless Scope can tell they belong to the open chat. A finished reply is labelled
+**"This chat · inferred"** only when all of these hold across it:
+- the open chat uses the connection Scope watches, with the same model;
+- the runtime counts its requests, and at most one was active at every sample;
+- the reply falls inside a turn Scope saw start and finish, with no gap in its samples;
+- auto-labelling is on (the default).
+
+Otherwise the reply stays "Server-wide" with one reason, such as "This chat uses Splash · Watch Splash". **Limits:**
+- Scope does not request the `sessions` permission, so it cannot see other chats. Another chat alternating requests on
+  the same runtime during this turn can't be ruled out.
+- OpenChamber's own background model calls, such as title generation, can fall inside a labelled turn.
+- A view opened mid-turn starts labelling at the next turn.
+- Ollama and mlx-lm don't report per-request activity, so their readings are never labelled per chat.
+
+**Next reply · armed.** Arm it to measure your next reply in this chat. It waits up to 2 minutes for you to send, follows
+the reply for up to 10 minutes, and records it as "Next reply · armed".
+- It won't arm when the chat's provider or model differs from the watched connection; it offers "Watch …" instead.
+- It cancels when you switch chats, when the runtime becomes unavailable, or when the Scope view is hidden or closed.
+- Every step must pass the one-active-request rule. A step that fails is kept as server-wide, and the turn gets no
+  summary.
+
+## Local reply history
+
+Scope keeps a bounded history of the replies it observed while a Scope view was visible, in OpenChamber's extension
+storage on this computer: times, token counts, speeds, the model name and the label. It keeps no chat titles, IDs or
+content. See [Privacy](PRIVACY.md) for exactly what is stored.
+- **History → Storage** has a usage bar, **Keep N days** (30 by default, 90 at most), **Pause recording** and
+  **Clear…**, which asks for confirmation.
+- The first recording shows "Recording reply history locally · Open Scope to manage".
+- History feeds "vs usual" baselines, always shown with their sample count and only from 5 similar replies, and a
+  "Slower than usual" flag. **Copy baseline summary** copies them with models renamed "Model A", "Model B".
+- Replies are written in batches (at most every 5 minutes, at 50 replies, or when the view is hidden), and nothing is
+  written while idle. The History chart covers the last 15, 30 or 60 minutes and hatches the stretches when Scope wasn't
+  open.
+
+## Alerts while you watch
+
+Runtime lost, model unloaded, memory pressure, swap growth, thermal pressure, Splash recovering, oMLX prefill stall, oMLX
+memory guard and "Slower than usual". Alerts are raised only while a Scope view is open and visible: in the view, as a badge on the rail
+icon, and as toasts. Toasts are critical-only by default (**Toasts: critical · all · off**), at most one a minute and
+three an hour. There is no background watcher, and GPU busy or GPU memory never raises an alert.
+
+## Mac readings
+
+Each reading says where it comes from:
+- macOS memory pressure (the kernel's level), swap, and the GPU wired-memory limit;
+- GPU busy and GPU memory, both **driver-reported**. GPU memory includes other apps and reserved memory, so it is not
+  model size;
+- macOS thermal pressure, with a warning from "Heavy";
+- the oMLX process's memory footprint;
+- optional chip power (CPU+GPU+ANE), labelled an **estimate**, with tokens per joule. It needs
+  [macmon](https://github.com/vladkens/macmon), which you install yourself. It includes all apps and is not wall power.
+
+## `/scope` diagnostics
+
+Type `/scope` in the composer to attach an **MLX Scope diagnostics** chip to your message, for example to ask the chat's
+model why a local run is slow. The chip holds a sanitized summary of at most 16,000 characters:
+- the runtime kind and version, status and phase;
+- speeds, each with its basis, and the context size as a range (for example "32k–64k tokens"), never an exact count;
+- the last finished reply, its per-chat label, and its "vs usual" changes with sample counts;
+- memory pressure, GPU and thermal readings, and active alert names.
+
+It contains no model names, chat titles, prompt text, paths, keys or IDs, and it ignores anything typed after `/scope`.
+**Attaching sends nothing.** When you send your message, the summary goes to this chat's model, **which may be a cloud
+provider**; its first line says so. The chip replaces a pending GitHub or Linear chip, because the composer holds one of
+them at a time, and a sent chip stays in the chat's session record like any attached item (both from the OpenChamber
+2.0.4 SDK documentation; verified in Stage 12). `/scope` reads Scope's service once and never keeps running.
 
 ## Install
 
-Requires **OpenChamber 1.24.2 or newer**, using its desktop or web client. The
-runtime must run on the same computer as the OpenChamber server. Mac resource
-readings require macOS; extensions are not available in the mobile or VS Code clients.
+**Requirements**
+- **OpenChamber 2.0.4 or newer**, desktop or web client. 2.0.4 is the only host 2.0 is qualified on; OpenChamber refuses
+  a 2.0 install on an older host as too old. Extensions are not available in the mobile or VS Code clients.
+- **OpenChamber 1.24.x–2.0.3:** install the 1.6 line instead. It takes security and correctness fixes only:
 
+  ```text
+  https://github.com/mikebuckets171/mlx-scope-openchamber#legacy/1.6.x
+  ```
+
+  The `legacy/1.6.x` branch is published with the 2.0.0 release (owner gate G7).
+- Runtimes must run on the same computer as the OpenChamber server. Mac readings need macOS on Apple Silicon.
+
+**Steps**
 1. Open **Settings → Extensions** in OpenChamber.
-2. Add this repository and review the extension's local-service permissions:
+2. Add this repository and review the extension's local-service permissions (listed below):
 
    ```text
    https://github.com/mikebuckets171/mlx-scope-openchamber
    ```
 
 Alternatively, install the latest named `mlx-scope-openchamber-*.zip` from
-[Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest).
-Use the named install package, not GitHub's generated source archives. The ZIP
-includes built JavaScript; installing it does not require a build toolchain.
+[Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest). Use the named install package, not
+GitHub's generated source archives. The ZIP includes built JavaScript; installing it needs no build toolchain.
 
-MLX Scope discovers existing local OpenCode provider connections, including custom
-provider names. Keep **Automatic**, or use **Change** beside the connection status to select a
-connection and runtime. Endpoints and credentials stay in the existing provider
-configuration; MLX Scope never edits them. See [Configuration](docs/CONFIGURATION.md)
-if no connection appears.
+MLX Scope discovers existing local OpenCode provider connections, including custom provider names. Keep **Automatic**,
+or choose **⋯ → Connection** to select a connection and runtime. Endpoints and credentials stay in the existing provider
+configuration; MLX Scope never edits them. See [Configuration](docs/CONFIGURATION.md) if no connection appears.
 
-Open the conversation panel from **Open MLX Scope** in the session menu, or use
-OpenChamber's **Extension pages** menu for the full-page view.
+**Enterprise mode.** When OpenChamber runs in enterprise mode, extensions with a local service install only from
+allowlisted repositories. Ask your administrator to allowlist this repository before you install or update (verified in
+Stage 12).
+
+### Updating from 1.6
+
+Updating asks for one new approval. OpenChamber's dialog lists every entry again, not only the new ones, and shows `~/`
+paths as written. Until you approve, Scope shows what it needs and why instead of readings. Your 1.6 saved observations
+are copied into Captures and the originals are kept, so rolling back still shows them. If a view says the service is
+still the previous version, pause MLX Scope and resume it in Settings → Extensions.
+
+**Something wrong after updating?** See the
+[rollback runbook](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/2.0/ROLLBACK.md): fixes ship as
+2.0.x updates, and the severe case is the legacy pin above.
+
+### What 2.0 asks you to approve and why
+
+| Entry | What Scope runs | Why |
+|---|---|---|
+| Local service (`service/main.js`) | Runs under your account while a Scope view needs readings | Reads the local runtime APIs on loopback and runs the commands below. It keeps readings in memory and writes no files |
+| `/usr/bin/vm_stat` | `vm_stat` | Memory page counts: used, wired and compressed memory (as in 1.x) |
+| `/usr/sbin/sysctl` | `sysctl -i vm.swapusage kern.memorystatus_vm_pressure_level iogpu.wired_limit_mb` | Swap, the kernel's memory pressure level and the GPU wired-memory limit (1.x read swap only) |
+| `/usr/sbin/ioreg` | `ioreg -r -d 1 -w 0 -c IOAccelerator` | GPU busy and GPU memory, as the graphics driver reports them |
+| `/usr/bin/notifyutil` | `notifyutil -g com.apple.system.thermalpressurelevel` | macOS thermal pressure level |
+| `/usr/sbin/lsof` | `lsof -nP -iTCP:<port> -sTCP:LISTEN -t` | Finds the process listening on the oMLX port. oMLX only |
+| `/usr/bin/footprint` | `footprint -p <pid>` | That oMLX process's memory footprint, where oMLX's model memory lives. The process ID never leaves the service |
+| `~/.lmstudio/bin/lms` | `lms log stream -s server --json --port <port>`, `lms ps --json --port <port>`, `lms runtime ls --port <port>` | Live request activity, loaded instances and engine versions for Bionic and LM Studio. It runs only after LM Studio has answered, and never starts LM Studio or Bionic |
+| `~/.cache/lm-studio/bin/lms` | The same three commands | The same, for LM Studio's older install location |
+| `/opt/homebrew/bin/macmon` | `macmon pipe -i 1000` | Optional chip power estimate, only if you installed macmon with Homebrew. Scope never installs it |
+| `/usr/local/bin/macmon` | The same | The same, for a macmon installed under `/usr/local` |
+
+- **Not requested:** any capability, including the `sessions` permission, which would let Scope list projects,
+  worktrees and chats. Per-chat labels use only what OpenChamber gives every extension about the open chat.
+- **Never used:** `sudo`, `osascript`, `powermetrics` or `pmset`.
+- Each command runs by absolute path, without a shell, and only with the arguments shown; a test checks the argument
+  list for each binary, and packaging checks that the service uses exactly these paths. OpenChamber does not sandbox a
+  service, so this list is Scope's promise, enforced in its own code; see [Security](SECURITY.md).
+- `lms` runs only from the two locations above. An LM Studio home moved with `~/.lmstudio-home-pointer` keeps its
+  inventory view, without live activity.
+- This list does not change within 2.0.x, so an update never asks again. The exact dialog on OpenChamber 2.0.4 is
+  verified in Stage 12.
 
 ## What the readings mean
 
-Telemetry is **server-wide**, not attributed to the selected conversation.
-Missing values stay unavailable. Held or stale readings are labelled.
+Readings are **server-wide**: they describe the whole runtime and the whole Mac, not the selected chat, unless a reply is
+labelled "This chat · inferred" or "Next reply · armed". Values the runtime doesn't report are left out. Idle time is a
+gap in a chart, never a zero. Held or stale readings are labelled, and every value that isn't reported directly carries
+its basis: derived, observed, last observed or estimate.
 
-oMLX primary DFlash output uses fresh token counters to calculate clearly labelled
-**recent output** speed. Before output arrives, it shows processing without
-inventing prefill progress. Standard fallback prefill keeps its normal counters
-and estimate.
+oMLX primary DFlash output uses fresh token counters to calculate clearly labelled **recent output** speed. Before output
+arrives, it shows processing without inventing prefill progress.
 
-Captures are observations, not controlled benchmarks or proof that a request
-finished successfully. Prompts, cache states, and competing workloads can change
-a comparison. [Metric definitions](docs/METRICS.md) explain the limits.
+Captures are observations, not controlled benchmarks or proof that a request finished successfully. Prompts, cache
+states, and competing workloads can change a comparison. [Metric definitions](docs/METRICS.md) explain the limits.
 
 ## Lightweight and read-only
 
-Vanilla TypeScript, the official OpenChamber SDK, and a host-managed local service.
-No UI framework, chart library, inference requests, or separate daemon. One
-sampling pipeline per selected connection feeds the views; hidden and paused views
-stop requesting observations. Histories, captures, responses, and storage are bounded.
+Vanilla TypeScript, the official OpenChamber SDK, and a host-managed local service. No UI framework, chart library,
+inference requests, or separate daemon. The service reads a runtime only when a visible view asks, shares one reading
+between views, and holds at most an hour of trend data in memory. Hidden and paused views make no requests; a minute
+after the last view closes the service makes no requests and runs no commands. Histories, captures, responses, and
+storage are bounded.
 
-The approved service runs under the OpenChamber user account and reads local
-configuration, runtime APIs, and fixed macOS diagnostic commands. Read-only behavior
-is a code boundary, not an operating-system sandbox. There is no analytics service.
-See [Privacy](PRIVACY.md) and [Security](SECURITY.md).
+The approved service runs under the OpenChamber user account and reads local configuration, runtime APIs, and fixed
+macOS diagnostic commands. Read-only behavior is a code boundary, not an operating-system sandbox. There is no analytics
+service. See [Privacy](PRIVACY.md) and [Security](SECURITY.md).
 
 ## Project status
 
-MLX Scope is a focused community-maintained project. Runtime compatibility depends
-on supported upstream interfaces and maintainer availability. The MIT license
-allows the community to fork and adapt it.
+MLX Scope is a focused community-maintained project. Runtime compatibility depends on supported upstream interfaces and
+maintainer availability. The MIT license allows the community to fork and adapt it.
 
 ## Development
 
@@ -107,14 +236,13 @@ bunx playwright install --with-deps chromium webkit
 bun run check:all
 ```
 
-Checks include an extracted-package startup under Node without `node_modules`
-and interaction tests in Chromium and WebKit. Runtime adapters use synthetic
-contract fixtures. Splash support follows its pinned 1.0.2 passive status
-contract; runtime versions are compatibility anchors, not minimum requirements.
-See [Contributing](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/CONTRIBUTING.md)
-and [Architecture](docs/ARCHITECTURE.md) for builds and sampling limits.
+Use Bun 1.4.2 (`.bun-version`): the committed `panel/main.js`, `service/main.js` and `background/main.js` are its output.
+Checks include an extracted-package startup under Node without `node_modules`, interaction tests in Chromium and WebKit,
+and synthetic fixture corpora for every runtime. Splash support follows its passive 1.1 `/status` contract; runtime
+versions are compatibility anchors, not minimum requirements. See
+[Contributing](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/CONTRIBUTING.md) and
+[Architecture](docs/ARCHITECTURE.md) for builds and sampling limits.
 
 [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-Independent community project; not affiliated with the runtime projects,
-OpenChamber, or Apple.
+Independent community project; not affiliated with the runtime projects, OpenChamber, or Apple.

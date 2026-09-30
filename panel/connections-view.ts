@@ -1,7 +1,10 @@
 import type { HostClient } from '@openchamber/sdk';
-import { RUNTIMES, runtimeNames, runtimeValue, type ConnectionInfo, type RuntimeSelection } from '../src/runtime.ts';
+import { RUNTIMES, runtimeKind as runtimeValue, runtimeNames, type RuntimeKind } from '../src/contract/runtime.ts';
+import type { Choice, Link } from './present/reading.ts';
 
 const STORAGE_KEY = 'connection.selection';
+/** The saved choice (1.6 shape, kept): an empty provider is Automatic, a null runtime is automatic detection. */
+export type RuntimeSelection = { provider: string; runtime: RuntimeKind | null };
 export const connectionsMarkup = `<section id="connection-setup" class="connection-setup" aria-labelledby="connection-setup-title" hidden>
   <div class="section-heading"><h2 id="connection-setup-title">Monitor a local runtime</h2><button id="connection-close" type="button" aria-label="Close connection setup">Close</button></div>
   <p class="insight-note">Uses existing local OpenCode connections. This only changes what MLX Scope observes.</p>
@@ -15,7 +18,7 @@ export const connectionsMarkup = `<section id="connection-setup" class="connecti
 </section>`;
 
 /** Omit the runtime suffix when the label already names it, and never tag a Bionic provider as "LM Studio". */
-export const choiceLabel = (choice: { label: string; runtime: ConnectionInfo['runtime'] }): string => {
+export const choiceLabel = (choice: Pick<Choice, 'label' | 'runtime'>): string => {
   if (!choice.runtime) return choice.label;
   const name = runtimeNames[choice.runtime];
   const label = choice.label.toLowerCase();
@@ -31,10 +34,22 @@ const selectionValue = (value: unknown): RuntimeSelection | null => {
   return {provider:item.provider, runtime:runtimeValue(item.runtime)};
 };
 
+/** The saved selection as a query, for surfaces without the connection chooser (the Work Status section). */
+export const readSelection = async (storage: HostClient['storage']): Promise<Record<string, string> | undefined> => {
+  try {
+    const selection = selectionValue(await storage.get(STORAGE_KEY));
+    if (!selection) return undefined;
+    const query: Record<string, string> = {};
+    if (selection.provider) query.provider = selection.provider;
+    if (selection.runtime) query.runtime = selection.runtime;
+    return Object.keys(query).length ? query : undefined;
+  } catch { return undefined; }
+};
+
 /** One saved selection; metadata arrives through the existing snapshot request. */
 export class ConnectionsView {
   selection: RuntimeSelection = {provider:'', runtime:null};
-  private choices: ConnectionInfo['choices'] = [];
+  private choices: Choice[] = [];
   private revision = 0;
   private pending: Promise<void> = Promise.resolve();
   private readonly provider: HTMLSelectElement;
@@ -69,6 +84,25 @@ export class ConnectionsView {
     this.selection = next;
     this.change();
   }
+  /** "Looks like Splash now · Switch": keep the chosen connection and watch the runtime that answers now. */
+  switchRuntime(runtime: RuntimeSelection['runtime']): void {
+    const next = {provider:this.selection.provider, runtime};
+    this.revision += 1;
+    this.commit(next);
+    const save = this.pending.catch(() => {}).then(() => this.storage.set(STORAGE_KEY, next));
+    this.pending = save;
+    void save.catch(() => this.status('Connection changed here, but OpenChamber could not save the preference.'));
+  }
+  /** "Watch …": monitor the connection the open chat uses, read as whatever answers there. */
+  watch(provider: string): void {
+    this.revision += 1;
+    this.commit({ provider, runtime: null });
+    const save = this.pending.catch(() => {}).then(() => this.storage.set(STORAGE_KEY, this.selection));
+    this.pending = save;
+    void save.catch(() => this.status('Connection changed here, but OpenChamber could not save the preference.'));
+  }
+  /** Opens the connection chooser, as the callout's Connection… link does. */
+  openSetup(): void { this.setOpen(true, true); }
   async load(): Promise<void> {
     const revision = this.revision;
     try {
@@ -82,14 +116,14 @@ export class ConnectionsView {
     if (this.selection.runtime) query.runtime = this.selection.runtime;
     return Object.keys(query).length ? query : undefined;
   }
-  update(info: ConnectionInfo | null | undefined): void {
+  update(info: Pick<Link, 'choices'> | null): void {
     if (!info) return;
     if (JSON.stringify(info.choices) !== JSON.stringify(this.choices)) {
       this.choices = info.choices;
       this.paintChoices();
     }
     this.node('connection-choice-note').textContent = info.choices.length
-      ? 'Automatic detection recognises oMLX, Bionic and LM Studio (including Splash models), standalone Splash, mlx-lm, and vllm-mlx. Using Splash in Bionic? Keep Automatic.'
+      ? 'Automatic detection recognises oMLX, Bionic and LM Studio (including Splash models), standalone Splash, llama-server, Ollama, mlx-lm, and vllm-mlx. Using Splash in Bionic? Keep Automatic.'
       : 'No local connection was found. Add a local provider in OpenCode, then refresh MLX Scope. The setup guide lists supported configuration.';
   }
   private paintChoices(): void {

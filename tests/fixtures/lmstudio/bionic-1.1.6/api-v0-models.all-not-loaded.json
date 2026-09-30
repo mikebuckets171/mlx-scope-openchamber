@@ -1,0 +1,72 @@
+{
+  "data": [
+    {
+      "id": "publisher/example-27b-splash",
+      "object": "model",
+      "type": "vlm",
+      "publisher": "publisher",
+      "arch": "qwen3_5",
+      "compatibility_type": "splash",
+      "quantization": "4bit",
+      "state": "not-loaded",
+      "max_context_length": 262144,
+      "capabilities": [
+        "tool_use"
+      ]
+    },
+    {
+      "id": "example-35b-a3b-splash",
+      "object": "model",
+      "type": "vlm",
+      "publisher": "publisher",
+      "arch": "qwen3_5_moe",
+      "compatibility_type": "splash",
+      "quantization": "4bit",
+      "state": "not-loaded",
+      "max_context_length": 262144,
+      "capabilities": [
+        "tool_use"
+      ]
+    },
+    {
+      "id": "publisher/example-27b-4bit",
+      "object": "model",
+      "type": "llm",
+      "publisher": "publisher",
+      "arch": "qwen3",
+      "compatibility_type": "mlx",
+      "quantization": "4bit",
+      "state": "not-loaded",
+      "max_context_length": 131072,
+      "capabilities": [
+        "tool_use"
+      ]
+    },
+    {
+      "id": "publisher/example-8b-gguf",
+      "object": "model",
+      "type": "llm",
+      "publisher": "publisher",
+      "arch": "llama",
+      "compatibility_type": "gguf",
+      "quantization": "Q4_K_M",
+      "state": "not-loaded",
+      "max_context_length": 131072,
+      "capabilities": [
+        "tool_use"
+      ]
+    },
+    {
+      "id": "text-embedding-example-embed-v1.5",
+      "object": "model",
+      "type": "embeddings",
+      "publisher": "publisher",
+      "arch": "nomic-bert",
+      "compatibility_type": "gguf",
+      "quantization": "Q4_K_M",
+      "state": "not-loaded",
+      "max_context_length": 2048
+    }
+  ],
+  "object": "list"
+}

@@ -1,0 +1,115 @@
+# offline · /v2?state=offline
+
+## live · 320 dark panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="offline" data-stale="true" data-surface="panel"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Offline
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
+#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
+#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
+#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#panels
+#panel-live {aria-labelledby="tab-live"}
+[callout-live] {data-severity="critical"}: Critical: | oMLX stopped responding | since 14:02 | Nothing answers on :8000. Scope checks again automatically, so start oMLX and it picks up again. | Connection…
+#hero {aria-label="Inference activity"}
+#model: Local oMLX
+#reply-strip: Last reply i 5 min ago
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 24.9 tok/slast observed
+span.val {data-basis="reported"}: 1,104 out
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 4% RAM 18.3 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+live [callout-live]: Critical: oMLX stopped respondingsince 14:02Nothing answers on :8000. Scope checks again automatically, so start oMLX and it picks up again.Connection…
+
+## live · 320 light panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="offline" data-stale="true" data-surface="panel"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Offline
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
+#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
+#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
+#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#panels
+#panel-live {aria-labelledby="tab-live"}
+[callout-live] {data-severity="critical"}: Critical: | oMLX stopped responding | since 14:02 | Nothing answers on :8000. Scope checks again automatically, so start oMLX and it picks up again. | Connection…
+#hero {aria-label="Inference activity"}
+#model: Local oMLX
+#reply-strip: Last reply i 5 min ago
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 24.9 tok/slast observed
+span.val {data-basis="reported"}: 1,104 out
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 4% RAM 18.3 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+live [callout-live]: Critical: oMLX stopped respondingsince 14:02Nothing answers on :8000. Scope checks again automatically, so start oMLX and it picks up again.Connection…
+
+## live · 1160 dark page
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="columns" data-paused="false" data-phase="offline" data-stale="true" data-surface="page"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Offline
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live · History
+#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
+#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#panels
+#panel-live {aria-labelledby="tab-live"}
+#col-live: 90 s · this chat when inferred
+h2: Live
+[callout-live] {data-severity="critical"}: Critical: | oMLX stopped responding | since 14:02 | Nothing answers on :8000. Scope checks again automatically, so start oMLX and it picks up again. | Connection…
+#hero {aria-label="Inference activity"}
+#model: Local oMLX
+#reply-strip: Last reply i 5 min ago
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 24.9 tok/slast observed
+span.val {data-basis="reported"}: 1,104 out
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 4% RAM 18.3 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
+#col-history {data-mount=""}
+p.view-unavailable[role=note]: History isn’t available in this build.
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+live [callout-live]: Critical: oMLX stopped respondingsince 14:02Nothing answers on :8000. Scope checks again automatically, so start oMLX and it picks up again.Connection…

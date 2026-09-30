@@ -1,7 +1,8 @@
 import type { HostClient } from '@openchamber/sdk';
-import type { TelemetrySnapshot } from '../src/telemetry.ts';
 import type { Capture } from './capture.ts';
 import { capturedRate } from './capture.ts';
+import { gib } from './present/format.ts';
+import type { Reading } from './present/reading.ts';
 
 export const SAVED_LIMIT = 12;
 export const SAVED_KEY = 'observation.v1.';
@@ -34,7 +35,6 @@ export type Observation = {
   measurements: Measurements; reference?: Measurements;
   referenceSampledAt?: number | null; referenceState?: 'finished' | 'interrupted' | null;
 };
-const gib = (value: number | null | undefined): number | null => value == null ? null : value * 1e9 / 1024 ** 3;
 const numeric = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER ? value : null;
 const object = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const sanitizeMeasurements = (value: unknown): Measurements => {
@@ -60,25 +60,25 @@ export const sanitizeObservation = (value: unknown): Observation | null => {
       referenceState: source.referenceState === 'finished' || source.referenceState === 'interrupted' ? source.referenceState : null } : {}) };
 };
 
-export const snapshotObservation = (snapshot: TelemetrySnapshot, held: boolean, recentOutput: number | null, now = Date.now()): Observation => {
-  const current = snapshot.available ? snapshot : null;
-  const native = snapshot.system?.macOS;
+export const snapshotObservation = (reading: Reading, held: boolean, recentOutput: number | null, now = Date.now()): Observation => {
+  const current = reading.available ? reading : null, request = current?.request;
+  const native = reading.host?.mac;
   const nativeFresh = native && now >= native.sampledAt && now - native.sampledAt <= 20_000;
-  return { savedAt: now, sampledAt: snapshot.sampledAt, kind: 'snapshot', state: held ? 'held' : 'observed', phase: snapshot.phase,
+  return { savedAt: now, sampledAt: reading.sampledAt, kind: 'snapshot', state: held ? 'held' : 'observed', phase: reading.phase,
     measurements: {
-      generation: current?.liveDecodeTPS ?? null, recentOutput,
-      prefillRemaining: current?.prefillProgress == null ? null : (1 - current.prefillProgress) * 100,
-      processed: current?.prefillProcessedTokens ?? null, total: current?.prefillTotalTokens ?? null,
-      stageEstimate: !held && !current?.prefillProgressStale ? current?.prefillETASeconds ?? null : null,
-      active: current?.activeRequests ?? null, queued: current?.queuedRequests ?? null,
-      cpu: snapshot.system?.cpuPercent ?? null, memory: gib(snapshot.system?.memoryUsedGB),
-      footprint: gib(current?.memory?.activeGB), swap: gib(nativeFresh ? native.swapUsedGB : null),
-      ...(current?.runtime === 'splash' && current.serverStats ? {
-        splashDecode: current.serverStats.aggregateDecodeTokensPerSecond,
-        splashCompleted: current.serverStats.completedRequests,
-        splashFailed: current.serverStats.failedRequests,
-        splashMetalCurrent: gib(current.serverStats.metalCurrentGB),
-        splashMetalPeak: gib(current.serverStats.metalPeakGB),
+      generation: request?.decodeTps ?? null, recentOutput,
+      prefillRemaining: request?.prefillFraction == null ? null : (1 - request.prefillFraction) * 100,
+      processed: request?.prefillProcessedTokens ?? null, total: request?.prefillTotalTokens ?? null,
+      stageEstimate: !held && request?.prefillStale !== true && request?.prefillEtaMs != null ? request.prefillEtaMs / 1000 : null,
+      active: current?.active ?? null, queued: current?.queued ?? null,
+      cpu: reading.host?.cpuPercent ?? null, memory: gib(reading.host?.memUsedBytes),
+      footprint: gib(current?.memory.processBytes), swap: gib(nativeFresh ? native.swapUsedBytes : null),
+      ...(current?.runtime === 'splash' && current.splash ? {
+        splashDecode: current.splash.decodeTps,
+        splashCompleted: current.splash.completed,
+        splashFailed: current.splash.failed,
+        splashMetalCurrent: gib(current.splash.metalBytes),
+        splashMetalPeak: gib(current.splash.metalPeakBytes),
       } : {}),
     } };
 };
@@ -86,8 +86,8 @@ export const snapshotObservation = (snapshot: TelemetrySnapshot, held: boolean, 
 const captureMeasurements = (capture: Capture): Measurements => ({
   observedGeneration: capturedRate(capture), generationSeconds: capture.decodeSeconds,
   tokenIncrements: capture.decodeTokens, duration: capture.seconds, samples: capture.samples,
-  peakCPU: capture.peakCPU, peakFootprint: gib(capture.peakProcessGB),
-  meanCPU: capture.meanCPU, meanMemory: gib(capture.meanMemoryGB), peakMemory: gib(capture.peakMemoryGB),
+  peakCPU: capture.peakCPU, peakFootprint: gib(capture.peakProcessBytes),
+  meanCPU: capture.meanCPU, meanMemory: gib(capture.meanMemoryBytes), peakMemory: gib(capture.peakMemoryBytes),
   cpuSamples: capture.cpuSamples, memorySamples: capture.memorySamples, processSamples: capture.processSamples,
   requestCountChange: capture.requestCountChange,
 });

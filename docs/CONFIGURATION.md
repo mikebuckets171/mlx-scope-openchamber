@@ -10,10 +10,12 @@ or OpenCode, as you normally would for chatting. Open MLX Scope: **Automatic**
 prefers the provider of the global selected model, then the named oMLX connection.
 Existing oMLX settings provide a fallback when no oMLX provider was found.
 
-Use **Change** beside the connection status when you want another configured server. Select its
+Use **⋯ → Connection** when you want another configured server. Select its
 **Connection**, leave **Runtime** on automatic detection or choose the matching
 runtime, then select **Use connection**. This changes only what MLX Scope observes.
 It saves the provider ID and runtime choice, never an endpoint or API key.
+A runtime you choose explicitly is never switched automatically; if the server on
+that port changes, the view says what it looks like now and offers to switch.
 
 Runtimes report different readings, and MLX Scope shows only the ones yours
 provides. A shorter view is not an error. Read [Compatibility](COMPATIBILITY.md)
@@ -30,9 +32,34 @@ embedded Splash engine runs on a private, key-protected port, so MLX Scope reads
 Bionic's own API and server log instead.
 
 Provider names that mention `bionic` or `lm studio` are treated as that host.
-Other names containing `splash` (for example `splash-local` on port 8000) are
-treated as a standalone `splash serve` server, which is also detected
+Other names containing `splash` or `splish` (for example `splash-local` on port
+8000) are treated as a standalone `splash serve` server, which is also detected
 automatically from its `/status` endpoint.
+
+### llama-server and Ollama
+
+Add the server's OpenAI-compatible endpoint as a provider, for example
+`http://127.0.0.1:8080/v1` for `llama-server` or `http://127.0.0.1:11434/v1` for
+Ollama, and leave MLX Scope on **Automatic**. Detection recognizes llama-server
+from `/props` and Ollama from `/api/version`; provider names that mention
+`llama.cpp`, `llama-server` or `ollama` are tried as that runtime first.
+
+- **llama-server:** start it with `--metrics` for live slots, server rates and
+  speculative-decoding acceptance. On builds that can sleep, Scope reads slots
+  only while `/metrics` shows work in progress, so it never wakes the server.
+  Without `--metrics`, Scope shows health, context and the model only, and says
+  that `--metrics` is needed.
+- **Ollama:** Scope reads which models are resident and when each unloads.
+  Ollama reports residency only, so there are no per-request readings.
+
+### Runtime detection
+
+When a provider name gives no hint, one detection pass tries, in order: oMLX and
+vllm-mlx health (`/health`), llama-server (`/props`), Ollama (`/api/version`),
+the LM Studio family (`/lmstudio-greeting`), Splash (`/status`), and vllm-mlx's
+model list. mlx-lm is recognized by provider name only. Detection runs again when
+a runtime stops answering its own contract, fails its identity check, or comes
+back after 30 seconds away, so a different server on the same port is found.
 
 ## Discovery
 
@@ -133,15 +160,19 @@ Neither action restarts a service or changes settings.
 | Runtime cannot be identified | Choose its runtime in the connection setup; a generic OpenAI-compatible API may lack monitoring endpoints |
 | Extension service unavailable | Review its local-service permission in Settings → Extensions |
 | Missing Mac readings | The OpenChamber host must run macOS and permit the fixed diagnostic commands |
+| "MLX Scope needs one approval" | Approve the updated permission set in Settings → Extensions |
+| Service is still the previous version | Pause and resume MLX Scope in Settings → Extensions |
+| No live LM Studio activity | Install `lms` in `~/.lmstudio/bin` or `~/.cache/lm-studio/bin`; Scope runs it from nowhere else |
+| No chip power | Install [macmon](https://github.com/vladkens/macmon) in `/opt/homebrew/bin` or `/usr/local/bin`; Scope never installs it |
 
-Unknown readings display `—`, never invented zeroes. Never paste credentials,
+Unknown readings are left out, never shown as invented zeroes. Never paste credentials,
 auth files, or raw server responses into a public issue.
 
 ## Development overrides
 
 An explicitly launched service can use `MLX_SCOPE_BASE_URL`, `MLX_SCOPE_API_KEY`,
 `MLX_SCOPE_MODEL`, and `MLX_SCOPE_RUNTIME`. The runtime value is `omlx`, `lmstudio`,
-`mlx-lm`, `vllm-mlx`, or `splash`; the default is `omlx`. `OPENCODE_CONFIG` must be absolute.
+`mlx-lm`, `vllm-mlx`, `splash`, `llama-server`, or `ollama`; the default is `omlx`. `OPENCODE_CONFIG` must be absolute.
 Absolute `XDG_CONFIG_HOME` and `XDG_DATA_HOME` select alternate roots; relative
 values are ignored. An absolute `OPENCODE_CONFIG_DIR` selects the OpenCode 2
 global config directory when the service receives it; a relative value is

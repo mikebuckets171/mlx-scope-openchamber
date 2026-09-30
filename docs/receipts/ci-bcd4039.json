@@ -1,0 +1,41 @@
+{
+  "kind": "local-macos-leg",
+  "hosted": false,
+  "note": "Local run of the macOS leg of .github/workflows/ci.yml. This is NOT hosted CI: the Linux leg did not run.",
+  "result": "pass",
+  "sha": "bcd4039081dbae565ff06cb1c3c72980d1f98b2d",
+  "bunVersion": "1.4.2",
+  "nodeVersion": "22.23.1",
+  "os": "macOS 27.2 arm64",
+  "steps": [
+    "bun install --frozen-lockfile",
+    "bun run check",
+    "git diff --exit-code -- panel/main.js service/main.js",
+    "bunx playwright install chromium webkit",
+    "CI=1 bunx playwright test (chromium, webkit)"
+  ],
+  "unit": {
+    "pass": 301,
+    "fail": 0
+  },
+  "browser": {
+    "pass": 132,
+    "fail": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "projects": [
+      "chromium",
+      "webkit"
+    ]
+  },
+  "bundles": {
+    "panel": "5d63b6f4562456df1139af69dfe34a525273372d65a4d0347835b763c4354a48",
+    "service": "034b5007e223735e350a99c2275f5070f5701b1432ce8db110575c2d9760a869"
+  },
+  "zip": {
+    "name": "mlx-scope-openchamber-1.6.1.zip",
+    "sha256": "0e5dad891e3dc7ca0f62873d5d87e507e310eea8e866352e6a0dd845b5e2f889"
+  },
+  "startedAt": "2026-09-29T19:59:51Z",
+  "finishedAt": "2026-09-29T20:03:41Z"
+}

@@ -1,0 +1,5 @@
+# Fixture bodies are byte-exact runtime output. HTTP bodies end without a newline and the
+# `lms runtime ls` table keeps its trailing pad spaces; editors must not "fix" either.
+[bionic-1.1.6/*.{json,txt}]
+insert_final_newline = false
+trim_trailing_whitespace = false

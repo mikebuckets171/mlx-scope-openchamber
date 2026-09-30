@@ -1,0 +1,124 @@
+# bionic · /v2?state=bionic
+
+## live · 320 dark panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Idle
+#status-sep {aria-hidden="true"}: ·
+#connection: Splash via Bionic
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
+#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
+#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
+#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#panels
+#panel-live {aria-labelledby="tab-live"}
+#hero {aria-label="Inference activity"}: Model loaded · ready for the next request
+#model: example-27b-splash
+#rate: Idle
+#reply-strip: Last reply i 48 s ago | Measure next reply One reply in this chat · arms for 2 min
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="reported"}: 38.6 tok/s
+span.val {data-basis="reported"}: 1,092 out
+span.val {data-basis="reported"}: TTFT 0.51 s
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 7% RAM 33.9 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Splash via Bionic
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+
+## server · 320 dark panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Idle
+#status-sep {aria-hidden="true"}: ·
+#connection: Splash via Bionic
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
+#tab-server {aria-controls="panel-server" aria-selected="true" data-tab="server"}: Server
+#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
+#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#panels
+#panel-server {aria-labelledby="tab-server"}
+[server-runtime]: Ready Runtime Splash via Bionic Version 1.1.6 Engine Splash runtime pack Detected /lmstudio-greeting answered · high confidence Reports Replies recorded as Reported by the runtime
+h2: Runtime
+span.chip: request counts
+span.chip: server averages
+span.chip: loaded models
+span.chip: engines
+span.chip: replies
+[server-residency]: i lms ps · refreshed on load/unload example-27b-splash | 17.4 GiB loaded
+h2: Loaded instances
+span.chip: Idle
+[server-engines]: i lms runtime ls · cached 10 min splash 0.0.5 | mlx-llm 0.28.1 | llama.cpp 1.52.0
+h2: Engines
+span.chip {data-tone="accent"}: In use
+span.chip: Installed
+span.chip: Installed
+[server-catalog]: 1 loaded · 3 listed example-27b-splash | Loaded 262K context example-35b-a3b-splash | Available 262K context example-embed-v1.5 | Available 2,048 context
+h2: Model inventory
+span.chip {data-tone="accent"}: splash
+span.chip {data-tone="accent"}: splash
+span.chip: gguf
+[server-session]: i Since the log stream started Decode average Cache efficiency Completed
+h2: Server session
+span.val {data-basis="reported"}: 37.9 tok/s
+span.val {data-basis="reported"}: 61%
+span.val {data-basis="reported"}: 23
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Splash via Bionic
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+
+## live · 320 light panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Idle
+#status-sep {aria-hidden="true"}: ·
+#connection: Splash via Bionic
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
+#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
+#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
+#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#panels
+#panel-live {aria-labelledby="tab-live"}
+#hero {aria-label="Inference activity"}: Model loaded · ready for the next request
+#model: example-27b-splash
+#rate: Idle
+#reply-strip: Last reply i 48 s ago | Measure next reply One reply in this chat · arms for 2 min
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="reported"}: 38.6 tok/s
+span.val {data-basis="reported"}: 1,092 out
+span.val {data-basis="reported"}: TTFT 0.51 s
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 7% RAM 33.9 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Splash via Bionic
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 

@@ -1,0 +1,32 @@
+# detecting · /v2?state=detecting
+
+## live · 320 dark panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Detecting
+#status-sep {aria-hidden="true"}: ·
+#connection: Automatic
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
+#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
+#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
+#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#panels
+#panel-live {aria-labelledby="tab-live"}
+[callout-live] {data-severity="info"}: Notice: | Looking for a runtime | Checking :8000 for oMLX, llama-server, Ollama, LM Studio, Splash and vllm-mlx.
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 4% RAM 18.3 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Automatic
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+live [callout-live]: Notice: Looking for a runtimeChecking :8000 for oMLX, llama-server, Ollama, LM Studio, Splash and vllm-mlx.

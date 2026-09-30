@@ -25,3 +25,24 @@ test('rapid writes keep click order, recover after failure, and touch no other k
   await Promise.all([first, last]);
   expect(calls).toEqual([['view.efficient', true], ['view.efficient', false]]);
 });
+
+test('pref.v2 is the ledger schema: read once, written only on a change, applied at once, and never blocks on a failure', async () => {
+  const { PrefsV2 } = await import('./preferences.ts');
+  const store = new Map<string, unknown>([['pref.v2', { retentionDays: 45, toasts: 'all' }]]), writes: unknown[] = [];
+  const storage = { get: async (key: string) => store.get(key) as never, set: async (key: string, value: unknown) => { writes.push(value); store.set(key, value); },
+    delete: async () => {}, keys: async () => [...store.keys()] };
+  const prefs = new PrefsV2(storage);
+  expect(await prefs.load()).toMatchObject({ toasts: 'all', retentionDays: 45, tipDismissed: false, firstRunDismissed: false, statusExpanded: false });
+  expect(writes).toEqual([]);
+  // Another frame paused recording meanwhile: the write merges with what is stored now.
+  store.set('pref.v2', { retentionDays: 45, toasts: 'all', history: false });
+  await prefs.set({ tipDismissed: true, firstRunDismissed: true });
+  expect(store.get('pref.v2')).toMatchObject({ retentionDays: 45, toasts: 'all', history: false, tipDismissed: true, noticeDismissed: true });
+  expect(prefs.value).toMatchObject({ tipDismissed: true, firstRunDismissed: true, toasts: 'all', history: false });
+  await prefs.set({ tipDismissed: true });
+  expect(writes).toHaveLength(1);
+  const broken = new PrefsV2({ ...storage, get: async () => { throw Error('HOST_REJECTED'); }, set: async () => { throw Error('HOST_REJECTED'); } });
+  expect(await broken.load()).toMatchObject({ statusExpanded: false });
+  await broken.set({ statusExpanded: true }).catch(() => {});
+  expect(broken.value.statusExpanded).toBe(true);
+});

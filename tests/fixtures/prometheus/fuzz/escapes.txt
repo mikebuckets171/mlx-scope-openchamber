@@ -1,0 +1,7 @@
+# HELP fx_escaped_total Label values with every 0.0.4 escape: \\ and \n in HELP text are escaped too
+# TYPE fx_escaped_total counter
+fx_escaped_total{quote="say \"hi\"",slash="a\\b",newline="one\ntwo",other="keep \t literal"} 3
+fx_escaped_total{comma="a,b",brace="x}y{z",equals="k=v"} 4
+fx_escaped_total{ spaced = "yes" , trailing="comma", } 5
+fx_escaped_total {gap="before brace"} 6
+fx_escaped_total{} 7

@@ -1,0 +1,4 @@
+fx_space_total 1
+	fx_space_total{tab="yes"}	2
+   fx_space_total{indent="yes"}   3   
+

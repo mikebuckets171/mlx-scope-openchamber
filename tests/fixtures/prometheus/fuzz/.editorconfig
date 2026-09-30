@@ -1,0 +1,4 @@
+# Keep the fuzz corpus byte-exact: trailing blanks and a missing final newline are cases.
+[*]
+insert_final_newline = false
+trim_trailing_whitespace = false

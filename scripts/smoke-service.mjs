@@ -5,7 +5,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { createServer as createHTTPServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 // Test the extracted install, not TypeScript or a checkout with node_modules.
@@ -15,6 +17,9 @@ const home = await mkdtemp(join(tmpdir(), 'mlx-scope-smoke-'));
 const token = randomBytes(24).toString('hex');
 const children = [];
 let mockRuntime = null;
+const fixtures = join(dirname(fileURLToPath(import.meta.url)), '../tests/fixtures');
+/** A scrubbed corpus body (tests/fixtures/<runtime>/<version>/…), parsed unless it is Prometheus text. */
+const fixture = async (name) => { const text = await readFile(join(fixtures, name), 'utf8'); return name.endsWith('.txt') ? text : JSON.parse(text); };
 
 function start(port, overrides = {}) {
   const child = spawn(process.execPath, [join(root, 'service/main.js')], {
@@ -53,14 +58,37 @@ async function stop(state) {
 }
 
 function assertHostReadings(snapshot) {
-  assert(snapshot.system && typeof snapshot.system === 'object', 'Host readings must survive an unavailable runtime.');
+  assert(snapshot.host && typeof snapshot.host === 'object', 'Host readings must survive an unavailable runtime.');
   if (process.platform !== 'darwin') return;
-  const readings = snapshot.system.macOS;
+  const readings = snapshot.host.mac;
   assert(readings, 'The packaged Node service must return native Mac readings.');
-  for (const key of ['wiredGB', 'compressedGB', 'swapUsedGB']) {
-    assert.equal(typeof readings[key], 'number', `${key} was not read from macOS.`);
-    assert(Number.isFinite(readings[key]) && readings[key] >= 0, `${key} must be finite and nonnegative.`);
+  for (const key of ['wiredBytes', 'compressedBytes', 'swapUsedBytes']) {
+    assert(Number.isSafeInteger(readings[key]) && readings[key] >= 0, `${key} was not read from macOS as whole bytes.`);
   }
+}
+
+/** Every /v2/snapshot body: the v2 contract, this service instance, and nothing the frames must never receive. */
+let instance = null;
+function assertContract(snapshot) {
+  assert.equal(snapshot.contractVersion, 2);
+  assert.match(snapshot.service?.instance ?? '', /^[0-9a-f]{8}$/);
+  instance ??= snapshot.service.instance;
+  assert.equal(snapshot.completions?.instance, snapshot.service.instance);
+  assert(Number.isFinite(snapshot.serverNow) && Number.isFinite(snapshot.nextPollMs) && snapshot.nextPollMs > 0);
+  assert.equal(snapshot.lease?.ttlMs, 12_000);
+  for (const key of ['pid', 'api_key', 'apiKey', 'cookie', 'request_id', 'prompt']) assert(!JSON.stringify(snapshot).includes(`"${key}"`), `${key} crossed the service boundary.`);
+  return snapshot;
+}
+
+/** Every file under a directory, relative, sorted. */
+async function files(root, prefix = '') {
+  const { readdir } = await import('node:fs/promises');
+  const out = [];
+  for (const entry of await readdir(join(root, prefix), { withFileTypes: true })) {
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) out.push(...await files(root, path)); else out.push(path);
+  }
+  return out.sort();
 }
 
 async function unusedPort() {
@@ -97,26 +125,55 @@ try {
     assert(!service.closed, `Bundled service exited before readiness:\n${service.log}`);
     try {
       const response = await get('/health');
-      healthy = response.status === 200 && (await response.json()).status === 'healthy';
+      const body = response.status === 200 ? await response.json() : null;
+      healthy = body?.ok === true && typeof body.version === 'string';
       if (healthy) break;
     } catch { /* The child may still be binding its listener. */ }
     await delay(50);
   }
   assert(healthy, `Bundled service did not become ready:\n${service.log}`);
-  assert.equal((await get('/health', false)).status, 401);
-  assert.equal((await get('/snapshot', false)).status, 401);
-  assert.equal((await fetch(url + '/snapshot', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(3_000) })).status, 405);
-  const response = await get('/snapshot');
+  for (const path of ['/health', '/v2/snapshot', '/snapshot']) assert.equal((await get(path, false)).status, 401);
+  assert.equal((await fetch(url + '/v2/snapshot', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(3_000) })).status, 405);
+  // A 1.6 panel still polling the retired route learns the contract changed.
+  const retired = await get('/snapshot');
+  assert.equal(retired.status, 410);
+  assert.deepEqual(await retired.json(), { error: 'contract_mismatch', contractVersion: 2 });
+  assert.equal((await get('/v2/unknown')).status, 404);
+  const bad = await get('/v2/snapshot?provider=not%0Aan%20id');
+  assert.equal(bad.status, 400);
+  assert.deepEqual(await bad.json(), { error: 'bad_query', param: 'provider' });
+  const response = await get('/v2/snapshot');
   assert.equal(response.status, 200);
-  const snapshot = await response.json();
-  assert.equal(snapshot.available, false);
-  assert.equal(snapshot.reason, 'runtime_unreachable');
-  assert.equal(snapshot.connection?.selected, 'omlx', 'JSONC must select the configured provider.');
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const snapshot = assertContract(await response.json());
+  assert.equal(snapshot.status.state, 'failing');
+  assert.equal(snapshot.status.reason, 'runtime_unreachable');
+  assert(Number.isInteger(snapshot.status.params.port), 'An unreachable runtime names its port.');
+  assert.equal(snapshot.connection?.id, 'omlx', 'JSONC must select the configured provider.');
   assert.equal(snapshot.connection?.runtime, 'omlx');
-  assert.equal(snapshot.connection?.diagnostic, 'offline');
-  assert.equal(typeof snapshot.message, 'string');
-  assert(snapshot.message.trim(), 'An unavailable connection needs an explanation.');
+  // The service sends reason codes only; the panel words them (panel/present/copy.ts). The 1.6 bridge is gone.
+  assert.equal(snapshot.compat, undefined);
+  assert(!/[a-z]{3,} [a-z]{3,} [a-z]{3,}/i.test(JSON.stringify(snapshot.status)), 'A status carried English.');
   assertHostReadings(snapshot);
+  // The history routes are served: the trend for this selection (one gap: nothing was watched), and oMLX usage, which
+  // an unreachable oMLX cannot give (a 200 body that hides the card, never an error page).
+  const trendResponse = await get('/v2/trend?window=900&series=decodeTps,cpuFraction');
+  assert.equal(trendResponse.status, 200);
+  assert.equal(trendResponse.headers.get('cache-control'), 'no-store');
+  const trend = await trendResponse.json();
+  assert.equal(trend.contractVersion, 2);
+  assert.equal(trend.windowMs, 900_000);
+  assert(Array.isArray(trend.gaps) && Array.isArray(trend.marks) && typeof trend.series === 'object');
+  assert.equal((await get('/v2/trend?window=600')).status, 400);
+  const usageResponse = await get('/v2/usage?range=7d');
+  assert.equal(usageResponse.status, 200);
+  const usage = await usageResponse.json();
+  assert.equal(usage.contractVersion, 2);
+  assert.equal(usage.available, false);
+  assert(['runtime_unavailable', 'not_omlx'].includes(usage.reason), `Unexpected usage reason ${usage.reason}.`);
+  assert.equal((await get('/v2/usage?range=1y')).status, 400);
+  const leader = assertContract(await (await get('/v2/snapshot?frame=0badc0de&surface=panel')).json());
+  assert.deepEqual(leader.lease, { leader: true, epoch: 1, ttlMs: 12_000, leaderSurface: 'panel' });
 
   // A real bind failure must exit and retain its actionable cause in stderr.
   const collision = start(port);
@@ -177,9 +234,24 @@ try {
     } else if (runtimeKind === 'omlx' && path === '/v1/models/status') {
       if (request.headers.authorization !== `Bearer ${runtimeKey}`) { rejectAuth('Model metadata must use the configured key.'); return; }
       body = { models: [] };
-    } else if (runtimeKind === 'omlx' && (path === '/admin/api/activity' || path === '/admin/api/stats')) {
+    } else if (runtimeKind === 'omlx' && path === '/api/status') {
+      if (request.headers.authorization !== `Bearer ${runtimeKey}`) { rejectAuth('Session totals must use the configured key.'); return; }
+      body = await fixture('omlx/0.7.0rc1/api-status.idle.json');
+    } else if (runtimeKind === 'omlx' && path === '/admin/api/usage') {
+      if (request.headers.cookie !== 'omlx_admin_session=smoke') { rejectAuth('Usage requires the authenticated oMLX session.'); return; }
+      body = await fixture('omlx/0.7.0rc1/admin-api-usage.7d-details.json');
+    } else if (runtimeKind === 'splash' && path === '/status') {
+      body = await fixture('splash/1.1.0/status.decoding.json');
+    } else if (runtimeKind === 'llama-server' && ['/health', '/props', '/slots', '/metrics'].includes(path)) {
+      body = await fixture({ '/health': 'llama-server/b10519/health.ok.json', '/props': 'llama-server/b10519/props.normal.json',
+        '/slots': 'llama-server/b10519/slots.one-busy.json', '/metrics': 'llama-server/b10519/metrics.scrape-1.txt' }[path]);
+      if (typeof body === 'string') { response.setHeader('Content-Type', 'text/plain; version=0.0.4'); response.end(body); return; }
+    } else if (runtimeKind === 'ollama' && (path === '/api/version' || path === '/api/ps')) {
+      body = await fixture(path === '/api/version' ? 'ollama/0.40.0/api-version.default.json' : 'ollama/0.40.0/api-ps.one-model.json');
+    } else if (runtimeKind === 'omlx' && path === '/admin/api/activity') {
       if (request.headers.cookie !== 'omlx_admin_session=smoke') { rejectAuth('Monitoring requires the authenticated oMLX session.'); return; }
-      body = { engines: {}, active_models: { models: [{ id: 'fixture', active_requests: 1, prefilling: primary ? [] : [flight], activities: primary ? [flight] : [] }] } };
+      body = { engines: {}, active_models: { models: [{ id: 'fixture', active_requests: flight ? 1 : 0, prefilling: primary || !flight ? [] : [flight],
+        activities: primary && flight ? [flight] : [] }] } };
     } else { response.writeHead(404); response.end(); return; }
     if (path !== '/admin/api/login' && request.method !== 'GET') { response.writeHead(405); response.end(); return; }
     response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(body));
@@ -195,47 +267,66 @@ try {
     await delay(50);
   }
   assert(ready, `Packaged service did not restart: ${activeService.log}`);
-  const activeSnapshot = await (await get('/snapshot')).json();
-  assert.equal(activeSnapshot.available, true);
+  const v2 = async path => assertContract(await (await get(path)).json());
+  const activeSnapshot = await v2('/v2/snapshot');
+  assert.equal(activeSnapshot.status.state, 'ready');
   assertHostReadings(activeSnapshot);
-  assert.equal(activeSnapshot.prefillProgress, 0.64);
-  assert.equal(activeSnapshot.prefillETASeconds, 0.2);
-  assert.equal(activeSnapshot.residentModelCount, 1);
-  assert.equal(activeSnapshot.residentModels[0].prefillProgress, 0.64);
-  assert.equal(activeSnapshot.prefillProcessedTokens, 64);
-  assert.equal(activeSnapshot.prefillTotalTokens, 100);
-  assert.equal(activeSnapshot.prefillProgressStale, false);
+  assert.equal(activeSnapshot.runtime.request.prefillFraction, 0.64);
+  assert.equal(activeSnapshot.runtime.request.prefillEtaMs, 200);
+  assert.equal(activeSnapshot.runtime.residencyCount, 1);
+  assert.equal(activeSnapshot.runtime.residency[0].prefillFraction, 0.64);
+  assert.equal(activeSnapshot.runtime.request.prefillProcessedTokens, 64);
+  assert.equal(activeSnapshot.runtime.request.prefillTotalTokens, 100);
+  assert.equal(activeSnapshot.runtime.request.prefillStale, undefined);
   assert(!JSON.stringify(activeSnapshot).includes('private-smoke-request'));
   assert(!JSON.stringify(activeSnapshot).includes('isolated-smoke-key'));
   flight = { ...flight, processed: 101 };
   await delay(550);
-  const invalid = await (await get('/snapshot')).json();
-  assert.equal(invalid.prefillProgress, null, 'Malformed progress must not become 100% complete.');
-  assert.equal(invalid.prefillETASeconds, null);
-  assert.equal(invalid.residentModels[0].prefillProgress, null);
+  const invalid = await v2('/v2/snapshot');
+  assert.equal(invalid.runtime.request?.prefillFraction, undefined, 'Malformed progress must not become 100% complete.');
+  assert.equal(invalid.runtime.request?.prefillEtaMs, undefined);
+  assert.equal(invalid.runtime.residency[0].prefillFraction, undefined);
   primary = true;
   flight = {request_id: 'private-primary-request', kind: 'generate', detail: 'generating', token_count: 64, elapsed_seconds: 30, last_activity_age_seconds: 0.1};
   await delay(550);
-  const dflash = await (await get('/snapshot')).json();
-  assert.equal(dflash.available, true);
-  assert.equal(dflash.phase, 'decode');
-  assert.equal(dflash.completionTokens, 64);
-  assert.equal(dflash.liveDecodeTPS, null, 'Activity elapsed time is not a decode average.');
-  assert.equal(dflash.prefillProgress, null, 'Primary DFlash has no reported prefill fraction.');
-  assert(Number.isFinite(dflash.traceEpoch));
+  const dflash = await v2('/v2/snapshot');
+  assert.equal(dflash.status.state, 'ready');
+  assert.equal(dflash.runtime.phase, 'decode');
+  assert.equal(dflash.runtime.request.outputTokens, 64);
+  assert.equal(dflash.runtime.request.decodeTps, undefined, 'Activity elapsed time is not a decode average.');
+  assert.equal(dflash.runtime.request.prefillFraction, undefined, 'Primary DFlash has no reported prefill fraction.');
   assert(!JSON.stringify(dflash).includes('private-primary-request'));
   primary = false;
   flight = {request_id: 'private-fallback', processed: 25, total: 100, speed: 100, eta: 0.75};
   await delay(550);
-  const fallback = await (await get('/snapshot')).json();
-  assert.equal(fallback.phase, 'prefill');
-  assert.equal(fallback.prefillProgress, 0.25);
-  assert.notEqual(fallback.traceEpoch, dflash.traceEpoch);
+  const fallback = await v2('/v2/snapshot');
+  assert.equal(fallback.runtime.phase, 'prefill');
+  assert.equal(fallback.runtime.request.prefillFraction, 0.25);
+  // The request leaves: the service's history turns what it watched into one last-observed completion (svc-history).
+  flight = null;
+  await delay(550);
+  const finished = await v2('/v2/snapshot');
+  assert.equal(finished.runtime.request, null);
+  assert(finished.completions.items.length >= 1, 'A request that left view must become a completion.');
+  assert(finished.completions.items.every(item => item.basis === 'last-observed' && Number.isSafeInteger(item.seq)));
+  assert.equal(finished.capabilities['server.completions']?.basis, 'last-observed');
+  const watched = await (await get('/v2/trend?window=900&series=prefillTps,active')).json();
+  assert(watched.series.active?.buckets.some(bucket => Array.isArray(bucket)), 'The trend must hold the readings the frames saw.');
+  // /v2/usage reads oMLX's records through the adapter's own admin login, allowlisted and cached.
+  const records = await (await get('/v2/usage?range=7d')).json();
+  assert.equal(records.available, true);
+  assert(records.buckets.length > 0 && records.models.length <= 50);
+  const again = await (await get('/v2/usage?range=7d')).json();
+  assert.deepEqual({ ...again, serverNow: 0 }, { ...records, serverNow: 0 }, 'The usage read is cached for 5 min.');
+  assert.equal(again.cachedAt, records.cachedAt);
+  assert.equal(runtimeCalls.filter(call => call.path === '/admin/api/usage').length, 1);
   assert.deepEqual(authFailures, []);
   assert.equal(runtimeCalls.filter(call => call.path === '/admin/api/login').length, 1, 'The package must authenticate once and reuse its session.');
-  for (const path of ['/health', '/v1/models/status', '/admin/api/activity', '/admin/api/stats']) {
+  for (const path of ['/health', '/v1/models/status', '/admin/api/activity', '/api/status']) {
     assert(runtimeCalls.some(call => call.path === path), `The package did not exercise ${path}.`);
   }
+  // G1: the stats route (it echoes the api_key) is never read; /v2/usage now reads through the same admin login.
+  assert(!runtimeCalls.some(call => call.path === '/admin/api/stats'), 'The package read /admin/api/stats.');
   await stop(activeService);
 
   // Use only isolated HTTP fixtures; this checks that every adapter ships in the ZIP.
@@ -253,37 +344,38 @@ try {
   }
   assert(ready, `Packaged multi-runtime service did not become ready: ${multiService.log}`);
   runtimeKind = 'lmstudio';
-  const studio = await (await get('/snapshot?provider=studio')).json();
-  assert.equal(studio.available, true);
-  assert.equal(studio.runtime, 'lmstudio');
-  assert.equal(studio.connection?.coverage, 'inventory');
-  assert.equal(studio.catalog[0].name, 'studio-fixture');
-  assert.equal(studio.catalog[0].contextWindow, 8192);
-  assert.equal(studio.residentModelCount, 1);
-  assert.equal(studio.activeRequests, null);
-  assert.equal(studio.liveDecodeTPS, null);
+  const studio = await v2('/v2/snapshot?provider=studio');
+  assert.equal(studio.status.state, 'ready');
+  assert.equal(studio.connection.runtime, 'lmstudio');
+  assert.equal(studio.runtime.catalog[0].name, 'studio-fixture');
+  assert.equal(studio.runtime.catalog[0].contextWindowTokens, 8192);
+  assert.equal(studio.runtime.residencyCount, 1);
+  assert.equal(studio.runtime.server.active, null);
+  assert.equal(studio.runtime.request, null);
   runtimeKind = 'mlx-lm';
-  const mlx = await (await get('/snapshot?provider=mlx-lm')).json();
-  assert.equal(mlx.available, true);
-  assert.equal(mlx.runtime, 'mlx-lm');
-  assert.equal(mlx.catalog[0].name, 'downloaded-fixture');
-  assert.equal(mlx.catalog[0].loaded, null, 'A downloaded model is not a resident model.');
-  assert.equal(mlx.activeRequests, null);
-  assert.equal(mlx.prefillProgress, null);
+  const mlx = await v2('/v2/snapshot?provider=mlx-lm');
+  assert.equal(mlx.status.state, 'ready');
+  assert.equal(mlx.connection.runtime, 'mlx-lm');
+  assert.equal(mlx.runtime.catalog[0].name, 'downloaded-fixture');
+  assert.equal(mlx.runtime.catalog[0].loaded, null, 'A downloaded model is not a resident model.');
+  assert.equal(mlx.runtime.server.active, null);
+  assert.equal(mlx.runtime.request, null);
   runtimeKind = 'vllm-mlx';
-  const pending = await (await get('/snapshot?provider=vllm-mlx')).json();
-  assert.equal(pending.available, true);
-  assert.equal(pending.runtime, 'vllm-mlx');
-  assert.equal(pending.liveDecodeTPS, null, 'The first output counter does not prove fresh generation.');
+  const pending = await v2('/v2/snapshot?provider=vllm-mlx');
+  assert.equal(pending.status.state, 'ready');
+  assert.equal(pending.connection.runtime, 'vllm-mlx');
+  assert.equal(pending.runtime.request?.decodeTps, undefined, 'The first output counter does not prove fresh generation.');
   outputTokens = 20;
   await delay(550);
-  const vllm = await (await get('/snapshot?provider=vllm-mlx')).json();
-  assert.equal(vllm.phase, 'decode');
-  assert.equal(vllm.liveDecodeTPS, 40);
-  assert.equal(vllm.completionTokens, 20);
-  assert.equal(vllm.cachedTokens, 50);
-  assert.equal(vllm.prefillProgress, null);
-  assert.equal(vllm.connection?.coverage, 'requests');
+  const vllm = await v2('/v2/snapshot?provider=vllm-mlx');
+  assert.equal(vllm.runtime.phase, 'decode');
+  assert.equal(vllm.runtime.request.decodeTps, 40);
+  assert.equal(vllm.runtime.request.outputTokens, 20);
+  assert.equal(vllm.runtime.request.cachedTokens, 50);
+  assert.equal(vllm.runtime.request.prefillFraction, undefined);
+  // One service instance serves every read until it restarts.
+  assert(![studio, mlx, pending, vllm].some(result => result.service.instance === instance), 'A restarted service must announce a new instance.');
+  assert.equal(new Set([studio, mlx, pending, vllm].map(result => result.service.instance)).size, 1);
   assert.deepEqual(authFailures, []);
   for (const result of [studio, mlx, pending, vllm]) {
     const encoded = JSON.stringify(result);
@@ -293,13 +385,57 @@ try {
   }
   assert(runtimeCalls.filter(call => call.runtime !== 'omlx').every(call => call.method === 'GET'));
   await stop(multiService);
+
+  // Splash 1.1, llama-server and Ollama from their scrubbed corpora, selected by provider name hints.
+  await writeFile(join(config, 'opencode.jsonc'), JSON.stringify({ provider: {
+    splash: { name: 'Splash', options: { baseURL: runtimeBase } },
+    'llama-cpp': { name: 'llama.cpp server', options: { baseURL: runtimeBase } },
+    ollama: { name: 'Ollama', options: { baseURL: runtimeBase } },
+  } }));
+  const fixtureService = start(port);
+  ready = false;
+  const fixtureDeadline = performance.now() + 5000;
+  while (performance.now() < fixtureDeadline && !fixtureService.closed) {
+    try { ready = (await get('/health')).status === 200; if (ready) break; } catch {}
+    await delay(50);
+  }
+  assert(ready, `Packaged fixture-runtime service did not become ready: ${fixtureService.log}`);
+  runtimeKind = 'splash';
+  const splash = await v2('/v2/snapshot?provider=splash');
+  assert.equal(splash.connection.runtime, 'splash');
+  assert.equal(splash.status.state, 'ready');
+  // Splash reports server-wide work, not a request's phase.
+  assert.equal(splash.runtime.phase, 'processing');
+  assert(splash.runtime.server.active >= 1);
+  runtimeKind = 'llama-server';
+  const llama = await v2('/v2/snapshot?provider=llama-cpp');
+  assert.equal(llama.connection.runtime, 'llama-server');
+  assert.equal(llama.status.state, 'ready');
+  assert(llama.runtime.slots.length >= 1, 'llama-server slots must come through as numbers.');
+  runtimeKind = 'ollama';
+  const ollama = await v2('/v2/snapshot?provider=ollama');
+  assert.equal(ollama.connection.runtime, 'ollama');
+  assert.equal(ollama.status.state, 'ready');
+  assert(ollama.runtime.residency.length >= 1, 'Ollama residency must come through.');
+  for (const result of [splash, llama, ollama]) {
+    const encoded = JSON.stringify(result);
+    for (const forbidden of ['"pid"', 'last_crash_trace', '"prompt"', 'digest', 'model_path']) assert(!encoded.includes(forbidden), `${forbidden} crossed the service boundary.`);
+  }
+  assert(runtimeCalls.filter(call => ['splash', 'llama-server', 'ollama'].includes(call.runtime)).every(call => call.method === 'GET'));
+  await stop(fixtureService);
+  // The service writes nothing (P5): the temporary HOME holds only what this script wrote.
+  const written = await files(home);
+  assert.deepEqual(written, ['.config/opencode/opencode.jsonc'], `The service created files: ${written.join(', ')}`);
   if (process.platform === 'darwin') {
     console.log('PASS: packaged Node service returned real macOS wired, compressed, and swap readings.');
   }
   console.log('PASS: packaged DFlash output and fallback transition use reported counters without inventing speed or prefill.');
   console.log('PASS: packaged prefill counters and invalid-progress rejection verified against loopback fixture.');
   console.log('PASS: packaged LM Studio, mlx-lm, and vllm-mlx adapters preserve credentials, telemetry boundaries, and output freshness with synthetic fixtures.');
-  console.log('PASS: packaged Node service starts without node_modules; /health, /snapshot, JSONC, authentication, startup errors, and shutdown verified.');
+  console.log('PASS: packaged Splash 1.1, llama-server and Ollama adapters read their scrubbed corpora with GET only.');
+  console.log('PASS: packaged history: a watched oMLX request becomes a last-observed completion, /v2/trend holds the readings, /v2/usage reads through the admin login once (cached).');
+  console.log('PASS: the packaged service wrote no files under its HOME.');
+  console.log('PASS: packaged Node service starts without node_modules; /health, /v2/snapshot, the retired /snapshot 410, JSONC, authentication, startup errors, and shutdown verified.');
 } finally {
   await Promise.all(children.map(stop));
   if (mockRuntime) { mockRuntime.closeAllConnections(); await new Promise(resolveClose => mockRuntime.close(resolveClose)); }

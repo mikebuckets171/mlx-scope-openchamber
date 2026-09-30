@@ -1,0 +1,15 @@
++-o AGXAcceleratorG17X  <class AGXAcceleratorG17X, id 0x100000a42, registered, matched, active, busy 0 (512 ms), retain 82>
+    {
+      "SchedulerState" = {"Stamps"=({"idx"=50,"sub"=51234816,"gpu"=51234816},{"idx"=64,"sub"=1311113216,"gpu"=1311112960},{"idx"=67,"sub"=18446744073201205248,"gpu"=18446744073201204992}),"BusyWorkQueues"=({"submit"=(221184409600,232870559744),"finished"=10485761,"id"=43,"submitted"=10485762,"added"=10485762,"aborted"=No,"state"="Idle"})}
+      "IOMatchedAtBoot" = Yes
+      "vendor-id" = <6b100000>
+      "GPURawCounterBundleName" = "AGXGPURawCounterBundle"
+      "AGXParameterBufferMaxSizeEverMemless" = 1610612736
+      "GPURawCounterPluginClassName" = "AGXGPURawCounterSourceGroup"
+      "MetalPluginClassName" = "AGXG17SDevice"
+      "SCMVersionNumber" = ""
+      "AGCInfo" = {"fLastSubmissionPID"=4242,"fSubmissionsSinceLastCheck"=3,"fBusyCount"=1}
+      "MetalPluginName" = "AGXMetalG17X"
+      "IONameMatched" = "gpu,t6050"
+      "CommandSubmissionEnabled" = Yes
+      "PerformanceStatistics" = {"In use system memory (driver)"=0,"Alloc system memory"=33285996544,"Tiler Utilization %"=12,"recoveryCount"=1,"lastRecoveryTime"=1024000000000,"Renderer Utilization %"=85,"TiledSceneBytes"=7438336,"Device Utilization %"=8
