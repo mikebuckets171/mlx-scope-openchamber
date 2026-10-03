@@ -139,7 +139,7 @@ window.addEventListener('message', event => {
   const approval = state === 'needs-approval' || window.previewError === 'NO_SERVICE';
   if (approval || window.previewError) { failure(m.id, approval ? 'NO_SERVICE' : window.previewError, 'NO_SERVICE: Allow this extension’s local service in Settings → Extensions.'); return; }
   if (demo && state !== 'contract-mismatch' && ['/v2/trend','/v2/usage'].includes(m.payload.path)) {
-    const body = m.payload.path === '/v2/trend' ? ScopeStates.demoTrend(Date.now(), query.window) : ScopeStates.demoUsage(Date.now(), query.range);
+    const body = m.payload.path === '/v2/trend' ? ScopeStates.demoTrend(Date.now(), query.window, state) : ScopeStates.demoUsage(Date.now(), query.range);
     result(m.id, {status:200,body:JSON.stringify(body)}); return;
   }
   const mismatch = state === 'contract-mismatch' || m.payload.path !== '/v2/snapshot';

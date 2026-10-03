@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- Live tok/s for standalone Splish and Splash in the main view and Session widget, derived from fresh native decode
+  counter changes. The reading is labeled server-wide and clears when idle or stale; lifetime averages remain separate.
+  Monitoring still uses only passive `/status` reads at the existing cadence.
+
 ### Changed
 
 - A quieter layout across the full page and rail, with clearer typography, grouped readings, fewer card borders,
@@ -14,8 +20,8 @@
 
 ### Maintenance
 
-- Shared markup keeps the view bundle near its previous size. Its ceiling increases from 260 KB to 262 KB for the
-  layout and theme handling; runtime probes, dependencies, permissions and polling frequency are unchanged.
+- Shared markup keeps the view bundle near its previous size. Its ceiling increases from 260 KB to 264 KB for the
+  layout, theme handling and live server-rate display; runtime probes, dependencies, permissions and polling frequency are unchanged.
 
 ## 2.0.1
 

@@ -13,7 +13,7 @@ const chartMarkup = (body: Extract<HeroBody, { kind: 'decode' }>): Raw | string 
     <path class="trace-area" d="${chart.area}"/><path class="trace" d="${chart.line}"/>${chart.mark === null ? '' : html`<line class="mark" x1="${chart.mark}" x2="${chart.mark}" y1="4" y2="116"/>`}</svg></div>
     <figcaption><span>−90s</span><span>Live observations${chart.mark === null ? '' : ' · turn start ┊'}</span><span>now</span></figcaption></figure>`;
 };
-const readout = (rate: string, unit: Part, kind: 'word' | 'prefill' | 'decode'): Raw => html`<div class="readout"><span class="rate${kind === 'word' ? ' is-word' : ''}" id="rate"${kind === 'word' ? '' : html` data-basis="reported"`}>${rate}</span>${kind === 'decode' ? html`<span class="rate-unit" aria-label="tokens per second">tok/s</span>` : ''}<span class="unit">${unit}</span></div>`;
+const readout = (rate: string, unit: Part, kind: 'word' | 'prefill' | 'decode', basis: 'reported' | 'derived' = 'reported'): Raw => html`<div class="readout"${basis === 'derived' ? html` data-basis="derived"` : ''}><span class="rate${kind === 'word' ? ' is-word' : ''}" id="rate"${kind === 'word' || basis === 'derived' ? '' : html` data-basis="reported"`}>${rate}</span>${kind === 'decode' ? html`<span class="rate-unit" aria-label="tokens per second">tok/s</span>` : ''}<span class="unit">${unit}</span></div>`;
 const heroBody = (body: HeroBody | null, open: Open): Raw | string => {
   if (!body) return '';
   switch (body.kind) {
@@ -28,7 +28,7 @@ const heroBody = (body: HeroBody | null, open: Open): Raw | string => {
     }
     case 'decode': {
       const t = tipParts(P, body.tip, open);
-      return html`<div class="hero-row">${readout(body.rate, html`Request average<br><span class="basis-line">${body.source} ${t.btn}</span>`, 'decode')}${t.pop}
+      return html`<div class="hero-row">${readout(body.rate, html`${body.label}<br><span class="basis-line${body.basis === 'derived' ? ' basis' : ''}">${body.source} ${t.btn}</span>`, 'decode', body.basis)}${t.pop}
         ${chartMarkup(body)}</div>`;
     }
     default: return html`<div class="hero-row">${readout(body.word, body.unit, 'word')}</div>

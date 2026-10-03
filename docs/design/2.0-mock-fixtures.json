@@ -3701,6 +3701,74 @@
    "view": {
     "storage": "confirm"
    }
+  },
+  "splash-decode": {
+   "title": "Splash live decode · server-wide",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": null,
+     "params": {},
+     "sinceAt": 1790690700000
+    },
+    "runtime": {
+     "sampledAt": 1790690700000,
+     "phase": "decode",
+     "server": {
+      "active": 1,
+      "queued": 0,
+      "rates": {
+       "decodeTps": 43.8,
+       "windowMs": 1000
+      }
+     }
+    },
+    "alerts": [],
+    "nextPollMs": 1000,
+    "capabilities": {
+     "server.rates": {
+      "scope": "server",
+      "basis": "derived"
+     }
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "splash-measuring": {
+   "title": "Splash waiting for live decode counters",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": null,
+     "params": {},
+     "sinceAt": 1790690700000
+    },
+    "runtime": {
+     "sampledAt": 1790690700000,
+     "phase": "decode",
+     "server": {
+      "active": 1,
+      "queued": 0
+     }
+    },
+    "alerts": [],
+    "nextPollMs": 1000
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
   }
  },
  "trendFresh": {

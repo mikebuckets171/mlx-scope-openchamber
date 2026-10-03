@@ -63,7 +63,7 @@ describe('two-way exec match', () => {
 
 describe('bundles and pages', () => {
   test('ceilings are the plan §6 numbers', () => {
-    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 262_000, 'service/main.js': 170_000, 'background/main.js': 25_000 });
+    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 264_000, 'service/main.js': 170_000, 'background/main.js': 25_000 });
   });
   test('the background page declares exactly the panel CSP', () => {
     const panel = cspOf(read('panel/index.html'));

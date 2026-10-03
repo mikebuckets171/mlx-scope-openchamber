@@ -13,7 +13,7 @@ import { alertCopy, APPROVAL, FIRST_RUN, NON_LOCAL, PRESSURE, RESTART, SEVERITY_
 import { delta, dur, int, kt, mmss, pct, tps } from './format.ts';
 import { attrChip, BASIS_WORD, visibleAlerts, type Chip } from './parts.ts';
 import type { Reading } from './reading.ts';
-import { glanceModel, modelOf, SERVER_WIDE } from './scope.ts';
+import { glanceModel, liveSplashRate, modelOf, SERVER_WIDE } from './scope.ts';
 
 // Owner: ui-core. The Work Status section and the rail's Compact mode (plan §5.8, G2): a glance line at 56 px (80 with
 // an alert, 24 for a non-local chat) and the Turn stats replacement at ≤ 200 px. Rows a runtime cannot report are left out.
@@ -42,7 +42,7 @@ export interface StatusSectionInput {
 export interface StatusRow { label: string; value: string; basis: string | null }
 export type DotTone = 'live' | 'prefill' | 'warn' | 'bad' | 'idle';
 export interface Spark { path: string; label: string }
-export interface GlanceLine1 { dot: DotTone; word: string | null; model: string | null; rate: string | null; unit: string | null; chip: Chip | null; describedBy: boolean; title: string | null; since: string | null; muted: boolean }
+export interface GlanceLine1 { dot: DotTone; word: string | null; model: string | null; rate: string | null; rateBasis: 'reported' | 'derived'; unit: string | null; chip: Chip | null; describedBy: boolean; title: string | null; since: string | null; muted: boolean }
 export type GlanceLine2 =
   | { kind: 'spark'; spark: Spark | null; size: '' | 'sm' | 'wide'; reason: string | null; last: { rate: string; basis: string | null } | null; chips: Chip[]; toggle: boolean }
   | { kind: 'prefill'; percent: string; eta: string | null; toggle: boolean }
@@ -115,7 +115,7 @@ const blank = (line1: GlanceLine1, line2: GlanceLine2 | null, height: number, ex
   line2: line2 && line2.kind === 'spark' ? { chips: line2.chips.map(chip => chip.text), alert: null } : null, rows: [], tip: null,
   glance: { line1, line2, notice: null, alert: null }, turn: null, ...extra,
 });
-const L1 = (partial: Partial<GlanceLine1>): GlanceLine1 => ({ dot: 'idle', word: null, model: null, rate: null, unit: null, chip: null, describedBy: false, title: null, since: null, muted: false, ...partial });
+const L1 = (partial: Partial<GlanceLine1>): GlanceLine1 => ({ dot: 'idle', word: null, model: null, rate: null, rateBasis: 'reported', unit: null, chip: null, describedBy: false, title: null, since: null, muted: false, ...partial });
 
 /** Turn stats rows (owner decision 13): Response, Turn time, Model · tool time, First TTFT, Tokens in · out, Cache %, Context used, vs usual. */
 const turnRows = (input: StatusSectionInput): { rows: StatusRow[]; title: string; sub: string | null; reason: string | null; label: AttributionLabel } | null => {
@@ -211,6 +211,10 @@ export const presentStatusSection = (input: StatusSectionInput): StatusSectionVi
     if (next?.kind === 'measuring') return glance(L1({ ...line, chip: attrChip({ kind: 'armed' }) }), { kind: 'measuring', elapsed: dur(Math.max(0, now - next.startedAt)) });
     return described(input.attribution, line, { spark, size: input.attribution.kind === 'server-wide' ? 'sm' : '', last: null, chips, toggle: true });
   }
+  const serverRate = liveSplashRate(snapshot);
+  if (serverRate !== null) return described({ kind: 'server-wide', reason: 'all-requests' },
+    { dot: 'live', word: 'Live', model, rate: tps(serverRate), rateBasis: 'derived', unit: 'tok/s' },
+    { spark: null, size: 'sm', last: null, chips, toggle: true });
   // Idle, queued or inventory: the last reply keeps its label; an armed Next reply waits for a message.
   const word = phase === 'queued' ? 'Queued' : phase === 'not-loaded' ? 'No model' : ['decode', 'prefill', 'processing'].includes(phase) ? 'Working' : 'Idle';
   if (next?.kind === 'armed') return glance(L1({ word, model, chip: attrChip({ kind: 'armed' }) }), { kind: 'armed', left: mmss(Math.max(0, 120_000 - (now - next.at))) });

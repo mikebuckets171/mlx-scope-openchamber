@@ -58,6 +58,24 @@ main.scope {aria-label="MLX Scope" data-surface="status"}
 #ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:56px"}: Critical: | oMLX stopped responding | since 14:02 | Scope checks again automatically
 setHeight: 56
 
+## status-splash-decode · 280 dark status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Live 43.8 tok/s derived Example-27B
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
+span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="all requests"}: Server-wide
+#ws-why: all requests
+span.chip: GPU 3% busy
+setHeight: 80
+
+## status-splash-decode-light · 280 light status
+main.scope {aria-label="MLX Scope" data-surface="status"}
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Live 43.8 tok/s derived Example-27B
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
+span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="all requests"}: Server-wide
+#ws-why: all requests
+span.chip: GPU 3% busy
+setHeight: 80
+
 ## status-recovering · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
 #ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:56px"}: Splash is recovering | since 14:03 | Scope reads its status every 30 s

@@ -7,10 +7,12 @@ import { TREND_WINDOWS_MS, type TrendWindowMs, type TrendV2 } from '../../src/co
 import { USAGE_RANGES, type UsageRange, type UsageV2 } from '../../src/contract/usage.ts';
 
 // Optional design handoff only. Every demo source is synthetic and stays in this test host.
-const demoTrend = (now: number, seconds = '900'): TrendV2 => {
+const demoTrend = (now: number, seconds = '900', state = ''): TrendV2 => {
   const requested = Number(seconds) * 1000;
   const windowMs = TREND_WINDOWS_MS.includes(requested as TrendWindowMs) ? requested as TrendWindowMs : 900_000;
   const trend = mockTrend(windowMs), offset = now - trend.serverNow;
+  // Splash live rates are a separate server signal; the persisted trend has no request-rate capability.
+  if (state.startsWith('splash-')) { delete trend.series.decodeTps; delete trend.series.prefillTps; }
   return { ...trend, serverNow: now, startAt: trend.startAt + offset,
     gaps: trend.gaps.map(gap => ({ fromAt: gap.fromAt + offset, toAt: gap.toAt + offset })),
     marks: trend.marks.map(mark => ({ ...mark, at: mark.at + offset })) };
@@ -42,6 +44,10 @@ const demoBody = (state: string, options: MockOptions, elapsedMs: number): Recor
   const body = mockBody(state === 'idle-pressure' ? 'pressure' : state, options);
   if (state === 'idle-pressure') body.runtime = mockBody('idle', options).runtime;
   const snapshot = parseSnapshotV2(body);
+  if (state === 'splash-decode' && snapshot?.runtime.server.rates) {
+    snapshot.runtime.server.rates.decodeTps = 43.8 + DEMO_RATES[Math.floor(Math.max(0, elapsedMs) / 1000) % DEMO_RATES.length]! - 26.4;
+    return snapshot as unknown as Record<string, unknown>;
+  }
   if (state !== 'decode' || !snapshot?.runtime.request) return body;
   const elapsed = Math.max(0, elapsedMs), rate = DEMO_RATES[Math.floor(elapsed / 500) % DEMO_RATES.length]!;
   const request = snapshot.runtime.request, output = (request.outputTokens ?? 0) + Math.floor(elapsed / 1000 * 26.6);

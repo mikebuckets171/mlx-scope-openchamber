@@ -17,7 +17,7 @@ value that is not reported directly by the runtime says how it was obtained.
 | **Ollama** | Which models are resident, their GPU-resident size as Ollama reports it, and when each unloads. Ollama reports residency only |
 | **vllm-mlx** | Reported request activity, queue, output and speed; prefill and reuse where the engine exposes usable data |
 | **mlx-lm** | Server availability and the available model catalogue |
-| **Splash (standalone `splash serve`)** | Loaded model and context, idle/generating/recovering state, server decode speed, first-token and inter-token p50/p95 from Splash itself, completed/failed counters, vision chips, and GPU (Metal) memory now/peak |
+| **Splish / Splash (standalone)** | Live server-wide tok/s in the main view and Session widget, loaded model and context, idle/generating/recovering state, lifetime server averages, first-token and inter-token p50/p95 from Splash itself, completed/failed counters, vision chips, and GPU (Metal) memory now/peak |
 
 On macOS, every runtime also gets host readings: CPU, memory, swap, the kernel's memory pressure level, the GPU
 wired-memory limit, GPU busy and GPU memory as the graphics driver reports them, thermal pressure, and optionally a chip

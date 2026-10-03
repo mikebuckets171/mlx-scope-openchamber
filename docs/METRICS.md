@@ -54,7 +54,7 @@ value travels without one.
 | Server requests | Active and queued counts; `null` means the runtime cannot count, and nothing is shown |
 | Server averages | Session averages since start: decode, prefill, cache efficiency, request totals, uptime |
 | Server latency | Native first-token and inter-token p50/p95 with sample counts (Splash) |
-| Server rates / speculative | llama-server prompt and decode rates and draft acceptance, over a stated window |
+| Server rates / speculative | Splish/Splash live decode throughput; llama-server prompt/decode rates and draft acceptance, over a stated window |
 | Server memory (process, model, Metal, ceiling) | Each kept separate; never added together |
 | Server residency, slots, catalog, engines | Loaded models, llama-server slots, available models, `lms runtime ls` engines |
 | Server usage | oMLX's own 7/30/90-day records |
@@ -86,7 +86,8 @@ value travels without one.
 | oMLX process footprint | `footprint` of the process listening on the oMLX port; the process ID never leaves the service |
 | Model allocation | Reported model allocation, separate from process footprint |
 | RAM / SSD cache | Reported server cache sizes, kept separate from model allocation |
-| Splash decode throughput | Aggregate server rate; not attributable to one request |
+| Splish/Splash live decode | Change in native output tokens divided by change in native decode milliseconds across two fresh active polls (derived). Updates during generation; server-wide, not one chat or streamed wall-clock speed. Missing, stale, idle, reset or unchanged counters have no live rate |
+| Splash average decode | Native lifetime aggregate since engine start, kept in Server averages; never labeled live |
 | Splash completed / failed | Native counters since engine start; reset on engine restart |
 | Splash Metal allocation | Current and peak Metal allocator values; not process RSS or model-only memory |
 | Splash latency | Splash's own first-token and inter-token p50/p95 with the sample count; not Scope's measurement |

@@ -37,3 +37,12 @@ export const modelOf = (snapshot: SnapshotV2 | null): string | null => snapshot
 export const glanceModel = (model: string): string => (model.split('/').at(-1) ?? model).replace(/[-_.](?:\d+bit|mlx|q\d\w*|gguf|splash)$/i, '');
 /** Splash's readings are last observed while it recovers or its status is stale. */
 export const heldBySource = (snapshot: SnapshotV2): boolean => snapshot.status.state === 'recovering' || snapshot.status.reason === 'status_stale';
+
+/** Splash's batch counters advance during generation. Other runtimes' server rates may only advance on completion. */
+export const liveSplashRate = (snapshot: SnapshotV2 | null): number | null => {
+  if (!snapshot || snapshot.connection.runtime !== 'splash' || snapshot.status.state !== 'ready' || snapshot.status.reason !== null
+    || snapshot.capabilities['server.rates']?.basis !== 'derived' || !['decode', 'processing'].includes(snapshot.runtime.phase)
+    || !(snapshot.runtime.server.active! > 0)) return null;
+  const rates = snapshot.runtime.server.rates, rate = rates?.decodeTps;
+  return rate !== undefined && Number.isFinite(rate) && rate > 0 && Number.isFinite(rates!.windowMs) && rates!.windowMs > 0 ? rate : null;
+};

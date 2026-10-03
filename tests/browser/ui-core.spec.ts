@@ -6,7 +6,7 @@ import { inspect } from './ui-checks.ts';
 // mock's checks (contrast ≥ 4.5:1, targets ≥ 24 px, aria, basis labels, no overflow) on each.
 type W = Window & Record<string, any>;
 const STATES = ['decode', 'withheld-chats', 'withheld-subagent', 'other-provider', 'armed-refusal', 'first-readings', 'prefill', 'prefill-stall', 'idle',
-  'paused', 'next-armed', 'next-measuring', 'next-result', 'splash-recovering', 'splash-stale', 'splash-not-admitting', 'offline', 'runtime-changed', 'detecting',
+  'paused', 'next-armed', 'next-measuring', 'next-result', 'splash-decode', 'splash-measuring', 'splash-recovering', 'splash-stale', 'splash-not-admitting', 'offline', 'runtime-changed', 'detecting',
   'unconfigured', 'contract-mismatch', 'needs-approval', 'admin-unauthorized', 'pressure', 'pressure-critical', 'thermal', 'model-unloaded', 'memory-guard',
   'llama', 'llama-sleeping', 'llama-metrics', 'ollama', 'bionic', 'lms-unavailable', 'storage-full', 'history-empty', 'recording-paused', 'clear-confirm'];
 const host = <T>(page: Page, read: (w: W) => T): Promise<T> => page.evaluate(`(${read.toString()})(window)`) as Promise<T>;
