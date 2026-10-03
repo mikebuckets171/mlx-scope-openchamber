@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- A quieter layout across the full page and rail, with clearer typography, grouped readings, fewer card borders,
+  and recent replies above the trend. The page starts with four history entries; Show more reveals the rest, and
+  History insights opens baselines, usage and the alert log. Storage notices remain visible when action is needed.
+- The Session pane's MLX Scope widget separates status from the model name and gives alerts a compact, divided row.
+  Its existing expandable statistics remain available.
+- Charts, controls and surfaces follow OpenChamber's current theme, including changes between two themes of the
+  same mode. Missing tokens in older theme snapshots fall back cleanly instead of retaining the previous palette.
+
+### Maintenance
+
+- Shared markup keeps the view bundle near its previous size. Its ceiling increases from 260 KB to 262 KB for the
+  layout and theme handling; runtime probes, dependencies, permissions and polling frequency are unchanged.
+
 ## 2.0.1
 
 ### Fixed

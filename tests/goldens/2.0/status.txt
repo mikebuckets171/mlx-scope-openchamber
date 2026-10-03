@@ -2,75 +2,75 @@
 
 ## status-tip · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-variant="glance" style="height:120px"}: Example-27B 26.4 tok/s
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:144px"}: Generating 26.4 tok/s Example-27B
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
 #ws-why: not observed
 span.chip: GPU 87% busy
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 div.connection-diagnosis[role=note] {data-severity="info"}: Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place
-setHeight: 120
+setHeight: 144
 
 ## status-decode · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Example-27B 26.4 tok/s
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Generating 26.4 tok/s Example-27B
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
 #ws-why: not observed
 span.chip: GPU 87% busy
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-setHeight: 56
+setHeight: 80
 
 ## status-decode-light · 280 light status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Example-27B 26.4 tok/s
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Generating 26.4 tok/s Example-27B
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
 #ws-why: not observed
 span.chip: GPU 87% busy
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-setHeight: 56
+setHeight: 80
 
 ## status-prefill · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Example-27B
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Reading prompt Example-27B
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
 #ws-why: not observed
 span.chip: GPU 94% busy
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-setHeight: 56
+setHeight: 80
 
 ## status-idle · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Idle Example-27B Last reply 24.9 tok/s last observed
-span.chip {data-attr="inferred"}: This chat · inferred
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Idle Example-27B Last reply 24.9 tok/s last observed
 #ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-setHeight: 56
+span.chip {data-attr="inferred"}: This chat · inferred
+setHeight: 80
 
 ## status-alert · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-variant="glance" style="height:80px"}: Example-27B 21.2 tok/s Warning: macOS memory pressure: warning +1 more
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:112px"}: Generating 21.2 tok/s Example-27B macOS memory pressure: warning Memory pressure Warning +1 more
+#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
 #ws-why: not observed
 span.chip: GPU 87% busy
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-setHeight: 80
+setHeight: 112
 
 ## status-offline · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Critical: | oMLX stopped responding | since 14:02 | Scope checks again automatically
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:56px"}: Critical: | oMLX stopped responding | since 14:02 | Scope checks again automatically
 setHeight: 56
 
 ## status-recovering · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-variant="glance" style="height:56px"}: Splash is recovering | since 14:03 | Scope reads its status every 30 s
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:56px"}: Splash is recovering | since 14:03 | Scope reads its status every 30 s
 setHeight: 56
 
 ## status-approval · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-variant="glance" style="height:56px"}: MLX Scope 2.0 needs one approval | Settings → Extensions → MLX Scope
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:56px"}: MLX Scope 2.0 needs one approval | Settings → Extensions → MLX Scope
 setHeight: 56
 
 ## status-nonlocal · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="non-local" data-variant="nonlocal" style="height:24px"}: Chat uses a non-local model
+#ws {data-mode="non-local" data-presentation="session" data-variant="nonlocal" style="height:24px"}: Chat uses a non-local model
 setHeight: 24
 
 ## status-turnstats · 280 dark status

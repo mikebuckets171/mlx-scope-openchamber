@@ -31,10 +31,11 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
 
 ## Where MLX Scope shows up
 
-- **Work Status section.** A section in the chat's Work Status panel. Its glance line shows the phase, a short model
-  name, the speed and the per-chat label, with a 15-minute sparkline, memory pressure, GPU and thermal chips, and the top
-  alert. It is 56 px tall, 80 px with an alert, and a single 24 px line, "Chat uses a non-local model", in a chat that
-  uses a cloud model. The section runs only while the Work Status panel is open and the section is expanded, and it
+- **Work Status section.** A section in the chat's Work Status panel. Its glance shows the phase and speed above a separate model
+  line and the per-chat label, with a 15-minute sparkline, memory pressure, GPU and thermal chips, and the top
+  alert. With a model loaded it is 80 px tall, 112 px with a divided alert row, and a single 24 px line, "Chat uses a non-local model", in a chat that
+  uses a cloud model. Its transparent background blends into the Session pane in the current OpenChamber theme.
+  The section runs only while the Work Status panel is open and the section is expanded, and it
   uses a lighter set of Mac probes than the panel.
 - **A Turn stats replacement.** Expanded (up to 200 px), the section uses the host's Turn stats rows with runtime-exact
   values: Response, Turn time, Model · tool time, First TTFT, Tokens in · out, Cache %, Context used and vs usual. Turn
@@ -49,9 +50,14 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   Turn stats rows are verified in Stage 12 on OpenChamber 2.0.4.
 - **Rail panel.** Four tabs: **Live**, **Server**, **History** and **Captures**. Compact mode is the Work Status glance
   view. Open it from the rail, or from **Open MLX Scope** in a chat's session menu.
-- **Full page.** Live and History side by side, from OpenChamber's **Extension pages** menu.
+- **Full page.** Live readings, four recent history entries and the trend side by side, from OpenChamber's
+  **Extension pages** menu. **Show more** expands the reply list; **History insights** opens baselines, runtime usage
+  and the alert log. Storage controls are in **History storage**, which opens automatically when it needs attention.
 - **`/scope`.** A slash command that attaches a sanitized diagnostics chip to your message; see
   [`/scope` diagnostics](#scope-diagnostics).
+
+Colors and typography follow OpenChamber's active theme, including changes while Scope is open. Status and warning
+colors use the host's semantic palette; the Session widget lets the surrounding pane's background show through.
 
 A view that is hidden (a rail tab behind another tab, a collapsed section, a closed page, a hidden window) makes no
 requests. With several views open, one visible view at a time records history and raises toasts.

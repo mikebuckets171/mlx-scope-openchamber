@@ -88,6 +88,7 @@ const inspect = (page: Page, openAll = false): Promise<string[]> => page.evaluat
     for (const [n, c] of Object.entries(seen)) if (c > 1) problems.push(`"${n}" appears ${c} times in one view`);
   });
   document.querySelectorAll('.info').forEach(b => {
+    if (!visible(b)) return;
     const r = b.getBoundingClientRect();
     if (r.width < 24 || r.height < 24) problems.push(`ⓘ target ${r.width}×${r.height} px`);
     if (!b.hasAttribute('aria-expanded') || !document.getElementById(b.getAttribute('aria-controls')!)) problems.push('ⓘ without aria-expanded/aria-controls target');
@@ -170,6 +171,8 @@ test.describe('History tab', () => {
   });
   test('a stored pause shows while the ledger is stopped (the page before its first poll, or a frame that doesn’t lead)', async ({ page }) => {
     await open(page, 'surface=page&state=recording-paused&stopped', 1160);
+    await expect(page.locator('.history-storage > summary')).toContainText('Recording paused');
+    await page.locator('.history-storage > summary').click();
     const storage = page.locator('.storage');
     await expect(storage.locator('.section-heading .chip[data-tone="warn"]')).toHaveText('Recording paused');
     await storage.getByRole('button', { name: 'Resume recording' }).click();
@@ -249,11 +252,62 @@ test.describe('History tab', () => {
   test('the page’s History column at 1,160 px', async ({ page }) => {
     await open(page, 'surface=page&state=decode&theme=dark', 1160);
     const column = page.locator('#history-column');
-    await expect(column.locator('.col-title')).toHaveText(/History\s*Observed while Scope was open · stored on this Mac/);
+    await expect(column.locator('.col-title')).toHaveCount(0);
+    await expect(column.locator(':scope > section h2')).toHaveText(['Recent replies', 'Trend']);
+    await expect(column.locator('.history-insights')).toHaveJSProperty('open', false);
+    await expect(column.locator('.history-insights h2')).toHaveText(['Usual speed', 'Recorded by oMLX', 'Alert log']);
+    await expect(column.locator('.recent-replies .section-heading')).toContainText('Observed while Scope was open');
+    await expect(column.locator('.ledger > li')).toHaveCount(4);
+    await expect(column.locator('.history-storage')).toHaveJSProperty('open', false);
+    await expect(column.locator('.history-storage > summary')).toHaveText('History storageStored on this Mac');
+    await expect(column.getByRole('button', { name: 'Clear…' })).toBeHidden();
     await expect(column.locator('figcaption')).toHaveText(/−60 min\s*Turn times from OpenChamber · readings are server-wide\s*now/);
     expect((await column.locator('.trend .plot').boundingBox())!.height).toBe(132);
     await clean(page);
     await shot(page, 'history-page-dark-1160');
+    await column.getByRole('button', { name: 'Show 24 more' }).click();
+    await expect(column.locator('.ledger > li')).toHaveCount(28);
+  });
+  test('page storage opens by keyboard, preserves focus across polls, and keeps its controls working', async ({ page }) => {
+    await open(page, 'surface=page&state=decode', 1160);
+    const insights = page.locator('.history-insights');
+    await insights.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(insights).toHaveJSProperty('open', true);
+    await insights.getByRole('button', { name: 'Copy baseline summary' }).focus();
+    await page.evaluate(() => { const h = (window as unknown as { harness: Harness }).harness; h.now += 60_000; h.push(h.snapshot); });
+    await expect(insights).toHaveJSProperty('open', true);
+    await expect(insights.getByRole('button', { name: 'Copy baseline summary' })).toBeFocused();
+    const disclosure = page.locator('.history-storage');
+    await disclosure.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(disclosure).toHaveJSProperty('open', true);
+    const retention = disclosure.getByRole('combobox', { name: 'Keep reply history for' });
+    await retention.selectOption('7');
+    expect(await read(page, 'retention')).toEqual([7]);
+    await retention.focus();
+    await page.evaluate(() => { const h = (window as unknown as { harness: Harness }).harness; h.now += 60_000; h.push(h.snapshot); });
+    await expect(disclosure).toHaveJSProperty('open', true);
+    await expect(retention).toBeFocused();
+    await disclosure.getByRole('button', { name: 'Clear…' }).click();
+    await expect(disclosure.getByRole('alertdialog')).toBeVisible();
+    await expect(disclosure.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(disclosure.getByRole('button', { name: 'Clear…' })).toBeFocused();
+    await disclosure.locator('summary').click();
+    await page.evaluate(() => { const h = (window as unknown as { harness: Harness }).harness; h.now += 60_000; h.push(h.snapshot); });
+    await expect(disclosure).toHaveJSProperty('open', false);
+  });
+  test('page storage opens automatically for full storage and failed-save notices', async ({ page }) => {
+    await open(page, 'surface=page&state=storage-full', 1160);
+    await expect(page.locator('.history-storage')).toHaveJSProperty('open', true);
+    await expect(page.locator('.history-storage > summary')).toContainText('Needs attention');
+    await expect(page.getByText('History is full', { exact: true })).toBeVisible();
+    await open(page, 'surface=page&state=decode', 1160);
+    await page.evaluate(() => { const h = (window as unknown as { harness: Harness }).harness; h.ledgerState = 'backoff'; h.now += 60_000; h.push(h.snapshot); });
+    await expect(page.locator('.history-storage')).toHaveJSProperty('open', true);
+    await expect(page.locator('.storage .notice')).toContainText('OpenChamber didn’t accept the last save');
+    await expect(page.locator('.storage .notice')).toBeVisible();
   });
 });
 

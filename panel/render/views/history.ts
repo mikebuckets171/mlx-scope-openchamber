@@ -136,6 +136,8 @@ class HistoryViewHandle implements ViewHandle {
     this.tips = new Tips(this.prefix);
     this.retention = deps.retentionDays();
     this.paused = deps.paused();
+    // The page is an overview; keep the trend in view and let the reader expand the reply list.
+    if (context.surface === 'page') this.listLimit = 4;
     this.undelegate = delegate(root, (action, arg, target) => void this.act(action, arg, target));
     root.addEventListener('keydown', this.escape);
     void deps.legacyCaptures?.().then(count => { this.legacy = count; this.render(); }).catch(() => {});
@@ -264,18 +266,28 @@ class HistoryViewHandle implements ViewHandle {
     if (this.disposed) return;
     const view = this.view(), page = this.context.surface === 'page';
     const tips = this.tips, tip = (name: string, title: string, paras: readonly string[]) => tips.make(name, title, paras);
-    const next = el('div', {},
-      page ? el('div', { class: 'col-title' }, el('h2', {}, 'History'), el('span', {}, `${view.header} · stored on this Mac`)) : null,
-      section('Trend', seg('Trend window', 'window', view.trend.windows.map(w => ({ label: w.label, arg: String(w.windowMs), pressed: w.pressed }))),
-        trendFigure(view.trend, page), tip('trend', 'Trend', view.trend.tip)),
-      section('Replies', view.header, view.repliesEmpty ? el('p', { class: 'empty' }, view.repliesEmpty) : [
+    const trend = section('Trend', seg('Trend window', 'window', view.trend.windows.map(w => ({ label: w.label, arg: String(w.windowMs), pressed: w.pressed }))),
+      trendFigure(view.trend, page), tip('trend', 'Trend', view.trend.tip), page ? 'insight-section history-trend' : 'insight-section');
+    const replies = section(page ? 'Recent replies' : 'Replies', view.header, view.repliesEmpty ? el('p', { class: 'empty' }, view.repliesEmpty) : [
         el('div', { class: 'counts' }, view.counts.map(text => el('span', { class: 'chip' }, text))),
         el('ol', { class: 'ledger' }, view.entries.map(entryRow)),
         view.more ? el('div', { class: 'actions' }, el('span', { class: 'insight-note', style: 'margin:0' }, view.more),
-          view.showMore ? button(view.showMore, 'more', { className: 'btn quiet' }) : null) : null], tip('replies', 'Replies', view.repliesTip)),
+          view.showMore ? button(view.showMore, 'more', { className: 'btn quiet' }) : null) : null], tip('replies', 'Replies', view.repliesTip),
+      page ? 'insight-section recent-replies' : 'insight-section');
+    const storage = view.storage ? storageSection(view.storage, tips, this.prefix, this.status.storage) : null;
+    // Keep the native disclosure's state across polling morphs. Warnings and confirmation remain visible.
+    const storageOpen = this.root.querySelector<HTMLDetailsElement>('.history-storage')?.open ?? false;
+    const storageNeedsAttention = !!view.storage?.full || !!view.storage?.note || !!view.storage?.confirm;
+    const storageDetails = page && storage && view.storage ? el('details', {
+      class: 'history-storage', open: storageOpen || storageNeedsAttention, 'data-attention': String(storageNeedsAttention),
+    }, el('summary', { 'data-focus': 'history-storage' }, el('span', {}, 'History storage'),
+      el('span', { class: 'history-storage-state', 'data-paused': String(view.storage.paused) },
+        storageNeedsAttention ? 'Needs attention' : view.storage.label)), storage) : storage;
+    const next = el('div', {},
+      page ? [replies, trend] : [trend, replies],
       section('Usual speed', view.baseline.model || view.baseline.bucket ? [view.baseline.model ? el('span', { translate: 'no' }, view.baseline.model) : null,
         view.baseline.model && view.baseline.bucket ? ' · ' : null, view.baseline.bucket] : null, baselineBody(view.baseline, tips, this.status.baseline),
-      tip('baseline', 'Usual speed', view.baseline.tip)),
+      tip('baseline', 'Usual speed', view.baseline.tip), page ? 'insight-section history-baseline' : 'insight-section'),
       view.usage ? section(view.usage.title, seg('Usage range', 'range', view.usage.ranges.map(r => ({ label: r.label, arg: r.label, pressed: r.pressed }))), [
         el('div', { class: 'usage-bars', role: 'img', 'aria-label': view.usage.aria, 'data-dense': view.usage.dense, style: `grid-template-columns:repeat(${view.usage.bars.length},minmax(0,1fr))` },
           view.usage.bars.map(bar => el('div', { 'aria-hidden': 'true' }, el('i', { style: `height:${bar.height}px` })))),
@@ -283,12 +295,20 @@ class HistoryViewHandle implements ViewHandle {
           view.usage.bars.map(bar => el('span', {}, bar.label))),
         el('div', { class: 'values-3' }, view.usage.rows.map(row => el('div', {}, el('span', {}, row.label), el('strong', {}, row.value), row.detail ? el('small', {}, row.detail) : null)))],
       tip('usage', view.usage.title, view.usage.tip)) : null,
-      view.storage ? storageSection(view.storage, tips, this.prefix, this.status.storage) : null,
+      storageDetails,
       section('Alert log', 'Last 20 · while Scope was open', view.alertLogEmpty ? el('p', { class: 'empty' }, view.alertLogEmpty)
         : el('ol', { class: 'alog' }, view.alertLog.map(entry => el('li', {}, el('time', { datetime: entry.iso }, entry.at),
           el('span', {}, el('i', { class: 'sev', 'data-severity': entry.severity, 'aria-hidden': 'true' }), el('span', { class: 'sr-only' }, `${entry.severityWord}: `), entry.text),
           el('small', {}, entry.duration)))),
       tip('alog', 'Alert log', ['Kept in the service’s memory only, so it clears when the service restarts.'])));
+    if (page) {
+      const open = this.root.querySelector<HTMLDetailsElement>('.history-insights')?.open || !!view.baseline.flag;
+      const extra = Array.from(next.children).filter(child => child !== replies && child !== trend && child !== storageDetails);
+      const insights = el('details', { class: 'history-insights', open },
+        el('summary', {}, el('span', {}, 'History insights'), el('span', { class: 'history-storage-state' }, 'Baselines, usage & alerts')),
+        el('div', { class: 'view-host' }, extra));
+      if (storageDetails) next.insertBefore(insights, storageDetails); else next.append(insights);
+    }
     morph(this.root, next);
     const select = this.root.querySelector<HTMLSelectElement>('select[data-action="retention"]');
     if (select) select.value = String(this.retention);

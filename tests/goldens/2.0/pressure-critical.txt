@@ -19,7 +19,7 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panels
 #panel-live {aria-labelledby="tab-live"}
 [callout-live] {data-severity="critical"}: Critical: macOS memory pressure: critical since 14:03 Reported by the macOS kernel · replies may slow sharply until memory frees up | 1 more alert
-#hero {aria-label="Inference activity"}: tokens / second · request average Reported by oMLX i
+#hero {aria-label="Inference activity"}: Live performance | tok/s Request average Reported by oMLX i
 #model: Example-27B-4bit
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Server-wide · not observed
@@ -27,12 +27,12 @@ span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Serve
 #signal: Decode · request average | −90s Live observations now
 #ceiling: 25 tok/s
 div.plot[role=img] {aria-label="Decode · request average, last 8 s: 14.6 to 14.6 tokens per second, now 14.6"}
+#metrics {aria-label="Current request" data-count="4"}: Output | 612 | tokens so far | Elapsed | 38 s | since it started | Input reused | 83% | 43.0K cached | Requests | 1 | Queue clear
 #context-headroom: Context used i 52.7K of 131K tokens
 #reply-strip: Last reply i 1 min ago | Measure next reply One reply in this chat · arms for 2 min
 span.chip {data-attr="inferred"}: This chat · inferred
 span.val {data-basis="last-observed"}: 24.9 tok/slast observed
 span.val {data-basis="reported"}: 1,104 out
-#metrics {aria-label="Current request" data-count="4"}: Output | 612 | tokens so far | Elapsed | 38 s | since it started | Input reused | 83% | 43.0K cached | Requests | 1 | Queue clear
 #machine {aria-label="This Mac" data-stale="false"}: i | CPU 31% RAM 47.0 / 48 GiB Swap 6.0 GiB
 h2.machine-title: This Mac
 [mac-pressure]: macOS memory pressure (kernel) | Critical
@@ -64,7 +64,7 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panels
 #panel-live {aria-labelledby="tab-live"}
 [callout-live] {data-severity="critical"}: Critical: macOS memory pressure: critical since 14:03 Reported by the macOS kernel · replies may slow sharply until memory frees up | 1 more alert
-#hero {aria-label="Inference activity"}: tokens / second · request average Reported by oMLX i
+#hero {aria-label="Inference activity"}: Live performance | tok/s Request average Reported by oMLX i
 #model: Example-27B-4bit
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Server-wide · not observed
@@ -72,12 +72,12 @@ span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Serve
 #signal: Decode · request average | −90s Live observations now
 #ceiling: 25 tok/s
 div.plot[role=img] {aria-label="Decode · request average, last 8 s: 14.6 to 14.6 tokens per second, now 14.6"}
+#metrics {aria-label="Current request" data-count="4"}: Output | 612 | tokens so far | Elapsed | 38 s | since it started | Input reused | 83% | 43.0K cached | Requests | 1 | Queue clear
 #context-headroom: Context used i 52.7K of 131K tokens
 #reply-strip: Last reply i 1 min ago | Measure next reply One reply in this chat · arms for 2 min
 span.chip {data-attr="inferred"}: This chat · inferred
 span.val {data-basis="last-observed"}: 24.9 tok/slast observed
 span.val {data-basis="reported"}: 1,104 out
-#metrics {aria-label="Current request" data-count="4"}: Output | 612 | tokens so far | Elapsed | 38 s | since it started | Input reused | 83% | 43.0K cached | Requests | 1 | Queue clear
 #machine {aria-label="This Mac" data-stale="false"}: i | CPU 31% RAM 47.0 / 48 GiB Swap 6.0 GiB
 h2.machine-title: This Mac
 [mac-pressure]: macOS memory pressure (kernel) | Critical

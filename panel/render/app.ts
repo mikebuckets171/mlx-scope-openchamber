@@ -17,7 +17,7 @@ import type { Pipeline } from '../state/pipeline.ts';
 import type { ScopeState } from '../state/scope-state.ts';
 import { html, morph } from './html.ts';
 import { frameCardMarkup, PAGE_TABS, renderHeader, TABS, tabsMarkup } from './shell.ts';
-import { liveMarkup } from './views/live.ts';
+import { liveMarkup, nextRow } from './views/live.ts';
 import { capturesView, readLegacyCaptures } from './views/captures.ts';
 import { historyView } from './views/history.ts';
 import { mountSafely } from './views/registry.ts';
@@ -89,15 +89,18 @@ export class ScopeApp {
     }
     if (card) return;
     const tabs = this.columns ? PAGE_TABS : TABS, active = state.tab;
+    const action = this.node('workspace-action');
+    action.hidden = !this.columns || active !== 'live';
     morph(this.node('tablist'), tabsMarkup(tabs, active));
     for (const [tab] of TABS) this.node(`panel-${tab}`).hidden = tab !== active;
     const livePanel = this.node('panel-live');
     livePanel.classList.toggle('page-cols', this.columns);
     livePanel.classList.toggle('view', !this.columns);
     if (active === 'live') {
-      const extra = this.extra(s), body = liveMarkup(presentLive(s, extra), open);
+      const extra = this.extra(s), live = presentLive(s, extra), body = liveMarkup(live, open, this.columns);
+      morph(action, this.columns ? nextRow(live.hero?.reply?.next ?? null, open) : '');
       morph(livePanel, this.columns
-        ? html`<div class="view page-live" id="col-live"><div class="col-title"><h2>Live</h2><span>90 s · this chat when inferred</span></div>${body}</div><div class="view" id="col-history" data-mount></div>`
+        ? html`<div class="view page-live" id="col-live">${body}</div><div class="view" id="col-history" data-mount></div>`
         : s.snapshot || s.frame ? body : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
     }
     if (active === 'server') morph(this.node('panel-server'), serverMarkup(presentServer(s.snapshot, s.now, this.extra(s)), open));
