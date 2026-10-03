@@ -14,7 +14,6 @@ import { MOCK_MODELS, MOCK_NOW, mockAccounting, mockLedgerRows, mockSnapshot, mo
 
 const params = new URLSearchParams(location.search);
 const tab = params.get('tab') === 'captures' ? 'captures' : 'history', state = params.get('state') ?? 'decode', page = params.get('surface') === 'page';
-document.documentElement.dataset.theme = params.get('theme') === 'light' ? 'light' : 'dark';
 const empty = state === 'history-empty';
 
 // A controllable service clock and recorders the tests read back.

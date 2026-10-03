@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
-<title>MLX Scope · History and Captures preview</title><link rel="stylesheet" href="/history.css"></head>
+<title>MLX Scope · History and Captures preview</title>
+<!-- Set the fixture's color scheme before WebKit styles native controls. -->
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') === 'light' ? 'light' : 'dark';</script>
+<link rel="stylesheet" href="/history.css"></head>
 <body>
 <!-- Synthetic preview (ui-history): the approved mock's shell around the real History and Captures views. -->
 <main class="scope" id="scope" data-phase="decode" data-stale="false" data-approval="false" data-paused="false">
