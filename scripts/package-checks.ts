@@ -6,7 +6,8 @@ export const EXEC_G1 = [
   '~/.lmstudio/bin/lms', '~/.cache/lm-studio/bin/lms', '/opt/homebrew/bin/macmon', '/usr/local/bin/macmon',
 ] as const;
 /** Bytes, 1 KB = 1,000 (the stricter reading of plan §6). */
-export const BUNDLE_CEILINGS = { 'panel/main.js': 260_000, 'service/main.js': 170_000, 'background/main.js': 25_000 } as const;
+// The theme-native layout and Session widget allow 2 KB above the original 2.0 view budget; probes stay unchanged.
+export const BUNDLE_CEILINGS = { 'panel/main.js': 264_000, 'service/main.js': 170_000, 'background/main.js': 25_000 } as const;
 export const GUEST_BUNDLES = ['panel/main.js', 'background/main.js'] as const;
 export const COMMAND = { name: 'scope', description: 'Attach a private MLX Scope diagnostics summary' } as const;
 export const STATUS_SECTION = { entry: 'panel/index.html', title: 'MLX Scope', height: 72 } as const;

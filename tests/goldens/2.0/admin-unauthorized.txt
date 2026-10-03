@@ -19,7 +19,7 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panels
 #panel-live {aria-labelledby="tab-live"}
 [callout-live] {data-severity="info"}: Notice: | oMLX admin login refused | Scope reads oMLX’s public status instead: server-wide totals only, with no per-request speed, reply history or usage records. | Connection…
-#hero {aria-label="Inference activity"}: Nothing waiting
+#hero {aria-label="Inference activity"}: Live performance | Nothing waiting
 #model: Example-27B-4bit
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="all requests"}: Server-wide · all requests

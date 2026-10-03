@@ -18,7 +18,7 @@ bun run test:browser
 
 `check` type-checks, scans committed files, runs unit, contract and fixture tests, builds all three bundles, and verifies
 the install archive: the SDK 2.0.4 manifest, the frozen permission set, the two-way exec match, bundle ceilings (panel
-260 KB, service 170 KB, background 25 KB), the background page's CSP, host-only code in guest bundles, and a start of the
+264 KB, service 170 KB, background 25 KB), the background page's CSP, host-only code in guest bundles, and a start of the
 extracted service under Node without `node_modules`. macOS checks exercise the real memory commands within the
 production deadline. Browser tests cover Chromium (the host's engine, the primary gate) and WebKit; `bun run
 test:goldens` runs the pixel and text goldens in Chromium on macOS. `bun run overhead` measures the service and every

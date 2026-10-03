@@ -5,15 +5,17 @@ import { flag, html, raw, type Part, type Raw } from '../html.ts';
 // Markup for the view-model parts every 2.0 view shares (the G2 mock's classes). Disclosures are stable per key, so a
 // poll re-renders them in the state the reader left them.
 
+const icon = (size: number, body: string, className = ''): Raw =>
+  html`<svg${className ? html` class="${className}"` : ''} viewBox="0 0 ${size} ${size}" aria-hidden="true">${raw(body)}</svg>`;
 export const ICON = {
-  measure: raw('<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.6"/></svg>'),
-  close: raw('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>'),
-  down: raw('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>'),
-  up: raw('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg>'),
-  pause: raw('<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10M13 5v10"/></svg>'),
-  play: raw('<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5l8 5-8 5z"/></svg>'),
-  more: raw('<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4.5" cy="10" r="1.3"/><circle cx="10" cy="10" r="1.3"/><circle cx="15.5" cy="10" r="1.3"/></svg>'),
-  mark: raw('<svg class="scope-mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11"/><path d="M3 14h6l3-5 4 10 3-5h6"/></svg>'),
+  measure: icon(16, '<circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.6"/>'),
+  close: icon(16, '<path d="M4 4l8 8M12 4l-8 8"/>'),
+  down: icon(16, '<path d="M4 6l4 4 4-4"/>'),
+  up: icon(16, '<path d="M4 10l4-4 4 4"/>'),
+  pause: icon(20, '<path d="M7 5v10M13 5v10"/>'),
+  play: icon(20, '<path d="M7 5l8 5-8 5z"/>'),
+  more: icon(20, '<circle cx="4.5" cy="10" r="1.3"/><circle cx="10" cy="10" r="1.3"/><circle cx="15.5" cy="10" r="1.3"/>'),
+  mark: icon(28, '<circle cx="14" cy="14" r="11"/><path d="M3 14h6l3-5 4 10 3-5h6"/>', 'scope-mark'),
 } as const;
 
 /** Which disclosures are open, by element id; the one place a view reads it. */

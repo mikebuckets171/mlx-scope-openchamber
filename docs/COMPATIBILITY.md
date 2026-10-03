@@ -108,11 +108,11 @@ Bionic's embedded Splash engine listens on a random loopback port and protects i
 injects; MLX Scope does not read that key or scan for that port, so Metal allocation and Splash's native request
 counters are not shown for Bionic-hosted Splash.
 
-## Inco AI Splash (standalone `splash serve`)
+## Splish / Inco AI Splash (standalone)
 
 MLX Scope reads the passive `/status` endpoint only; there is no `/metrics` read. It detects a server from a JSON body
 with a boolean `ready`. It shows the active model and declared maximum context, idle or generating state with in-flight
-requests, completed/failed counters since engine start, aggregate decode throughput, current/peak Metal allocator
+requests, completed/failed counters since engine start, live server-wide decode throughput, lifetime averages, current/peak Metal allocator
 values, and on 1.1 the model's vision support and input kinds, plus Splash's own first-token and inter-token latency
 p50/p95 with their sample counts (over Splash's last 4,096 samples). States take this precedence: recovering, status stale,
 not admitting, ready. While Splash recovers, its body is the cached pre-crash snapshot, so no activity is derived from
@@ -120,9 +120,18 @@ it and Scope reads it at most every 30 seconds. Counters reset when the engine r
 completion. Crash traces, transport error text, and instance and identity fields are never forwarded. 1.0.2 lacks the
 1.1 fields, which are then left out.
 
-`/status` does not provide supported per-request progress, queue, prefill, active-context use, cache reuse, or process
-RSS. Metal allocation is not process memory or model-only allocation. Aggregate decode throughput combines server work
-and is never attributed to an individual request.
+Live tok/s uses the change in `metrics.decode_output_tokens` divided by the change in `metrics.decode_wall_ms`,
+multiplied by 1,000, between two fresh, ready polls while native decoding is active. These counters advance after
+each decode batch in both [Splish](https://github.com/publicExcess/splish/blob/m5/runtime/engine/Status.hpp) and
+[Splash](https://github.com/incoai/splash/blob/main/runtime/engine/Status.hpp). It is native server-wide decode throughput,
+not end-to-end streamed delivery speed or a per-chat rate. A baseline is required after connection, idle, recovery,
+counter or engine resets, invalid clocks, and gaps longer than five seconds. A poll with no counter progression
+has no live reading. The lifetime `decode_tokens_per_second` and retained `current_decode_batch` rate are never
+substituted for a live sample. The existing one-second active / two-second idle cadence is unchanged.
+
+`/status` does not provide supported per-request progress, active-context use, cache reuse, or process RSS.
+Scheduler counts describe server-wide queue/prefill/decode activity. Metal allocation is not process memory or
+model-only allocation. All server throughput stays server-wide even when only one request appears active.
 
 ## llama-server
 

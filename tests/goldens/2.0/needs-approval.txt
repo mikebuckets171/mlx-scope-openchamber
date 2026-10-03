@@ -18,7 +18,7 @@ live #connection-result (hidden): Check whether OpenChamber has started the exte
 live #action-status (hidden): 
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="columns" data-paused="false" data-phase="detecting" data-stale="false" data-surface="page"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="columns" data-paused="false" data-phase="detecting" data-stale="false" data-surface="page"}: OpenChamber | MLX Scope
 #scope-title: MLX Scope
 #status-pill
 #phase: Needs approval

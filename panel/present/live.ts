@@ -5,16 +5,16 @@ import { liveChart, type ChartView } from '../render/chart.ts';
 import { connName, PRESSURE, RT, rtName, statusCopy, THERMAL, THERMAL_WARN, thermalLevel, type Level } from './copy.ts';
 import { ago, delta, dur, int, kt, mmss, pct, size, tps } from './format.ts';
 import { attrChip, attrTip, callouts, tip, type Callout, type Chip, type Tip, type Val } from './parts.ts';
-import { heldBySource, modelOf, SERVER_WIDE, type ScopeInput } from './scope.ts';
+import { heldBySource, liveSplashRate, modelOf, SERVER_WIDE, type ScopeInput } from './scope.ts';
 
 // The Live tab (plan §5.9, the G2 mock): callouts, the hero (one speed with its basis ⓘ, the attribution chip, Last
 // reply and Next reply), the request tiles and the This Mac card with the short labels (full wording in its ⓘ).
 
-export type HeroKind = 'prefill' | 'decode' | 'busy' | 'slots' | 'ollama' | 'server' | 'queued' | 'processing' | 'inventory' | 'idle';
+export type HeroKind = 'prefill' | 'decode' | 'server-decode' | 'busy' | 'slots' | 'ollama' | 'server' | 'queued' | 'processing' | 'inventory' | 'idle';
 export type HeroBody =
   | { kind: 'paused'; note: string }
   | { kind: 'prefill'; percent: string; fraction: number; counts: string | null; eta: string | null; rate: string | null; source: string; tip: Tip }
-  | { kind: 'decode'; rate: string; source: string; tip: Tip; chart: ChartView | null }
+  | { kind: 'decode'; rate: string; basis: 'reported' | 'derived'; label: string; source: string; tip: Tip; chart: ChartView | null }
   | { kind: 'word'; word: string; unit: string; note: Val | null };
 export type NextView =
   | { kind: 'offer' } | { kind: 'watch'; runtime: string } | { kind: 'armed'; left: string; tip: Tip }
@@ -29,7 +29,7 @@ export interface MacRow { key: string; label: string; value: Val; level: Level |
 export interface MacView { title: string; tip: Tip; stale: boolean; line: Array<{ label: string; value: string; meter: number | null }>; rows: MacRow[]; details: MacRow[] }
 export interface LiveView { callouts: Callout[]; hero: HeroView | null; tiles: Tile[]; mac: MacView | null }
 
-const LABELLED = new Set<HeroKind>(['decode', 'prefill', 'busy', 'slots', 'ollama', 'server']);
+const LABELLED = new Set<HeroKind>(['decode', 'server-decode', 'prefill', 'busy', 'slots', 'ollama', 'server']);
 const ACTIVE = new Set(['decode', 'prefill', 'processing']);
 
 /** Which reading the hero shows. A status message owns the view instead, except oMLX's public-status fallback. */
@@ -39,6 +39,7 @@ export const heroKind = (s: ScopeInput): HeroKind | null => {
   const request = runtime.request, active = runtime.server.active;
   if (runtime.phase === 'prefill' && request?.prefillFraction != null) return 'prefill';
   if (request?.decodeTps != null) return 'decode';
+  if (liveSplashRate(snapshot) !== null) return 'server-decode';
   if (runtime.slots.length && (active ?? 0) > 1) return 'slots';
   if (runtime.residency.some(model => model.source === 'ollama-ps')) return 'ollama';
   if (snapshot.status.reason === 'admin_unauthorized') return 'server';
@@ -51,7 +52,7 @@ export const heroKind = (s: ScopeInput): HeroKind | null => {
 /** Readings server-wide by nature carry their reason; the rest take the attribution module's label. */
 const liveLabel = (kind: HeroKind, s: ScopeInput): AttributionLabel =>
   kind === 'slots' || kind === 'busy' ? { kind: 'server-wide', reason: 'overlap' } : kind === 'ollama' ? { kind: 'server-wide', reason: 'cannot-count' }
-    : kind === 'server' ? { kind: 'server-wide', reason: 'all-requests' } : s.attribution;
+    : kind === 'server' || kind === 'server-decode' ? { kind: 'server-wide', reason: 'all-requests' } : s.attribution;
 
 const heroBody = (kind: HeroKind, s: ScopeInput): HeroBody => {
   const snapshot = s.snapshot!, runtime = snapshot.runtime, request = runtime.request, rt = rtName(snapshot.connection);
@@ -66,9 +67,13 @@ const heroBody = (kind: HeroKind, s: ScopeInput): HeroBody => {
         source: `Reported by ${rt}`, tip: tip('basis', `Reported by ${rt}`, [`${rt} reports this request’s prefill progress and speed.`,
           request!.prefillEtaMs != null && `The finish time is ${rt}’s own estimate and moves as prefill runs.`, stale && 'Progress hasn’t moved since the last reading.']) };
     }
-    case 'decode': return { kind: 'decode', rate: tps(request!.decodeTps!), source: `Reported by ${rt}`,
+    case 'decode': return { kind: 'decode', rate: tps(request!.decodeTps!), basis: 'reported', label: 'Request average', source: `Reported by ${rt}`,
       tip: tip('basis', `Reported by ${rt}`, [`${rt} reports the active request’s average decode speed. Scope doesn’t smooth or estimate it.`]),
       chart: liveChart(s.samples, s.now, s.turnStartAt) };
+    case 'server-decode': return { kind: 'decode', rate: tps(liveSplashRate(snapshot)!), basis: 'derived', label: 'Live server throughput', source: `Derived from ${rt} counters`,
+      tip: tip('basis', 'Live server throughput', [`Output tokens divided by active decode time, derived from counters that advance during generation on Splish and Splash.`,
+        `Covers all requests over the last ${dur(server.rates!.windowMs)} of observations. It is not one chat’s speed, a lifetime average, or the rate tokens arrive over the network.`]),
+      chart: liveChart(s.samples, s.now, null, 'server') };
     case 'slots': case 'busy': {
       const rates = server.rates;
       return word(`${active} requests`, `Per-request speed withheld: ${active} ${kind === 'slots' ? 'slots are busy' : 'requests are running'}`,
@@ -78,7 +83,7 @@ const heroBody = (kind: HeroKind, s: ScopeInput): HeroBody => {
     case 'ollama': return word(`${runtime.residency.length} loaded`, 'Ollama reports residency only · no per-request speed');
     case 'server': return word(`${active} running`, queued ? `${queued} waiting` : 'Nothing waiting');
     case 'queued': return word(`${queued} waiting`, `${active} running`);
-    case 'processing': return word('Working', `${rt} doesn’t report this request’s speed`);
+    case 'processing': return word('Working', snapshot.connection.runtime === 'splash' ? 'Waiting for live server readings' : `${rt} doesn’t report this request’s speed`);
     case 'inventory': return word('Connected', `${rt} lists its models · no live request readings`);
     default: return word('Idle', 'Model loaded · ready for the next request');
   }

@@ -7,7 +7,8 @@ import { unitViolations } from '../../src/contract/units.ts';
 import type { AdapterContextV2, AdapterReadingV2, CompletionDraft, RuntimeReply } from '../core/adapter-v2.ts';
 import { HttpFailure } from '../http.ts';
 import {
-  isSplash11, SPLASH_GAP_MS, SPLASH_RECOVERING_CACHE_MS, SplashCompletions, splashCompletion, splashDescriptor, splashReading, splashStatus,
+  isSplash11, SPLASH_GAP_MS, SPLASH_RATE_GAP_MS, SPLASH_RECOVERING_CACHE_MS, SplashCompletions, SplashRates,
+  splashCompletion, splashDescriptor, splashReading, splashStatus,
 } from './splash.ts';
 
 type Json = Record<string, any>;
@@ -80,6 +81,103 @@ const after = (base: Json, step: { submitted?: number; completed?: number; faile
 const IDLE = status('ready-idle');
 /** One request in flight on top of the idle body, before (`true`) or after its first token. */
 const busy = (firstToken: boolean) => after(IDLE, { submitted: 1, active: 1, ttftMs: firstToken ? [300] : [] });
+
+describe('live native decode rates', () => {
+  const running = busy(true), next = after(running, { tokens: [0, 0, 60, 500] });
+
+  test('two fresh batch counters yield recent server-wide speed, not the retained lifetime or latest-batch rate', () => {
+    const rates = new SplashRates(), advanced = clone(next);
+    advanced.metrics.current_decode_batch = { valid: true, tokens_per_second: 987 };
+    advanced.metrics.decode_tokens_per_second = 456;
+    expect(rates.observe(running, 0)).toBeUndefined();
+    expect(rates.observe(advanced, 1_000)).toEqual({ decodeTps: 120, windowMs: 1_000 });
+    // Repeated status values are not another live sample, even if a retained batch remains valid.
+    expect(rates.observe(advanced, 2_000)).toBeUndefined();
+    expect(rates.observe(after(advanced, { tokens: [0, 0, 11, 300] }), 3_000)).toEqual({ decodeTps: 36.667, windowMs: 1_000 });
+  });
+
+  test('mixed prefill/decode and waiting-mask work use real native decode activity', () => {
+    for (const scheduler of [{ prefilling: 1, decoding: 1 }, { prefilling: 0, decoding: 0, waiting_mask: 1 }]) {
+      const rates = new SplashRates(), a = clone(running), b = clone(next);
+      Object.assign(a.scheduler, scheduler); Object.assign(b.scheduler, scheduler);
+      expect(rates.observe(a, 0)).toBeUndefined();
+      expect(rates.observe(b, 2_000)).toEqual({ decodeTps: 120, windowMs: 2_000 });
+    }
+  });
+
+  const invalidBodies: Array<[string, (body: Json) => void]> = [
+    ['stale', body => { body.transport.status_stale = true; }],
+    ['recovering', body => { body.transport.recovering = true; }],
+    ['not ready', body => { body.ready = false; }],
+    ['transport closing', body => { body.transport.ready = false; }],
+    ['idle or HTTP streaming only', body => { body.scheduler.decoding = 0; body.scheduler.waiting_mask = 0; }],
+    ['prefill only', body => { body.scheduler.decoding = 0; body.scheduler.waiting_mask = 0; body.scheduler.prefilling = 1; }],
+    ['unknown scheduler', body => { delete body.scheduler; }],
+    ['missing token counter', body => { delete body.metrics.decode_output_tokens; }],
+    ['missing time counter', body => { delete body.metrics.decode_wall_ms; }],
+    ['negative token counter', body => { body.metrics.decode_output_tokens = -1; }],
+    ['fractional token counter', body => { body.metrics.decode_output_tokens = 1.5; }],
+    ['unsafe token counter', body => { body.metrics.decode_output_tokens = Number.MAX_SAFE_INTEGER + 1; }],
+    ['nonfinite time counter', body => { body.metrics.decode_wall_ms = Infinity; }],
+    ['negative time counter', body => { body.metrics.decode_wall_ms = -1; }],
+  ];
+  test.each(invalidBodies)('%s clears the live baseline', (_, mutate) => {
+    const rates = new SplashRates(), invalid = clone(next); mutate(invalid);
+    rates.observe(running, 0);
+    expect(rates.observe(invalid, 1_000)).toBeUndefined();
+    expect(rates.observe(next, 2_000)).toBeUndefined();
+    expect(rates.observe(after(next, { tokens: [0, 0, 60, 500] }), 3_000)).toEqual({ decodeTps: 120, windowMs: 1_000 });
+  });
+
+  test('foreign bodies and explicit reset clear the live baseline', () => {
+    for (const body of [null, {}, { ready: 'true' }]) {
+      const rates = new SplashRates(); rates.observe(running, 0);
+      expect(rates.observe(body, 1_000)).toBeUndefined();
+      expect(rates.observe(next, 2_000)).toBeUndefined();
+    }
+    const rates = new SplashRates(); rates.observe(running, 0); rates.reset();
+    expect(rates.observe(next, 1_000)).toBeUndefined();
+  });
+
+  test('process, model, engine restart and counter reset start a new baseline', () => {
+    for (const mutate of [
+      (body: Json) => { body.instance.id = 'replacement'; },
+      (body: Json) => { body.instance.started_at += 1; },
+      (body: Json) => { body.instance.model = 'publisher/Another'; },
+      (body: Json) => { body.transport.restarts += 1; },
+      (body: Json) => { body.metrics.decode_output_tokens = 1; },
+      (body: Json) => { body.metrics.decode_wall_ms = 1; },
+    ]) {
+      const rates = new SplashRates(), changed = clone(next); mutate(changed);
+      rates.observe(running, 0);
+      expect(rates.observe(changed, 1_000)).toBeUndefined();
+      expect(rates.observe(after(changed, { tokens: [0, 0, 60, 500] }), 2_000)).toEqual({ decodeTps: 120, windowMs: 1_000 });
+    }
+  });
+
+  test('clock faults clear the baseline and long gaps require another fresh observation', () => {
+    for (const clock of [NaN, Infinity, -1, 0, 999, 1_000]) {
+      const rates = new SplashRates(); rates.observe(running, 1_000);
+      expect(rates.observe(next, clock)).toBeUndefined();
+      expect(rates.observe(next, 2_000)).toBeUndefined();
+    }
+    const rates = new SplashRates(); rates.observe(running, 0);
+    expect(rates.observe(next, SPLASH_RATE_GAP_MS + 1)).toBeUndefined();
+    expect(rates.observe(after(next, { tokens: [0, 0, 60, 500] }), SPLASH_RATE_GAP_MS + 1_001))
+      .toEqual({ decodeTps: 120, windowMs: 1_000 });
+  });
+
+  test('both counters must advance and a nonfinite ratio is never emitted', () => {
+    for (const tokens of [[0, 0, 0, 500], [0, 0, 60, 0]] as Array<[number, number, number, number]>) {
+      const rates = new SplashRates(); rates.observe(running, 0);
+      expect(rates.observe(after(running, { tokens }), 1_000)).toBeUndefined();
+    }
+    const tiny = clone(running), overflow = clone(next), rates = new SplashRates();
+    tiny.metrics.decode_wall_ms = 0; overflow.metrics.decode_wall_ms = Number.MIN_VALUE;
+    rates.observe(tiny, 0);
+    expect(rates.observe(overflow, 1_000)).toBeUndefined();
+  });
+});
 
 describe('state precedence (SPIKES S7: recovering > status_stale > not admitting > ready)', () => {
   test.each(FIXTURES.map(item => [`${item.version} ${item.variant}`, item] as const))('%s', (_, { variant, body }) => {
@@ -348,6 +446,49 @@ const adapterWith = (replies: Array<Partial<RuntimeReply> | Error>) => {
 const READ = { deadline: AT + 2_000, tier: 'full', detail: true } as const;
 
 describe('the adapter', () => {
+  test('reports live server rates during decoding, preserves unknown request attribution and does not fabricate a completion', async () => {
+    const running = busy(true), next = after(running, { tokens: [0, 0, 60, 500] });
+    const { adapter, paths, clock } = adapterWith([{ body: running }, { body: next }, { body: IDLE }]);
+    const first = await adapter.read(READ);
+    expect(first.runtime.server.rates).toBeUndefined();
+    expect(first.capabilities['server.rates']).toBeUndefined();
+    clock.now += 1_000; clock.monotonic += 1_000;
+    const live = await adapter.read(READ);
+    expect(live.runtime.server.rates).toEqual({ decodeTps: 120, windowMs: 1_000 });
+    expect(live.capabilities['server.rates']).toEqual({ scope: 'server', basis: 'derived' });
+    expect(live.runtime.request).toBeNull();
+    expect(live.completions).toEqual([]);
+    expect(live.runtime.server.averages).toEqual(first.runtime.server.averages);
+    expectRoundTrip('live native decode', snapshotOf(live));
+    clock.now += 1_000; clock.monotonic += 1_000;
+    const idle = await adapter.read(READ);
+    expect(idle.runtime.server.rates).toBeUndefined();
+    expect(idle.capabilities['server.rates']).toBeUndefined();
+    expect(paths).toEqual(['/status', '/status', '/status']);
+  });
+
+  test('a failed poll clears only the live-rate baseline before sampling resumes', async () => {
+    const running = busy(true), next = after(running, { tokens: [0, 0, 60, 500] });
+    for (const failure of [new HttpFailure('runtime_unreachable', 'refused'), { status: 500 }]) {
+      const { adapter, clock } = adapterWith([{ body: running }, failure, { body: next },
+        { body: after(next, { tokens: [0, 0, 60, 500] }) }]);
+      await adapter.read(READ);
+      clock.monotonic += 1_000;
+      await expect(adapter.read(READ)).rejects.toBeInstanceOf(HttpFailure);
+      clock.monotonic += 1_000;
+      expect((await adapter.read(READ)).runtime.server.rates).toBeUndefined();
+      clock.monotonic += 1_000;
+      expect((await adapter.read(READ)).runtime.server.rates).toEqual({ decodeTps: 120, windowMs: 1_000 });
+    }
+  });
+
+  test('disposing the adapter drops the live-rate baseline', async () => {
+    const running = busy(true), next = after(running, { tokens: [0, 0, 60, 500] });
+    const { adapter, clock } = adapterWith([{ body: running }, { body: next }]);
+    await adapter.read(READ); adapter.dispose(); clock.monotonic += 1_000;
+    expect((await adapter.read(READ)).runtime.server.rates).toBeUndefined();
+  });
+
   test('reads GET /status only: never /metrics or /v1/models, and runs no exec', async () => {
     const { adapter, paths } = adapterWith([{ body: IDLE }, { body: busy(true) }, { body: status('delta1-after') }]);
     for (let index = 0; index < 3; index += 1) await adapter.read(READ);
@@ -426,7 +567,8 @@ describe('the descriptor', () => {
     expect([true, false].map(activity => splashDescriptor.cadence({ activity, tier: 'full', recovering: false }))).toEqual([1_000, 2_000]);
     expect(splashDescriptor.identityEveryMs).toBe(60_000);
     expect(splashDescriptor.capabilities).toEqual([
-      { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' }, { key: 'server.latency', basis: 'reported' },
+      { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' }, { key: 'server.rates', basis: 'derived' },
+      { key: 'server.latency', basis: 'reported' },
       { key: 'server.memory.metal', basis: 'reported' }, { key: 'server.catalog', basis: 'reported' }, { key: 'server.completions', basis: 'derived' }]);
   });
 });

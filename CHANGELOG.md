@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.1.0
+
+### Added
+
+- Live tok/s for standalone Splish and Splash in the main view and Session widget, derived from fresh native decode
+  counter changes. The reading is labeled server-wide and clears when idle or stale; lifetime averages remain separate.
+  Monitoring still uses only passive `/status` reads at the existing cadence.
+
+### Changed
+
+- A quieter layout across the full page and rail, with clearer typography, grouped readings, fewer card borders,
+  and recent replies above the trend. The page starts with four history entries; Show more reveals the rest, and
+  History insights opens baselines, usage and the alert log. Storage notices remain visible when action is needed.
+- The Session pane's MLX Scope widget separates status from the model name and gives alerts a compact, divided row.
+  Its existing expandable statistics remain available.
+- Charts, controls and surfaces follow OpenChamber's current theme, including changes between two themes of the
+  same mode. Missing tokens in older theme snapshots fall back cleanly instead of retaining the previous palette.
+
+### Maintenance
+
+- Shared markup keeps the view bundle near its previous size. Its ceiling increases from 260 KB to 264 KB for the
+  layout, theme handling and live server-rate display; runtime probes, dependencies, permissions and polling frequency are unchanged.
+
 ## 2.0.1
 
 ### Fixed

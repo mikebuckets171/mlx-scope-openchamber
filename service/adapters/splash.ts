@@ -17,9 +17,11 @@ export const SPLASH_RECOVERING_CACHE_MS = 30_000;
 /** Reads further apart than this bracket a stretch nobody watched: counters that moved across it make no completion. */
 export const SPLASH_GAP_MS = 60_000;
 export const SPLASH_CADENCE_MS = { active: 1_000, idle: 2_000 } as const;
+/** A live rate must cover recent adjacent reads, not a resume after an unwatched stretch. */
+export const SPLASH_RATE_GAP_MS = 5_000;
 
 const CAPABILITIES: readonly CapabilityDescriptor[] = [
-  { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' },
+  { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' }, { key: 'server.rates', basis: 'derived' },
   { key: 'server.latency', basis: 'reported' }, { key: 'server.memory.metal', basis: 'reported' },
   { key: 'server.catalog', basis: 'reported' }, { key: 'server.completions', basis: 'derived' },
 ];
@@ -124,6 +126,33 @@ const generationKey = (item: Json): string =>
   hash32(JSON.stringify(['instance.id', 'instance.started_at', 'instance.model', 'transport.restarts'].map(path => field(item, path) ?? null)))
     .toString(16).padStart(8, '0');
 
+/**
+ * Native decode counters advance after each batch, before the request ends (Splash Status.hpp). Their delta is
+ * recent server-wide command throughput, not a request's streamed delivery rate. The reported lifetime average
+ * and current_decode_batch are deliberately unused: both retain earlier work while the runtime is idle.
+ */
+export class SplashRates {
+  private previous: { key: string; tokens: number; ms: number; at: number } | null = null;
+
+  observe(body: unknown, monotonicAt: number): RuntimeV2['server']['rates'] {
+    const item = splashBody(body), scheduler = obj(item?.scheduler), metrics = obj(item?.metrics);
+    const decoding = (count(scheduler?.decoding) ?? 0) + (count(scheduler?.waiting_mask) ?? 0);
+    const tokens = count(metrics?.decode_output_tokens), ms = nonneg(metrics?.decode_wall_ms);
+    if (!item || splashStatus(item).state !== 'ready' || field(item, 'transport.ready') === false || !decoding
+      || tokens === null || ms === null || nonneg(monotonicAt) === null) { this.reset(); return undefined; }
+    const previous = this.previous;
+    this.previous = { key: generationKey(item), tokens, ms, at: monotonicAt };
+    if (!previous || previous.key !== this.previous.key) return undefined;
+    const windowMs = monotonicAt - previous.at, deltaTokens = tokens - previous.tokens, deltaMs = ms - previous.ms;
+    if (windowMs <= 0) { this.reset(); return undefined; }
+    if (windowMs > SPLASH_RATE_GAP_MS || deltaTokens <= 0 || deltaMs <= 0) return undefined;
+    const decodeTps = Math.round(deltaTokens * 1_000_000 / deltaMs) / 1_000;
+    return Number.isFinite(decodeTps) ? { decodeTps, windowMs } : undefined;
+  }
+
+  reset(): void { this.previous = null; }
+}
+
 const emptyRuntime = (at: number): RuntimeV2 => ({ sampledAt: at, phase: 'unknown', request: null, server: { active: null, queued: null },
   memory: {}, residency: [], slots: [], catalog: [], engines: [] });
 
@@ -218,13 +247,22 @@ export class SplashCompletions {
 class SplashAdapter implements AdapterV2 {
   private held: { reading: AdapterReadingV2; until: number } | null = null;
   private readonly completions = new SplashCompletions();
+  private readonly rates = new SplashRates();
   constructor(private readonly context: AdapterContextV2) {}
 
   async read(): Promise<AdapterReadingV2> {
     const held = this.hold();
     if (held) return held;
-    const body = await this.status(), at = this.context.now();
-    const reading: AdapterReadingV2 = { ...splashReading(body, at), completions: this.completions.observe(body, at, this.context.monotonic()) };
+    let body: unknown;
+    try { body = await this.status(); }
+    catch (error) { this.rates.reset(); throw error; }
+    const at = this.context.now(), monotonicAt = this.context.monotonic();
+    const reading: AdapterReadingV2 = { ...splashReading(body, at), completions: this.completions.observe(body, at, monotonicAt) };
+    const rates = this.rates.observe(body, monotonicAt);
+    if (rates) {
+      reading.runtime.server.rates = rates;
+      reading.capabilities['server.rates'] = { scope: 'server', basis: 'derived' };
+    }
     this.held = reading.status.state === 'recovering' ? { reading, until: this.context.monotonic() + SPLASH_RECOVERING_CACHE_MS } : null;
     return reading;
   }
@@ -235,7 +273,7 @@ class SplashAdapter implements AdapterV2 {
     return splashBody((await this.context.get('/status')).body) !== null;
   }
 
-  dispose(): void { this.held = null; this.completions.reset(); }
+  dispose(): void { this.held = null; this.completions.reset(); this.rates.reset(); }
 
   private hold(): AdapterReadingV2 | null {
     const left = this.held ? this.held.until - this.context.monotonic() : 0;

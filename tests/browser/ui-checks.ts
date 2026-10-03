@@ -3,7 +3,11 @@
 // inferred/armed or name their reason, a basis label on every non-reported value, no GPU alert, one callout per view,
 // ⓘ targets ≥ 24 px with aria-expanded/aria-controls, no tooltip-only text, labelled charts and svgs, roving tabs, the
 // glance's exact heights with nothing spilling, and interactive targets ≥ 24 px. Runs inside the panel frame.
-export const inspect = (openAll: boolean): string[] => {
+export const inspect = (options: boolean | { openAll: boolean; backdrop: string[] }): string[] => {
+  const openAll = typeof options === 'boolean' ? options : options.openAll;
+  // A transparent cross-origin guest inherits the host visually, not through its DOM. The harness supplies that
+  // ancestor chain in outermost-first order so contrast is measured against the actual surface behind the frame.
+  const backdrop = typeof options === 'boolean' ? [] : options.backdrop;
   const vw = innerWidth, problems: string[] = [];
   const visible = (el: Element) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
   if (openAll) for (const b of Array.from(document.querySelectorAll('button[aria-controls]:not([role="tab"])'))) {
@@ -33,6 +37,7 @@ export const inspect = (openAll: boolean): string[] => {
   const behind = (el: Element): C => {
     const chain: Element[] = []; for (let a: Element | null = el; a; a = a.parentElement) chain.unshift(a);
     let base: C = [1, 1, 1];
+    for (const color of backdrop) { const c = parse(color); if (c) base = over(c, base); }
     for (const a of chain) {
       const cs = getComputedStyle(a), img = /(rgba?\([^)]*\)|color\(srgb[^)]*\))/.exec(cs.backgroundImage);
       if (img && !/repeating/.test(cs.backgroundImage)) { const c = parse(img[1]!); if (c) base = over(c, base); }

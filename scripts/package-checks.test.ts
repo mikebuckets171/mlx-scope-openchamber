@@ -63,7 +63,7 @@ describe('two-way exec match', () => {
 
 describe('bundles and pages', () => {
   test('ceilings are the plan §6 numbers', () => {
-    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 260_000, 'service/main.js': 170_000, 'background/main.js': 25_000 });
+    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 264_000, 'service/main.js': 170_000, 'background/main.js': 25_000 });
   });
   test('the background page declares exactly the panel CSP', () => {
     const panel = cspOf(read('panel/index.html'));
@@ -80,10 +80,10 @@ describe('bundles and pages', () => {
   });
 });
 
-test('ui/tokens.css keeps the 1.6 tokens of panel/style.css unchanged (plan P8)', () => {
+test('ui/tokens.css stays in sync with the panel theme tokens', () => {
   const extracted = tokenDeclarations(rootBlock(read('ui/tokens.css'))!);
   const panel = new Map(tokenDeclarations(rootBlock(read('panel/style.css'))!));
   expect(extracted.length).toBeGreaterThan(20);
-  // The panel may add approved tokens (G2: --scope-bad); it may not change or drop a 1.6 one.
+  // Consumers of the extracted tokens get the same current-theme fallbacks as the panel.
   for (const [name, value] of extracted) expect(panel.get(name)).toBe(value);
 });

@@ -10,7 +10,7 @@ import { esc, html } from '../html.ts';
 import { frameCardMarkup, PAGE_TABS, TABS, tabsMarkup } from '../shell.ts';
 import { liveMarkup } from './live.ts';
 import { serverMarkup } from './server.ts';
-import { statusMarkup } from './status.ts';
+import { statusHeight, statusMarkup } from './status.ts';
 
 const snapshotOf = (state: string, patch: (body: Record<string, any>) => void = () => {}) => {
   const body = JSON.parse(JSON.stringify(mockBody(state))); patch(body);
@@ -51,7 +51,8 @@ test('every mock state renders every view without a raw placeholder', () => {
       attribution: SERVER_WIDE, turn: null, vsUsual: null, sparkline: null, chatIsLocal: true, expanded: false, tipDismissed: true, fresh: true });
     const markup = [liveMarkup(presentLive(input), new Set()), serverMarkup(presentServer(input.snapshot, MOCK_NOW), new Set()), statusMarkup(status)].map(item => item.markup).join('');
     expect(markup, state).not.toMatch(/undefined|NaN|\[object|VRAM/);
-    expect(markup, state).toContain(`style="height:${status.height}px"`);
+    expect(markup, state).toContain(`style="height:${statusHeight(status)}px"`);
+    expect(statusMarkup(status, true).markup, `${state} compact`).toContain(`style="height:${status.height}px"`);
   }
 });
 

@@ -7,9 +7,9 @@ import { presentStatusSection } from '../present/status.ts';
 import type { Pipeline } from '../state/pipeline.ts';
 import type { ScopeState } from '../state/scope-state.ts';
 import { morph } from './html.ts';
-import { statusMarkup } from './views/status.ts';
+import { statusHeight, statusMarkup } from './views/status.ts';
 
-// The Work Status section (surface 'status', same bundle; plan §5.8, owner decision 13): the glance at 56/80/24 px or
+// The Work Status section (surface 'status', same bundle): the Session glance at 80/112/24 px or
 // the Turn stats replacement at ≤ 200 px, sized with setHeight. Glance tier; it can lead, so it may record and toast.
 
 /** The 15 min sparkline comes from the service trend, refreshed at most this often while the section is visible. */
@@ -49,7 +49,8 @@ export class StatusApp {
       firstRun: pipeline.firstRun, firstRunDismissed: pref.firstRunDismissed === true,
     });
     morph(this.p.root, statusMarkup(view));
-    if (view.height !== this.height) { this.height = view.height; void this.p.host.setHeight(view.height).catch(() => {}); }
+    const height = statusHeight(view);
+    if (height !== this.height) { this.height = height; void this.p.host.setHeight(height).catch(() => {}); }
   }
   /** Only while visible, and never faster than every 30 s; a failed or unserved read leaves "Chart starts after 2 readings". */
   private refreshTrend(): void {

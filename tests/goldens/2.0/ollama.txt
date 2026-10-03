@@ -18,7 +18,7 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Ollama reports residency only · no per-request speed
+#hero {aria-label="Inference activity"}: Live performance | Ollama reports residency only · no per-request speed
 #model: example:14b
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="runtime can’t count requests"}: Server-wide · runtime can’t count requests

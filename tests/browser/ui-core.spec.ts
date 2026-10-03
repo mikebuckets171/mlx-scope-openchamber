@@ -2,11 +2,11 @@ import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 import { inspect } from './ui-checks.ts';
 
 // Stage 8 (ui-core): the 2.0 panel on the 2.0 fixture host (tests/browser/v2-host.html), which answers /v2/snapshot with
-// the approved G2 mock's v2 states. Every state at 320/430/1160, the Work Status section at 280 × 24/56/80/≤ 200, and the
+// the approved G2 mock's v2 states. Every state at 320/430/1160, the Work Status section at 280 × 24/56/80/112/≤ 200, and the
 // mock's checks (contrast ≥ 4.5:1, targets ≥ 24 px, aria, basis labels, no overflow) on each.
 type W = Window & Record<string, any>;
 const STATES = ['decode', 'withheld-chats', 'withheld-subagent', 'other-provider', 'armed-refusal', 'first-readings', 'prefill', 'prefill-stall', 'idle',
-  'paused', 'next-armed', 'next-measuring', 'next-result', 'splash-recovering', 'splash-stale', 'splash-not-admitting', 'offline', 'runtime-changed', 'detecting',
+  'paused', 'next-armed', 'next-measuring', 'next-result', 'splash-decode', 'splash-measuring', 'splash-recovering', 'splash-stale', 'splash-not-admitting', 'offline', 'runtime-changed', 'detecting',
   'unconfigured', 'contract-mismatch', 'needs-approval', 'admin-unauthorized', 'pressure', 'pressure-critical', 'thermal', 'model-unloaded', 'memory-guard',
   'llama', 'llama-sleeping', 'llama-metrics', 'ollama', 'bionic', 'lms-unavailable', 'storage-full', 'history-empty', 'recording-paused', 'clear-confirm'];
 const host = <T>(page: Page, read: (w: W) => T): Promise<T> => page.evaluate(`(${read.toString()})(window)`) as Promise<T>;
@@ -20,7 +20,14 @@ const load = async (page: Page, query: string, width = 320): Promise<FrameLocato
   await expect(frame.locator('#phase')).not.toHaveText('Connecting');
   return frame;
 };
-const problems = async (page: Page, openAll = false) => panel(page).evaluate(inspect, openAll);
+const problems = async (page: Page, openAll = false) => {
+  const backdrop = await page.locator('iframe').evaluate(el => {
+    const colors: string[] = [];
+    for (let a: Element | null = el; a; a = a.parentElement) colors.unshift(getComputedStyle(a).backgroundColor);
+    return colors;
+  });
+  return panel(page).evaluate(inspect, { openAll, backdrop });
+};
 const errorsOf = (page: Page) => { const errors: string[] = []; page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); }); return errors; };
 
 test.describe.configure({ timeout: 240_000 });
@@ -160,22 +167,22 @@ const status = async (page: Page, query: string) => {
 };
 const lastHeight = (page: Page) => host(page, w => w.previewHeights.at(-1));
 
-test('Work Status: 56 / 80 / 24 px glance and the one-time tip, sized with setHeight on the glance tier', async ({ page }) => {
+test('Work Status: 80 / 112 / 24 px glance and the one-time tip, sized with setHeight on the glance tier', async ({ page }) => {
   // The first-run notice has its own test; this one starts with it dismissed.
   await page.goto('/v2');
   await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ noticeDismissed: true })));
-  // Until the attribution join labels it, the live reading is server-wide: its reason line stays beside the tip (56 + 64).
+  // Until the attribution join labels it, the live reading is server-wide: its reason line stays beside the tip (80 + 64).
   let frame = await status(page, 'state=decode');
-  await expect.poll(() => lastHeight(page)).toBe(120);
+  await expect.poll(() => lastHeight(page)).toBe(144);
   await expect(frame.locator('#ws .connection-diagnosis')).toHaveText('Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place');
   expect((await host(page, w => w.previewQueries))[0]).toMatchObject({ surface: 'status', tier: 'glance' });
   await frame.getByRole('button', { name: 'Dismiss tip' }).click();
-  await expect.poll(() => lastHeight(page)).toBe(56);
+  await expect.poll(() => lastHeight(page)).toBe(80);
   expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ tipDismissed: true });
   expect(await problems(page)).toEqual([]);
   // Remembered: the next mount starts without the tip.
   frame = await status(page, 'state=pressure');
-  await expect.poll(() => lastHeight(page)).toBe(80);
+  await expect.poll(() => lastHeight(page)).toBe(112);
   await expect(frame.locator('.ws-alert')).toHaveAttribute('data-severity', 'warning');
   await expect(frame.locator('.ws-alert')).toContainText('macOS memory pressure: warning');
   expect(await problems(page)).toEqual([]);
@@ -183,13 +190,13 @@ test('Work Status: 56 / 80 / 24 px glance and the one-time tip, sized with setHe
   await expect.poll(() => lastHeight(page)).toBe(24);
   await expect(frame.locator('#ws')).toHaveText('Chat uses a non-local model');
   expect(await problems(page)).toEqual([]);
-  for (const [state, height] of [['offline', 56], ['splash-recovering', 56], ['needs-approval', 56], ['prefill', 56], ['idle', 56], ['pressure-critical', 80]] as const) {
+  for (const [state, height] of [['offline', 56], ['splash-recovering', 56], ['needs-approval', 56], ['prefill', 80], ['idle', 80], ['pressure-critical', 112]] as const) {
     frame = await status(page, `state=${state}`);
     await expect.poll(() => lastHeight(page), state).toBe(height);
     expect(await problems(page), state).toEqual([]);
   }
   // The host clamps the frame to what the section asked for.
-  expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(80);
+  expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(112);
 });
 
 test('Work Status: every mock state in both themes at 280 px fits its section height, ≤ 200 px, and passes the checks', async ({ page }) => {
@@ -200,7 +207,7 @@ test('Work Status: every mock state in both themes at 280 px fits its section he
     await status(page, `state=${state}&theme=${theme}`);
     await expect.poll(() => lastHeight(page), `${state} ${theme}`).toBeDefined();
     const height = await lastHeight(page);
-    // 24 for a non-local chat, else padding + 24 px lines (+ 64 for the tip), never taller than Turn stats' 200.
+    // Model rows and divided alerts retain the 8 px rhythm, including notices; never taller than Turn stats' 200.
     expect((height - 8) % 8, `${state} ${theme}`).toBe(0);
     expect(height, `${state} ${theme}`).toBeLessThanOrEqual(200);
     expect(await problems(page), `${state} ${theme} ${tip ? 'tip' : ''}`).toEqual([]);
@@ -214,9 +221,9 @@ test('Work Status: the first-run notice shows while the leader records into an e
   await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true })));
   const frame = await status(page, 'state=idle');
   await expect(frame.locator('#ws')).toContainText('Recording reply history locally');
-  await expect.poll(() => lastHeight(page)).toBe(80);
+  await expect.poll(() => lastHeight(page)).toBe(104);
   await frame.getByRole('button', { name: /Dismiss/ }).click();
-  await expect.poll(() => lastHeight(page)).toBe(56);
+  await expect.poll(() => lastHeight(page)).toBe(80);
   expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ noticeDismissed: true, tipDismissed: true });
   expect(await problems(page)).toEqual([]);
 });
@@ -225,11 +232,11 @@ test('Work Status: the Turn stats replacement stays within 200 px and its choice
   await page.goto('/v2');
   await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true, noticeDismissed: true })));
   let frame = await status(page, 'state=bionic&chat=local');
-  await expect.poll(() => lastHeight(page)).toBe(56);
+  await expect.poll(() => lastHeight(page)).toBe(80);
   await frame.getByRole('button', { name: 'Show turn stats' }).click();
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'turn-stats');
   // setHeight is a message to the host: wait for it rather than for the DOM.
-  await expect.poll(() => lastHeight(page)).toBeGreaterThan(56);
+  await expect.poll(() => lastHeight(page)).toBeGreaterThan(80);
   const height = await lastHeight(page);
   expect(height).toBeLessThanOrEqual(200);
   // Without a turn summary, the slot is the last reply with its own label and the rows the runtime reports.
@@ -241,7 +248,7 @@ test('Work Status: the Turn stats replacement stays within 200 px and its choice
   frame = await status(page, 'state=bionic');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'turn-stats');
   await frame.getByRole('button', { name: 'Show the glance view' }).click();
-  await expect.poll(() => lastHeight(page)).toBe(56);
+  await expect.poll(() => lastHeight(page)).toBe(80);
 });
 
 test('the visibility gate engages before the first poll: a display:none frame makes zero requests', async ({ page }) => {

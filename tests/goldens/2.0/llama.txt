@@ -18,7 +18,7 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Per-request speed withheld: 2 slots are busy
+#hero {aria-label="Inference activity"}: Live performance | Per-request speed withheld: 2 slots are busy
 #model: example-8b-instruct-q4_k_m.gguf
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="overlapping requests"}: Server-wide · overlapping requests

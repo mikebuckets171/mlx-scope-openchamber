@@ -18,7 +18,7 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Model loaded · ready for the next request
+#hero {aria-label="Inference activity"}: Live performance | Model loaded · ready for the next request
 #model: example-27b-splash
 #rate: Idle
 #reply-strip: Last reply i 48 s ago | Measure next reply One reply in this chat · arms for 2 min
@@ -104,7 +104,7 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Model loaded · ready for the next request
+#hero {aria-label="Inference activity"}: Live performance | Model loaded · ready for the next request
 #model: example-27b-splash
 #rate: Idle
 #reply-strip: Last reply i 48 s ago | Measure next reply One reply in this chat · arms for 2 min
