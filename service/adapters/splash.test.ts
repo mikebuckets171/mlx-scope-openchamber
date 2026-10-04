@@ -17,7 +17,7 @@ const AT = 1_790_690_700_000, INSTANCE = '5c1e0a7b', MODEL = 'publisher/Example-
 const load = (version: string, file: string): Json => JSON.parse(readFileSync(join(ROOT, version, file), 'utf8'));
 const status = (variant: string, version = '1.1.0') => load(version, `status.${variant}.json`);
 const clone = <T>(value: T): T => structuredClone(value);
-const FIXTURES = ['1.1.0', '1.0.2'].flatMap(version => readdirSync(join(ROOT, version))
+const FIXTURES = ['1.2.0', '1.1.0', '1.0.2'].flatMap(version => readdirSync(join(ROOT, version))
   .filter(file => file.startsWith('status.')).sort().map(file => ({ version, variant: file.slice(7, -5), body: load(version, file) })));
 const EXPECTED: Record<string, [string, string | null]> = {
   'ready-idle': ['ready', null], decoding: ['ready', null], vision: ['ready', null], 'ready-after-crash': ['ready', null],
@@ -309,7 +309,7 @@ describe('readings over every fixture', () => {
 
 describe('Splash 1.1 feature detection and catalog chips', () => {
   test('1.1 is told from 1.0.2 by vision, input_modalities and chat_template', () => {
-    for (const { version, variant, body } of FIXTURES) expect(isSplash11(body), `${version} ${variant}`).toBe(version === '1.1.0');
+    for (const { version, variant, body } of FIXTURES) expect(isSplash11(body), `${version} ${variant}`).toBe(version !== '1.0.2');
     expect(isSplash11({ ready: true, chat_template: { later_system: 'native' } })).toBe(true);
   });
 
@@ -341,6 +341,31 @@ describe('completions: the Δ = 1 rule (SPIKES S7)', () => {
     expect(draft).toEqual({ finishedAt: AT, startedAt: null, model: MODEL, basis: 'derived', overlapped: false, ttftMs: 412.5,
       prefillMs: 870.708, prefillTps: 514.524, decodeTps: 54.054 });
     expectRoundTrip('delta1', snapshotOf(splashReading(status('delta1-after'), AT), [draft!]));
+  });
+
+  test('Splash 1.2 renamed latency.ttft to latency.http_ttft (status schema 6): the Δ=1 pair still derives 412.5 ms', () => {
+    const renamed = (name: string) => {
+      const body = status(name), { ttft, ...stages } = body.latency;
+      body.latency = { ...stages, http_ttft: ttft };
+      return body;
+    };
+    const draft = splashCompletion(renamed('delta1-before'), renamed('delta1-after'), AT);
+    expect(draft).toEqual({ finishedAt: AT, startedAt: null, model: MODEL, basis: 'derived', overlapped: false, ttftMs: 412.5,
+      prefillMs: 870.708, prefillTps: 514.524, decodeTps: 54.054 });
+    // Without either histogram there is still a completion, but no TTFT is invented.
+    const bare = (name: string) => { const body = status(name); delete body.latency; return body; };
+    expect(splashCompletion(bare('delta1-before'), bare('delta1-after'), AT)?.ttftMs).toBeUndefined();
+  });
+
+  test('Splash 1.2.0 captured Δ=1 pair: latency.http_ttft derives one per-request TTFT of 207.117 ms', () => {
+    const before = status('delta1-before', '1.2.0'), done = status('delta1-after', '1.2.0');
+    expect(done.latency.ttft).toBeUndefined();
+    const draft = splashCompletion(before, done, AT);
+    expect(draft).toEqual({ finishedAt: AT, startedAt: null, model: MODEL, basis: 'derived', overlapped: false, ttftMs: 207.117,
+      prefillMs: 125.708, prefillTps: 167.053, decodeTps: 29.017 });
+    expectRoundTrip('1.2.0 delta1', snapshotOf(splashReading(done, AT), [draft!]));
+    // Mid-reply, the first token is counted but the request has not finished: no completion yet.
+    expect(splashCompletion(before, status('decoding', '1.2.0'), AT)).toBeNull();
   });
 
   test('Δ=2 fixture pair: an aggregate step, with no per-request TTFT (the 944.75 ms mean is withheld)', () => {
@@ -551,6 +576,8 @@ describe('the descriptor', () => {
     };
     for (const { version, variant, body } of FIXTURES) expect(await step(body), `${version} ${variant}`).toBe('high');
     expect(await step({ ready: true })).toBe('medium');
+    // A /status schema without a qualified corpus (Splash 1.2 is 6) still matches, but only at medium.
+    expect(await step({ ...status('ready-idle', '1.2.0'), schema_version: 7 })).toBe('medium');
     for (const body of [null, {}, { ready: 1 }, { status: 'healthy' }, { model_loaded: true }]) expect(await step(body)).toBeNull();
     expect(splashDescriptor.detect.every(item => item.probe === '/status')).toBe(true);
   });
