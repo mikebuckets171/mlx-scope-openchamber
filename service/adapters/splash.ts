@@ -7,7 +7,7 @@ import type { AdapterContextV2, AdapterReadingV2, AdapterV2, CompletionDraft, De
 import { HttpFailure } from '../http.ts';
 import { modelLabel, positive } from '../lib/parse.ts';
 
-// Owner: ad-splash. Splash 1.0.2–1.1 through GET /status only (G1: no /metrics, no /v1/models). Precedence recovering >
+// Owner: ad-splash. Splash 1.0.2–1.2 through GET /status only (G1: no /metrics, no /v1/models). Precedence recovering >
 // status_stale > not admitting > ready; native ttft_ms/itl_ms p50/p95 with n. last_crash_trace, transport.error and
 // metal.failure_reason cross only as presence booleans; instance.* and identity.* never leave this file (the model
 // name is class B and the instance id only feeds the opaque generation key).
@@ -34,8 +34,11 @@ const field = (root: unknown, path: string): unknown => path.split('.').reduce<u
 const text = (value: unknown): boolean => typeof value === 'string' && value.trim() !== '';
 /** Stale and recovering bodies are a cached copy of the last native snapshot with `ready` forced false. */
 const fresh = (item: Json): boolean => field(item, 'transport.recovering') !== true && field(item, 'transport.status_stale') !== true;
+/** The HTTP time-to-first-token histogram: `latency.http_ttft` since Splash 1.2 (status schema 6), `latency.ttft` before. */
+const ttftLatency = (item: Json, key: 'count' | 'sum'): unknown =>
+  field(item, `latency.http_ttft.${key}`) ?? field(item, `latency.ttft.${key}`);
 
-/** Splash reports no version (schema_version is 5 in 1.0 and 1.1): 1.1 is recognised by its feature fields. */
+/** Splash reports no version (schema_version is 5 in 1.0 and 1.1, 6 in 1.2): 1.1 and later are recognised by their feature fields. */
 export const isSplash11 = (body: unknown): boolean => {
   const item = obj(body);
   return !!item && (typeof item.vision === 'boolean' || Array.isArray(item.input_modalities) || obj(item.chat_template) !== null);
@@ -181,7 +184,7 @@ const counters = (body: unknown): Counters | null => {
   return { engine: JSON.stringify([field(item, 'instance.id') ?? null, field(item, 'transport.restarts') ?? null]), busy: total,
     queued: waiting(item), model: modelLabel(field(item, 'instance.model')),
     totals: { submitted: count(requests.submitted)!, completed: count(requests.completed)!, failed: count(requests.failed)!,
-      cancelled: count(requests.cancelled) ?? 0, ttftCount: count(field(item, 'latency.ttft.count')), ttftSum: nonneg(field(item, 'latency.ttft.sum')),
+      cancelled: count(requests.cancelled) ?? 0, ttftCount: count(ttftLatency(item, 'count')), ttftSum: nonneg(ttftLatency(item, 'sum')),
       prefillTokens: count(metrics?.prefill_input_tokens), prefillMs: nonneg(metrics?.prefill_wall_ms),
       decodeTokens: count(metrics?.decode_output_tokens), decodeMs: nonneg(metrics?.decode_wall_ms) } };
 };
@@ -292,12 +295,15 @@ class SplashAdapter implements AdapterV2 {
 }
 
 const BIONIC = /bionic|lm[\s_-]*studio/i;
+/** /status schema versions with a qualified corpus: 5 (Splash 1.0.2 and 1.1) and 6 (1.2). Others still match, at medium. */
+const SPLASH_SCHEMAS: readonly unknown[] = [5, 6];
 export const splashDescriptor: DescriptorV2 = {
   id: 'splash',
   // splish is the owner's fork (identical server code, SPIKES S7); a Splash engine inside Bionic is LM Studio's.
   hints: (id, name) => !BIONIC.test(`${id} ${name}`) && (/^spl[ai]sh$/i.test(id.trim()) || /spl[ai]sh/i.test(name)),
   detect: [
-    { probe: '/status', confidence: 'high', match: ({ body }) => splashBody(body) !== null && obj(body!.transport) !== null && body!.schema_version === 5 },
+    { probe: '/status', confidence: 'high', match: ({ body }) => splashBody(body) !== null && obj(body!.transport) !== null
+      && SPLASH_SCHEMAS.includes(body!.schema_version as number) },
     { probe: '/status', confidence: 'medium', match: ({ body }) => splashBody(body) !== null },
   ],
   cadence: ({ activity, recovering }) => recovering ? SPLASH_RECOVERING_CACHE_MS : activity ? SPLASH_CADENCE_MS.active : SPLASH_CADENCE_MS.idle,

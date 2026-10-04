@@ -30,7 +30,7 @@ unsupported fields stay out of the views.
 | oMLX | [0.7.0rc1](https://github.com/jundot/omlx/tree/35be079d), [0.6.4](https://github.com/jundot/omlx/tree/1d7826185c5b5b69b38b27cbe57d7597b7551fd7) | Fixture; live on the owner's Mac in Stage 12 | Per request |
 | Splash via Bionic | Bionic 1.1.6 (Splash runtime 0.0.5) | Fixture, shapes and key order copied from live replies with values replaced; live in Stage 12 | Per request through `lms` |
 | LM Studio | [0.4.25](https://lmstudio.ai/changelog/lmstudio/lmstudio-v0.4.25) | Documentation and source notes; no stock LM Studio reply was captured | Inventory, per request with `lms` |
-| Splash (standalone) | [1.1.0](https://github.com/incoai/splash/tree/3e1f9ece3e2528f3eb46b82a05911591f34a4317), [1.0.2](https://github.com/incoai/splash/tree/e8fffde2c3a1d1c4120028d9e5399bb917b8b917) | Fixture; 1.1.0 key paths checked against a local server; live in Stage 12 when running | Server-wide |
+| Splash (standalone) | [1.2.0](https://github.com/incoai/splash/tree/f43509a2f03d83b4442a0fab748e8b0fb49aa817), [1.1.0](https://github.com/incoai/splash/tree/3e1f9ece3e2528f3eb46b82a05911591f34a4317), [1.0.2](https://github.com/incoai/splash/tree/e8fffde2c3a1d1c4120028d9e5399bb917b8b917) | Fixture; 1.2.0 captured from a local server and scrubbed; 1.1.0 key paths checked against a local server; live in Stage 12 when running | Server-wide |
 | llama-server | [b10519](https://github.com/ggml-org/llama.cpp/tree/b10519), [b6700](https://github.com/ggml-org/llama.cpp/tree/b6700) | Fixture only | Slots, server-wide |
 | Ollama | [0.40.0](https://github.com/ollama/ollama/tree/v0.40.0-rc0) | Fixture only | Residency |
 | vllm-mlx | [0.5.0](https://github.com/waybarrios/vllm-mlx/tree/b064502055a68aaf94c6c58f9c0d749e0bd4f8cb) | Source review and synthetic fixtures | Per request, server-wide |
@@ -113,12 +113,13 @@ counters are not shown for Bionic-hosted Splash.
 MLX Scope reads the passive `/status` endpoint only; there is no `/metrics` read. It detects a server from a JSON body
 with a boolean `ready`. It shows the active model and declared maximum context, idle or generating state with in-flight
 requests, completed/failed counters since engine start, live server-wide decode throughput, lifetime averages, current/peak Metal allocator
-values, and on 1.1 the model's vision support and input kinds, plus Splash's own first-token and inter-token latency
+values, and on 1.1 and later the model's vision support and input kinds, plus Splash's own first-token and inter-token latency
 p50/p95 with their sample counts (over Splash's last 4,096 samples). States take this precedence: recovering, status stale,
 not admitting, ready. While Splash recovers, its body is the cached pre-crash snapshot, so no activity is derived from
 it and Scope reads it at most every 30 seconds. Counters reset when the engine restarts; a drop is a reset, not a
 completion. Crash traces, transport error text, and instance and identity fields are never forwarded. 1.0.2 lacks the
-1.1 fields, which are then left out.
+1.1 fields, which are then left out. Splash 1.2 (status schema 6) renamed the HTTP first-token histogram
+`latency.ttft` to `latency.http_ttft`; a finished reply's first-token time is derived from whichever one the server reports.
 
 Live tok/s uses the change in `metrics.decode_output_tokens` divided by the change in `metrics.decode_wall_ms`,
 multiplied by 1,000, between two fresh, ready polls while native decoding is active. These counters advance after

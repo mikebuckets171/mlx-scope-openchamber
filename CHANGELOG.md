@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.1
+
+### Fixed
+
+- Splash 1.2: a finished reply's first-token time is shown again. Splash 1.2 (status schema 6) renamed the HTTP
+  first-token histogram `latency.ttft` to `latency.http_ttft`; Scope now reads either, so 1.0.2 and 1.1 are unchanged.
+- Splash 1.2: a `/status` body with schema 6 is detected at high confidence again, as schema 5 is for 1.0.2 and 1.1.
+  An unqualified schema still matches at medium.
+- Splash 1.2.0 is added to the compatibility table, with a fixture set captured from a local server and scrubbed.
+
 ## 2.1.0
 
 ### Added

@@ -377,3 +377,84 @@ describe('Splash 1.1.0 /metrics sample (kept only for the S7 "not used" decision
     expect(value('splash_ready')).toBe(1);
   });
 });
+
+// Splash 1.2.0 is a captured-and-scrubbed corpus (1.2.0/SOURCE.md), not a synthesized one, and its /status schema is 6,
+// so it gets its own checks instead of the schema-5 tables above.
+describe('Splash 1.2.0 captured corpus (status schema 6)', () => {
+  const DIR = '1.2.0';
+  const VARIANTS = ['ready-idle', 'delta1-before', 'decoding', 'delta1-after'];
+  const STAGES_12 = ['http_request', 'upload', 'preparation_queue', 'preparation', 'template', 'tokenization', 'grammar', 'images',
+    'native_queue', 'http_ttft', 'output_interval'];
+  const raw = (file: string) => readFileSync(join(ROOT, DIR, file), 'utf8');
+  const read = (file: string) => JSON.parse(raw(file)) as Json;
+  const files = readdirSync(join(ROOT, DIR)).filter(file => file !== 'SOURCE.md').sort();
+
+  test('inventory: the four /status reads and /v1/models, each with provenance in SOURCE.md', () => {
+    expect(files).toEqual([...VARIANTS.map(variant => `status.${variant}.json`), 'v1-models.default.json'].sort());
+    const source = raw('SOURCE.md');
+    for (const file of files) expect(source, `SOURCE.md covers ${file}`).toContain(`\`${file}\``);
+    expect(source).toContain('captured from a local server and scrubbed');
+  });
+
+  test('every body is a compact json_codec body with ascending bucket bounds', () => {
+    for (const file of files) {
+      const text = raw(file);
+      expect(text.includes('\n') || /[,:]\s/.test(text.replace(/"(?:[^"\\]|\\.)*"/g, '""')), file).toBe(false);
+      for (const match of text.matchAll(/"buckets":\{([^}]*)\}/g))
+        expect([...match[1].matchAll(/"([^"]+)":/g)].map(key => key[1]), file).toEqual(BUCKET_KEYS);
+    }
+  });
+
+  test.each(VARIANTS)('/status %s: schema 6, Ready, latency.http_ttft in place of latency.ttft, canaries planted', variant => {
+    const s = read(`status.${variant}.json`);
+    expect(s.schema_version).toBe(6);
+    expect(stateOf(s)).toBe('Ready');
+    expect(s.ready).toBe(true);
+    expect(Object.keys(object(s.latency, 'latency'))).toEqual(STAGES_12);
+    const buckets = object(at(s, 'latency.http_ttft.buckets'), 'http_ttft.buckets');
+    expect(Object.keys(buckets).sort()).toEqual([...BUCKET_KEYS].sort());
+    expect(buckets['+Inf']).toBe(int(s, 'latency.http_ttft.count'));
+    num(s, 'latency.http_ttft.sum');
+    for (const key of ['submitted', 'completed', 'cancelled', 'failed']) int(s, `requests.${key}`);
+    for (const key of ['decode_output_tokens', 'prefill_input_tokens']) int(s, `metrics.${key}`);
+    for (const key of ['decode_wall_ms', 'prefill_wall_ms']) num(s, `metrics.${key}`);
+    expect(int(s, 'memory_actual.peak_bytes')).toBeGreaterThanOrEqual(int(s, 'memory_actual.current_bytes'));
+    expect(s.instance).toEqual({ id: CANARY.instanceId, pid: CANARY.pid, model: MODEL, host: CANARY.host,
+      port: CANARY.port, started_at: CANARY.startedAt });
+    expect(at(s, 'identity.cache.loaded_model_layout_sha256')).toBe(CANARY.identity['cache.loaded_model_layout_sha256']);
+    expect(at(s, 'identity.cache.build_id')).toBe(CANARY.identity['cache.build_id']);
+    expect(at(s, 'identity.kv.target_model_sha256')).toBe(CANARY.identity['q8.target_model_sha256']);
+    expect(at(s, 'transport.last_crash_trace')).toBeNull();
+    expect(at(s, 'transport.error')).toBeUndefined();
+    expect(at(s, 'metal.failure_reason')).toBe('');
+    expect(s.input_modalities).toEqual(s.vision ? ['text', 'image', 'pdf'] : ['text']);
+  });
+
+  test('privacy: CANARY strings only at the planted paths, and no real paths', () => {
+    for (const file of files) {
+      const text = raw(file);
+      expect(text).not.toContain('CANARY-PROMPT');
+      for (const match of text.matchAll(/\/Users\/[A-Za-z0-9._-]+/g)) expect(match[0]).toBe('/Users/fixture');
+      for (const [path, value] of strings(JSON.parse(text)))
+        if (value.includes('CANARY')) expect(CANARY_PATHS.has(path), `${file}: ${path}`).toBe(true);
+    }
+    expect(raw('v1-models.default.json')).not.toContain('CANARY');
+  });
+
+  test('Δ=1 pair: exactly one request between two idle reads, with a mid-reply read in between', () => {
+    const before = read('status.delta1-before.json'), done = read('status.delta1-after.json'), mid = read('status.decoding.json');
+    expect([inFlight(before), inFlight(mid), inFlight(done)]).toEqual([0, 1, 0]);
+    expect(busyRows(mid)).toBeGreaterThan(0);
+    for (const path of ['requests.submitted', 'requests.completed', 'latency.http_ttft.count'])
+      expect(int(done, path) - int(before, path), path).toBe(1);
+    expect(Math.round((num(done, 'latency.http_ttft.sum') - num(before, 'latency.http_ttft.sum')) * 1e6) / 1e3).toBe(207.117);
+  });
+
+  test('/v1/models lists the resident model with its catalog chips', () => {
+    const models = read('v1-models.default.json'), [item] = models.data as Json[];
+    expect(models.object).toBe('list');
+    expect(item).toMatchObject({ id: MODEL, object: 'model', created: 0, owned_by: 'splash' });
+    expect(item.max_model_len).toBe(item.context_length as number);
+    expect(item.input_modalities).toEqual(item.vision ? ['text', 'image', 'pdf'] : ['text']);
+  });
+});
