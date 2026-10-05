@@ -25,13 +25,13 @@ describe('History presenter (plan §5.6, G2 mock)', () => {
   });
   test('the list is newest first: a turn above its last step, the gap in its place, each reply with its label', () => {
     const view = presentHistory(input());
-    expect(view.entries.map(e => e.kind === 'gap' ? e.text : e.kind === 'turn' ? `${e.at} ${e.title}` : `${e.at} ${e.rate} ${e.attr.text}`)).toEqual([
+    expect(presentHistory(input({ listLimit: 12 })).entries.map(e => e.kind === 'gap' ? e.text : e.kind === 'turn' ? `${e.at} ${e.title}` : `${e.at} ${e.rate} ${e.attr.text}`)).toEqual([
       '14:04 Turn · 3 steps', '14:04 24.9 tok/s This chat · inferred', '13:58 25.6 tok/s This chat · inferred', '13:56 25.1 tok/s This chat · inferred',
       '13:51 24.3 tok/s Next reply · armed', '13:49 23.8 tok/s Server-wide · overlapping requests', 'Not observed · Scope wasn’t open · 13:24–13:46',
       '13:22 24.4 tok/s Server-wide · outside this chat’s turn', '13:17 24.0 tok/s This chat · inferred', '13:09 23.6 tok/s Server-wide · not observed',
       'Sep 28 24.4 tok/s Server-wide · not observed', 'Sep 28 26.2 tok/s This chat · inferred']);
     expect(view.entries).toHaveLength(HISTORY_LIST_LIMIT);
-    expect(view.more).toBe('Showing the newest 12 of 43 entries');
+    expect(view.more).toBe('Showing the newest 6 of 43 entries');
     expect(view.showMore).toBe('Show 24 more');
     expect(presentHistory(input({ listLimit: 60 })).more).toBeNull();
   });
@@ -54,7 +54,6 @@ describe('History presenter (plan §5.6, G2 mock)', () => {
   test('rows name their model only when the list mixes models', () => {
     const mixed = presentHistory(input({ rows: [reply({ at: NOW - 60_000, modelRef: 0 }), reply({ at: NOW - 120_000, modelRef: 1 })] }));
     expect(mixed.entries.map(e => e.kind === 'reply' && e.model)).toEqual(['Example-27B-4bit', 'Example-35B-A3B-4bit']);
-    expect(mixed.replies.map(r => r.model)).toEqual(['Example-27B-4bit', 'Example-35B-A3B-4bit']);
   });
   test('a server-wide chip always names its reason; an unknown stored reason reads as not observed', () => {
     expect(attrChip('withheld:overlap', MOCK_TEXT)).toEqual({ attr: 'server', text: 'Server-wide · overlapping requests', reason: 'overlap' });

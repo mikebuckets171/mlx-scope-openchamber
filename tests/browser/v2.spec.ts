@@ -37,7 +37,7 @@ test('a still-running 1.6 service or another contract version asks for a restart
     await expect(frame.locator('#restart-card h2')).toHaveText('MLX Scope needs a restart');
     await expect(frame.locator('#restart-card')).toContainText('The panel was updated, but its local service is still the old version.');
     await expect(frame.locator('#phase')).toHaveText('Needs restart');
-    await expect(frame.locator('#machine')).toHaveCount(0);
+    await expect(frame.locator('.machine-summary')).toHaveCount(0);
     await expect(frame.locator('main')).not.toContainText(/NaN|undefined/);
   }
 });

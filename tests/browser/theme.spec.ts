@@ -57,8 +57,8 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
   await expect(frame.locator('#signal')).toBeVisible({ timeout: 12_000 });
   await expect(frame.locator('#signal .trace')).toBeAttached();
   const mounted = await frame.locator('#scope').elementHandle();
-  await frame.locator('#mac-details > summary').click();
-  await frame.locator('#mac-details > summary').focus();
+  await frame.locator('#request-details > summary').click();
+  await frame.locator('#request-details > summary').focus();
 
   for (const palette of [VIOLET, COPPER, PAPER, VIOLET]) {
     await setTheme(page, palette);
@@ -70,15 +70,15 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
       return [style.backgroundColor, style.backgroundImage];
     });
     expect(menuSurface.some(value => value.includes(rgb(palette.tokens.elevated)))).toBe(true);
-    await expect(frame.locator('#mac-details')).toHaveJSProperty('open', true);
-    await expect(frame.locator('#mac-details > summary')).toBeFocused();
+    await expect(frame.locator('#request-details')).toHaveJSProperty('open', true);
+    await expect(frame.locator('#request-details > summary')).toBeFocused();
     expect(await mounted!.evaluate(el => el === document.querySelector('#scope'))).toBe(true);
   }
 
   // Selection belongs to the mounted view, not to its palette.
-  await frame.getByRole('tab', { name: 'Server', exact: true }).click();
+  await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
   await setTheme(page, PAPER);
-  await expect(frame.getByRole('tab', { name: 'Server', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(frame.getByRole('tab', { name: 'Live', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(frame.locator('#panel-server')).toBeVisible();
 });
 
@@ -105,12 +105,12 @@ test('the host primary remains the identity color during prefill while warnings 
 
   for (const [state, severity, key] of [['pressure', 'warning', 'warningText'], ['pressure-critical', 'critical', 'errorText']] as const) {
     frame = await load(page, `state=${state}`);
-    const alert = frame.locator('#panel-live > .connection-diagnosis');
+    const alert = frame.locator('#view-live > .connection-diagnosis');
     await expect(alert).toHaveAttribute('data-severity', severity);
     for (const palette of [VIOLET, PAPER]) {
       await setTheme(page, palette);
       await expect(alert).toHaveCSS('--tone', palette.tokens[key]);
-      await expect(frame.locator(`#machine .level[data-level="${severity}"]`)).toHaveCSS('color', rgb(palette.tokens[key]));
+      await expect(frame.locator(`.machine-summary .level[data-level="${severity}"]`)).toHaveCSS('color', rgb(palette.tokens[key]));
       await expect(frame.locator('.scope-mark')).toHaveCSS('stroke', rgb(palette.tokens.primaryText));
     }
   }
@@ -142,10 +142,12 @@ for (const [name, palette] of [['violet', VIOLET], ['paper', PAPER]] as const) {
       await setTheme(page, palette);
       await expectPalette(frame, palette);
       expect(await frame.evaluate(inspect, false), `${name} Live @ ${width}`).toEqual([]);
-      for (const tab of ['Server', ...(width < 900 ? ['History'] : []), 'Captures']) {
-        await frame.getByRole('tab', { name: tab, exact: true }).click();
-        expect(await frame.evaluate(inspect, false), `${name} ${tab} @ ${width}`).toEqual([]);
-      }
+      await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+      expect(await frame.evaluate(inspect, false), `${name} Server @ ${width}`).toEqual([]);
+      await frame.getByRole('tab', { name: 'History', exact: true }).click();
+      expect(await frame.evaluate(inspect, false), `${name} History @ ${width}`).toEqual([]);
+      await frame.getByRole('button', { name: 'Captures', exact: true }).click();
+      expect(await frame.evaluate(inspect, false), `${name} Captures @ ${width}`).toEqual([]);
     }
   });
 }

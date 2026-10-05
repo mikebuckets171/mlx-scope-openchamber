@@ -20,12 +20,13 @@
   const q = new URLSearchParams(location.search), page = q.get('surface') === 'page', tab = q.get('tab') === 'captures' ? 'captures' : 'history';
   const scope = document.getElementById('scope');
   scope.dataset.surface = page ? 'page' : 'panel';
-  const tabs = page ? [['live', 'Live · History'], ['server', 'Server'], ['captures', 'Captures']] : [['live', 'Live'], ['server', 'Server'], ['history', 'History'], ['captures', 'Captures']];
-  const active = page ? 'live' : tab;
+  scope.dataset.layout = page ? 'wide' : 'tabs';
+  const tabs = [['live', 'Live'], ['history', 'History']];
+  const active = 'history';
   document.getElementById('tabs').innerHTML = tabs.map(([id, label]) => `<button class="tab" role="tab" type="button" id="tab-${id}" aria-controls="panel-${id}" aria-selected="${id === active}" tabindex="${id === active ? 0 : -1}">${label}</button>`).join('');
-  document.getElementById('views').innerHTML = page
-    ? '<div class="page-cols" role="tabpanel" id="panel-live" aria-labelledby="tab-live" tabindex="0"><div class="view page-live"><div class="col-title"><h2>Live</h2><span>ui-core</span></div></div><div class="view" id="history-column"></div></div><div role="tabpanel" id="panel-server" aria-labelledby="tab-server" hidden></div><div role="tabpanel" id="panel-captures" aria-labelledby="tab-captures" hidden></div>'
-    : tabs.map(([id]) => `<div class="view" role="tabpanel" id="panel-${id}" aria-labelledby="tab-${id}" tabindex="0"${id === active ? '' : ' hidden'}></div>`).join('');
+  document.getElementById('views').innerHTML = '<div role="tabpanel" id="panel-live" aria-labelledby="tab-live" hidden></div>'
+    + '<div class="view" role="tabpanel" id="panel-history" aria-labelledby="tab-history" tabindex="0">'
+    + (tab === 'captures' ? '<div id="panel-captures"></div>' : page ? '<div id="history-column"></div>' : '') + '</div>';
 </script>
 <script src="/history.js"></script>
 </body></html>

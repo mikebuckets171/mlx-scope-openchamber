@@ -51,25 +51,25 @@ export const withheldWhy = (reason: string, chatRuntime: string | null = null): 
 
 /** The ⓘ behind an attribution chip: [title, first, second?]. */
 export const whyCopy = (key: string, rt: string, live: boolean, chatRuntime: string | null = null): [string, string, ...string[]] => {
-  const alternating = 'Another chat alternating requests on the same runtime during this turn can’t be ruled out.';
+  const alternating = 'Alternating requests from another chat can’t be ruled out.';
   switch (key) {
     case 'inferred': return ['This chat · inferred', live
-      ? `So far only this chat has been running on ${rt}, its model matches, and Scope has seen every reading since the reply started.`
-      : `Only this chat was running on ${rt}, its model matched, and Scope saw the whole reply.`,
-    `Inferred from OpenChamber’s activity for this chat: ${rt} doesn’t report which chat a request came from. ${alternating} OpenChamber’s own background model calls, such as title generation, can fall inside an inferred turn.`];
+      ? `${rt} matches this chat’s model with one request at a time. Scope has observed this turn from the start.`
+      : `${rt} matched this chat’s model with one request at a time. Scope observed the whole reply.`,
+    `Inferred from chat activity; ${rt} reports no chat identity. ${alternating} Background calls, including title generation, may fall inside this turn.`];
     case 'armed': return ['Next reply · armed', live
-      ? `You armed Next reply, and so far at every step this chat has been running on ${rt} with a matching model.`
-      : `You armed Next reply, and at every step this chat was running on ${rt} with a matching model.`,
-    `Still inferred from chat activity, not reported by ${rt}. ${alternating}`];
-    case 'other-provider': return ['Server-wide', `This chat runs on ${chatRuntime ?? 'another runtime'}, so what ${rt} is doing belongs to another app or chat.`,
+      ? `You armed Next reply. Each observed step matches this chat’s model on ${rt}.`
+      : `You armed Next reply. Every step matched this chat’s model on ${rt}.`,
+    `Chat activity is inferred, not reported by ${rt}. ${alternating}`];
+    case 'other-provider': return ['Server-wide', `This chat uses ${chatRuntime ?? 'another runtime'}. ${rt} is serving another app or chat.`,
       chatRuntime ? `Watch ${chatRuntime} to label this chat’s readings.` : 'Watch this chat’s runtime to label its readings.'];
-    case 'model-differs': return ['Server-wide', `This chat’s model isn’t the model ${rt} is running, so the reading belongs to another app or chat.`, 'Scope never loads or switches models.'];
-    case 'model-unknown': return ['Server-wide', `OpenChamber doesn’t say which model this chat uses, so readings on ${rt} can’t be tied to it.`];
-    case 'not-observed': return ['Server-wide', `No Scope view saw this chat’s turn while the reply ran on ${rt}, so it can’t be tied to a chat.`, 'Labels need a Scope view open for the whole reply.'];
-    case 'overlap': return ['Server-wide', `More than one request was running on ${rt}, so no reading belongs to a single chat.`, 'Per-request speed comes back when one request runs.'];
-    case 'cannot-count': return ['Server-wide', `${rt} doesn’t report how many requests are running, so no reading can be tied to a chat.`];
-    case 'outside-turn': return ['Server-wide', `This request ran on ${rt} outside this chat’s turn, such as a title or recap request, so it isn’t labelled.`];
-    case 'joined-mid-turn': return ['Server-wide', `Scope opened while this chat’s turn was already running on ${rt}, so it didn’t see the turn start.`, 'The next turn is labelled from its start.'];
+    case 'model-differs': return ['Server-wide', `${rt} is running a different model for another app or chat.`, 'Scope never loads or switches models.'];
+    case 'model-unknown': return ['Server-wide', `This chat’s model is unknown; ${rt} readings can’t be attributed.`];
+    case 'not-observed': return ['Server-wide', `No Scope view observed this turn on ${rt}.`, 'Labels need a Scope view open for the whole reply.'];
+    case 'overlap': return ['Server-wide', `Requests overlapped on ${rt}; readings can’t be attributed.`, 'Per-request speed comes back when one request runs.'];
+    case 'cannot-count': return ['Server-wide', `${rt} reports no request count; readings can’t be attributed.`];
+    case 'outside-turn': return ['Server-wide', `${rt} ran this request outside the turn, perhaps for a title or recap.`];
+    case 'joined-mid-turn': return ['Server-wide', `Scope joined this turn on ${rt} after it started.`, 'The next turn is labelled from its start.'];
     case 'auto-off': return ['Server-wide', 'Automatic per-chat labels are turned off.', 'Next reply still measures one reply when you arm it.'];
     default: return ['Server-wide', `Everything ${rt} is doing, from any app or chat.`, 'Per-chat labels need per-request readings and one running chat.'];
   }
@@ -103,12 +103,12 @@ export interface StatusCopy { severity: Severity; title: string; detail: string;
 const port = (params: Params): string => typeof params.port === 'number' ? `:${params.port}` : 'its port';
 /** Why a connection can't be read (`configuration_missing {issue}`): the 1.6 configuration wording. */
 const CONFIG: Partial<Record<string, string>> = {
-  malformed_config: 'An existing provider configuration is malformed. Correct it in OpenChamber, then return here.',
-  unreadable_config: 'An existing provider configuration or credential file could not be read.',
-  read_failed: 'Saved runtime connections could not be read. Reopen MLX Scope after checking the provider in OpenChamber.',
-  invalid_endpoint: 'The selected connection needs an HTTP loopback URL with an explicit port, such as http://localhost:8000/v1.',
-  unsupported_config: 'A configured credential or endpoint reference could not be resolved. Reconnect this provider in OpenChamber.',
-  removed: 'This saved connection is no longer configured. Choose another connection or Automatic.',
+  malformed_config: 'Correct the malformed provider configuration in OpenChamber.',
+  unreadable_config: 'A provider configuration or credential file is unreadable.',
+  read_failed: 'Check the provider in OpenChamber, then reopen Scope.',
+  invalid_endpoint: 'Use an HTTP loopback URL with a port, e.g. http://localhost:8000/v1.',
+  unsupported_config: 'Unresolved credential or endpoint. Reconnect the provider in OpenChamber.',
+  removed: 'Connection removed. Choose another or Automatic.',
 };
 /** A status reason as the one callout that carries it; nothing else in the view repeats it. */
 export const statusCopy = (snapshot: SnapshotV2): StatusCopy | null => {
@@ -117,48 +117,48 @@ export const statusCopy = (snapshot: SnapshotV2): StatusCopy | null => {
   switch (reason) {
     // All eight connection slots are mid-read: this one waits its turn (1.6 "Earlier connection reads are finishing").
     case 'runtime_unreachable': return params.deferred === true
-      ? { severity: 'info', title: 'Waiting for a free connection slot', detail: 'Earlier connection reads are finishing. Monitoring retries automatically.' }
+      ? { severity: 'info', title: 'Waiting for a free connection slot', detail: 'Other reads are finishing. Scope retries automatically.' }
       : { severity: 'critical', title: `${rt === 'the runtime' ? 'The runtime' : rt} stopped responding`, since,
-        detail: `Nothing answers on ${port(params)}. Scope checks again automatically, so start ${rt} and it picks up again.`, action: 'connection' };
+        detail: `Start ${rt} on ${port(params)}. Scope retries automatically.`, action: 'connection' };
     case 'authentication_failed': return { severity: 'critical', title: `${rt === 'the runtime' ? 'The runtime' : rt} ${params.keySaved === false ? 'needs an API key' : 'refused Scope’s key'}`,
-      detail: params.keySaved === false ? 'Connect this provider in OpenChamber, then return here. Scope never stores keys.'
-        : 'Check the key under Connection. Scope reads it from the runtime’s own config and never stores it.', action: 'connection' };
+      detail: params.keySaved === false ? 'Connect the provider in OpenChamber. Scope never stores keys.'
+        : 'Check Connection. Scope reads the runtime’s key without storing it.', action: 'connection' };
     case 'configuration_missing': return typeof params.issue === 'string' && CONFIG[params.issue]
       ? { severity: 'warning', title: 'This connection can’t be read', detail: CONFIG[params.issue]!, action: 'connection' }
       : { severity: 'warning', title: 'No runtime found', detail: 'Nothing answered on the usual local ports. Start a runtime, or choose one.', action: 'connection' };
     case 'unsupported_runtime': return { severity: 'warning', title: 'Scope doesn’t recognise this runtime',
-      detail: `Something answers on ${port(params)}, but not like any runtime Scope supports.`, action: 'connection' };
+      detail: `Unsupported runtime on ${port(params)}.`, action: 'connection' };
     case 'unsupported_contract': return { severity: 'warning', title: `${rt === 'the runtime' ? 'The runtime' : rt} answered in a shape Scope doesn’t know`,
-      detail: 'Scope shows what it can still read, and checks which runtime this is after 3 tries.' };
-    case 'detecting': return { severity: 'info', title: 'Looking for a runtime', detail: `Checking ${port(params)} for oMLX, llama-server, Ollama, LM Studio, Splash and vllm-mlx.` };
+      detail: 'Readable metrics remain. Scope redetects after 3 tries.' };
+    case 'detecting': return { severity: 'info', title: 'Looking for a runtime', detail: `Checking ${port(params)} for a supported runtime.` };
     case 'redetecting': return { severity: 'info', title: 'Checking which runtime this is', detail: `${rt} stopped answering like itself on ${port(params)}.` };
     case 'runtime_changed': {
       const detected = runtimeOf(params, 'detected') ?? 'another runtime';
       return { severity: 'warning', title: `Looks like ${detected} now`, action: 'switch',
-        detail: `${connName(snapshot.connection)} is chosen, but ${detected} answers on ${port(params)}. Scope never switches on its own.` };
+        detail: `${detected} answers on ${port(params)}; ${connName(snapshot.connection)} is selected. Scope never switches automatically.` };
     }
     case 'loading': return { severity: 'info', title: `${rt === 'the runtime' ? 'The runtime' : rt} is loading a model`,
       detail: snapshot.connection.runtime === 'llama-server' ? 'Its health check answers 503 until the model is ready.' : 'Readings start when the model is ready.' };
     case 'recovering': return { severity: 'warning', title: 'Splash is recovering', since,
-      detail: `It’s restarting its engine after a fault. Scope reads its status every 30 s, so it doesn’t add to the restart.${params.crashTrace === true ? ' Splash recorded a crash trace; Scope doesn’t show or send it.' : ''}` };
+      detail: `Its engine is restarting after a fault. Scope checks status every 30 s.${params.crashTrace === true ? ' Crash trace recorded; Scope never shows or sends it.' : ''}` };
     case 'status_stale': return { severity: 'warning', title: 'Splash’s status is stale', since,
-      detail: 'Splash says its status hasn’t refreshed, so Scope marks its readings last observed until it does.' };
+      detail: 'Splash hasn’t refreshed its status. Readings are last observed.' };
     case 'not_admitting': return { severity: 'warning', title: 'Splash isn’t accepting new requests',
-      detail: params.cause === 'metal' || params.metalUnhealthy === true ? 'Splash reports its Metal device as unhealthy. New requests wait in its queue.'
-        : params.cause === 'memory' || params.memoryCritical === true ? 'Splash reports memory pressure as critical. New requests wait in its queue.'
-          : 'Splash reports it isn’t ready for new requests. They wait in its queue.' };
+      detail: params.cause === 'metal' || params.metalUnhealthy === true ? 'Metal device unhealthy; new requests wait in the queue.'
+        : params.cause === 'memory' || params.memoryCritical === true ? 'Runtime memory pressure critical; new requests wait in the queue.'
+          : 'Splash isn’t ready; new requests wait in the queue.' };
     case 'admin_unauthorized': return { severity: 'info', title: 'oMLX admin login refused', action: 'connection',
-      detail: 'Scope reads oMLX’s public status instead: server-wide totals only, with no per-request speed, reply history or usage records.' };
+      detail: 'Public status only: server-wide totals, without request speed, reply history or usage records.' };
     case 'lms_unavailable': return { severity: 'info', title: 'Bionic isn’t answering Scope’s check',
-      detail: 'Scope runs lms only after Bionic answers, so lms can never start it. Loaded instances and engines come back when it answers.' };
+      detail: 'Scope waits for Bionic before running lms. It never starts Bionic; instance and engine readings resume when Bionic answers.' };
     // wakes: the build has --metrics, but its /metrics wakes a sleeping server (b7492–b10518), so the fix is an update (§12.9).
     case 'metrics_required': return params.wakes === true
       ? { severity: 'info', title: 'Live slots need a newer llama-server',
-        detail: 'This build can sleep, and its /metrics wakes it. Update llama-server to b10519 or later to see slots and throughput.' }
+        detail: '/metrics wakes this build. Update to b10519+ for slots and throughput.' }
       : { severity: 'info', title: 'Live slots need --metrics',
-        detail: 'This llama-server build can sleep, and reading its slots without /metrics would wake it. Start llama-server with --metrics to see slots and throughput.' };
+        detail: 'Start with --metrics for slots and throughput without waking the server.' };
     case 'sleeping': return { severity: 'info', title: 'llama-server is asleep',
-      detail: 'It unloads the model while idle and wakes on the next request. Scope doesn’t read its slots while it sleeps, so it stays asleep.' };
+      detail: 'Model unloaded until the next request. Scope skips slots to preserve sleep.' };
     default: {
       // A state without a reason still says what it means; a reason code this build doesn't know never blanks the view.
       const state = snapshot.status.state;
@@ -188,7 +188,7 @@ export const sinceText = (at: number | undefined, now: number): string => at ===
 // Frame states: the service can't answer, so nothing below is a runtime reading (plan §6, SPIKES S11). No sessions grant (S2).
 export const APPROVAL = {
   title: 'MLX Scope 2.0 needs one approval',
-  body: 'GPU, thermal and process readings for this Mac, and the LM Studio command line without ever starting it. Per-chat labels use only the open chat’s activity, which needs no extra permission. Reply history stays on this Mac.',
+  body: 'Allow Mac GPU, thermal and process readings, plus LM Studio’s CLI without starting it. Chat labels use the open chat’s activity without extra permissions. History stays local.',
   steps: ['Open Settings → Extensions → MLX Scope.', 'Choose Needs approval, then allow and enable.'],
   grant: [
     ['GPU readings', '/usr/sbin/ioreg'], ['Thermal pressure', '/usr/bin/notifyutil'], ['oMLX process memory', '/usr/sbin/lsof, /usr/bin/footprint'],
@@ -197,7 +197,7 @@ export const APPROVAL = {
     // By name: the panel bundle never carries the service's own exec paths (scripts/verify-package.ts leak check).
     ['Memory (as in 1.x)', 'vm_stat, sysctl', 'the two commands 1.x already ran'],
   ] as ReadonlyArray<readonly [string, string, string?]>,
-  note: 'Nothing is read until you approve. Your saved 1.6 captures are kept. No sudo, osascript or powermetrics.',
+  note: 'Reads start after approval. Saved 1.6 captures stay. No sudo, osascript or powermetrics.',
   glance: 'Settings → Extensions → MLX Scope',
 } as const;
 export const RESTART = {
@@ -208,7 +208,7 @@ export const RESTART = {
   glance: 'Pause and resume it in Settings → Extensions',
 } as const;
 export const TIP = 'Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place';
-export const TIP_INFO = 'Hiding Turn stats hides it for every chat, including cloud chats, where MLX Scope shows only “Chat uses a non-local model”.';
+export const TIP_INFO = 'Turn stats hides for all chats. For cloud chats, Scope shows “Chat uses a non-local model”.';
 export const FIRST_RUN = 'Recording reply history locally';
 export const NON_LOCAL = 'Chat uses a non-local model';
 export const NO_FRESH = 'No fresh readings';

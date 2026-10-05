@@ -21,7 +21,7 @@ const choose = async (page: Page, provider: string, runtime = '') => {
   await frame.getByLabel('Runtime', { exact: true }).selectOption(runtime);
   await frame.getByRole('button', { name: 'Use connection', exact: true }).click();
 };
-const server = async (frame: FrameLocator) => frame.getByRole('tab', { name: 'Server', exact: true }).click();
+const server = async (frame: FrameLocator) => frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
 const live = async (frame: FrameLocator) => frame.getByRole('tab', { name: 'Live', exact: true }).click();
 
 test('a chosen connection is stored without credentials, sent with each poll, and survives reload', async ({ page }) => {
@@ -32,7 +32,7 @@ test('a chosen connection is stored without credentials, sent with each poll, an
   await expect(frame.locator('#rate')).toHaveText('Connected');
   await expect(frame.locator('#hero')).toContainText('LM Studio lists its models · no live request readings');
   await expect(frame.locator('#metrics')).toHaveCount(0);
-  await expect(frame.locator('#machine')).toBeVisible();
+  await expect(frame.locator('.machine-summary')).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('connection.selection')!))).toEqual({ provider: 'studio', runtime: null });
   expect(await selection(page)).toEqual({ provider: 'studio' });
   await server(frame);
@@ -83,7 +83,7 @@ test('a loading Splash server says so once and shows no decode rate', async ({ p
   const frame = await open(page, 'splashReady=0');
   await choose(page, 'splash');
   await expect(frame.locator('#phase')).toHaveText('Loading');
-  await expect(frame.locator('#panel-live > .connection-diagnosis')).toContainText('Splash is loading a model');
+  await expect(frame.locator('#view-live > .connection-diagnosis')).toContainText('Splash is loading a model');
   await expect(frame.locator('#rate')).toHaveCount(0);
 });
 
@@ -123,9 +123,9 @@ test('a storage failure keeps the chosen connection usable; a missing setup poin
   await expect(frame.locator('#connection')).toHaveText('LM Studio local');
   await expect(frame.locator('#action-status')).toContainText('could not save the preference');
   frame = await open(page, 'setup=missing');
-  const callout = frame.locator('#panel-live > .connection-diagnosis');
+  const callout = frame.locator('#view-live > .connection-diagnosis');
   await expect(callout).toContainText('isn’t answering');
-  await expect(frame.locator('#machine')).toBeVisible();
+  await expect(frame.locator('.machine-summary')).toBeVisible();
   await callout.getByRole('button', { name: 'Connection…' }).click();
   await expect(frame.getByLabel('Connection', { exact: true })).toBeFocused();
 });

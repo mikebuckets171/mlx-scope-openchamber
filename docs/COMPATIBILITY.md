@@ -92,7 +92,7 @@ When the `lms` CLI is installed (`~/.lmstudio/bin/lms` or `~/.cache/lm-studio/bi
 - `Finished streaming response`: the request ended.
 
 `lms ps --json` lists loaded instances on a generation change and every 3 minutes after, and `lms runtime ls` fills
-the Server tab's Engines card, cached for 10 minutes. Every `lms` command runs only after the LM Studio greeting
+the Engines card in Server & Mac details, cached for 10 minutes. Every `lms` command runs only after the LM Studio greeting
 answered within the last 10 seconds, with `--port` and the server-info path, so it connects to the running app instead
 of launching LM Studio or Bionic. The stream follows the LM Studio app of the local LM Studio home and applies only to
 the connection on that home's REST port. It stops within a minute of the last read. Without `lms`, the view shows

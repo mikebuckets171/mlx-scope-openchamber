@@ -2,56 +2,51 @@
 
 ## status-tip · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:144px"}: Generating 26.4 tok/s Example-27B
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:164px"}: Generating 26.4 tok/s Example-27B Context used 52.7K of 131K
 #ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
 #ws-why: not observed
-span.chip: GPU 87% busy
 div.connection-diagnosis[role=note] {data-severity="info"}: Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place
-setHeight: 144
+setHeight: 164
 
 ## status-decode · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Generating 26.4 tok/s Example-27B
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:100px"}: Generating 26.4 tok/s Example-27B Context used 52.7K of 131K
 #ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
 #ws-why: not observed
-span.chip: GPU 87% busy
-setHeight: 80
+setHeight: 100
 
 ## status-decode-light · 280 light status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Generating 26.4 tok/s Example-27B
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:100px"}: Generating 26.4 tok/s Example-27B Context used 52.7K of 131K
 #ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
 #ws-why: not observed
-span.chip: GPU 87% busy
-setHeight: 80
+setHeight: 100
 
 ## status-prefill · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Reading prompt Example-27B
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:100px"}: Reading prompt Example-27B Context used 52.1K of 131K
 #ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
 #ws-why: not observed
-span.chip: GPU 94% busy
-setHeight: 80
+setHeight: 100
 
 ## status-idle · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Idle Example-27B Last reply 24.9 tok/s last observed
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:96px"}: Last reply 24.9 tok/s last observed Example-27B 1 min ago
 #ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {data-attr="inferred"}: This chat · inferred
-setHeight: 80
+setHeight: 96
 
 ## status-alert · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:112px"}: Generating 21.2 tok/s Example-27B macOS memory pressure: warning Memory pressure Warning +1 more
+#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:132px"}: Generating 21.2 tok/s Example-27B Context used 52.7K of 131K macOS memory pressure: warning Memory pressure Warning +1 more
 #ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
 #ws-why: not observed
-span.chip: GPU 87% busy
-setHeight: 112
+setHeight: 132
 
 ## status-offline · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
@@ -64,7 +59,6 @@ main.scope {aria-label="MLX Scope" data-surface="status"}
 #ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="all requests"}: Server-wide
 #ws-why: all requests
-span.chip: GPU 3% busy
 setHeight: 80
 
 ## status-splash-decode-light · 280 light status
@@ -73,7 +67,6 @@ main.scope {aria-label="MLX Scope" data-surface="status"}
 #ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="all requests"}: Server-wide
 #ws-why: all requests
-span.chip: GPU 3% busy
 setHeight: 80
 
 ## status-recovering · 280 dark status
@@ -93,16 +86,16 @@ setHeight: 24
 
 ## status-turnstats · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="turn-stats" style="height:136px"}: Last reply | Chart starts after 2 readings
+#ws {data-mode="turn-stats" style="height:144px"}: Last reply · 48 s ago
 span.chip {data-attr="inferred"}: This chat · inferred
 #ws-toggle {aria-expanded="true" aria-label="Show the glance view" data-action="status-toggle"}
-#ts-rows: Response | 38.6 tok/s | TTFT | 0.51 s | Tokens in · out | 18.4K · 1,092 | Cache % | 61% | Context used | 19.5K of 262K
-setHeight: 136
+#ts-rows: Response | 38.6 tok/s | First token | 0.51 s | Tokens in · out | 18.4K · 1,092 | Cache % | 61% | Context used | 19.5K of 262Kderived
+setHeight: 144
 
 ## status-turnstats-light · 280 light status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="turn-stats" style="height:136px"}: Last reply | Chart starts after 2 readings
+#ws {data-mode="turn-stats" style="height:144px"}: Last reply · 48 s ago
 span.chip {data-attr="inferred"}: This chat · inferred
 #ws-toggle {aria-expanded="true" aria-label="Show the glance view" data-action="status-toggle"}
-#ts-rows: Response | 38.6 tok/s | TTFT | 0.51 s | Tokens in · out | 18.4K · 1,092 | Cache % | 61% | Context used | 19.5K of 262K
-setHeight: 136
+#ts-rows: Response | 38.6 tok/s | First token | 0.51 s | Tokens in · out | 18.4K · 1,092 | Cache % | 61% | Context used | 19.5K of 262Kderived
+setHeight: 144

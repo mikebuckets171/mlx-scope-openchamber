@@ -1,0 +1,271 @@
+# Two primary destinations · 430 px
+
+## live · 430 dark panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Generating
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
+#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
+#workspace-action: Server & Mac details
+#panels
+#panel-live {aria-labelledby="tab-live"}
+#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}: tok/s Request average Reported by oMLX i
+#model: Example-27B-4bit
+#attribution: i
+span.chip {data-attr="server" data-outline="" data-reason="joined mid-turn"}: Server-wide · joined mid-turn
+#rate: 25.8
+#signal: Last 90 seconds | −90s Live observations now
+#ceiling: 30 tok/s
+div.plot[role=img] {aria-label="Decode · request average, last 8 s: 25.8 to 28.1 tokens per second, now 25.8"}
+#context-headroom: Context used i 52.9K of 131K tokens
+#request-details: Request details
+#reply-strip: Last reply i 1 min ago | Measure next reply
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 24.9 tok/slast observed
+#reply-details: Reply details
+h2: This Mac
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+
+## history · 430 dark panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Generating
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
+#tab-history {aria-controls="panel-history" aria-selected="true" data-tab="history"}: History
+#workspace-action: Captures
+#panels
+#panel-history {aria-labelledby="tab-history"}
+#view-history: i 15 min 30 min 60 min Decode speed · reported by oMLX 30 tok/s −60 min Turn times from OpenChamber · readings are server-wide now last reading · shaded min–max this chat’s turns not observed i Observed while Scope was open 14:04 Turn · 3 steps 3,284 out 14:04 1,104 out · 49.8K in (41.2K cached) 14:04 1,104 out · 49.8K in (41.2K cached) 13:58 862 out · 47.3K in (39.9K cached) 13:57 1,318 out · 45.1K in (38.7K cached) 13:51 2,210 out · 38.2K in (30.1K cached) Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac
+h2: Trend
+div.plot[role=img] {aria-label="Decode speed over the last 60 min: 6 turns, 21.5 to 27.6 tokens per second; not observed from 13:24 to 13:46."}: Not observed · Scope wasn’t open
+h2: Recent replies
+span.chip: 42 last observed
+span.chip: 1 gap
+span.val {data-basis="observed"}: 2 m 46 sobserved · waits excluded
+span.val {data-basis="derived"}: 25.2 tok/s token-weightedderived
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 24.9 tok/slast observed
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 24.9 tok/slast observed
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 25.6 tok/slast observed
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 25.1 tok/slast observed
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 24.3 tok/slast observed
+span.chip {data-attr="armed" data-outline=""}: Next reply · armed
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+
+## reply capture · 430 dark panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Generating
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
+#tab-history {aria-controls="panel-history" aria-selected="true" data-tab="history"}: History
+#panels
+#panel-history {aria-labelledby="tab-history"}
+#panel-captures {aria-labelledby="captures-title"}: Back to History
+#captures-title: Captures
+#captures-content: Reply Timed window i Measures your next reply in this chat, then stops. Measure next reply 0 of 12 · oldest replaced when full Nothing saved yet. Save a Next reply or a window to compare it later. Copy Add to chat draft Never includes model names
+h2: Next reply
+h2: Saved
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+
+## timed capture · 430 dark panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Generating
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
+#tab-history {aria-controls="panel-history" aria-selected="true" data-tab="history"}: History
+#panels
+#panel-history {aria-labelledby="tab-history"}
+#panel-captures {aria-labelledby="captures-title"}: Back to History
+#captures-title: Captures
+#captures-content: Reply Timed window Server-wide Averages everything the runtime does for 30 or 60 s. Start capture Monitoring keeps running while you capture. 0 of 12 · oldest replaced when full Nothing saved yet. Save a Next reply or a window to compare it later. Copy Add to chat draft Never includes model names
+h2: Timed window
+h2: Saved
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+
+## live · 430 light panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Generating
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
+#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
+#workspace-action: Server & Mac details
+#panels
+#panel-live {aria-labelledby="tab-live"}
+#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}: tok/s Request average Reported by oMLX i
+#model: Example-27B-4bit
+#attribution: i
+span.chip {data-attr="server" data-outline="" data-reason="joined mid-turn"}: Server-wide · joined mid-turn
+#rate: 25.8
+#signal: Last 90 seconds | −90s Live observations now
+#ceiling: 30 tok/s
+div.plot[role=img] {aria-label="Decode · request average, last 8 s: 25.8 to 28.1 tokens per second, now 25.8"}
+#context-headroom: Context used i 52.9K of 131K tokens
+#request-details: Request details
+#reply-strip: Last reply i 1 min ago | Measure next reply
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 24.9 tok/slast observed
+#reply-details: Reply details
+h2: This Mac
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+
+## history · 430 light panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Generating
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
+#tab-history {aria-controls="panel-history" aria-selected="true" data-tab="history"}: History
+#workspace-action: Captures
+#panels
+#panel-history {aria-labelledby="tab-history"}
+#view-history: i 15 min 30 min 60 min Decode speed · reported by oMLX 30 tok/s −60 min Turn times from OpenChamber · readings are server-wide now last reading · shaded min–max this chat’s turns not observed i Observed while Scope was open 14:04 Turn · 3 steps 3,284 out 14:04 1,104 out · 49.8K in (41.2K cached) 14:04 1,104 out · 49.8K in (41.2K cached) 13:58 862 out · 47.3K in (39.9K cached) 13:57 1,318 out · 45.1K in (38.7K cached) 13:51 2,210 out · 38.2K in (30.1K cached) Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac
+h2: Trend
+div.plot[role=img] {aria-label="Decode speed over the last 60 min: 6 turns, 21.5 to 27.6 tokens per second; not observed from 13:24 to 13:46."}: Not observed · Scope wasn’t open
+h2: Recent replies
+span.chip: 42 last observed
+span.chip: 1 gap
+span.val {data-basis="observed"}: 2 m 46 sobserved · waits excluded
+span.val {data-basis="derived"}: 25.2 tok/s token-weightedderived
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 24.9 tok/slast observed
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 24.9 tok/slast observed
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 25.6 tok/slast observed
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 25.1 tok/slast observed
+span.chip {data-attr="inferred"}: This chat · inferred
+span.val {data-basis="last-observed"}: 24.3 tok/slast observed
+span.chip {data-attr="armed" data-outline=""}: Next reply · armed
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+
+## reply capture · 430 light panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Generating
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
+#tab-history {aria-controls="panel-history" aria-selected="true" data-tab="history"}: History
+#panels
+#panel-history {aria-labelledby="tab-history"}
+#panel-captures {aria-labelledby="captures-title"}: Back to History
+#captures-title: Captures
+#captures-content: Reply Timed window i Measures your next reply in this chat, then stops. Measure next reply 0 of 12 · oldest replaced when full Nothing saved yet. Save a Next reply or a window to compare it later. Copy Add to chat draft Never includes model names
+h2: Next reply
+h2: Saved
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 
+
+## timed capture · 430 light panel
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+#scope-title: MLX Scope
+#status-pill
+#phase: Generating
+#status-sep {aria-hidden="true"}: ·
+#connection: Local oMLX
+#pause {aria-label="Pause monitoring" aria-pressed="false"}
+#monitor-menu
+#frame-card
+#workspace-nav {aria-label="Scope workspaces"}
+#tablist
+#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
+#tab-history {aria-controls="panel-history" aria-selected="true" data-tab="history"}: History
+#panels
+#panel-history {aria-labelledby="tab-history"}
+#panel-captures {aria-labelledby="captures-title"}: Back to History
+#captures-title: Captures
+#captures-content: Reply Timed window Server-wide Averages everything the runtime does for 30 or 60 s. Start capture Monitoring keeps running while you capture. 0 of 12 · oldest replaced when full Nothing saved yet. Save a Next reply or a window to compare it later. Copy Add to chat draft Never includes model names
+h2: Timed window
+h2: Saved
+#scope-version: <version>
+#freshness: Updated just now
+live #connection: Local oMLX
+live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #action-status (hidden): 

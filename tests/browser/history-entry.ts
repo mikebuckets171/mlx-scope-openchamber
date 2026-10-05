@@ -67,8 +67,8 @@ harness.saved = params.get('saved') === 'none' ? [] : [
   { v: 2, savedAt: 1_790_679_900_000, kind: 'window', runtime: 'omlx', label: 'server-wide', state: 'finished', measurements: { decodeTps: 24.6, decodeBasis: 2, outputTokens: 1480, windowMs: 60_000 } },
   { v: 2, savedAt: 1_790_597_100_000, kind: 'window', runtime: 'omlx', label: 'server-wide', state: 'finished', measurements: { decodeTps: 61.3, decodeBasis: 2, outputTokens: 1830, windowMs: 30_000 } }];
 
-const root = document.getElementById(page ? 'history-column' : `panel-${tab}`)!;
-harness.handle = tab === 'captures' && !page ? capturesView({
+const root = document.getElementById(tab === 'captures' ? 'panel-captures' : page ? 'history-column' : 'panel-history')!;
+harness.handle = tab === 'captures' ? capturesView({
   store: { list: async () => harness.saved.map(capture => ({ ...capture, key: `capture.v2.${capture.savedAt.toString(36)}` })), save: async capture => { harness.saved = [capture, ...harness.saved].slice(0, 12); return `capture.v2.${capture.savedAt.toString(36)}`; } },
   legacy: async () => legacy, copy: text => host.writeClipboard(text), compose: text => host.compose({ text, mode: 'append' }), version: '2.0.0',
   next: params.get('next') === 'none' ? null : { state: () => harness.next ?? { kind: 'idle' }, arm: () => { harness.next = { kind: 'armed', at: harness.now }; }, cancel: () => { harness.next = { kind: 'cancelled', reason: 'user' }; },

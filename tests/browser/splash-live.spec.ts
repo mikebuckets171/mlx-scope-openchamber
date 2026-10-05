@@ -11,7 +11,7 @@ test('Splish/Splash live rate stays server-wide and clears when the source stops
   await expect(frame.locator('.readout[data-basis="derived"]')).toContainText('Live server throughput');
   await expect(frame.locator('.basis-line')).toContainText('Derived from Splash counters');
   await frame.getByRole('button', { name: 'About Live server throughput', exact: true }).click();
-  await expect(frame.locator('#pop-live-basis')).toContainText('not one chat’s speed');
+  await expect(frame.locator('#pop-live-basis')).toContainText('not one chat');
   await page.evaluate(() => (window as any).setPreviewState('splash-measuring'));
   await expect(frame.locator('.rate-unit')).toHaveCount(0);
   await expect(frame.locator('#hero')).not.toContainText('43.8');
@@ -21,7 +21,9 @@ test('Splish/Splash live rate stays server-wide and clears when the source stops
   await page.evaluate(() => (window as any).setPreviewState('splash-stale'));
   await expect(frame.locator('.rate-unit')).toHaveCount(0);
   await page.evaluate(() => (window as any).setPreviewState('idle'));
-  await expect(frame.locator('#rate')).toHaveText('Idle');
+  await expect(frame.locator('.reply-prominent')).toContainText('Last reply');
+  await expect(frame.locator('.reply-prominent')).not.toContainText('43.8');
+  await expect(frame.locator('#rate')).toHaveCount(0);
 });
 
 test('the Session pane shows live derived tok/s and follows theme changes', async ({ page }, testInfo) => {

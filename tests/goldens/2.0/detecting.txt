@@ -13,20 +13,16 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
 #tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-[callout-live] {data-severity="info"}: Notice: | Looking for a runtime | Checking :8000 for oMLX, llama-server, Ollama, LM Studio, Splash and vllm-mlx.
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 4% RAM 18.3 / 48 GiB Swap 1.1 GiB
-h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
-#mac-details: Mac details
+#view-live: CPU 4% RAM 18.3 / 48 GiB | Memory normal Thermal normal
+[callout-live] {data-severity="info"}: Notice: | Looking for a runtime | Checking :8000 for a supported runtime.
+h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Automatic
 live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
 live #action-status (hidden): 
-live [callout-live]: Notice: Looking for a runtimeChecking :8000 for oMLX, llama-server, Ollama, LM Studio, Splash and vllm-mlx.
+live [callout-live]: Notice: Looking for a runtimeChecking :8000 for a supported runtime.

@@ -8,7 +8,7 @@ import { capturesReport, nextReplyCapture, presentCaptures, windowCapture, type 
   type SavedRow, type ValueView, type WindowCard } from '../../present/captures-tab.ts';
 import type { HistoryText } from '../../present/history.ts';
 import { connectionName } from '../../present/messages.ts';
-import { button, chip, delegate, el, morph, section, svg, Tips, val } from './history-parts.ts';
+import { box, group, small, span, strong, button, chip, delegate, el, morph, section, seg, svg, Tips, val } from './history-parts.ts';
 import type { MountView, ViewContext, ViewHandle } from './types.ts';
 
 // Owner: ui-history. The Captures tab: Next reply, the 30/60 s window and saved captures. Monitoring keeps running
@@ -29,45 +29,46 @@ export interface CapturesDeps {
 const TICK_MS = 1_000, NAMES_MAX = 64;
 
 const measure = (): SVGElement => svg('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true' }, svg('circle', { cx: 8, cy: 8, r: 5.5 }), svg('circle', { cx: 8, cy: 8, r: 1.6 }));
-const values = (list: readonly ValueView[], className: string): HTMLElement => el('div', { class: className }, list.map(item => val(item.text, item.basis, item.note)));
+const values = (list: readonly ValueView[], className: string): HTMLElement => box(className, list.map(item => val(item.text, item.basis, item.note)));
 
 const nextCard = (card: NextCard, tips: Tips): HTMLElement => {
-  const tip = tips.make('next', 'Next reply', ['Arms for 2 min and measures one reply on this chat’s model, then stops.',
-    'Cancels if you switch chats, the runtime goes away, or this view closes. It won’t arm when the chat uses another runtime or model; it offers to watch that runtime instead.']);
+  const tip = tips.make('next', 'Next reply', ['Arms for 2 min to measure one reply on this chat’s model.',
+    'Cancels on chat switch, runtime loss or hidden/closed Scope. A different runtime or model prevents arming; another runtime offers Watch.']);
   const actions = card.actions.map(item => button(item.action === 'arm' ? [measure(), ` ${item.label}`] : item.label, item.action,
     { className: item.primary ? 'btn primary' : 'btn', focus: `next-${item.action}` }));
   return el('section', { class: 'capture-card', 'data-next': card.state },
-    el('div', { class: 'section-heading' }, el('div', { class: 'title-row' }, el('h2', {}, 'Next reply'), tip.btn), card.chip ? el('span', { class: 'title-row' }, chip(card.chip)) : null),
+    box('section-heading', box('title-row', el('h2', {}, 'Next reply'), tip.btn), card.chip ? el('span', { class: 'title-row' }, chip(card.chip)) : null),
     tip.pop,
     card.result ? [el('div', { class: 'reply-head', style: 'margin-top:6px' }, el('span', { class: 'label' }, 'Last reply'), chip(card.result.chip), el('time', {}, card.result.ago)),
       values(card.result.values, 'reply-values'), values(card.result.split, 'split'), el('p', { class: 'insight-note' }, card.note)]
       : card.state === 'measuring' ? null : el('p', { class: 'insight-note' }, card.note),
-    actions.length || card.time ? el('div', { class: 'actions' },
+    actions.length || card.time ? box('actions',
       card.state === 'measuring' && card.time ? [el('span', { class: 'pulse', 'aria-hidden': 'true' }), el('span', { class: 'insight-note', style: 'margin:0', role: 'status' }, `${card.note} · `,
         el('time', { style: 'color:var(--scope-fg);font-weight:550' }, card.time.value))]
         : card.time ? el('span', { class: 'insight-note', style: 'margin:0' }, el('strong', { style: 'color:var(--scope-fg)' }, card.time.value), card.time.suffix) : null,
       actions) : null);
 };
 const windowCard = (card: WindowCard, recording: boolean): HTMLElement => el('section', { class: 'capture-card', 'data-window': card.status },
-  el('div', { class: 'section-heading' }, el('h2', {}, 'Window'), el('span', {}, card.state)),
+  box('section-heading', el('h2', {}, 'Timed window'), span( card.state)),
   el('p', { class: 'insight-note' }, 'Averages everything the runtime does for 30 or 60 s.'),
   card.progress !== null ? el('div', { class: 'progress-track', role: 'progressbar', 'aria-label': 'Window', 'aria-valuemin': 0, 'aria-valuemax': 100,
     'aria-valuenow': Math.floor(card.progress), style: 'margin-top:12px' }, el('span', { style: `width:${card.progress.toFixed(1)}%` })) : null,
   card.values.length ? values(card.values, 'reply-values') : null,
-  el('div', { class: 'actions' }, recording ? button('Stop', 'window-stop')
+  box('actions', recording ? button('Stop', 'window-stop')
     : card.status === 'idle' ? [el('select', { class: 'btn', 'aria-label': 'Window length', 'data-action': 'window-length', 'data-focus': 'window-length' },
       WINDOW_LENGTHS_MS.map(ms => el('option', { value: ms, selected: ms === card.lengthMs }, `${ms / 1000} s`))), button('Start capture', 'window-start')]
       : [card.canSave ? button('Save to Captures', 'window-save') : null, button('Discard', 'window-discard')]),
   el('p', { class: 'notice', style: 'margin-top:12px' }, 'Monitoring keeps running while you capture.'));
 const savedRow = (row: SavedRow): HTMLElement => el('li', { class: 'led-row' }, el('time', { datetime: row.iso }, row.at),
-  el('div', { class: 'led-main' }, row.rate ? val(el('strong', {}, row.rate.text), row.rate.basis, row.rate.note) : el('strong', {}, 'No output speed'),
-    el('span', {}, row.title), chip(row.chip), row.delta ? el('span', { class: 'chip', 'data-basis': 'derived' }, row.delta.text) : null,
+  box('led-main', row.rate ? val(strong( row.rate.text), row.rate.basis, row.rate.note) : strong( 'No output speed'),
+    span( row.title), chip(row.chip), row.delta ? el('span', { class: 'chip', 'data-basis': 'derived' }, row.delta.text) : null,
     button(row.comparing ? 'Comparing' : 'Compare', 'compare', { className: 'btn quiet', arg: row.key, focus: `compare-${row.key}` })));
 
 class CapturesViewHandle implements ViewHandle {
   private snapshot: SnapshotV2 | null = null;
   private readonly window = new WindowCapture();
   private windowLength: WindowLengthMs = 60_000;
+  private method: 'reply' | 'window' = 'reply';
   private saved: CaptureV2[] = [];
   private legacy: CaptureV2[] = [];
   private reference: string | null = null;
@@ -99,6 +100,14 @@ class CapturesViewHandle implements ViewHandle {
     }
     this.render();
   }
+  activate(): void { void this.load(); }
+  captureActivity(): string | null {
+    const capture = this.window.current;
+    if (!capture || !this.window.recording) return null;
+    const remaining = Math.ceil(Math.max(0, capture.targetMs - (this.context.now() - capture.startedAt)) / 1_000);
+    return `Timed window · ${remaining} s left`;
+  }
+  cancelCapture(): void { this.window.stop(); this.render(); }
   dispose(): void {
     this.disposed = true; this.undelegate(); this.unsession();
     if (this.timer !== null) clearTimeout(this.timer);
@@ -110,7 +119,10 @@ class CapturesViewHandle implements ViewHandle {
   private async load(): Promise<void> {
     const [saved, legacy] = await Promise.all([this.deps.store.list().catch(() => null), this.deps.legacy().catch(() => [])]);
     if (this.disposed) return;
-    if (saved) this.saved = saved; else this.status = 'Saved captures couldn’t be read. Monitoring still works.';
+    if (saved) {
+      this.saved = saved;
+      if (this.status === 'Saved captures couldn’t be read. Monitoring still works.') this.status = '';
+    } else this.status = 'Saved captures couldn’t be read. Monitoring still works.';
     this.legacy = legacy;
     this.render();
   }
@@ -118,6 +130,7 @@ class CapturesViewHandle implements ViewHandle {
   private async act(action: string, arg: string, target: HTMLElement): Promise<void> {
     const next = this.deps.next, state = next?.state();
     if (action === 'tip') this.tips.toggle(arg);
+    else if (action === 'capture-method') this.method = arg === 'window' ? 'window' : 'reply';
     else if (action === 'arm') next?.arm();
     else if (action === 'cancel') next?.cancel();
     else if (action === 'watch') next?.watch?.();
@@ -158,14 +171,24 @@ class CapturesViewHandle implements ViewHandle {
       ...this.deps.text ? { text: this.deps.text } : {},
     });
     this.view = view;
-    const tree = el('div', {}, nextCard(view.next, this.tips), windowCard(view.window, this.window.recording),
+    const nextActive = view.next.state === 'armed' || view.next.state === 'measuring';
+    const methods = box('capture-methods', seg('Capture method', 'capture-method', [
+      { label: 'Reply', arg: 'reply', pressed: this.method === 'reply' },
+      { label: 'Timed window', arg: 'window', pressed: this.method === 'window' },
+    ]));
+    const tree = group( methods,
+      // Switching the method never clears a running capture or hides its cancellation control.
+      this.method === 'reply' || nextActive ? nextCard(view.next, this.tips) : null,
+      this.method === 'window' || this.window.recording ? windowCard(view.window, this.window.recording) : null,
+      this.method !== 'reply' && view.next.state === 'result' ? el('p', { class: 'capture-ready', role: 'status' }, 'Reply measurement ready. ', button('View reply', 'capture-method', { arg: 'reply', className: 'btn quiet' })) : null,
+      this.method !== 'window' && this.window.current && !this.window.recording ? el('p', { class: 'capture-ready', role: 'status' }, `Timed window: ${view.window.state}. `, button('View timed window', 'capture-method', { arg: 'window', className: 'btn quiet' })) : null,
       section('Saved', view.saved.right, [view.saved.empty ? el('p', { class: 'empty' }, view.saved.empty) : el('ol', { class: 'ledger' }, view.saved.rows.map(savedRow)),
-        el('div', { class: 'actions' }, button('Copy', 'copy', { disabled: !view.saved.share }),
+        box('actions', button('Copy', 'copy', { disabled: !view.saved.share }),
           button('Add to chat draft', 'compose', { disabled: !view.saved.share || !this.session }),
           el('span', { class: 'insight-note', style: 'margin:0' }, 'Never includes model names')),
         this.status ? el('p', { class: 'insight-note', role: 'status' }, this.status) : null]),
       view.legacy ? section('Saved in 1.x', view.legacy.right, el('ol', { class: 'ledger' }, view.legacy.rows.map(savedRow)),
-        this.tips.make('legacy', 'Saved in 1.x', ['Captures saved by MLX Scope 1.x, as they were stored. They stay untouched through 2.0.x; MLX Scope 2.1 removes them.'])) : null);
+        this.tips.make('legacy', 'Saved in 1.x', ['Original 1.x captures, untouched through 2.0.x; removed in 2.1.'])) : null);
     morph(this.root, tree);
     const select = this.root.querySelector<HTMLSelectElement>('select[data-action="window-length"]');
     if (select) select.value = String(this.windowLength);

@@ -44,7 +44,7 @@ const pipelineFor = (surface: string): Pipeline => pipeline = new Pipeline({ hos
 const monitorFor = (pipeline: Pipeline, tier: 'glance' | 'full', floorMs: number, query: () => Record<string, string> | undefined,
   update: (link: ReturnType<typeof frameReading>['link']) => void, refreshed: () => void): Monitor => new Monitor({
   state, client, frame: frameId(), visibility: () => visibility, tier, floorMs,
-  query: () => ({ ...query(), ...pipeline.query(), ...state.tab === 'server' && tier === 'full' ? { detail: 'server' as const } : {} }),
+  query: () => ({ ...query(), ...pipeline.query(), ...state.serverDetailsVisible && tier === 'full' ? { detail: 'server' as const } : {} }),
   since: frame => pipeline.since(frame),
   received: (reading, fresh, cadenceMs) => {
     update(reading.link);

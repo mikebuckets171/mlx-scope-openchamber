@@ -8,7 +8,8 @@ import { KEYS } from '../history/ledger-schema.ts';
 import type { PrefsV2 } from '../preferences.ts';
 import { FRAME_TITLE, NO_FRESH, NO_FRESH_DETAIL } from '../present/copy.ts';
 import { frameCard, presentHeader } from '../present/header.ts';
-import { presentLive, weightedTps } from '../present/live.ts';
+import { presentLive, presentMac } from '../present/live.ts';
+import { nextReplyCapture } from '../present/captures-tab.ts';
 import type { Callout } from '../present/parts.ts';
 import type { ScopeInput } from '../present/scope.ts';
 import { presentServer } from '../present/server.ts';
@@ -16,24 +17,24 @@ import { presentStatusSection } from '../present/status.ts';
 import type { Pipeline } from '../state/pipeline.ts';
 import type { ScopeState } from '../state/scope-state.ts';
 import { html, morph } from './html.ts';
-import { frameCardMarkup, PAGE_TABS, renderHeader, TABS, tabsMarkup } from './shell.ts';
-import { liveMarkup, nextRow } from './views/live.ts';
+import { frameCardMarkup, renderHeader, TABS, tabsMarkup } from './shell.ts';
+import { liveMarkup, macCard, nextRow } from './views/live.ts';
 import { capturesView, readLegacyCaptures } from './views/captures.ts';
 import { historyView } from './views/history.ts';
 import { mountSafely } from './views/registry.ts';
 import { serverMarkup } from './views/server.ts';
 import { statusMarkup } from './views/status.ts';
-import type { Tab, ViewHandle } from './views/types.ts';
+import { primaryTab, type Tab, type ViewHandle } from './views/types.ts';
 
-// The rail panel and the full page (plan §5.9, G2): four tabs Live · Server · History · Captures, the page's two columns
-// Live | History at ≥ 900 px, and Compact = the glance. Polls re-render the active view by patching it in place.
+// Live and History keep the same navigation at every width. Server and Captures are secondary workspaces;
+// the internal active view still controls extra server reads and view visibility. Polls patch views in place.
 
 export interface AppParts {
   shell: HTMLElement; host: HostClient; state: ScopeState; client: SnapshotClient; pipeline: Pipeline; version: string;
   connections: ConnectionsView; prefs: PrefsV2; visible: () => boolean; status: (message: string) => void;
 }
 export class ScopeApp {
-  private columns = false;
+  private wide = false;
   private readonly views = new Map<'history' | 'captures', { host: HTMLElement; handle: ViewHandle }>();
   private readonly media = typeof matchMedia === 'function' ? matchMedia('(min-width: 900px)') : null;
   private readonly node = (id: string): HTMLElement => this.p.shell.querySelector<HTMLElement>(`#${id}`)!;
@@ -46,9 +47,8 @@ export class ScopeApp {
     this.onLayout();
   }
   private readonly onLayout = (): void => {
-    this.columns = this.p.state.surface === 'page' && (this.media?.matches ?? false);
-    this.p.shell.dataset.layout = this.columns ? 'columns' : 'tabs';
-    if (this.columns && this.p.state.tab === 'history') this.p.state.tab = 'live';
+    this.wide = this.p.state.surface === 'page' && (this.media?.matches ?? false);
+    this.p.shell.dataset.layout = this.wide ? 'wide' : 'tabs';
     this.render();
   };
 
@@ -72,13 +72,21 @@ export class ScopeApp {
   render(): void {
     const { state } = this.p;
     if (state.disposed || !state.mounted) return;
-    const s = this.input(), card = frameCard(s), open = state.open, compact = state.compact && !this.columns && !card;
+    const s = this.input(), card = frameCard(s), open = state.open, compact = state.compact && !this.wide && !card;
+    state.serverDetailsVisible = state.tab === 'server' && !compact && !card;
     renderHeader(this.p.shell, presentHeader(s));
     this.p.shell.dataset.compact = String(compact);
     const cardHost = this.node('frame-card');
     morph(cardHost, card ? frameCardMarkup(card) : '');
     this.node('workspace-nav').hidden = !!card || compact;
     this.node('panels').hidden = !!card || compact;
+    this.node('next-activity').hidden = true;
+    // A timed window belongs to this frame, even when Compact or another workspace is visible.
+    this.view('captures', this.node('captures-content'), s.snapshot);
+    const timed = this.views.get('captures')?.handle.captureActivity?.(), timedHost = this.node('capture-activity');
+    const showTimed = !!timed && !card && (state.tab !== 'captures' || compact);
+    timedHost.hidden = !showTimed;
+    morph(timedHost, showTimed ? html`<div class="next-row"><span class="pulse" aria-hidden="true"></span><span>${timed}</span><button class="btn quiet" type="button" data-action="window-cancel">Cancel</button></div>` : '');
     const glance = this.node('compact-glance');
     glance.hidden = !compact;
     if (compact) {
@@ -88,25 +96,31 @@ export class ScopeApp {
       return;
     }
     if (card) return;
-    const tabs = this.columns ? PAGE_TABS : TABS, active = state.tab;
+    const active = state.tab, primary = primaryTab(active), live = presentLive(s, this.extra(s));
     const action = this.node('workspace-action');
-    action.hidden = !this.columns || active !== 'live';
-    morph(this.node('tablist'), tabsMarkup(tabs, active));
-    for (const [tab] of TABS) this.node(`panel-${tab}`).hidden = tab !== active;
-    const livePanel = this.node('panel-live');
-    livePanel.classList.toggle('page-cols', this.columns);
-    livePanel.classList.toggle('view', !this.columns);
+    action.hidden = active === 'server' || active === 'captures';
+    morph(action, active === 'live'
+      ? html`<button class="btn quiet" type="button" data-action="open-server">Server &amp; Mac details</button>`
+      : active === 'history' ? html`<button class="btn quiet" type="button" data-action="open-captures">Captures</button>` : '');
+    morph(this.node('tablist'), tabsMarkup(TABS, primary));
+    for (const [tab] of TABS) this.node(`panel-${tab}`).hidden = tab !== primary;
+    this.node('view-live').hidden = active !== 'live';
+    this.node('view-history').hidden = active !== 'history';
+    this.node('panel-server').hidden = active !== 'server';
+    this.node('panel-captures').hidden = active !== 'captures';
+    // These stateless views are rebuilt from the snapshot; remove hidden copies of their shared disclosure ids.
+    if (active !== 'live') morph(this.node('view-live'), '');
+    if (active !== 'server') morph(this.node('panel-server'), '');
+    // Active measurement stays cancellable on the secondary Server view and on History.
+    const next = live.hero?.reply?.next, activity = this.node('next-activity');
+    const showActivity = (active === 'history' || active === 'server') && (next?.kind === 'armed' || next?.kind === 'measuring');
+    activity.hidden = !showActivity;
+    morph(activity, showActivity ? nextRow(next, open) : '');
     if (active === 'live') {
-      const extra = this.extra(s), live = presentLive(s, extra), body = liveMarkup(live, open, this.columns);
-      morph(action, this.columns ? nextRow(live.hero?.reply?.next ?? null, open) : '');
-      morph(livePanel, this.columns
-        ? html`<div class="view page-live" id="col-live">${body}</div><div class="view" id="col-history" data-mount></div>`
-        : s.snapshot || s.frame ? body : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
+      morph(this.node('view-live'), s.snapshot || s.frame ? liveMarkup(live, open) : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
     }
-    if (active === 'server') morph(this.node('panel-server'), serverMarkup(presentServer(s.snapshot, s.now, this.extra(s)), open));
-    if (active === 'history' || this.columns && active === 'live') this.view('history', this.columns ? this.node('col-history') : this.node('panel-history'), s.snapshot);
-    // Captures is fed by every poll, even while another tab shows.
-    this.view('captures', this.node('panel-captures'), s.snapshot);
+    if (active === 'server') morph(this.node('panel-server'), html`<div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-live">Back to Live</button><h2 id="server-title" tabindex="-1">Server &amp; Mac details</h2></div>${serverMarkup(presentServer(s.snapshot, s.now, this.extra(s)), open)}${macCard(presentMac(s), open)}`);
+    if (active === 'history') this.view('history', this.node('view-history'), s.snapshot);
   }
   /**
    * History and Captures are ui-history's views, given this frame's one Ledger, its Next reply control and the poll's
@@ -119,7 +133,7 @@ export class ScopeApp {
       const host = document.createElement('div'), { pipeline, connections, prefs } = this.p, storage = this.p.host.storage;
       host.className = 'view-host';
       const context = { host: this.p.host, surface: this.p.state.surface === 'page' ? 'page' as const : 'panel' as const, now: () => this.p.client.now(),
-        visible: () => this.p.visible() && (this.p.state.tab === tab || tab === 'history' && this.columns), leader: () => this.p.state.snapshot?.lease.leader ?? false };
+        visible: () => this.p.visible() && !this.node('panels').hidden && this.p.state.tab === tab, leader: () => this.p.state.snapshot?.lease.leader ?? false };
       const copy = (text: string) => this.p.host.writeClipboard(text);
       entry = { host, handle: mountSafely(tab, host, context, tab === 'history'
         ? historyView({ ledger: pipeline.ledger, client: new HistoryClient(this.p.host), retentionDays: () => prefs.value.retentionDays ?? 30,
@@ -145,7 +159,8 @@ export class ScopeApp {
     if (state.tab === tab) return;
     state.tab = tab;
     this.render();
-    if (focus) this.node(`tab-${tab}`).focus({ preventScroll: true });
+    if (tab === 'history' || tab === 'captures') this.views.get(tab)?.handle.activate?.();
+    if (focus) this.node(tab === 'server' ? 'server-title' : tab === 'captures' ? 'captures-title' : `tab-${tab}`).focus({ preventScroll: true });
     // The Server tab asks the service for its extra reads (detail=server); poll now rather than at the next tick.
     if (tab === 'server') void this.onRefreshNeeded();
   }
@@ -162,16 +177,28 @@ export class ScopeApp {
     if (tab?.dataset.tab) { this.select(tab.dataset.tab as Tab, false); return; }
     const disclose = target.closest<HTMLElement>('[data-disclose]');
     if (disclose) { this.disclose(disclose); return; }
+    // History and Captures have their own delegated controls and share only the frame-owned controller.
+    if (target.closest('.view-host')) return;
     const action = target.closest<HTMLElement>('[data-action]')?.dataset.action;
     if (action) this.act(action);
   };
   private act(action: string): void {
     const { pipeline, state, connections } = this.p;
+    if (action === 'open-server') { this.select('server', true); return; }
+    if (action === 'open-captures') { this.select('captures', true); return; }
+    if (action === 'back-live') { this.select('live', true); return; }
+    if (action === 'back-history') { this.select('history', true); return; }
     if (action === 'connection') connections.openSetup();
     else if (action === 'switch') { const detected = state.snapshot?.status.params.detected; if (typeof detected === 'string') connections.switchRuntime(detected as never); }
     else if (action === 'next-arm') pipeline.arm(state.snapshot);
     else if (action === 'watch') this.watch();
     else if (action === 'next-cancel') pipeline.cancel();
+    else if (action === 'window-cancel') {
+      this.views.get('captures')?.handle.cancelCapture?.();
+      this.p.status('Timed window stopped. The partial capture is available in Captures.');
+      const focus = state.compact && !this.wide ? this.p.shell.querySelector<HTMLElement>('#monitor-menu > summary') : this.node(`tab-${primaryTab(state.tab)}`);
+      focus?.focus({ preventScroll: true });
+    }
     else if (action === 'next-save') void this.saveNext();
     else if (action === 'expand') { state.compact = false; this.onCompact(false); }
     this.render();
@@ -180,10 +207,8 @@ export class ScopeApp {
   private async saveNext(): Promise<void> {
     const next = this.p.pipeline.nextState;
     if (next.kind !== 'result') return;
-    const rate = weightedTps(next.steps), output = next.steps.reduce((sum, step) => sum + (step.outputTokens ?? 0), 0);
     try {
-      await new CaptureStore(this.p.host.storage).save({ v: 2, savedAt: this.p.client.now(), kind: 'next-reply', runtime: this.p.state.snapshot?.connection.runtime ?? null,
-        label: 'armed', measurements: { ...rate !== null ? { decodeTps: rate } : {}, outputTokens: output, wallMs: next.endedAt - next.startedAt }, state: 'finished' });
+      await new CaptureStore(this.p.host.storage).save(nextReplyCapture(next, this.p.state.snapshot?.connection.runtime ?? null, this.p.client.now()));
       this.p.status('Saved to Captures. Model names are never stored with a capture.');
     } catch { this.p.status('Could not save this reply to Captures. It is still shown here.'); }
   }
@@ -199,7 +224,7 @@ export class ScopeApp {
     }
     if (target.getAttribute('role') !== 'tab' || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
-    const tabs = (this.columns ? PAGE_TABS : TABS).map(([id]) => id), index = tabs.indexOf(this.p.state.tab);
+    const tabs = TABS.map(([id]) => id), index = tabs.indexOf(primaryTab(this.p.state.tab));
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length;
     this.select(tabs[next]!, true);
   };

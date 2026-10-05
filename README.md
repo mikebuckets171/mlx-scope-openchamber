@@ -31,16 +31,16 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
 
 ## Where MLX Scope shows up
 
-- **Work Status section.** A section in the chat's Work Status panel. Its glance shows the phase and speed above a separate model
-  line and the per-chat label, with a 15-minute sparkline, memory pressure, GPU and thermal chips, and the top
-  alert. With a model loaded it is 80 px tall, 112 px with a divided alert row, and a single 24 px line, "Chat uses a non-local model", in a chat that
-  uses a cloud model. Its transparent background blends into the Session pane in the current OpenChamber theme.
+- **Work Status section.** Speed and activity lead, followed by the model and measurement scope, supported first-token
+  time and context, and a short sparkline. Completed measurements say **Last reply** with their age; warnings remain
+  visible. Unavailable readings are left out. Its transparent background blends into the Session pane in the current
+  OpenChamber theme, and the section stays within 200 px including expanded statistics.
   The section runs only while the Work Status panel is open and the section is expanded, and it
   uses a lighter set of Mac probes than the panel.
 - **A Turn stats replacement.** Expanded (up to 200 px), the section uses the host's Turn stats rows with runtime-exact
-  values: Response, Turn time, Model · tool time, First TTFT, Tokens in · out, Cache %, Context used and vs usual. Turn
+  values: Response, Turn time, Model · tool time, First token, Tokens in · out, Cache %, Context used and vs usual. Turn
   time and Model · tool time appear only for turns labelled as this chat's; a row the runtime can't report is left out
-  (for example First TTFT on oMLX); cost is not shown for local models. To swap them:
+  (for example First token on oMLX); cost is not shown for local models. To swap them:
   1. Open a chat's **Work Status** panel.
   2. In **Panel sections**, hide **Turn stats**.
   3. Drag **MLX Scope** into its place. To undo, show Turn stats again.
@@ -48,11 +48,13 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   Scope shows these steps once as a tip you can dismiss. **The trade-off:** hiding Turn stats hides it in every chat,
   including cloud chats, so cloud chats have no per-turn speed while the swap is in place. The host's menu names and
   Turn stats rows are verified in Stage 12 on OpenChamber 2.0.4.
-- **Rail panel.** Four tabs: **Live**, **Server**, **History** and **Captures**. Compact mode is the Work Status glance
-  view. Open it from the rail, or from **Open MLX Scope** in a chat's session menu.
-- **Full page.** Live readings, four recent history entries and the trend side by side, from OpenChamber's
-  **Extension pages** menu. **Show more** expands the reply list; **History insights** opens baselines, runtime usage
-  and the alert log. Storage controls are in **History storage**, which opens automatically when it needs attention.
+- **Rail panel and full page.** Two tabs, **Live** and **History**, at every width. Live shows performance, **Measure
+  next reply**, and a compact Mac summary; **Server & Mac details** opens diagnostics with **Back to Live**. History
+  shows recent replies and the trend, with insights, alerts and storage in named disclosures. Storage opens
+  automatically when it needs attention. **Captures** opens from History with **Back to History**, a **Reply / Timed
+  window** selector, and saved captures. Active measurement progress and cancellation remain reachable as you navigate.
+  Resizing preserves your selected destination. Open the rail or **Open MLX Scope** from a chat's session menu;
+  open the full page from **Extension pages**. Compact mode uses the Work Status glance view.
 - **`/scope`.** A slash command that attaches a sanitized diagnostics chip to your message; see
   [`/scope` diagnostics](#scope-diagnostics).
 
@@ -154,7 +156,7 @@ them at a time, and a sent chip stays in the chat's session record like any atta
    https://github.com/mikebuckets171/mlx-scope-openchamber
    ```
 
-Alternatively, install the latest named `mlx-scope-openchamber-*.zip` from
+Alternatively, install the named `mlx-scope-openchamber-2.1.2.zip` from
 [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest). Use the named install package, not
 GitHub's generated source archives. The ZIP includes built JavaScript; installing it needs no build toolchain.
 

@@ -7,10 +7,11 @@ import { presentStatusSection } from '../../present/status.ts';
 import { fromSnapshot } from '../../present/reading.ts';
 import { MOCK_NOW, MOCK_STATES, mockBody } from '../../testing/mock-states.ts';
 import { esc, html } from '../html.ts';
-import { frameCardMarkup, PAGE_TABS, TABS, tabsMarkup } from '../shell.ts';
+import { frameCardMarkup, shellMarkup, TABS, tabsMarkup } from '../shell.ts';
 import { liveMarkup } from './live.ts';
 import { serverMarkup } from './server.ts';
 import { statusHeight, statusMarkup } from './status.ts';
+import { primaryTab } from './types.ts';
 
 const snapshotOf = (state: string, patch: (body: Record<string, any>) => void = () => {}) => {
   const body = JSON.parse(JSON.stringify(mockBody(state))); patch(body);
@@ -52,15 +53,29 @@ test('every mock state renders every view without a raw placeholder', () => {
     const markup = [liveMarkup(presentLive(input), new Set()), serverMarkup(presentServer(input.snapshot, MOCK_NOW), new Set()), statusMarkup(status)].map(item => item.markup).join('');
     expect(markup, state).not.toMatch(/undefined|NaN|\[object|VRAM/);
     expect(markup, state).toContain(`style="height:${statusHeight(status)}px"`);
-    expect(statusMarkup(status, true).markup, `${state} compact`).toContain(`style="height:${status.height}px"`);
+    expect(statusMarkup(status, true).markup, `${state} compact`).toContain(`style="height:${statusHeight(status, true)}px"`);
   }
 });
 
-test('tabs use roving tabindex and name their panels', () => {
-  const markup = tabsMarkup(TABS, 'server').markup;
-  expect([...markup.matchAll(/tabindex="(-?\d)"/g)].map(match => match[1])).toEqual(['-1', '0', '-1', '-1']);
-  expect(markup).toContain('id="tab-server" data-tab="server" aria-controls="panel-server" aria-selected="true"');
-  expect(tabsMarkup(PAGE_TABS, 'live').markup).toContain('>Live · History</button>');
+test('two primary tabs keep secondary workspaces in the correct accessible parent', () => {
+  expect(TABS.map(([, label]) => label)).toEqual(['Live', 'History']);
+  for (const [view, parent] of [['live', 'live'], ['server', 'live'], ['history', 'history'], ['captures', 'history']] as const) {
+    expect(primaryTab(view)).toBe(parent);
+    const markup = tabsMarkup(TABS, primaryTab(view)).markup;
+    expect([...markup.matchAll(/tabindex="(-?\d)"/g)].map(match => match[1])).toEqual(parent === 'live' ? ['0', '-1'] : ['-1', '0']);
+    expect(markup).toContain(`id="tab-${parent}" data-tab="${parent}" aria-controls="panel-${parent}" aria-selected="true"`);
+  }
+  expect(shellMarkup().markup.match(/role="tabpanel"/g)).toHaveLength(2);
+  expect(shellMarkup().markup).toContain('aria-labelledby="captures-title"');
+});
+
+test('runtime diagnostics are available in a disclosure without displacing server measurements', () => {
+  const view = presentServer(snapshotOf('decode'), MOCK_NOW), closed = serverMarkup(view, new Set()).markup;
+  expect(closed).toContain('<details class="runtime-details" id="server-runtime-details">');
+  expect(closed).toContain('data-key="server-memory"');
+  expect(closed.indexOf('data-key="server-memory"')).toBeLessThan(closed.indexOf('id="server-runtime-details"'));
+  expect(closed).toContain('per-request speed');
+  expect(serverMarkup(view, new Set(['server-runtime-details'])).markup).toContain('id="server-runtime-details" open>');
 });
 
 test('needs approval lists every exec path as code; needs restart gives the two S11 steps', () => {

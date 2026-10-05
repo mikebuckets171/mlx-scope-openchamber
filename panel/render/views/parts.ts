@@ -46,8 +46,8 @@ export const callouts = (prefix: string, list: readonly Callout[], open: Open): 
   if (!list.length) return '';
   const [top, ...rest] = list, id = `more-${prefix}`;
   return html`<div class="connection-diagnosis" data-severity="${top!.severity}" role="status" data-key="callout-${prefix}">${calloutBody(top!)}${rest.length ? html`
-    <button class="link-btn" type="button" data-disclose="more" aria-expanded="${String(open.has(id))}" aria-controls="${id}">${rest.length} more ${rest.length === 1 ? 'alert' : 'alerts'}</button>
-    <ul class="diag-more" id="${id}"${flag('hidden', !open.has(id))}>${rest.map(item => html`<li>${calloutBody(item)}</li>`)}</ul>` : ''}</div>`;
+<button class="link-btn" type="button" data-disclose="more" aria-expanded="${String(open.has(id))}" aria-controls="${id}">${rest.length} more ${rest.length === 1 ? 'alert' : 'alerts'}</button>
+<ul class="diag-more" id="${id}"${flag('hidden', !open.has(id))}>${rest.map(item => html`<li>${calloutBody(item)}</li>`)}</ul>` : ''}</div>`;
 };
 export const section = (prefix: string, key: string, title: string, right: Part, body: Part, t: Tip | null, open: Open, extra = ''): Raw => {
   const { btn, pop } = tipParts(prefix, t, open);
