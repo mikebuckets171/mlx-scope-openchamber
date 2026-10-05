@@ -13,7 +13,7 @@ import { nextReplyCapture } from '../present/captures-tab.ts';
 import type { Callout } from '../present/parts.ts';
 import type { ScopeInput } from '../present/scope.ts';
 import { presentServer } from '../present/server.ts';
-import { presentStatusSection } from '../present/status.ts';
+import { presentGlance } from '../present/status.ts';
 import type { Pipeline } from '../state/pipeline.ts';
 import type { ScopeState } from '../state/scope-state.ts';
 import { html, morph } from './html.ts';
@@ -23,7 +23,7 @@ import { capturesView, readLegacyCaptures } from './views/captures.ts';
 import { historyView } from './views/history.ts';
 import { mountSafely } from './views/registry.ts';
 import { serverMarkup } from './views/server.ts';
-import { statusMarkup } from './views/status.ts';
+import { compactMarkup } from './views/status.ts';
 import { primaryTab, type Tab, type ViewHandle } from './views/types.ts';
 
 // Live and History keep the same navigation at every width. Server and Captures are secondary workspaces;
@@ -90,9 +90,9 @@ export class ScopeApp {
     const glance = this.node('compact-glance');
     glance.hidden = !compact;
     if (compact) {
-      morph(glance, statusMarkup(presentStatusSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution, turn: null,
+      morph(glance, compactMarkup(presentGlance({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution, turn: null,
         vsUsual: s.last?.vsUsual ?? null, sparkline: null, chatIsLocal: null, expanded: false, tipDismissed: true, fresh: s.fresh, paused: s.paused, next: s.next,
-        last: s.last && { completion: s.last.completion, label: s.last.label } }), true));
+        last: s.last && { completion: s.last.completion, label: s.last.label } })));
       return;
     }
     if (card) return;

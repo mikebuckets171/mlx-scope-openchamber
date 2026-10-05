@@ -15,8 +15,9 @@ because 2.0 renders the approved G2 mock rather than the 1.6 panel).
 - **Pixel goldens** (`*.png`): macOS only (plan §8.1), Chromium, 1 CSS px per pixel, the version masked. At most 60 files
   and 4 MiB in total (asserted by `goldens.spec.ts`).
 - **Cases:** Live at 320 dark for 17 mock states; Server where the state has server cards; light at 320, the 1,160 px page
-  and the Compact glance for a representative subset; the Work Status section at 280 px for the tip, glance, alert,
-  non-local and Turn stats heights, in both themes where it matters.
+  and the Compact glance for a representative subset; the Session summary at 280 px for live, idle, alert,
+  unavailable and non-local states, in both themes where it matters. The historical `status-tip` and
+  `status-turnstats` filenames retain old preference cases to prove upgrades render the compact summary.
 
 ## How they stay deterministic
 Each case runs in a fresh browser context with a paused fake clock (`2026-09-29 14:05 UTC`, `en-US`, `UTC`, reduced

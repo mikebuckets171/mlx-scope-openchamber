@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.3
+
+### Fixed
+
+- The Session pane's Work Status section uses compact label/value rows: activity and speed first, then model and
+  plain measurement scope. Reply age appears only when a reply measurement is available; idle and missing data no
+  longer leave an empty **Last reply** block.
+- Saved expanded statistics preferences no longer force the Session section into a larger, empty layout. Turn
+  statistics, charts and controls remain in the full MLX Scope view, reached with **Open MLX Scope**.
+- Memory warnings stay visible in one row. The nested statistics chevron, outlined scope badge and Turn stats
+  replacement tip are removed from the Session summary; cloud chats keep a neutral, single-line state.
+
+Telemetry contracts, collection cadence, saved history, permissions and connection settings are unchanged.
+
 ## 2.1.2
 
 ### Changed

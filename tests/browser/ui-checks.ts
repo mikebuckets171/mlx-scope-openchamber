@@ -90,7 +90,12 @@ export const inspect = (options: boolean | { openAll: boolean; backdrop: string[
     if (visible(b) && (r.width < 24 || r.height < 24)) problems.push(`ⓘ target ${r.width}×${r.height} px`);
     if (!b.hasAttribute('aria-expanded') || !document.getElementById(b.getAttribute('aria-controls')!)) problems.push('ⓘ without aria-expanded/aria-controls target');
   }
-  for (const el of Array.from(document.querySelectorAll<HTMLElement>('[title]'))) if (el.closest('#scope')) problems.push(`tooltip-only text on <${el.tagName.toLowerCase()}>: "${el.title.slice(0, 30)}"`);
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>('[title]'))) {
+    // Session model names may ellipsize and provenance explains its source in a title. Their visible labels still
+    // identify the model and scope; neither is a tooltip-only control or an omitted measurement.
+    if (el.closest('#ws[data-presentation="session"]') && el.matches('.ws-phase, .ws-model, .ws-scope, .ws-note, .ws-label')) continue;
+    if (el.closest('#scope')) problems.push(`tooltip-only text on <${el.tagName.toLowerCase()}>: "${el.title.slice(0, 30)}"`);
+  }
   for (const c of Array.from(document.querySelectorAll('.plot, .ws-spark'))) if (c.getAttribute('role') !== 'img' || !c.getAttribute('aria-label')) problems.push(`chart without role="img" and a summary: ${c.className}`);
   for (const svg of Array.from(document.querySelectorAll('svg'))) if (!svg.closest('[role="img"][aria-label], button, summary, .brand') && svg.getAttribute('aria-hidden') !== 'true') problems.push('unlabelled svg');
   for (const tab of Array.from(document.querySelectorAll<HTMLElement>('[role="tab"]'))) {
@@ -103,10 +108,10 @@ export const inspect = (options: boolean | { openAll: boolean; backdrop: string[
     if (ws.clientHeight !== want) problems.push(`status ${ws.dataset.mode}: height ${ws.clientHeight} ≠ ${want}`);
     if (ws.scrollHeight > ws.clientHeight) problems.push(`status ${ws.dataset.mode}: content ${ws.scrollHeight} px overflows ${ws.clientHeight} px`);
     if (want > 200) problems.push(`status ${ws.dataset.mode}: taller than 200 px`);
-    for (const line of Array.from(ws.querySelectorAll('.ws-line, .ts-head'))) if (line.scrollWidth > line.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: a line overflows (${line.scrollWidth} > ${line.clientWidth})`);
+    for (const line of Array.from(ws.querySelectorAll('.ws-line, .ts-head, .ws-heading, .ws-model-line, .ws-alert-row'))) if (line.scrollWidth > line.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: a line overflows (${line.scrollWidth} > ${line.clientWidth})`);
     // Font-metric fit, like the pixel baselines, is judged on macOS (the only host this extension runs on); Linux
     // fallback fonts are wider, and the model name ellipsizes there by design.
-    if (/Mac/.test(navigator.platform)) for (const m of Array.from(ws.querySelectorAll('.ws-model'))) if (m.scrollWidth > m.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: model name squeezed to ${m.clientWidth} px ("${m.textContent}")`);
+    if (/Mac/.test(navigator.platform) && ws.dataset.presentation !== 'session') for (const m of Array.from(ws.querySelectorAll('.ws-model'))) if (m.scrollWidth > m.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: model name squeezed to ${m.clientWidth} px ("${m.textContent}")`);
     for (const t of Array.from(ws.querySelectorAll('.ws-grow, .ws-muted, .ts-reason'))) if (t.scrollWidth > t.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: text truncated ("${t.textContent!.trim()}")`);
     for (const dd of Array.from(ws.querySelectorAll('.ts-rows dd'))) if (dd.scrollWidth > dd.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: row value truncated ("${dd.textContent}")`);
   }

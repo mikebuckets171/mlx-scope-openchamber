@@ -20,6 +20,7 @@ let state = params.get('state') || (demo && surface === 'status' ? 'idle-pressur
 window.setPreviewState = value => { state = value; };
 window.previewRequests = 0; window.previewQueries = []; window.previewToasts = []; window.previewBadges = []; window.previewHeights = [];
 window.previewWrites = 0; window.previewCopied = ''; window.previewComposed = null; window.previewUnexpectedSends = 0; window.previewHold = false;
+window.previewOpenedSurfaces = [];
 window.previewError = params.get('error');
 window.setPreviewError = value => { window.previewError = value; };
 window.previewLease = { leader: params.get('leader') !== '0', epoch: 1, ttlMs: 12000, leaderSurface: params.get('leader') === '0' ? 'page' : surface };
@@ -119,6 +120,12 @@ window.addEventListener('message', event => {
   if (m.type === 'badge') { window.previewBadges.push(m.payload.count); result(m.id); return; }
   if (m.type === 'toast') { window.previewToasts.push(m.payload); result(m.id); return; }
   if (m.type === 'open-url') { window.previewOpenedURL = m.payload.url; result(m.id); return; }
+  if (m.type === 'open-surface') {
+    window.previewOpenedSurfaces.push(m.payload.surfaceId);
+    if (params.get('openSurface') === 'fail') failure(m.id, 'HOST_REJECTED', 'Fixture surface unavailable');
+    else result(m.id);
+    return;
+  }
   if (m.type === 'service-status') { result(m.id, {status:'ready'}); return; }
   if (m.type === 'clipboard-write') { window.previewCopied = m.payload.text; result(m.id); return; }
   if (m.type === 'compose') { window.previewComposed = m.payload; result(m.id); return; }

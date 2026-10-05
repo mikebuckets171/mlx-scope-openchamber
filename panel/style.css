@@ -519,6 +519,33 @@ dd { margin: 0; }
 .ws-key-stats dt { color: var(--scope-muted); }
 .ws-key-stats dd { text-align: right; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-age { height: 16px; line-height: 16px; color: var(--scope-muted); font-size: 10px; }
+
+/* Session summary follows the host's label/value rows, with one route to the full panel. */
+.ws.ws-session { width: auto; padding: 4px 0; font: 12px/20px var(--oc-font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif); }
+.ws-session .ws-line { height: 24px; gap: 12px; justify-content: space-between; }
+.ws-session .ws-heading { gap: 8px; }
+.ws.ws-session .ws-phase { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: inherit; font-weight: 500; }
+.ws-session .ws-phase[data-tone="warning"] { color: var(--scope-warn); }
+.ws-session .ws-phase[data-tone="critical"] { color: var(--scope-bad); }
+.ws.ws-session .ws-rate { flex: none; font-size: 12px; font-weight: 600; letter-spacing: 0; }
+.ws-session small { font-size: 10px; }
+.ws-session .ws-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--scope-muted); }
+.ws-session .ws-model { flex: 1 1 auto; min-width: 0; text-align: right; color: var(--scope-fg); }
+.ws-session .ws-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 20px; color: var(--scope-muted); font-size: 10.5px; }
+.ws-session .ws-scope { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-session .ws-age { flex: none; height: auto; line-height: inherit; font-size: inherit; }
+.ws-session .ws-note { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 36px; font-size: 11px; line-height: 18px; color: var(--scope-muted); }
+.ws-session .ws-alert-row { padding: 0; border: 0; }
+.ws-session .ws-alert-value { flex: none; color: var(--scope-warn); font-weight: 500; }
+.ws-session .ws-alert-value[data-severity="critical"] { color: var(--scope-bad); }
+.ws-session .ws-alert-value[data-severity="info"] { color: var(--scope-blue); }
+.ws-session .ws-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; }
+.ws-session .ws-details { min-height: 24px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: var(--scope-muted); font: 11px var(--oc-font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif); cursor: pointer; }
+.ws-session .ws-details:hover { color: var(--scope-fg); text-decoration: underline; text-underline-offset: 3px; }
+.ws-session .ws-details:focus-visible { outline: 2px solid var(--scope-accent); outline-offset: 2px; }
+.ws-session .ws-action-error { margin: 0; color: var(--scope-warn); font-size: 11px; line-height: 18px; }
+.ws.ws-session[data-mode="non-local"] { padding: 0; }
+.ws-session .ws-nonlocal { color: var(--scope-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws .basis { font-size: 10px; margin-left: 4px; }
 @media (max-width: 560px) {
   .masthead { flex-wrap: wrap; row-gap: 8px; padding-bottom: 12px; }

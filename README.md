@@ -31,23 +31,12 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
 
 ## Where MLX Scope shows up
 
-- **Work Status section.** Speed and activity lead, followed by the model and measurement scope, supported first-token
-  time and context, and a short sparkline. Completed measurements say **Last reply** with their age; warnings remain
-  visible. Unavailable readings are left out. Its transparent background blends into the Session pane in the current
-  OpenChamber theme, and the section stays within 200 px including expanded statistics.
-  The section runs only while the Work Status panel is open and the section is expanded, and it
-  uses a lighter set of Mac probes than the panel.
-- **A Turn stats replacement.** Expanded (up to 200 px), the section uses the host's Turn stats rows with runtime-exact
-  values: Response, Turn time, Model · tool time, First token, Tokens in · out, Cache %, Context used and vs usual. Turn
-  time and Model · tool time appear only for turns labelled as this chat's; a row the runtime can't report is left out
-  (for example First token on oMLX); cost is not shown for local models. To swap them:
-  1. Open a chat's **Work Status** panel.
-  2. In **Panel sections**, hide **Turn stats**.
-  3. Drag **MLX Scope** into its place. To undo, show Turn stats again.
-
-  Scope shows these steps once as a tip you can dismiss. **The trade-off:** hiding Turn stats hides it in every chat,
-  including cloud chats, so cloud chats have no per-turn speed while the swap is in place. The host's menu names and
-  Turn stats rows are verified in Stage 12 on OpenChamber 2.0.4.
+- **Work Status section.** A compact summary in the Session pane: activity and speed lead, followed by the model
+  and plain measurement scope. Completed reply measurements keep their age; idle and unavailable states stay
+  concise. Memory warnings remain visible in one row. **Open MLX Scope** opens the full view for turn statistics,
+  charts and controls. Cloud chats show a neutral, single-line state. Typography, alignment and the transparent
+  background follow the surrounding OpenChamber rows. The section runs only while the Work Status panel is open
+  and the section is expanded, and it uses a lighter set of Mac probes than the panel.
 - **Rail panel and full page.** Two tabs, **Live** and **History**, at every width. Live shows performance, **Measure
   next reply**, and a compact Mac summary; **Server & Mac details** opens diagnostics with **Back to Live**. History
   shows recent replies and the trend, with insights, alerts and storage in named disclosures. Storage opens
@@ -156,7 +145,7 @@ them at a time, and a sent chip stays in the chat's session record like any atta
    https://github.com/mikebuckets171/mlx-scope-openchamber
    ```
 
-Alternatively, install the named `mlx-scope-openchamber-2.1.2.zip` from
+Alternatively, install the named `mlx-scope-openchamber-2.1.3.zip` from
 [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest). Use the named install package, not
 GitHub's generated source archives. The ZIP includes built JavaScript; installing it needs no build toolchain.
 

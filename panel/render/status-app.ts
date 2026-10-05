@@ -3,14 +3,14 @@ import type { TrendV2 } from '../../src/contract/trend.ts';
 import type { SnapshotClient } from '../data/client.ts';
 import { HistoryClient } from '../data/history.ts';
 import type { PrefsV2 } from '../preferences.ts';
-import { presentStatusSection } from '../present/status.ts';
+import { presentSessionSection } from '../present/session.ts';
 import type { Pipeline } from '../state/pipeline.ts';
 import type { ScopeState } from '../state/scope-state.ts';
 import { morph } from './html.ts';
-import { statusHeight, statusMarkup } from './views/status.ts';
+import { sessionMarkup } from './views/session.ts';
 
-// The Work Status section (surface 'status', same bundle): the Session glance at 80/112/24 px or
-// the Turn stats replacement at ≤ 200 px, sized with setHeight. Glance tier; it can lead, so it may record and toast.
+// The Session summary (surface 'status') stays compact; its text action opens the full Scope panel.
+// Glance tier; it can lead, so it may record and toast.
 
 /** The 15 min sparkline comes from the service trend, refreshed at most this often while the section is visible. */
 export const SPARKLINE_EVERY_MS = 30_000;
@@ -28,6 +28,7 @@ export class StatusApp {
   private trend: TrendV2 | null = null;
   private trendAt = -Infinity;
   private session: SessionSnapshot | null = null;
+  private actionError: string | null = null;
   private readonly history: HistoryClient;
   private readonly unsubscribe: () => void;
   constructor(private readonly p: StatusParts, session: SessionSnapshot | null) {
@@ -40,7 +41,7 @@ export class StatusApp {
     const { state, pipeline, prefs, client } = this.p, snapshot = state.snapshot, pref = prefs.value, last = state.lastRequest;
     if (state.disposed || !state.mounted) return;
     this.refreshTrend();
-    const view = presentStatusSection({
+    const view = presentSessionSection({
       now: client.now(), reading: state.latest, snapshot, attribution: pipeline.liveLabel(snapshot), turn: pipeline.turn(),
       vsUsual: last ? pipeline.usualFor(last, snapshot?.connection.runtime ?? null).vsUsual : null,
       sparkline: this.trend, chatIsLocal: chatIsLocal(this.session, snapshot?.connection ?? null), expanded: pref.statusExpanded === true,
@@ -48,8 +49,9 @@ export class StatusApp {
       last: last ? { completion: last, label: pipeline.label(last) } : null, next: pipeline.nextState, window: pipeline.window(),
       firstRun: pipeline.firstRun, firstRunDismissed: pref.firstRunDismissed === true,
     });
-    morph(this.p.root, statusMarkup(view));
-    const height = statusHeight(view);
+    const actionError = view.mode === 'summary' ? this.actionError : null;
+    const height = view.height + (actionError ? 36 : 0);
+    morph(this.p.root, sessionMarkup({ ...view, height }, actionError));
     if (height !== this.height) { this.height = height; void this.p.host.setHeight(height).catch(() => {}); }
   }
   /** Only while visible, and never faster than every 30 s; a failed or unserved read leaves "Chart starts after 2 readings". */
@@ -64,7 +66,13 @@ export class StatusApp {
   private readonly onClick = (event: MouseEvent): void => {
     const action = (event.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action, prefs = this.p.prefs;
     if (!action) return;
-    if (action === 'status-toggle') void prefs.set({ statusExpanded: prefs.value.statusExpanded !== true }).catch(() => {});
+    if (action === 'open-scope') {
+      this.actionError = null;
+      void this.p.host.openSurface('plugin:mlx-scope').catch(() => {
+        this.actionError = 'Could not open Scope. Use its icon in the side panel.';
+        this.render();
+      });
+    }
     else if (action === 'dismiss-tip') void prefs.set({ tipDismissed: true }).catch(() => {});
     else if (action === 'dismiss-first-run') void prefs.set({ firstRunDismissed: true }).catch(() => {});
     else if (action === 'next-cancel') this.p.pipeline.cancel();

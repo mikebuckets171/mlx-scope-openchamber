@@ -153,7 +153,7 @@ const turnRows = (input: StatusSectionInput): { rows: StatusRow[]; title: string
     sub: summary ? `${summary.steps} ${summary.steps === 1 ? 'step' : 'steps'}` : ago(c.finishedAt, now), reason, label: last.label };
 };
 
-export const presentStatusSection = (input: StatusSectionInput): StatusSectionView => {
+export const presentGlance = (input: StatusSectionInput): StatusSectionView => {
   const { snapshot, now, reading } = input, reason = reading.reason;
   if (reason === 'needs_approval') return blank(L1({ title: APPROVAL.title }), { kind: 'note', text: APPROVAL.glance }, HEIGHTS.glance);
   if (reason === 'contract_mismatch') return blank(L1({ title: RESTART.title }), { kind: 'note', text: RESTART.glance }, HEIGHTS.glance);
@@ -169,16 +169,6 @@ export const presentStatusSection = (input: StatusSectionInput): StatusSectionVi
   if (input.fresh === false) return blank(L1({ dot: 'warn', title: 'No fresh readings' }), { kind: 'note', text: 'Retained readings are not live' }, HEIGHTS.glance);
 
   const alert = alertLine(snapshot), spark = sparkline(input.sparkline), request = snapshot.runtime.request, phase = snapshot.runtime.phase;
-  // Turn stats replacement, when chosen and there is a turn or a reply to show.
-  if (input.expanded) {
-    const turn = turnRows(input);
-    if (turn) {
-      const chip = attrChip(turn.label, turn.label.kind === 'server-wide');
-      return { mode: 'turn-stats', height: Math.min(200, turnHeight(turn.rows.length, turn.reason !== null) + (alert ? 8 : 0)), rows: turn.rows, glance: null,
-        turn: { alert, dot: turn.title === 'This turn' ? 'live' : 'idle', title: turn.title, sub: turn.sub, chip, reason: turn.reason, spark,
-          chips: glanceChips(snapshot, { gpu: turn.title === 'This turn', skip: alert?.skip }) } };
-    }
-  }
   const model = glanceOr(snapshot), next = input.next, last = input.last, chips = glanceChips(snapshot, { gpu: false, skip: alert?.skip });
   const notice: GlanceNotice | null = !input.tipDismissed ? { text: TIP, action: null, dismiss: 'tip' }
     : input.firstRun && !input.firstRunDismissed ? { text: FIRST_RUN, action: 'Open Scope to manage', dismiss: 'first-run' } : null;
@@ -233,4 +223,17 @@ export const presentStatusSection = (input: StatusSectionInput): StatusSectionVi
     last: last?.completion.decodeTps != null ? { rate: tps(last.completion.decodeTps), basis: basisOf(last.completion.basis) } : null });
 };
 const glanceOr = (snapshot: SnapshotV2): string | null => { const model = modelOf(snapshot); return model ? glanceModel(model) : null; };
+
+/** Legacy view-model API. The shipping Session and rail import the glance directly. */
+export const presentStatusSection = (input: StatusSectionInput): StatusSectionView => {
+  const view = presentGlance(input);
+  if (!input.expanded || view.mode === 'non-local' || view.glance?.line1.title || view.glance?.line1.word === 'Paused') return view;
+  const turn = turnRows(input);
+  if (!turn) return view;
+  const alert = alertLine(input.snapshot), spark = sparkline(input.sparkline);
+  return { mode: 'turn-stats', height: Math.min(200, turnHeight(turn.rows.length, turn.reason !== null) + (alert ? 8 : 0)), rows: turn.rows, glance: null,
+    turn: { alert, dot: turn.title === 'This turn' ? 'live' : 'idle', title: turn.title, sub: turn.sub,
+      chip: attrChip(turn.label, turn.label.kind === 'server-wide'), reason: turn.reason, spark,
+      chips: glanceChips(input.snapshot, { gpu: turn.title === 'This turn', skip: alert?.skip }) } };
+};
 export { SERVER_WIDE, SEVERITY_WORD };
