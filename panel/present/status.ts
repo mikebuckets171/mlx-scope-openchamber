@@ -64,7 +64,7 @@ export const HEIGHTS = { nonLocal: 24, glance: 56, alert: 80, firstRun: 80, tip:
 const NOTICE_PX = { tip: 64, 'first-run': 48 } as const;
 const glanceHeight = (line2: boolean, notice: GlanceNotice | null, alert: boolean): number =>
   8 + 24 + (line2 ? 24 : 0) + (notice ? NOTICE_PX[notice.dismiss] : 0) + (alert ? 24 : 0);
-const turnHeight = (rows: number, reason: boolean): number => Math.min(HEIGHTS.max, 8 + 24 + (reason ? 16 : 0) + rows * 16 + 24);
+const turnHeight = (rows: number, reason: boolean): number => Math.min(HEIGHTS.max, 8 + 32 + (reason ? 16 : 0) + rows * 16 + 24);
 
 /** The 15 min decode sparkline: a line only where buckets hold readings. Fewer than 2 readings → no chart. */
 export const sparkline = (trend: TrendV2 | null): Spark | null => {

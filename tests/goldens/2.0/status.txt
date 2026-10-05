@@ -86,16 +86,16 @@ setHeight: 24
 
 ## status-turnstats · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="turn-stats" style="height:136px"}: Last reply · 48 s ago
+#ws {data-mode="turn-stats" style="height:144px"}: Last reply · 48 s ago
 span.chip {data-attr="inferred"}: This chat · inferred
 #ws-toggle {aria-expanded="true" aria-label="Show the glance view" data-action="status-toggle"}
 #ts-rows: Response | 38.6 tok/s | First token | 0.51 s | Tokens in · out | 18.4K · 1,092 | Cache % | 61% | Context used | 19.5K of 262Kderived
-setHeight: 136
+setHeight: 144
 
 ## status-turnstats-light · 280 light status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="turn-stats" style="height:136px"}: Last reply · 48 s ago
+#ws {data-mode="turn-stats" style="height:144px"}: Last reply · 48 s ago
 span.chip {data-attr="inferred"}: This chat · inferred
 #ws-toggle {aria-expanded="true" aria-label="Show the glance view" data-action="status-toggle"}
 #ts-rows: Response | 38.6 tok/s | First token | 0.51 s | Tokens in · out | 18.4K · 1,092 | Cache % | 61% | Context used | 19.5K of 262Kderived
-setHeight: 136
+setHeight: 144

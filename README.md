@@ -38,9 +38,9 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   The section runs only while the Work Status panel is open and the section is expanded, and it
   uses a lighter set of Mac probes than the panel.
 - **A Turn stats replacement.** Expanded (up to 200 px), the section uses the host's Turn stats rows with runtime-exact
-  values: Response, Turn time, Model · tool time, First TTFT, Tokens in · out, Cache %, Context used and vs usual. Turn
+  values: Response, Turn time, Model · tool time, First token, Tokens in · out, Cache %, Context used and vs usual. Turn
   time and Model · tool time appear only for turns labelled as this chat's; a row the runtime can't report is left out
-  (for example First TTFT on oMLX); cost is not shown for local models. To swap them:
+  (for example First token on oMLX); cost is not shown for local models. To swap them:
   1. Open a chat's **Work Status** panel.
   2. In **Panel sections**, hide **Turn stats**.
   3. Drag **MLX Scope** into its place. To undo, show Turn stats again.

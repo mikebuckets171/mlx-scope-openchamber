@@ -212,13 +212,19 @@ test('the sparkline needs 2 readings and breaks where the trend has no reading',
 test('Turn stats replacement: the host\'s rows, basis only on non-reported rows, unreportable rows left out, ≤ 200 px', () => {
   const summary: TurnSummary = { wallMs: 112_000, modelMs: 75_000, toolMs: 37_000, steps: 3, firstTtftMs: 520, promptTokens: 54_400, cachedTokens: 33_200,
     outputTokens: 3_104, decodeTps: 38.1, cacheFraction: 0.61 };
-  const bionic = statusOf('bionic', { expanded: true, turn: summary, vsUsual: { metric: 'decodeTps', ratio: 1.02, n: 23, basis: 'reported' },
-    last: { completion: snapshotOf('bionic').completions.items.at(-1)!, label: { kind: 'inferred' } } });
+  const fullTurn: Partial<StatusSectionInput> = { expanded: true, turn: summary, vsUsual: { metric: 'decodeTps', ratio: 1.02, n: 23, basis: 'reported' },
+    last: { completion: snapshotOf('bionic').completions.items.at(-1)!, label: { kind: 'inferred' } } };
+  const bionic = statusOf('bionic', fullTurn);
   expect(bionic.mode).toBe('turn-stats');
   expect(bionic.rows.map(row => row.label)).toEqual(['Response', 'Turn time', 'Model · tool time', 'First token', 'Tokens in · out', 'Cache %', 'Context used', 'vs usual']);
   expect(bionic.rows.map(row => row.basis)).toEqual(['derived', 'observed', 'observed', null, null, null, 'derived', 'derived']);
-  expect(bionic.height).toBe(184);
+  expect(bionic.height).toBe(192);
   expect(bionic.turn).toMatchObject({ title: 'Last turn', sub: '3 steps', chip: { text: 'This chat · inferred' } });
+  const pressure = snapshotOf('pressure'), warning = { ...snapshotOf('bionic'), alerts: pressure.alerts, host: pressure.host };
+  const largest = statusOf('bionic', { ...fullTurn, snapshot: warning });
+  expect(largest.rows).toEqual(bionic.rows);
+  expect(largest.turn?.alert?.severity).toBe('warning');
+  expect(largest.height).toBe(200);
   // oMLX reports no TTFT: the row is left out, and token counts are Scope's last readings.
   const omlx = statusOf('idle', { expanded: true, turn: { ...summary, firstTtftMs: null }, last: { completion: snapshotOf('idle').completions.items.at(-1)!, label: { kind: 'inferred' } } });
   expect(omlx.rows.map(row => row.label)).not.toContain('First token');

@@ -286,6 +286,11 @@ test('Work Status: the Turn stats replacement stays within 200 px and its choice
   expect(await frame.locator('.ts-rows dd[data-basis="reported"] .basis').count()).toBe(0);
   expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ statusExpanded: true, tipDismissed: true });
   expect(await problems(page)).toEqual([]);
+  // Host fonts vary: wider header text must retain the age, and mixed-size qualifiers must not grow a row.
+  for (const font of ['Arial, sans-serif', 'Verdana, sans-serif']) {
+    await frame.locator('#ws').evaluate((el, font) => { (el as HTMLElement).style.fontFamily = font; }, font);
+    expect(await problems(page), font).toEqual([]);
+  }
   frame = await status(page, 'state=bionic');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'turn-stats');
   await frame.getByRole('button', { name: 'Show the glance view' }).click();
