@@ -2,100 +2,70 @@
 
 ## status-tip · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:164px"}: Generating 26.4 tok/s Example-27B Context used 52.7K of 131K
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
-#ws-why: not observed
-div.connection-diagnosis[role=note] {data-severity="info"}: Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place
-setHeight: 164
+#ws {data-mode="summary" data-presentation="session" style="height:104px"}: Generating | 26.4 tok/s | Model | Example-27B | Server-wide | Open MLX Scope
+setHeight: 104
 
 ## status-decode · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:100px"}: Generating 26.4 tok/s Example-27B Context used 52.7K of 131K
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
-#ws-why: not observed
-setHeight: 100
+#ws {data-mode="summary" data-presentation="session" style="height:104px"}: Generating | 26.4 tok/s | Model | Example-27B | Server-wide | Open MLX Scope
+setHeight: 104
 
 ## status-decode-light · 280 light status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:100px"}: Generating 26.4 tok/s Example-27B Context used 52.7K of 131K
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
-#ws-why: not observed
-setHeight: 100
+#ws {data-mode="summary" data-presentation="session" style="height:104px"}: Generating | 26.4 tok/s | Model | Example-27B | Server-wide | Open MLX Scope
+setHeight: 104
 
 ## status-prefill · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:100px"}: Reading prompt Example-27B Context used 52.1K of 131K
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
-#ws-why: not observed
-setHeight: 100
+#ws {data-mode="summary" data-presentation="session" style="height:104px"}: Reading prompt | Model | Example-27B | Server-wide | Open MLX Scope
+setHeight: 104
 
 ## status-idle · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:96px"}: Last reply 24.9 tok/s last observed Example-27B 1 min ago
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-span.chip {data-attr="inferred"}: This chat · inferred
-setHeight: 96
+#ws {data-mode="summary" data-presentation="session" style="height:104px"}: Last reply | 24.9 tok/s last observed | Model | Example-27B | This chat · inferred | 1 min ago | Open MLX Scope
+setHeight: 104
 
 ## status-alert · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:132px"}: Generating 21.2 tok/s Example-27B Context used 52.7K of 131K macOS memory pressure: warning Memory pressure Warning +1 more
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
-#ws-why: not observed
-setHeight: 132
+#ws {data-mode="summary" data-presentation="session" style="height:128px"}: Generating | 21.2 tok/s | Model | Example-27B | Server-wide | Memory pressure | Warning +1 more | Open MLX Scope
+setHeight: 128
 
 ## status-offline · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:56px"}: Critical: | oMLX stopped responding | since 14:02 | Scope checks again automatically
-setHeight: 56
+#ws {data-mode="summary" data-presentation="session" style="height:96px"}: oMLX stopped responding | Scope checks again automatically | Open MLX Scope
+setHeight: 96
 
 ## status-splash-decode · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Live 43.8 tok/s derived Example-27B
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="all requests"}: Server-wide
-#ws-why: all requests
-setHeight: 80
+#ws {data-mode="summary" data-presentation="session" style="height:104px"}: Generating | 43.8 tok/s derived | Model | Example-27B | Server-wide | Open MLX Scope
+setHeight: 104
 
 ## status-splash-decode-light · 280 light status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:80px"}: Live 43.8 tok/s derived Example-27B
-#ws-toggle {aria-expanded="false" aria-label="Show turn stats" data-action="status-toggle"}
-span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="all requests"}: Server-wide
-#ws-why: all requests
-setHeight: 80
+#ws {data-mode="summary" data-presentation="session" style="height:104px"}: Generating | 43.8 tok/s derived | Model | Example-27B | Server-wide | Open MLX Scope
+setHeight: 104
 
 ## status-recovering · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:56px"}: Splash is recovering | since 14:03 | Scope reads its status every 30 s
-setHeight: 56
+#ws {data-mode="summary" data-presentation="session" style="height:96px"}: Splash is recovering | Scope reads its status every 30 s | Open MLX Scope
+setHeight: 96
 
 ## status-approval · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="glance" data-presentation="session" data-variant="glance" style="height:56px"}: MLX Scope 2.0 needs one approval | Settings → Extensions → MLX Scope
-setHeight: 56
+#ws {data-mode="summary" data-presentation="session" style="height:96px"}: MLX Scope 2.0 needs one approval | Settings → Extensions → MLX Scope | Open MLX Scope
+setHeight: 96
 
 ## status-nonlocal · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="non-local" data-presentation="session" data-variant="nonlocal" style="height:24px"}: Chat uses a non-local model
+#ws {data-mode="non-local" data-presentation="session" style="height:24px"}: Chat uses a non-local model
 setHeight: 24
 
 ## status-turnstats · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="turn-stats" style="height:144px"}: Last reply · 48 s ago
-span.chip {data-attr="inferred"}: This chat · inferred
-#ws-toggle {aria-expanded="true" aria-label="Show the glance view" data-action="status-toggle"}
-#ts-rows: Response | 38.6 tok/s | First token | 0.51 s | Tokens in · out | 18.4K · 1,092 | Cache % | 61% | Context used | 19.5K of 262Kderived
-setHeight: 144
+#ws {data-mode="summary" data-presentation="session" style="height:104px"}: Last reply | 38.6 tok/s | Model | example-27b | This chat · inferred | 48 s ago | Open MLX Scope
+setHeight: 104
 
 ## status-turnstats-light · 280 light status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="turn-stats" style="height:144px"}: Last reply · 48 s ago
-span.chip {data-attr="inferred"}: This chat · inferred
-#ws-toggle {aria-expanded="true" aria-label="Show the glance view" data-action="status-toggle"}
-#ts-rows: Response | 38.6 tok/s | First token | 0.51 s | Tokens in · out | 18.4K · 1,092 | Cache % | 61% | Context used | 19.5K of 262Kderived
-setHeight: 144
+#ws {data-mode="summary" data-presentation="session" style="height:104px"}: Last reply | 38.6 tok/s | Model | example-27b | This chat · inferred | 48 s ago | Open MLX Scope
+setHeight: 104

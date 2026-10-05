@@ -116,15 +116,17 @@ test('the host primary remains the identity color during prefill while warnings 
   }
 });
 
-test('the mounted Work Status indicator and alert follow custom host themes', async ({ page }) => {
+test('the mounted Session summary and warning value follow custom host themes', async ({ page }) => {
   const frame = await load(page, 'surface=status&state=pressure-critical', 320);
-  await expect(frame.locator('.ws-alert')).toBeVisible();
+  await expect(frame.locator('.ws-alert-value')).toBeVisible();
   const mounted = await frame.locator('#scope').elementHandle();
   for (const palette of [VIOLET, COPPER, PAPER]) {
     await setTheme(page, palette);
     await expectPalette(frame, palette, true);
-    await expect(frame.locator('.ws-dot')).toHaveCSS('background-color', rgb(palette.tokens.primaryText));
-    await expect(frame.locator('.ws-alert')).toHaveCSS('color', rgb(palette.tokens.errorText));
+    await expect(frame.locator('.ws-phase')).toHaveCSS('color', rgb(palette.tokens.foreground));
+    await expect(frame.locator('.ws-alert-row .ws-label')).toHaveCSS('color', rgb(palette.tokens.muted));
+    await expect(frame.locator('.ws-alert-value')).toHaveCSS('color', rgb(palette.tokens.errorText));
+    await expect(frame.locator('.ws-dot')).toHaveCount(0);
     expect(await mounted!.evaluate(el => el === document.querySelector('#scope'))).toBe(true);
     const backdrop = await page.locator('iframe').evaluate(el => {
       const colors: string[] = [];

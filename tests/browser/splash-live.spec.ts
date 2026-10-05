@@ -31,7 +31,7 @@ test('the Session pane shows live derived tok/s and follows theme changes', asyn
   await page.goto('/v2?demo=1&surface=status&state=splash-decode&theme=graphite-mint');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-rate')).toContainText('tok/s');
-  await expect(frame.locator('.ws-model-line')).toContainText('Server-wide');
+  await expect(frame.locator('.ws-scope')).toHaveText('Server-wide');
   await expect(frame.locator('#ws')).toContainText('derived');
   const rate = await frame.locator('.ws-rate').innerText();
   await expect.poll(() => frame.locator('.ws-rate').innerText()).not.toBe(rate);

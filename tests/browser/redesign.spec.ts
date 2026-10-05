@@ -191,14 +191,31 @@ test('design preview uses real views with isolated synthetic data and live theme
   expect(errors).toEqual([]);
 });
 
-test('the Session widget blends into its host pane and keeps its statistics toggle', async ({ page }, testInfo) => {
+test('the Session widget uses native rows and keeps detail in the full panel across theme changes', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 700, height: 600 });
   await page.goto('/v2?demo=1&surface=status&theme=obsidian');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-phase')).toHaveText('Last reply');
-  await expect(frame.getByRole('button', { name: 'Show turn stats', exact: true })).toHaveCount(1);
+  await expect(frame.locator('#ws')).toHaveAttribute('data-presentation', 'session');
+  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
+  await expect(frame.getByRole('button', { name: 'Show turn stats', exact: true })).toHaveCount(0);
   await expect(frame.locator('.ws-model-line')).toBeVisible();
   await expect(frame.locator('.ws-alert-row')).toContainText('Memory pressure');
+  await expect(frame.locator('.ws-alert-value')).toHaveText(/^Warning(?:\s*\+\d+ more)?$/);
+  await expect(frame.locator('.chip, .ts-rows, .ws-key-stats, .ws-spark')).toHaveCount(0);
+  const rows = await frame.locator('#ws').evaluate(el => {
+    const heading = el.querySelector('.ws-heading')!, alert = el.querySelector('.ws-alert-row')!;
+    const phase = el.querySelector('.ws-phase')!, rate = el.querySelector('.ws-rate')!, value = el.querySelector('.ws-alert-value')!;
+    return { phaseLeft: phase.getBoundingClientRect().left, alertLeft: alert.getBoundingClientRect().left,
+      rateRight: rate.getBoundingClientRect().right, valueRight: value.getBoundingClientRect().right,
+      headingRight: heading.getBoundingClientRect().right, rateBorder: getComputedStyle(rate).borderWidth,
+      valueBorder: getComputedStyle(value).borderWidth, valueBackground: getComputedStyle(value).backgroundColor };
+  });
+  expect(Math.abs(rows.phaseLeft - rows.alertLeft)).toBeLessThanOrEqual(1);
+  expect(Math.abs(rows.rateRight - rows.valueRight)).toBeLessThanOrEqual(1);
+  expect(Math.abs(rows.rateRight - rows.headingRight)).toBeLessThanOrEqual(1);
+  expect(rows.valueBorder).toBe('0px');
+  expect(rows.valueBackground).toBe('rgba(0, 0, 0, 0)');
   await expect(frame.locator('html')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(frame.locator('body')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   const evidence = process.env.SCOPE_EVIDENCE_DIR;
@@ -206,12 +223,11 @@ test('the Session widget blends into its host pane and keeps its statistics togg
     await mkdir(evidence, { recursive: true });
     await page.locator('.preview-session').screenshot({ path: join(evidence, 'mlx-scope-session-dark.png') });
   }
-  await frame.getByRole('button', { name: 'Show turn stats', exact: true }).click();
-  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'turn-stats');
+  await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).previewOpenedSurfaces)).toEqual(['plugin:mlx-scope']);
   await page.getByRole('combobox', { name: 'Preview theme' }).selectOption('warm-amber');
   await expect(frame.locator('html')).toHaveAttribute('data-oc-theme', 'light');
-  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'turn-stats');
-  await frame.getByRole('button', { name: 'Show the glance view', exact: true }).click();
+  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.locator('.ws-phase')).toHaveText('Last reply');
   if (evidence && testInfo.project.name === 'chromium')
     await page.locator('.preview-session').screenshot({ path: join(evidence, 'mlx-scope-session-light.png') });
@@ -243,7 +259,7 @@ test('current first-token timing comes only from the current request capability'
   await expect(frame.locator('#first-token')).toHaveCount(0);
 });
 
-test('the 280 px widget keeps supported timing and context readable with a long model name', async ({ page }) => {
+test('the 280 px Session summary keeps performance readable and preserves a long model name', async ({ page }) => {
   await page.setViewportSize({ width: 300, height: 600 });
   await page.goto('/v2?state=decode&surface=status');
   await page.evaluate(() => {
@@ -256,15 +272,59 @@ test('the 280 px widget keeps supported timing and context readable with a long 
   });
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-model')).toContainText('a-very-long-model-name');
-  await expect(frame.locator('.ws-key-stats')).toContainText('First token');
-  await expect(frame.locator('.ws-key-stats')).toContainText('0.85 s');
-  await expect(frame.locator('.ws-key-stats')).toContainText('Context used');
-  await expect(frame.getByRole('button', { name: 'Show turn stats', exact: true })).toHaveCount(1);
+  await expect(frame.locator('.ws-model')).toHaveAttribute('title', 'example-org/a-very-long-model-name-with-extra-training-and-quantization-details-27B-4bit');
+  await expect(frame.locator('.ws-phase')).toHaveText('Generating');
+  await expect(frame.locator('.ws-rate')).toContainText('26.4');
+  await expect(frame.locator('.ws-key-stats, .ts-rows')).toHaveCount(0);
+  await expect(frame.locator('#ws')).not.toContainText('First token');
+  await expect(frame.locator('#ws')).not.toContainText('Context used');
+  await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
   const fit = await frame.locator('#ws').evaluate(el => ({ height: el.getBoundingClientRect().height,
     contentHeight: el.scrollHeight, clientHeight: el.clientHeight, pageWidth: document.documentElement.scrollWidth, availableWidth: innerWidth }));
   expect(fit.height).toBeLessThanOrEqual(200);
   expect(fit.contentHeight).toBeLessThanOrEqual(fit.clientHeight);
   expect(fit.pageWidth).toBeLessThanOrEqual(fit.availableWidth);
+});
+
+test('a remembered stats expansion cannot promote an unmeasured reply above current activity and memory pressure', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (window === window.top) sessionStorage.setItem('pref.v2', JSON.stringify({ statusExpanded: true, tipDismissed: true, noticeDismissed: true }));
+  });
+  await page.setViewportSize({ width: 300, height: 600 });
+  await page.goto('/v2?surface=status&state=idle');
+  await page.evaluate(() => {
+    const preview = window as any, now = Date.now();
+    const body = preview.ScopeStates.mockBody('pressure', { now });
+    body.runtime.phase = 'idle'; body.runtime.request = null; body.runtime.server.active = 0;
+    body.completions = { ...body.completions, cursor: 99, reset: true, items: [{ seq: 99, startedAt: now - 125_000,
+      finishedAt: now - 120_000, model: 'Example-27B-4bit', basis: 'reported', overlapped: false, host: {} }] };
+    preview.setPreviewPatch({ runtime: body.runtime, completions: body.completions, alerts: body.alerts, host: body.host });
+  });
+  const frame = page.frameLocator('iframe');
+  await expect(frame.locator('.ws-alert-value')).toHaveText(/^Warning(?:\s*\+\d+ more)?$/);
+  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
+  await expect(frame.locator('.ws-phase')).toHaveText('Idle');
+  await expect(frame.locator('.ws-rate, .ws-age, .ts-head, .ts-rows, .chip')).toHaveCount(0);
+  await expect(frame.locator('#ws')).not.toContainText('Last reply');
+  await expect(frame.locator('#ws')).not.toContainText('no turn summary');
+  await expect(frame.locator('#ws')).not.toContainText('not observed');
+  const fit = await frame.locator('#ws').evaluate(el => ({ contentHeight: el.scrollHeight, clientHeight: el.clientHeight,
+    pageWidth: document.documentElement.scrollWidth, availableWidth: innerWidth }));
+  expect(fit.contentHeight).toBeLessThanOrEqual(fit.clientHeight);
+  expect(fit.pageWidth).toBeLessThanOrEqual(fit.availableWidth);
+});
+
+test('Session summary clears live speed when Splash readings become stale and restores it on fresh readings', async ({ page }) => {
+  await page.goto('/v2?surface=status&state=splash-decode');
+  const frame = page.frameLocator('iframe');
+  await expect(frame.locator('.ws-rate')).toContainText('43.8');
+  await page.evaluate(() => (window as any).setPreviewState('splash-stale'));
+  await expect(frame.locator('.ws-rate')).toHaveCount(0);
+  await expect(frame.locator('#ws')).not.toContainText('tok/s');
+  await expect(frame.locator('.ws-phase')).not.toHaveText('Generating');
+  await page.evaluate(() => (window as any).setPreviewState('splash-decode'));
+  await expect(frame.locator('.ws-rate')).toContainText('43.8');
+  await expect(frame.locator('.ws-scope')).toHaveText('Server-wide');
 });
 
 test('completed-response first token remains explicitly last reply during a later request', async ({ page }) => {

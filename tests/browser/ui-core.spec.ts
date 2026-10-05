@@ -202,30 +202,29 @@ const status = async (page: Page, query: string) => {
 };
 const lastHeight = (page: Page) => host(page, w => w.previewHeights.at(-1));
 
-test('Work Status sizes the glance and one-time tip to its content within the 200 px budget', async ({ page }) => {
-  // The first-run notice has its own test; this one starts with it dismissed.
-  await page.goto('/v2');
-  await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ noticeDismissed: true })));
-  // The live reading keeps its server-wide reason and supported context beside the first-use tip.
+test('Session summary leads with reply speed, keeps warnings visible, and fits its requested height', async ({ page }) => {
   let frame = await status(page, 'state=decode');
-  await expect.poll(() => lastHeight(page)).toBeGreaterThan(100);
-  const tipHeight = await lastHeight(page);
-  expect(tipHeight).toBeLessThanOrEqual(200);
-  await expect(frame.locator('#ws .connection-diagnosis')).toHaveText('Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place');
+  await expect(frame.locator('#ws')).toHaveAttribute('data-presentation', 'session');
+  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
+  await expect(frame.locator('.ws-phase')).toHaveText('Generating');
+  await expect(frame.locator('.ws-rate')).toContainText('26.4');
+  await expect(frame.locator('.ws-scope')).toHaveText('Server-wide');
+  await expect(frame.locator('.chip, .ws-spark, .ws-key-stats, .ts-rows')).toHaveCount(0);
+  await expect(frame.getByRole('button', { name: 'Show turn stats' })).toHaveCount(0);
+  await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
   expect((await host(page, w => w.previewQueries))[0]).toMatchObject({ surface: 'status', tier: 'glance' });
-  await frame.getByRole('button', { name: 'Dismiss tip' }).click();
-  await expect.poll(() => lastHeight(page)).toBeLessThan(tipHeight);
-  expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ tipDismissed: true });
   expect(await problems(page)).toEqual([]);
-  // Remembered: the next mount starts without the tip.
+
   frame = await status(page, 'state=pressure');
-  await expect.poll(() => lastHeight(page)).toBeGreaterThan(100);
-  expect(await lastHeight(page)).toBeLessThanOrEqual(200);
-  await expect(frame.locator('.ws-alert')).toHaveAttribute('data-severity', 'warning');
-  await expect(frame.locator('.ws-alert')).toContainText('macOS memory pressure: warning');
+  await expect(frame.locator('.ws-alert-row')).toContainText('Memory pressure');
+  await expect(frame.locator('.ws-alert-value')).toHaveText(/^Warning(?:\s*\+\d+ more)?$/);
+  await expect(frame.locator('.ws-alert-value')).toHaveAttribute('data-severity', 'warning');
+  await expect(frame.locator('.ws-alert-row .dot, .ws-alert-row .chip')).toHaveCount(0);
   expect(await problems(page)).toEqual([]);
+
   frame = await status(page, 'state=decode&chat=cloud');
   await expect.poll(() => lastHeight(page)).toBe(24);
+  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'non-local');
   await expect(frame.locator('#ws')).toHaveText('Chat uses a non-local model');
   expect(await problems(page)).toEqual([]);
   for (const state of ['offline', 'splash-recovering', 'needs-approval', 'prefill', 'idle', 'pressure-critical']) {
@@ -234,67 +233,78 @@ test('Work Status sizes the glance and one-time tip to its content within the 20
     expect(await lastHeight(page), state).toBeLessThanOrEqual(200);
     expect(await problems(page), state).toEqual([]);
   }
-  // The host clamps the frame to what the section asked for.
   expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(await lastHeight(page));
 });
 
-test('Work Status: every mock state in both themes at 280 px fits its section height, ≤ 200 px, and passes the checks', async ({ page }) => {
+test('Session summary: every mock state in both themes at 280 px fits its section height and passes the checks', async ({ page }) => {
   const errors = errorsOf(page);
-  for (const theme of ['dark', 'light']) for (const [state, tip] of STATES.flatMap(state => [[state, true], [state, false]] as const)) {
-    await page.goto('/v2');
-    await page.evaluate(dismissed => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: dismissed, noticeDismissed: true })), !tip);
+  for (const theme of ['dark', 'light']) for (const state of STATES) {
     await status(page, `state=${state}&theme=${theme}`);
     await expect.poll(() => lastHeight(page), `${state} ${theme}`).toBeDefined();
     const height = await lastHeight(page);
-    // Supported metric rows and notices remain readable without exceeding the host section's budget.
     expect(height, `${state} ${theme}`).toBeLessThanOrEqual(200);
-    expect(await problems(page), `${state} ${theme} ${tip ? 'tip' : ''}`).toEqual([]);
+    expect(await problems(page), `${state} ${theme}`).toEqual([]);
   }
   expect(errors).toEqual([]);
 });
 
-test('Work Status: the first-run notice shows while the leader records into an empty history, and dismissing it is kept', async ({ page }) => {
-  // The setup page does not lead, so it records nothing and the status frame starts on an empty history.
+test('Session summary keeps reply-history onboarding in the full panel', async ({ page }) => {
   await page.goto('/v2?leader=0');
-  await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true })));
+  await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: false, noticeDismissed: false })));
   const frame = await status(page, 'state=idle');
-  await expect(frame.locator('#ws')).toContainText('Recording reply history locally');
-  await expect.poll(() => lastHeight(page)).toBeGreaterThan(100);
-  const noticeHeight = await lastHeight(page);
-  expect(noticeHeight).toBeLessThanOrEqual(200);
-  await frame.getByRole('button', { name: /Dismiss/ }).click();
-  await expect.poll(() => lastHeight(page)).toBeLessThan(noticeHeight);
-  expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ noticeDismissed: true, tipDismissed: true });
+  await expect(frame.locator('#ws')).not.toContainText('Recording reply history locally');
+  await expect(frame.locator('#ws')).not.toContainText('Replace Turn stats');
+  await expect(frame.getByRole('button', { name: /Dismiss/ })).toHaveCount(0);
+  await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
+  expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ noticeDismissed: false, tipDismissed: false });
   expect(await problems(page)).toEqual([]);
 });
 
-test('Work Status: the Turn stats replacement stays within 200 px and its choice is kept in pref.v2', async ({ page }) => {
+test('Session summary ignores a remembered stats expansion and opens the full panel for detail', async ({ page }) => {
   await page.goto('/v2');
-  await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true, noticeDismissed: true })));
+  await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ statusExpanded: true, tipDismissed: true, noticeDismissed: true })));
   let frame = await status(page, 'state=bionic&chat=local');
-  await expect.poll(() => lastHeight(page)).toBeGreaterThanOrEqual(80);
-  const glanceHeight = await lastHeight(page);
-  await frame.getByRole('button', { name: 'Show turn stats' }).click();
-  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'turn-stats');
-  // setHeight is a message to the host: wait for it rather than for the DOM.
-  await expect.poll(() => lastHeight(page)).toBeGreaterThan(80);
-  const height = await lastHeight(page);
-  expect(height).toBeLessThanOrEqual(200);
-  // Without a turn summary, the slot is the last reply with its own label and the rows the runtime reports.
-  await expect(frame.locator('.ts-head')).toContainText('Last reply');
-  expect(await frame.locator('.ts-rows dt').allTextContents()).toEqual(['Response', 'First token', 'Tokens in · out', 'Cache %', 'Context used']);
-  expect(await frame.locator('.ts-rows dd[data-basis="reported"] .basis').count()).toBe(0);
-  expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ statusExpanded: true, tipDismissed: true });
+  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
+  await expect(frame.locator('.ws-phase')).toHaveText('Last reply');
+  await expect(frame.locator('.ws-rate')).toContainText('tok/s');
+  await expect(frame.locator('.ws-age')).toContainText('ago');
+  await expect(frame.locator('.ts-rows, .ts-head')).toHaveCount(0);
+  await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
+  await expect.poll(() => host(page, w => w.previewOpenedSurfaces)).toEqual(['plugin:mlx-scope']);
+  expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ statusExpanded: true });
   expect(await problems(page)).toEqual([]);
-  // Host fonts vary: wider header text must retain the age, and mixed-size qualifiers must not grow a row.
   for (const font of ['Arial, sans-serif', 'Verdana, sans-serif']) {
     await frame.locator('#ws').evaluate((el, font) => { (el as HTMLElement).style.fontFamily = font; }, font);
     expect(await problems(page), font).toEqual([]);
   }
   frame = await status(page, 'state=bionic');
-  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'turn-stats');
-  await frame.getByRole('button', { name: 'Show the glance view' }).click();
-  await expect.poll(() => lastHeight(page)).toBe(glanceHeight);
+  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
+  await expect(frame.getByRole('button', { name: 'Show the glance view' })).toHaveCount(0);
+});
+
+test('Session summary reports a failed full-panel action without clipping the guidance', async ({ page }) => {
+  const frame = await status(page, 'state=pressure&openSurface=fail');
+  await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
+  await expect(frame.locator('#ws-action-error')).toBeVisible();
+  await expect(frame.locator('#ws-action-error')).toHaveAttribute('role', 'status');
+  await expect(frame.locator('#ws-action-error')).toHaveText('Could not open Scope. Use its icon in the side panel.');
+  await expect.poll(() => lastHeight(page)).toBe(await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height));
+  expect(await problems(page)).toEqual([]);
+});
+
+test('Session summary returns to the compact cloud row after a failed full-panel action', async ({ page }) => {
+  const frame = await status(page, 'state=pressure&openSurface=fail');
+  await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
+  await expect(frame.locator('#ws-action-error')).toBeVisible();
+  await page.evaluate(() => (window as W).setPreviewSession({
+    id: 'cloud-chat', title: 'Cloud chat', busy: false, model: 'cloud-provider/fixture-model',
+  }));
+  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'non-local');
+  await expect(frame.locator('#ws')).toHaveText('Chat uses a non-local model');
+  await expect(frame.locator('#ws-action-error')).not.toBeVisible();
+  await expect.poll(() => lastHeight(page)).toBe(24);
+  expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(24);
+  expect(await problems(page)).toEqual([]);
 });
 
 test('the visibility gate engages before the first poll: a display:none frame makes zero requests', async ({ page }) => {

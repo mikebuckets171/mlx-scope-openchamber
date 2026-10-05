@@ -51,3 +51,9 @@ export const statusMarkup = (view: StatusSectionView, compact = false): Raw => {
   const switcher = !compact && g.line2 && 'toggle' in g.line2 && g.line2.toggle ? toggle(false) : '';
   return html`<div class="ws" id="ws" data-presentation="${compact ? 'compact' : 'session'}" data-mode="${view.mode}" data-variant="${view.mode === 'non-local' ? 'nonlocal' : 'glance'}" style="height:${statusHeight(view, compact)}px">${line1(g.line1, switcher)}${!compact && g.metrics?.length ? html`<dl class="ws-key-stats">${g.metrics.map(row => html`<dt>${row.label}</dt><dd data-basis="${row.basis ?? 'reported'}">${row.value}${row.basis ? html` <small class="basis">${row.basis}</small>` : ''}</dd>`)}</dl>` : ''}${line2(g.line2, compact)}${notice(compact ? null : g.notice)}${alert ? alertRow(alert, compact) : ''}</div>`;
 };
+
+/** Only the rail's Compact view ships this renderer; Session has its own summary. */
+export const compactMarkup = (view: StatusSectionView): Raw => {
+  const g = view.glance!;
+  return html`<div class="ws" id="ws" data-presentation="compact" data-mode="${view.mode}" data-variant="${view.mode === 'non-local' ? 'nonlocal' : 'glance'}" style="height:${statusHeight(view, true)}px">${line1(g.line1)}${line2(g.line2, true)}${g.alert ? alertRow(g.alert, true) : ''}</div>`;
+};
