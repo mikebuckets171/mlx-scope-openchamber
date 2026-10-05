@@ -19,6 +19,12 @@ const open = async (page: Page, query: string, width = 320) => {
   await expect(page.locator('body[data-ready="true"]')).toBeVisible();
   return errors;
 };
+const reveal = async (page: Page, ...selectors: string[]) => {
+  for (const selector of selectors) {
+    const details = page.locator(selector);
+    if (!(await details.evaluate(el => (el as HTMLDetailsElement).open))) await details.locator(':scope > summary').click();
+  }
+};
 const shot = async (page: Page, name: string) => test.info().attach(name, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
 
 /** The mock checker's rules (shoot-2.0-mock.mjs `inspect`), minus the review-board parts. */
@@ -117,13 +123,16 @@ test.describe('History tab', () => {
     test(`the mock's History at ${width} px, ${theme}: trend, replies, usual speed, oMLX usage, storage, alert log`, async ({ page }) => {
       const errors = await open(page, `tab=history&state=decode&theme=${theme}`, width);
       const view = page.locator('#panel-history');
-      await expect(view.locator('section h2')).toHaveText(['Trend', 'Replies', 'Usual speed', 'Recorded by oMLX', 'Reply history', 'Alert log']);
+      await expect(view.locator('.history-insights')).toHaveJSProperty('open', false);
+      await expect(view.locator('.history-storage')).toHaveJSProperty('open', false);
+      await reveal(page, '.history-insights', '.history-alerts', '.history-storage');
+      await expect(view.locator('section h2')).toHaveText(['Trend', 'Recent replies', 'Usual speed', 'Recorded by oMLX', 'Alert log', 'Reply history']);
       await expect(view.locator('.chart-top')).toHaveText(/Decode speed · reported by oMLX\s*30 tok\/s/);
       await expect(view.locator('.plot')).toHaveAttribute('aria-label', /6 turns, 21\.5 to 27\.6 tokens per second; not observed from 13:24 to 13:46\./);
       await expect(view.locator('.gap-band')).toHaveText('Not observed · Scope wasn’t open');
       await expect(view.locator('.counts .chip')).toHaveText(['41 last observed', '1 gap']);
       await expect(view.locator('.led-row').first()).toContainText('Turn · 3 steps');
-      await expect(view.locator('.led-row[data-kind="gap"]')).toHaveText('Not observed · Scope wasn’t open · 13:24–13:46');
+      await expect(view.locator('.ledger > li')).toHaveCount(6);
       await expect(view.locator('.led-row .chip[data-attr="server"]').first()).toHaveText('Server-wide · overlapping requests');
       await expect(view.getByText('No baseline · oMLX doesn’t report it')).toBeVisible();
       await expect(view.locator('.usage-bars > div')).toHaveCount(7);
@@ -131,11 +140,14 @@ test.describe('History tab', () => {
       await expect(view.locator('.alog li')).toHaveCount(4);
       await clean(page);
       await shot(page, `history-${theme}-${width}`);
+      await view.getByRole('button', { name: 'Show 24 more' }).click();
+      await expect(view.locator('.led-row[data-kind="gap"]')).toHaveText('Not observed · Scope wasn’t open · 13:24–13:46');
       expect(errors).toEqual([]);
     });
   }
   test('history after a fresh upgrade: everything says why it is empty, and the hatch covers the unobserved hour', async ({ page }) => {
     await open(page, 'tab=history&state=history-empty');
+    await reveal(page, '.history-insights', '.history-alerts', '.history-storage');
     const view = page.locator('#panel-history');
     await expect(view.locator('.gap-band')).toHaveCount(1);
     await expect(view.locator('.trace')).toHaveCount(0);
@@ -158,6 +170,7 @@ test.describe('History tab', () => {
   });
   test('recording paused shows its state, and Resume and Pause reach the ledger', async ({ page }) => {
     await open(page, 'tab=history&state=recording-paused');
+    await reveal(page, '.history-storage');
     const storage = page.locator('.storage');
     await expect(storage.locator('.section-heading .chip[data-tone="warn"]')).toHaveText('Recording paused');
     // Keyboard activation: WebKit does not focus a button on a mouse click.
@@ -180,6 +193,7 @@ test.describe('History tab', () => {
   });
   test('a view mounted on a stopped ledger follows the ledger once it runs (another frame resumed recording meanwhile)', async ({ page }) => {
     await open(page, 'tab=history&state=recording-paused&stopped');
+    await reveal(page, '.history-storage');
     const storage = page.locator('.storage');
     await expect(storage.locator('.section-heading .chip[data-tone="warn"]')).toHaveText('Recording paused');
     // This frame starts leading: its ledger re-read pref.v2, which another frame set back to recording.
@@ -192,6 +206,7 @@ test.describe('History tab', () => {
   });
   test('Clear asks first: focus moves to Cancel, Escape backs out, Clear history empties the list and keeps captures', async ({ page }) => {
     await open(page, 'tab=history&state=clear-confirm');
+    await reveal(page, '.history-storage');
     const storage = page.locator('.storage');
     await storage.getByRole('button', { name: 'Clear…' }).click();
     const dialog = storage.getByRole('alertdialog', { name: 'Clear 41 replies and the baselines built from them?' });
@@ -216,6 +231,7 @@ test.describe('History tab', () => {
     await expect(page.getByRole('button', { name: '15 min' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('figcaption')).toContainText('−15 min');
     expect(await read(page, 'trendReads')).toEqual([3_600_000, 900_000]);
+    await reveal(page, '.history-insights');
     await page.getByRole('group', { name: 'Usage range' }).getByRole('button', { name: '30d' }).click();
     await expect(page.locator('.usage-bars > div')).toHaveCount(30);
     await expect(page.locator('.usage-bars')).toHaveAttribute('data-dense', '');
@@ -224,6 +240,7 @@ test.describe('History tab', () => {
   });
   test('Copy baseline summary aliases models; retention reaches the ledger; Show more pages the list', async ({ page }) => {
     await open(page, 'tab=history&state=decode');
+    await reveal(page, '.history-insights', '.history-storage');
     await page.getByRole('button', { name: 'Copy baseline summary' }).click();
     await expect(page.getByText('Baseline summary copied, with models as “Model A, B”.')).toBeVisible();
     const copied = await read(page, 'copied') as string;
@@ -234,10 +251,11 @@ test.describe('History tab', () => {
     await expect(page.getByLabel('Keep reply history for')).toHaveValue('60');
     expect(await read(page, 'retention')).toEqual([60]);
     await page.getByRole('button', { name: 'Show 24 more' }).click();
-    await expect(page.locator('.ledger > li')).toHaveCount(36);
+    await expect(page.locator('.ledger > li')).toHaveCount(30);
   });
   test('an open ⓘ and the focused control survive the next poll', async ({ page }) => {
     await open(page, 'tab=history&state=decode');
+    await reveal(page, '.history-insights');
     const info = page.getByRole('button', { name: 'About Usual speed' });
     await info.focus();
     await page.keyboard.press('Enter');
@@ -249,15 +267,16 @@ test.describe('History tab', () => {
     await expect(info).toHaveAttribute('aria-expanded', 'true');
     await expect(info).toBeFocused();
   });
-  test('the page’s History column at 1,160 px', async ({ page }) => {
+  test('History fills the page at 1,160 px with secondary details collapsed', async ({ page }) => {
     await open(page, 'surface=page&state=decode&theme=dark', 1160);
     const column = page.locator('#history-column');
     await expect(column.locator('.col-title')).toHaveCount(0);
-    await expect(column.locator(':scope > section h2')).toHaveText(['Recent replies', 'Trend']);
+    await expect(column.locator(':scope > section h2')).toHaveText(['Trend', 'Recent replies']);
     await expect(column.locator('.history-insights')).toHaveJSProperty('open', false);
-    await expect(column.locator('.history-insights h2')).toHaveText(['Usual speed', 'Recorded by oMLX', 'Alert log']);
+    await expect(column.locator('.history-insights h2')).toHaveText(['Usual speed', 'Recorded by oMLX']);
     await expect(column.locator('.recent-replies .section-heading')).toContainText('Observed while Scope was open');
-    await expect(column.locator('.ledger > li')).toHaveCount(4);
+    await expect(column.locator('.ledger > li')).toHaveCount(6);
+    await expect(column.locator('.history-alerts')).toHaveJSProperty('open', false);
     await expect(column.locator('.history-storage')).toHaveJSProperty('open', false);
     await expect(column.locator('.history-storage > summary')).toHaveText('History storageStored on this Mac');
     await expect(column.getByRole('button', { name: 'Clear…' })).toBeHidden();
@@ -266,7 +285,7 @@ test.describe('History tab', () => {
     await clean(page);
     await shot(page, 'history-page-dark-1160');
     await column.getByRole('button', { name: 'Show 24 more' }).click();
-    await expect(column.locator('.ledger > li')).toHaveCount(28);
+    await expect(column.locator('.ledger > li')).toHaveCount(30);
   });
   test('page storage opens by keyboard, preserves focus across polls, and keeps its controls working', async ({ page }) => {
     await open(page, 'surface=page&state=decode', 1160);
@@ -316,11 +335,16 @@ test.describe('Captures tab', () => {
     test(`the mock's Captures at ${width} px, ${theme}: Next reply, window, saved`, async ({ page }) => {
       const errors = await open(page, `tab=captures&state=decode&theme=${theme}`, width);
       const view = page.locator('#panel-captures');
-      await expect(view.locator('h2')).toHaveText(['Next reply', 'Window', 'Saved']);
+      await expect(view.locator('h2')).toHaveText(['Next reply', 'Saved']);
+      await expect(view.getByRole('group', { name: 'Capture method' }).getByRole('button', { name: 'Reply', exact: true })).toHaveAttribute('aria-pressed', 'true');
+      await expect(view.locator('[data-window]')).toHaveCount(0);
       await expect(view.getByRole('button', { name: 'Measure next reply' })).toHaveClass(/primary/);
       await expect(view.locator('.chip[data-attr="armed"]')).toHaveCount(1);   // only the saved Next reply, nothing armed
+      await view.getByRole('button', { name: 'Timed window', exact: true }).click();
+      await expect(view.locator('h2')).toHaveText(['Timed window', 'Saved']);
       await expect(view.getByText('Monitoring keeps running while you capture.')).toBeVisible();
-      await expect(view.locator('.section-heading').nth(2)).toContainText('3 of 12 · oldest replaced when full');
+      await view.getByRole('button', { name: 'Reply', exact: true }).click();
+      await expect(view.locator('section').filter({ has: page.getByRole('heading', { name: 'Saved', exact: true }) }).locator('.section-heading')).toContainText('3 of 12 · oldest replaced when full');
       await expect(view.locator('.ledger .led-main > span:not(.val):not(.chip)')).toHaveText(['Next reply · oMLX', 'Window 60 s · oMLX', 'Window 30 s · oMLX']);
       await expect(view.getByRole('button', { name: 'Add to chat draft' })).toBeDisabled();
       await expect(view).not.toContainText('Example-');
@@ -364,7 +388,7 @@ test.describe('Captures tab', () => {
     await card.getByRole('button', { name: 'Save to Captures' }).click();
     await expect(page.getByText('Saved to Captures without model names.')).toBeVisible();
     await expect(card.getByRole('button', { name: 'Save to Captures' })).toHaveCount(0);
-    await expect(page.locator('.section-heading').nth(2)).toContainText('4 of 12');
+    await expect(page.locator('section').filter({ has: page.getByRole('heading', { name: 'Saved', exact: true }) }).locator('.section-heading')).toContainText('4 of 12');
     const saved = await read(page, 'saved') as Array<Record<string, unknown>>;
     expect(saved[0]).toEqual(expect.objectContaining({ kind: 'next-reply', runtime: 'omlx', label: 'armed', measurements: expect.objectContaining({ outputTokens: 1204, steps: 2 }) }));
     expect(JSON.stringify(saved)).not.toMatch(/Example-|model/);
@@ -379,6 +403,7 @@ test.describe('Captures tab', () => {
   });
   test('a 30 s window records while monitoring runs, finishes on the service clock, and saves server-wide', async ({ page }) => {
     await open(page, 'tab=captures&state=decode', 430);
+    await page.getByRole('button', { name: 'Timed window', exact: true }).click();
     const card = page.locator('[data-window]');
     await card.getByLabel('Window length').selectOption('30000');
     await card.getByRole('button', { name: 'Start capture' }).click();
@@ -430,7 +455,8 @@ test('monitoring keeps running on the saved captures tab (the 1.6 suspend is gon
   await page.goto('/?state=decode');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#phase')).toHaveText('Generating');
-  await frame.getByRole('tab', { name: /^(Saved|Captures)$/ }).click();
+  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await frame.getByRole('button', { name: 'Captures', exact: true }).click();
   const requests = () => page.evaluate(() => (window as unknown as { previewRequests: number }).previewRequests);
   const before = await requests();
   await expect.poll(requests, { timeout: 6_000 }).toBeGreaterThan(before + 1);

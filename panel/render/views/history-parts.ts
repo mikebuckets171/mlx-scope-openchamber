@@ -23,6 +23,12 @@ export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs =
 export const svg = (tag: string, attrs: Attrs = {}, ...children: Child[]): SVGElement => {
   const node = document.createElementNS(SVG, tag) as SVGElement; fill(node, attrs, children); return node;
 };
+/** Common text and layout nodes keep History and Captures markup concise. */
+export const span = (...children: Child[]): HTMLSpanElement => el('span', {}, ...children);
+export const strong = (...children: Child[]): HTMLElement => el('strong', {}, ...children);
+export const small = (...children: Child[]): HTMLElement => el('small', {}, ...children);
+export const group = (...children: Child[]): HTMLDivElement => el('div', {}, ...children);
+export const box = (className: string, ...children: Child[]): HTMLDivElement => el('div', { class: className }, ...children);
 
 /** Patches `live` to match `next` in place: same-shaped nodes keep their identity (and focus); the rest are replaced. */
 export const morph = (live: Element, next: Element): void => {

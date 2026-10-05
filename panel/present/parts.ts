@@ -1,5 +1,6 @@
 import type { AlertV2, Severity } from '../../src/contract/alerts.ts';
 import type { Basis } from '../../src/contract/capabilities.ts';
+import type { CompletionV2 } from '../../src/contract/completion.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { AttributionLabel } from '../attribution/join.ts';
 import { alertCopy, rtName, sinceText, statusCopy, whyCopy, withheldWhy, type StatusCopy } from './copy.ts';
@@ -11,6 +12,12 @@ import { alertCopy, rtName, sinceText, statusCopy, whyCopy, withheldWhy, type St
 export interface Val { text: string; strong?: string; unit?: string; basis: Basis; note?: string }
 export const BASIS_WORD: Record<Basis, string> = { reported: '', derived: 'derived', observed: 'observed', 'last-observed': 'last observed', estimate: 'estimate' };
 export const basisNote = (basis: Basis, note?: string): string | null => basis === 'reported' ? null : note ?? BASIS_WORD[basis];
+/** Token-weighted speed across the steps that contain both token and speed readings. */
+export const weightedTps = (steps: readonly CompletionV2[]): number | null => {
+  const rated = steps.filter(step => step.outputTokens && step.decodeTps);
+  const tokens = rated.reduce((sum, step) => sum + step.outputTokens!, 0), seconds = rated.reduce((sum, step) => sum + step.outputTokens! / step.decodeTps!, 0);
+  return seconds > 0 ? tokens / seconds : null;
+};
 
 export type ChipTone = 'accent' | 'warn' | 'bad';
 export interface Chip { text: string; tone?: ChipTone; outline?: boolean; attr?: 'inferred' | 'armed' | 'server'; reason?: string; basis?: Basis }

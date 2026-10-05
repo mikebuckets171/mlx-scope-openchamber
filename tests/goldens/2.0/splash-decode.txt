@@ -13,25 +13,21 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
 #tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Live performance | tok/s Live server throughput Derived from Splash counters i
+#view-live: CPU 12% RAM 29.4 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}: tok/s Live server throughput Derived from Splash counters i
 #model: example/Example-27B-Splash
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="all requests"}: Server-wide · all requests
 #rate: 43.8
-#signal: Decode · server-wide · derived | −90s Live observations now
+#signal: Last 90 seconds | −90s Live observations now
 #ceiling: 50 tok/s
 div.plot[role=img] {aria-label="Decode · server-wide · derived, last 8 s: 43.8 to 43.8 tokens per second, now 43.8"}
-#reply-strip: Last reply | None observed yet · replies appear while Scope is open | Measure next reply | One reply in this chat · arms for 2 min
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 12% RAM 29.4 / 48 GiB Swap 1.1 GiB
-h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
-#mac-details: Mac details
+#reply-strip: Measure next reply
+h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash
@@ -50,20 +46,12 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #frame-card
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
-#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="true" data-tab="server"}: Server
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
 #panels
-#panel-server {aria-labelledby="tab-server"}
-[server-runtime]: Ready Runtime Splash Version Not reported Detected /status answered · high confidence Reports Replies recorded as Derived from counters
-h2: Runtime
-span.chip: request counts
-span.chip: Metal memory
-span.chip: server averages
-span.chip: latency percentiles
-span.chip: throughput
-span.chip: replies
+#panel-live {aria-labelledby="tab-live"}
+#panel-server {aria-labelledby="server-title"}: Back to Live
+#server-title: Server & Mac details
 [server-rates]: i last 1 s Decode Processing · deferred
 h2: Server throughput
 span.val {data-basis="derived"}: 43.8 tok/sderived
@@ -84,6 +72,12 @@ span.chip: vision · text + image
 h2: Server session
 span.val {data-basis="reported"}: 47.2 tok/s
 span.val {data-basis="reported"}: 17
+#server-runtime-details: Runtime details Ready
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 12% RAM 29.4 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash
@@ -103,25 +97,21 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
 #tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Live performance | tok/s Live server throughput Derived from Splash counters i
+#view-live: CPU 12% RAM 29.4 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}: tok/s Live server throughput Derived from Splash counters i
 #model: example/Example-27B-Splash
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="all requests"}: Server-wide · all requests
 #rate: 43.8
-#signal: Decode · server-wide · derived | −90s Live observations now
+#signal: Last 90 seconds | −90s Live observations now
 #ceiling: 50 tok/s
 div.plot[role=img] {aria-label="Decode · server-wide · derived, last 8 s: 43.8 to 43.8 tokens per second, now 43.8"}
-#reply-strip: Last reply | None observed yet · replies appear while Scope is open | Measure next reply | One reply in this chat · arms for 2 min
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 12% RAM 29.4 / 48 GiB Swap 1.1 GiB
-h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
-#mac-details: Mac details
+#reply-strip: Measure next reply
+h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash
@@ -129,7 +119,7 @@ live #connection-result (hidden): Check whether OpenChamber has started the exte
 live #action-status (hidden): 
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="columns" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: OpenChamber | MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: OpenChamber | MLX Scope
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -140,30 +130,22 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #frame-card
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live · History
-#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
-#workspace-action: Measure next reply | One reply in this chat · arms for 2 min
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
+#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
+#workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#col-live
-#hero {aria-label="Inference activity"}: Live performance | tok/s Live server throughput Derived from Splash counters i
+#view-live: CPU 12% RAM 29.4 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}: tok/s Live server throughput Derived from Splash counters i
 #model: example/Example-27B-Splash
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="all requests"}: Server-wide · all requests
 #rate: 43.8
-#signal: Decode · server-wide · derived | −90s Live observations now
+#signal: Last 90 seconds | −90s Live observations now
 #ceiling: 50 tok/s
 div.plot[role=img] {aria-label="Decode · server-wide · derived, last 8 s: 43.8 to 43.8 tokens per second, now 43.8"}
-#reply-strip: Last reply | None observed yet · replies appear while Scope is open
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 12% RAM 29.4 / 48 GiB Swap 1.1 GiB
-h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
-#mac-details: Mac details
-#col-history {data-mount=""}: i Observed while Scope was open No replies yet. Scope records a reply when it finishes while any Scope view is open. i 15 min 30 min 60 min Decode speed · reported by Splash (standalone) The trend needs the updated service. Pause and resume MLX Scope in Settings → Extensions. History insights Baselines, usage & alerts History storage Stored on this Mac
-h2: Recent replies
-h2: Trend
+#reply-strip: Measure next reply
+h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash

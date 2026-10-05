@@ -35,7 +35,7 @@ test('Splash live throughput leads with derived server-wide speed, never the lif
     expect(view.tiles).toEqual([]);
     if (hero.body?.kind === 'decode') {
       expect(hero.body.tip.paras.join(' ')).toContain('active decode time');
-      expect(hero.body.tip.paras.join(' ')).toContain('not one chat’s speed, a lifetime average, or the rate tokens arrive over the network');
+      expect(hero.body.tip.paras.join(' ')).toContain('not one chat, a lifetime average, or network arrival speed');
     }
     const markup = liveMarkup(view, new Set()).markup;
     expect(markup).toContain('class="readout" data-basis="derived"');

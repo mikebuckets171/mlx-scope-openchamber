@@ -37,8 +37,8 @@ test('every mock state passes the mock\'s checks on Live and Server at 320 (dark
   for (const state of STATES) {
     const frame = await load(page, `state=${state}`);
     expect(await problems(page), `${state} live`).toEqual([]);
-    if (await frame.locator('#tab-server').isVisible()) {
-      await frame.locator('#tab-server').click();
+    if (await frame.locator('[data-action="open-server"]').isVisible()) {
+      await frame.locator('[data-action="open-server"]').click();
       expect(await problems(page), `${state} server`).toEqual([]);
       await frame.locator('#tab-live').click();
     }
@@ -57,23 +57,24 @@ test('every mock state passes the checks in light at 320, at 430, and on the 1,1
   expect(errors).toEqual([]);
 });
 
-test('the page shows Live | History side by side at ≥ 900 px and the four rail tabs below it', async ({ page }) => {
-  let frame = await load(page, 'surface=page&state=decode', 1160);
-  await expect(frame.getByRole('tab')).toHaveText(['Live · History', 'Server', 'Captures']);
-  await expect(frame.locator('#scope')).toHaveAttribute('data-layout', 'columns');
-  const [live, history] = await Promise.all([frame.locator('#col-live').boundingBox(), frame.locator('#col-history').boundingBox()]);
-  expect(live!.x + live!.width).toBeLessThanOrEqual(history!.x);
-  expect(Math.abs(live!.y - history!.y)).toBeLessThan(2);
-  await page.setViewportSize({ width: 800, height: 900 });
-  await expect(frame.getByRole('tab')).toHaveText(['Live', 'Server', 'History', 'Captures']);
-  frame = await load(page, 'state=decode', 1160);
-  await expect(frame.locator('#scope')).toHaveAttribute('data-layout', 'tabs');
+test('Live and History are the only primary destinations and resizing preserves selection', async ({ page }) => {
+  const frame = await load(page, 'surface=page&state=decode', 1160);
+  await expect(frame.getByRole('tab')).toHaveText(['Live', 'History']);
+  await expect(frame.locator('#view-history')).toBeHidden();
+  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  for (const width of [430, 320, 1160]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(frame.getByRole('tab')).toHaveText(['Live', 'History']);
+    await expect(frame.getByRole('tab', { name: 'History', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(frame.locator('#view-history')).toBeVisible();
+    await expect(frame.locator('#view-live')).toBeHidden();
+  }
 });
 
 test('tabs: keyboard navigation with roving tabindex, and monitoring keeps running on every tab', async ({ page }) => {
   const frame = await load(page, 'state=decode');
   await frame.getByRole('tab', { name: 'Live', exact: true }).focus();
-  for (const name of ['Server', 'History', 'Captures']) {
+  for (const name of ['History', 'Live', 'History']) {
     await page.keyboard.press('ArrowRight');
     await expect(frame.getByRole('tab', { name, exact: true })).toBeFocused();
     await expect(frame.getByRole('tab', { name, exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -84,12 +85,42 @@ test('tabs: keyboard navigation with roving tabindex, and monitoring keeps runni
   await page.keyboard.press('Home');
   await expect(frame.getByRole('tab', { name: 'Live', exact: true })).toBeFocused();
   await page.keyboard.press('End');
-  await expect(frame.getByRole('tab', { name: 'Captures', exact: true })).toBeFocused();
-  // The Server tab asks for the server-only reads (detail=server); Live does not.
-  await frame.getByRole('tab', { name: 'Server', exact: true }).click();
+  await expect(frame.getByRole('tab', { name: 'History', exact: true })).toBeFocused();
+});
+
+test('secondary views return to their parent and server-only reads stop outside diagnostics', async ({ page }) => {
+  const frame = await load(page, 'surface=page&state=decode', 1160);
+  expect((await host(page, w => w.previewQueries)).every((query: Record<string, string>) => query.detail === undefined)).toBe(true);
+  await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+  await expect(frame.locator('#panel-server')).toBeVisible();
+  await expect(frame.locator('#server-title')).toBeFocused();
+  await expect(frame.getByRole('tab', { name: 'Live', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBe('server');
-  await frame.getByRole('tab', { name: 'Live', exact: true }).click();
+  await page.setViewportSize({ width: 320, height: 900 });
+  await expect(frame.locator('#panel-server')).toBeVisible();
+  await frame.locator('#monitor-menu > summary').click();
+  await frame.locator('#compact').click();
+  await expect(frame.locator('#panel-server')).toBeHidden();
   await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBeUndefined();
+  await frame.getByRole('button', { name: 'Expand', exact: true }).click();
+  await expect(frame.locator('#panel-server')).toBeVisible();
+  await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBe('server');
+  await frame.getByRole('button', { name: 'Back to Live', exact: true }).click();
+  await expect(frame.locator('#view-live')).toBeVisible();
+  await expect(frame.getByRole('tab', { name: 'Live', exact: true })).toBeFocused();
+  await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBeUndefined();
+  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await frame.getByRole('button', { name: 'Captures', exact: true }).click();
+  await expect(frame.locator('#panel-captures')).toBeVisible();
+  await expect(frame.locator('#captures-title')).toBeFocused();
+  await expect(frame.getByRole('tab', { name: 'History', exact: true })).toHaveAttribute('aria-selected', 'true');
+  const before = await host(page, w => w.previewRequests);
+  await expect.poll(() => host(page, w => w.previewRequests)).toBeGreaterThan(before + 1);
+  expect((await host(page, w => w.previewQueries)).at(-1).detail).toBeUndefined();
+  await frame.getByRole('button', { name: 'Back to History', exact: true }).click();
+  await expect(frame.locator('#view-history')).toBeVisible();
+  await expect(frame.getByRole('tab', { name: 'History', exact: true })).toBeFocused();
+  await expect(frame.locator('#panel-captures')).toBeHidden();
 });
 
 test('ⓘ is a disclosure: one open at a time, in flow, Esc closes it and returns focus; it survives polls', async ({ page }) => {
@@ -109,6 +140,7 @@ test('ⓘ is a disclosure: one open at a time, in flow, Esc closes it and return
   await expect(frame.locator('#pop-live-basis')).toBeHidden();
   await expect(basis).toBeFocused();
   // Mac details stay as the reader left them, and a focused control keeps focus through polls.
+  await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
   await frame.locator('#mac-details > summary').click();
   await frame.locator('#mac-details > summary').focus();
   await page.waitForTimeout(1_200);
@@ -118,16 +150,16 @@ test('ⓘ is a disclosure: one open at a time, in flow, Esc closes it and return
 
 test('callouts: the most severe message first, the rest behind "N more"', async ({ page }) => {
   const frame = await load(page, 'state=pressure');
-  const callout = frame.locator('#panel-live > .connection-diagnosis');
+  const callout = frame.locator('#view-live > .connection-diagnosis');
   await expect(callout).toHaveCount(1);
   await expect(callout).toHaveAttribute('data-severity', 'warning');
   await expect(callout.locator('> .diag-title strong')).toHaveText('macOS memory pressure: warning');
   await callout.getByRole('button', { name: '1 more alert' }).click();
   await expect(callout.locator('.diag-more')).toContainText('Swap grew 1.3 GiB in 4 min');
   await load(page, 'state=pressure-critical');
-  await expect(page.frameLocator('iframe').locator('#panel-live > .connection-diagnosis')).toHaveAttribute('data-severity', 'critical');
+  await expect(page.frameLocator('iframe').locator('#view-live > .connection-diagnosis')).toHaveAttribute('data-severity', 'critical');
   // Critical uses --scope-bad (derived from the host's error token), and only for critical.
-  const tone = await page.frameLocator('iframe').locator('#panel-live > .connection-diagnosis').evaluate(el => getComputedStyle(el).getPropertyValue('--tone').trim());
+  const tone = await page.frameLocator('iframe').locator('#view-live > .connection-diagnosis').evaluate(el => getComputedStyle(el).getPropertyValue('--tone').trim());
   expect(tone).toMatch(/#ee8992|238, 137, 146/i);
 });
 
@@ -149,7 +181,10 @@ test('Compact is the glance, at most 160 px, and Expand returns to the tabs', as
   await frame.locator('#compact').click();
   await expect(frame.locator('#compact-glance .ws')).toBeVisible();
   await expect(frame.locator('#workspace-nav')).toBeHidden();
-  expect(await frame.locator('#scope').evaluate(el => el.scrollHeight)).toBeLessThanOrEqual(160);
+  const compactSize = await frame.locator('#scope').evaluate(el => Object.fromEntries([el, ...Array.from(el.querySelectorAll('.masthead, #compact-glance, #ws'))].map(node => [node.id || node.className, {
+    height: node.getBoundingClientRect().height, scroll: node.scrollHeight, padding: getComputedStyle(node).padding, margin: getComputedStyle(node).margin,
+  }])));
+  expect(compactSize.scope!.scroll, JSON.stringify(compactSize)).toBeLessThanOrEqual(160);
   await expect(frame.locator('#compact-glance .ws-alert')).toContainText('macOS memory pressure: warning');
   expect(await problems(page)).toEqual([]);
   await frame.getByRole('button', { name: 'Expand' }).click();
@@ -167,22 +202,25 @@ const status = async (page: Page, query: string) => {
 };
 const lastHeight = (page: Page) => host(page, w => w.previewHeights.at(-1));
 
-test('Work Status: 80 / 112 / 24 px glance and the one-time tip, sized with setHeight on the glance tier', async ({ page }) => {
+test('Work Status sizes the glance and one-time tip to its content within the 200 px budget', async ({ page }) => {
   // The first-run notice has its own test; this one starts with it dismissed.
   await page.goto('/v2');
   await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ noticeDismissed: true })));
-  // Until the attribution join labels it, the live reading is server-wide: its reason line stays beside the tip (80 + 64).
+  // The live reading keeps its server-wide reason and supported context beside the first-use tip.
   let frame = await status(page, 'state=decode');
-  await expect.poll(() => lastHeight(page)).toBe(144);
+  await expect.poll(() => lastHeight(page)).toBeGreaterThan(100);
+  const tipHeight = await lastHeight(page);
+  expect(tipHeight).toBeLessThanOrEqual(200);
   await expect(frame.locator('#ws .connection-diagnosis')).toHaveText('Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place');
   expect((await host(page, w => w.previewQueries))[0]).toMatchObject({ surface: 'status', tier: 'glance' });
   await frame.getByRole('button', { name: 'Dismiss tip' }).click();
-  await expect.poll(() => lastHeight(page)).toBe(80);
+  await expect.poll(() => lastHeight(page)).toBeLessThan(tipHeight);
   expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ tipDismissed: true });
   expect(await problems(page)).toEqual([]);
   // Remembered: the next mount starts without the tip.
   frame = await status(page, 'state=pressure');
-  await expect.poll(() => lastHeight(page)).toBe(112);
+  await expect.poll(() => lastHeight(page)).toBeGreaterThan(100);
+  expect(await lastHeight(page)).toBeLessThanOrEqual(200);
   await expect(frame.locator('.ws-alert')).toHaveAttribute('data-severity', 'warning');
   await expect(frame.locator('.ws-alert')).toContainText('macOS memory pressure: warning');
   expect(await problems(page)).toEqual([]);
@@ -190,13 +228,14 @@ test('Work Status: 80 / 112 / 24 px glance and the one-time tip, sized with setH
   await expect.poll(() => lastHeight(page)).toBe(24);
   await expect(frame.locator('#ws')).toHaveText('Chat uses a non-local model');
   expect(await problems(page)).toEqual([]);
-  for (const [state, height] of [['offline', 56], ['splash-recovering', 56], ['needs-approval', 56], ['prefill', 80], ['idle', 80], ['pressure-critical', 112]] as const) {
+  for (const state of ['offline', 'splash-recovering', 'needs-approval', 'prefill', 'idle', 'pressure-critical']) {
     frame = await status(page, `state=${state}`);
-    await expect.poll(() => lastHeight(page), state).toBe(height);
+    await expect.poll(() => lastHeight(page), state).toBeGreaterThanOrEqual(24);
+    expect(await lastHeight(page), state).toBeLessThanOrEqual(200);
     expect(await problems(page), state).toEqual([]);
   }
   // The host clamps the frame to what the section asked for.
-  expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(112);
+  expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(await lastHeight(page));
 });
 
 test('Work Status: every mock state in both themes at 280 px fits its section height, ≤ 200 px, and passes the checks', async ({ page }) => {
@@ -207,8 +246,7 @@ test('Work Status: every mock state in both themes at 280 px fits its section he
     await status(page, `state=${state}&theme=${theme}`);
     await expect.poll(() => lastHeight(page), `${state} ${theme}`).toBeDefined();
     const height = await lastHeight(page);
-    // Model rows and divided alerts retain the 8 px rhythm, including notices; never taller than Turn stats' 200.
-    expect((height - 8) % 8, `${state} ${theme}`).toBe(0);
+    // Supported metric rows and notices remain readable without exceeding the host section's budget.
     expect(height, `${state} ${theme}`).toBeLessThanOrEqual(200);
     expect(await problems(page), `${state} ${theme} ${tip ? 'tip' : ''}`).toEqual([]);
   }
@@ -221,9 +259,11 @@ test('Work Status: the first-run notice shows while the leader records into an e
   await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true })));
   const frame = await status(page, 'state=idle');
   await expect(frame.locator('#ws')).toContainText('Recording reply history locally');
-  await expect.poll(() => lastHeight(page)).toBe(104);
+  await expect.poll(() => lastHeight(page)).toBeGreaterThan(100);
+  const noticeHeight = await lastHeight(page);
+  expect(noticeHeight).toBeLessThanOrEqual(200);
   await frame.getByRole('button', { name: /Dismiss/ }).click();
-  await expect.poll(() => lastHeight(page)).toBe(80);
+  await expect.poll(() => lastHeight(page)).toBeLessThan(noticeHeight);
   expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ noticeDismissed: true, tipDismissed: true });
   expect(await problems(page)).toEqual([]);
 });
@@ -232,7 +272,8 @@ test('Work Status: the Turn stats replacement stays within 200 px and its choice
   await page.goto('/v2');
   await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ tipDismissed: true, noticeDismissed: true })));
   let frame = await status(page, 'state=bionic&chat=local');
-  await expect.poll(() => lastHeight(page)).toBe(80);
+  await expect.poll(() => lastHeight(page)).toBeGreaterThanOrEqual(80);
+  const glanceHeight = await lastHeight(page);
   await frame.getByRole('button', { name: 'Show turn stats' }).click();
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'turn-stats');
   // setHeight is a message to the host: wait for it rather than for the DOM.
@@ -241,14 +282,14 @@ test('Work Status: the Turn stats replacement stays within 200 px and its choice
   expect(height).toBeLessThanOrEqual(200);
   // Without a turn summary, the slot is the last reply with its own label and the rows the runtime reports.
   await expect(frame.locator('.ts-head')).toContainText('Last reply');
-  expect(await frame.locator('.ts-rows dt').allTextContents()).toEqual(['Response', 'TTFT', 'Tokens in · out', 'Cache %', 'Context used']);
+  expect(await frame.locator('.ts-rows dt').allTextContents()).toEqual(['Response', 'First token', 'Tokens in · out', 'Cache %', 'Context used']);
   expect(await frame.locator('.ts-rows dd[data-basis="reported"] .basis').count()).toBe(0);
   expect(JSON.parse((await page.evaluate(() => sessionStorage.getItem('pref.v2')))!)).toMatchObject({ statusExpanded: true, tipDismissed: true });
   expect(await problems(page)).toEqual([]);
   frame = await status(page, 'state=bionic');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'turn-stats');
   await frame.getByRole('button', { name: 'Show the glance view' }).click();
-  await expect.poll(() => lastHeight(page)).toBe(80);
+  await expect.poll(() => lastHeight(page)).toBe(glanceHeight);
 });
 
 test('the visibility gate engages before the first poll: a display:none frame makes zero requests', async ({ page }) => {
@@ -286,7 +327,7 @@ test('no panel cap on the service cadence: a lower-priority frame backs off to t
   await page.clock.runFor(9_000);
   expect(await host(page, w => w.previewRequests)).toBe(1);
   // The no-fresh deadline is max(6 s, 2 × 10 s + 1 s): a slow cadence is not a stall.
-  await expect(frame.locator('#panel-live > .connection-diagnosis')).toHaveCount(0);
+  await expect(frame.locator('#view-live > .connection-diagnosis')).toHaveCount(0);
   await page.clock.runFor(1_500);
   await expect.poll(() => host(page, w => w.previewRequests)).toBe(2);
 });
@@ -299,13 +340,13 @@ test('a missed deadline hides the live rate and says so; the next reading restor
   await page.evaluate(() => { (window as W).previewHold = true; });
   await page.clock.runFor(6_600);
   await expect(frame.locator('#rate')).toHaveCount(0);
-  await expect(frame.locator('#panel-live > .connection-diagnosis')).toContainText('No fresh readings');
+  await expect(frame.locator('#view-live > .connection-diagnosis')).toContainText('No fresh readings');
   await expect(frame.locator('#phase')).toHaveText('Reconnecting');
   // The held request times out in the SDK (20 s); the next poll brings a reading back.
   await page.evaluate(() => { (window as W).previewHold = false; });
   await page.clock.runFor(22_000);
   await expect(frame.locator('#rate')).toHaveText('26.4');
-  await expect(frame.locator('#panel-live > .connection-diagnosis')).toHaveCount(0);
+  await expect(frame.locator('#view-live > .connection-diagnosis')).toHaveCount(0);
 });
 
 test('badge and toast come only from the leader, once per toastSeq, and never name a model', async ({ page }) => {

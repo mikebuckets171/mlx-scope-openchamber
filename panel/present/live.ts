@@ -1,10 +1,11 @@
-import type { CompletionV2 } from '../../src/contract/completion.ts';
+import type { Basis } from '../../src/contract/capabilities.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { AttributionLabel } from '../attribution/join.ts';
 import { liveChart, type ChartView } from '../render/chart.ts';
 import { connName, PRESSURE, RT, rtName, statusCopy, THERMAL, THERMAL_WARN, thermalLevel, type Level } from './copy.ts';
 import { ago, delta, dur, int, kt, mmss, pct, size, tps } from './format.ts';
-import { attrChip, attrTip, callouts, tip, type Callout, type Chip, type Tip, type Val } from './parts.ts';
+import { attrChip, attrTip, callouts, tip, weightedTps, type Callout, type Chip, type Tip, type Val } from './parts.ts';
+export { weightedTps } from './parts.ts';
 import { heldBySource, liveSplashRate, modelOf, SERVER_WIDE, type ScopeInput } from './scope.ts';
 
 // The Live tab (plan §5.9, the G2 mock): callouts, the hero (one speed with its basis ⓘ, the attribution chip, Last
@@ -14,16 +15,16 @@ export type HeroKind = 'prefill' | 'decode' | 'server-decode' | 'busy' | 'slots'
 export type HeroBody =
   | { kind: 'paused'; note: string }
   | { kind: 'prefill'; percent: string; fraction: number; counts: string | null; eta: string | null; rate: string | null; source: string; tip: Tip }
-  | { kind: 'decode'; rate: string; basis: 'reported' | 'derived'; label: string; source: string; tip: Tip; chart: ChartView | null }
+  | { kind: 'decode'; rate: string; basis: Basis; label: string; source: string; tip: Tip; chart: ChartView | null }
   | { kind: 'word'; word: string; unit: string; note: Val | null };
 export type NextView =
   | { kind: 'offer' } | { kind: 'watch'; runtime: string } | { kind: 'armed'; left: string; tip: Tip }
   | { kind: 'measuring'; elapsed: string } | { kind: 'result' };
 export interface ReplyView {
   chip: Chip | null; tip: Tip | null; when: string | null; empty: string | null;
-  values: Val[]; split: Val[]; usual: Chip | null; next: NextView | null;
+  values: Val[]; split: Val[]; usual: Chip | null; next: NextView | null; model?: string;
 }
-export interface HeroView { title: string; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; context: { used: string; fraction: number; tip: Tip } | null; reply: ReplyView | null }
+export interface HeroView { title: string; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
 export interface Tile { label: string; value: string; detail: string; meter: number | null }
 export interface MacRow { key: string; label: string; value: Val; level: Level | null; meter: number | null; tip: Tip | null }
 export interface MacView { title: string; tip: Tip; stale: boolean; line: Array<{ label: string; value: string; meter: number | null }>; rows: MacRow[]; details: MacRow[] }
@@ -65,14 +66,18 @@ const heroBody = (kind: HeroKind, s: ScopeInput): HeroBody => {
       return { kind: 'prefill', percent: pct(fraction), fraction, counts: done != null && total != null ? `${int(done)} of ${int(total)} new tokens read` : null,
         eta: !stale && request!.prefillEtaMs != null ? dur(request!.prefillEtaMs) : null, rate: request!.prefillTps != null ? tps(request!.prefillTps) : null,
         source: `Reported by ${rt}`, tip: tip('basis', `Reported by ${rt}`, [`${rt} reports this request’s prefill progress and speed.`,
-          request!.prefillEtaMs != null && `The finish time is ${rt}’s own estimate and moves as prefill runs.`, stale && 'Progress hasn’t moved since the last reading.']) };
+          request!.prefillEtaMs != null && `${rt} estimates the finish time; it changes during prefill.`, stale && 'No progress since the last reading.']) };
     }
-    case 'decode': return { kind: 'decode', rate: tps(request!.decodeTps!), basis: 'reported', label: 'Request average', source: `Reported by ${rt}`,
-      tip: tip('basis', `Reported by ${rt}`, [`${rt} reports the active request’s average decode speed. Scope doesn’t smooth or estimate it.`]),
-      chart: liveChart(s.samples, s.now, s.turnStartAt) };
+    case 'decode': {
+      const basis = snapshot.capabilities['request.decodeRate']?.basis ?? 'reported';
+      const source = basis === 'reported' ? `Reported by ${rt}` : `${basis === 'observed' ? 'Observed' : basis === 'derived' ? 'Derived' : basis === 'estimate' ? 'Estimate' : 'Last observed'} from ${rt} readings`;
+      return { kind: 'decode', rate: tps(request!.decodeTps!), basis, label: basis === 'observed' ? 'Observed output' : 'Request average', source,
+        tip: tip('basis', source, [basis === 'reported' ? `${rt} reports this request’s average speed, without Scope smoothing or estimates.` : `${basis} from runtime readings, not a reported instantaneous rate.`]),
+        chart: liveChart(s.samples, s.now, s.turnStartAt) };
+    }
     case 'server-decode': return { kind: 'decode', rate: tps(liveSplashRate(snapshot)!), basis: 'derived', label: 'Live server throughput', source: `Derived from ${rt} counters`,
-      tip: tip('basis', 'Live server throughput', [`Output tokens divided by active decode time, derived from counters that advance during generation on Splish and Splash.`,
-        `Covers all requests over the last ${dur(server.rates!.windowMs)} of observations. It is not one chat’s speed, a lifetime average, or the rate tokens arrive over the network.`]),
+      tip: tip('basis', 'Live server throughput', ['Output / active decode time from advancing Splish and Splash counters.',
+        `All requests over ${dur(server.rates!.windowMs)}; not one chat, a lifetime average, or network arrival speed.`]),
       chart: liveChart(s.samples, s.now, null, 'server') };
     case 'slots': case 'busy': {
       const rates = server.rates;
@@ -91,8 +96,8 @@ const heroBody = (kind: HeroKind, s: ScopeInput): HeroBody => {
 
 const contextBlock = (s: ScopeInput): HeroView['context'] => {
   const request = s.snapshot?.runtime.request;
-  if (!request?.contextWindowTokens || !request.contextUsedTokens) return null;
-  return { used: `${kt(request.contextUsedTokens)} of ${kt(request.contextWindowTokens)} tokens`, fraction: Math.min(1, request.contextUsedTokens / request.contextWindowTokens),
+  if (!s.snapshot || !ACTIVE.has(s.snapshot.runtime.phase) || !request?.contextWindowTokens || request.contextUsedTokens == null) return null;
+  return { used: `${kt(request.contextUsedTokens)} of ${kt(request.contextWindowTokens)} tokens`, basis: s.snapshot.capabilities['request.context']?.basis ?? 'reported', fraction: Math.min(1, request.contextUsedTokens / request.contextWindowTokens),
     tip: tip('ctx', 'Context used', ['Reported prompt plus output against the model’s context limit.', 'Not OpenCode’s compaction threshold.']) };
 };
 
@@ -102,17 +107,11 @@ const nextView = (s: ScopeInput): NextView | null => {
   switch (next.kind) {
     case 'offer-watch': return { kind: 'watch', runtime: next.runtime };
     case 'armed': return { kind: 'armed', left: mmss(Math.max(0, 120_000 - (s.now - next.at))),
-      tip: tip('armed', 'Next reply · armed', ['Waiting for your next message in this chat. Measures one reply, then stops.', 'Cancels if you switch chats, the runtime goes away, or this view closes.']) };
+      tip: tip('armed', 'Next reply · armed', ['Waiting for your next message in this chat. Measures one reply, then stops.', 'Cancels if you switch chats, the runtime goes away, or Scope closes or becomes hidden.']) };
     case 'measuring': return { kind: 'measuring', elapsed: dur(Math.max(0, s.now - next.startedAt)) };
     case 'result': return { kind: 'result' };
     default: return { kind: 'offer' };
   }
-};
-/** Σtok / Σ(tok/tps), over steps that report both. */
-export const weightedTps = (steps: readonly CompletionV2[]): number | null => {
-  const rated = steps.filter(step => step.outputTokens && step.decodeTps);
-  const tokens = rated.reduce((sum, step) => sum + step.outputTokens!, 0), seconds = rated.reduce((sum, step) => sum + step.outputTokens! / step.decodeTps!, 0);
-  return seconds > 0 ? tokens / seconds : null;
 };
 const usualChip = (s: ScopeInput): Chip | null => {
   const flag = s.last?.flag, usual = s.last?.vsUsual;
@@ -126,26 +125,31 @@ const replyView = (s: ScopeInput): ReplyView | null => {
   if (next.kind === 'result') {
     const steps = next.steps, rate = weightedTps(steps), output = steps.reduce((sum, step) => sum + (step.outputTokens ?? 0), 0);
     const model = steps.reduce((sum, step) => sum + (step.startedAt === null ? 0 : step.finishedAt - step.startedAt), 0), whole = next.endedAt - next.startedAt;
-    return { chip: attrChip({ kind: 'armed' }), when: ago(next.endedAt, s.now), empty: null, usual: null, next: nextRow,
-      tip: tip('reply', 'Last reply · Next reply', ['Measured because you armed Next reply. Turn times come from OpenChamber; the speed is worked out from the runtime’s readings of each step.']),
+    const label: AttributionLabel = next.attributed ? { kind: 'armed' }
+      : { kind: 'server-wide', reason: steps.find(step => step.verdict?.attr === 'withheld')?.verdict?.reason ?? 'not-observed' };
+    return { chip: attrChip(label), when: ago(next.endedAt, s.now), empty: null, usual: null, next: nextRow,
+      tip: next.attributed
+        ? tip('reply', 'Last reply · Next reply', ['Armed by you. Turn times come from OpenChamber; speed comes from runtime readings for each step.'])
+        : tip('reply', 'Last reply · Server-wide', ['A step couldn’t be tied to this chat: no turn summary.', ...attrTip('reply', label, snapshot, false, s.chatRuntime).paras]),
       values: [...rate !== null ? [{ text: '', strong: tps(rate), unit: 'tok/s', basis: steps.length > 1 ? 'derived' : steps[0]!.basis } satisfies Val] : [],
-        { text: '', strong: int(output), unit: 'out', basis: 'reported' }],
-      split: [{ text: 'Turn', strong: dur(whole), basis: 'observed' }, ...model > 0 ? [{ text: 'Model · tool', strong: `${dur(model)} · ${dur(Math.max(0, whole - model))}`, basis: 'observed' } satisfies Val] : []] };
+        { text: '', strong: int(output), unit: 'out', basis: 'reported' },
+        ...steps[0]?.ttftMs != null && steps[0].basis !== 'last-observed' ? [{ text: 'First token', strong: dur(steps[0].ttftMs), basis: steps[0].basis } satisfies Val] : []],
+      split: next.attributed ? [{ text: 'Turn', strong: dur(whole), basis: 'observed' }, ...model > 0 ? [{ text: 'Model · tool', strong: `${dur(model)} · ${dur(Math.max(0, whole - model))}`, basis: 'observed' } satisfies Val] : []] : [] };
   }
   const last = s.last;
   if (!last) return { chip: null, tip: null, when: null, empty: 'None observed yet · replies appear while Scope is open', values: [], split: [], usual: null, next: nextRow };
   const c = last.completion, flag = last.flag, usual = last.vsUsual;
   return {
-    chip: attrChip(last.label), when: ago(c.finishedAt, s.now), empty: null, next: nextRow, split: [], usual: usualChip(s),
+    chip: attrChip(last.label), model: c.model ?? undefined, when: ago(c.finishedAt, s.now), empty: null, next: nextRow, split: [], usual: usualChip(s),
     tip: tip('reply', 'Last reply', [
       flag ? `Median of the last 3 replies ${tps(flag.recentMedian)} tok/s against usual ${tps(flag.p50)} (p50, n ${flag.n}).`
         : usual ? `${delta(usual.ratio - 1)} against the usual speed for this model and context size (n ${usual.n}).` : null,
-      c.basis === 'last-observed' && `${rt} doesn’t report completions or TTFT, so this is Scope’s last reading of the request.`,
-      !!c.aggregateOf && `${rt}’s counters moved for ${c.aggregateOf} requests at once, so this is their average.`,
+      c.basis === 'last-observed' && `${rt} has no completions or TTFT; this is Scope’s last request reading.`,
+      !!c.aggregateOf && `Counters advanced for ${c.aggregateOf} requests together; this is their average.`,
       last.label.kind === 'server-wide' && attrTip('x', last.label, snapshot, false, s.chatRuntime).paras.join(' ')]),
     values: [...c.decodeTps != null ? [{ text: '', strong: tps(c.decodeTps), unit: 'tok/s', basis: c.basis } satisfies Val] : [],
       ...c.outputTokens != null ? [{ text: '', strong: int(c.outputTokens), unit: 'out', basis: 'reported' } satisfies Val] : [],
-      ...c.ttftMs != null ? [{ text: 'TTFT', strong: dur(c.ttftMs), basis: c.basis === 'reported' ? 'reported' : c.basis } satisfies Val] : []],
+      ...c.ttftMs != null ? [{ text: 'First token', strong: dur(c.ttftMs), basis: c.basis === 'reported' ? 'reported' : c.basis } satisfies Val] : []],
   };
 };
 
@@ -153,13 +157,16 @@ const presentHero = (s: ScopeInput): HeroView | null => {
   const snapshot = s.snapshot;
   if (!snapshot) return null;
   const kind = heroKind(s), title = modelOf(snapshot) ?? connName(snapshot.connection);
-  if (s.paused) return { title, attr: null, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, context: null, reply: null };
+  if (s.paused) return { title, attr: null, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, firstToken: null, context: null, reply: null };
   const reply = replyView(s);
   if (!kind && (!reply || reply.empty)) return null;
   const live = kind === 'decode' || kind === 'prefill', label = kind ? liveLabel(kind, s) : SERVER_WIDE;
   return {
     title, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
-    body: kind ? heroBody(kind, s) : null, context: kind ? contextBlock(s) : null, reply,
+    body: kind ? heroBody(kind, s) : null,
+    firstToken: kind && ACTIVE.has(snapshot.runtime.phase) && snapshot.runtime.request?.ttftMs != null && snapshot.capabilities['request.ttft']
+      ? { text: 'First token', strong: dur(snapshot.runtime.request.ttftMs), basis: snapshot.capabilities['request.ttft'].basis } : null,
+    context: kind ? contextBlock(s) : null, reply,
   };
 };
 
@@ -217,10 +224,10 @@ export const presentMac = (s: ScopeInput): MacView | null => {
   if (perJ !== null) details.push(row('tokj', 'tok/J · this request', { text: perJ.toFixed(2), basis: 'estimate' }));
   return {
     title: macOS ? 'This Mac' : 'This computer', stale: !s.fresh, line, rows, details,
-    tip: tip('mac', macOS ? 'This Mac' : 'This computer', ['Whole machine, not the model alone. RAM is physical memory minus free memory: it includes reclaimable pages, so it isn’t Activity Monitor’s Memory Used.',
-      (host.gpu?.busyFraction != null || host.gpu?.allocBytes != null) && 'GPU readings come from the graphics driver and never drive an alert. GPU memory (driver-reported, not model size) includes reserved memory and other apps, so it isn’t the model’s size.',
-      model != null && !!mac?.wiredLimitBytes && `The wired-limit meter is ${rt}’s own reported ${kind} and never alerts.`,
-      host.power ? 'Chip power (CPU+GPU+ANE, macmon estimate) · includes all apps · not wall power. tok/J is tokens per joule, the same as tok/s per watt, only while one request decodes.'
+    tip: tip('mac', macOS ? 'This Mac' : 'This computer', ['Whole machine. RAM = physical − free, including reclaimable pages; not Activity Monitor’s Memory Used.',
+      (host.gpu?.busyFraction != null || host.gpu?.allocBytes != null) && 'Driver GPU readings never alert. GPU memory includes reserves and other apps, not just the model.',
+      model != null && !!mac?.wiredLimitBytes && `The wired-limit meter uses ${rt}’s reported ${kind}; it never alerts.`,
+      host.power ? 'macmon estimates CPU+GPU+ANE power across all apps, not wall power. tok/J = tok/s per watt, only during one decoding request.'
         : macOS && 'Chip power needs macmon; Scope never installs it.',
       !s.fresh && 'Last reading · not live.']),
   };

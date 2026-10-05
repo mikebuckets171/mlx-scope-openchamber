@@ -10,7 +10,7 @@ import type { TurnSummary } from '../attribution/turn.ts';
 import type { VsUsual } from '../history/regress.ts';
 import { niceCeil } from '../render/chart.ts';
 import { alertCopy, APPROVAL, FIRST_RUN, NON_LOCAL, PRESSURE, RESTART, SEVERITY_WORD, sinceText, statusCopy, statusGlanceNote, THERMAL, THERMAL_WARN, thermalLevel, TIP, withheldWhy } from './copy.ts';
-import { delta, dur, int, kt, mmss, pct, tps } from './format.ts';
+import { ago, delta, dur, int, kt, mmss, pct, tps } from './format.ts';
 import { attrChip, BASIS_WORD, visibleAlerts, type Chip } from './parts.ts';
 import type { Reading } from './reading.ts';
 import { glanceModel, liveSplashRate, modelOf, SERVER_WIDE } from './scope.ts';
@@ -42,7 +42,7 @@ export interface StatusSectionInput {
 export interface StatusRow { label: string; value: string; basis: string | null }
 export type DotTone = 'live' | 'prefill' | 'warn' | 'bad' | 'idle';
 export interface Spark { path: string; label: string }
-export interface GlanceLine1 { dot: DotTone; word: string | null; model: string | null; rate: string | null; rateBasis: 'reported' | 'derived'; unit: string | null; chip: Chip | null; describedBy: boolean; title: string | null; since: string | null; muted: boolean }
+export interface GlanceLine1 { dot: DotTone; word: string | null; model: string | null; rate: string | null; rateBasis: Basis; unit: string | null; chip: Chip | null; describedBy: boolean; title: string | null; since: string | null; muted: boolean }
 export type GlanceLine2 =
   | { kind: 'spark'; spark: Spark | null; size: '' | 'sm' | 'wide'; reason: string | null; last: { rate: string; basis: string | null } | null; chips: Chip[]; toggle: boolean }
   | { kind: 'prefill'; percent: string; eta: string | null; toggle: boolean }
@@ -53,13 +53,10 @@ export interface GlanceNotice { text: string; action: string | null; dismiss: 't
 export interface StatusSectionView {
   mode: StatusMode;
   height: number;                            // setHeight: 24 | 56 | 80 | ≤ 200
-  line1: { phase: string; model: string | null; rate: string | null; attribution: string };
-  line2: { chips: string[]; alert: string | null } | null;
   rows: StatusRow[];                         // turn-stats mode only
-  tip: string | null;
   // Additions (ui-core): the structure the markup draws.
-  glance: { line1: GlanceLine1; line2: GlanceLine2 | null; notice: GlanceNotice | null; alert: { severity: Severity; text: string; more: number } | null } | null;
-  turn: { dot: DotTone; title: string; sub: string | null; chip: Chip; reason: string | null; spark: Spark | null; chips: Chip[] } | null;
+  glance: { metrics?: StatusRow[]; line1: GlanceLine1; line2: GlanceLine2 | null; notice: GlanceNotice | null; alert: { severity: Severity; text: string; more: number } | null } | null;
+  turn: { alert?: { severity: Severity; text: string; more: number } | null; dot: DotTone; title: string; sub: string | null; chip: Chip; reason: string | null; spark: Spark | null; chips: Chip[] } | null;
 }
 
 /** The status frame's heights (G2): padding 4 + 24 px lines; the tip adds 64, the first-run notice 48; Turn stats rows are 16 px. */
@@ -104,15 +101,14 @@ export const alertLine = (snapshot: SnapshotV2 | null): { severity: Severity; te
     skip: [chipOf(top!.id)].filter((kind): kind is string => kind !== null) };
 };
 
-const labelText = (label: AttributionLabel): string => label.kind === 'inferred' ? 'This chat · inferred' : label.kind === 'armed' ? 'Next reply · armed' : `Server-wide · ${withheldWhy(label.reason)}`;
+const statusRow = (label: string, value: string, basis: string | null = null): StatusRow => ({ label, value, basis });
 const basisOf = (basis: Basis): string | null => basis === 'reported' ? null : BASIS_WORD[basis];
 const contextWindow = (snapshot: SnapshotV2 | null): number | null => snapshot?.runtime.request?.contextWindowTokens
   ?? snapshot?.runtime.residency.find(model => model.contextWindowTokens)?.contextWindowTokens ?? snapshot?.runtime.catalog.find(model => model.loaded)?.contextWindowTokens ?? null;
-const usualRow = (usual: VsUsual | null): StatusRow[] => usual ? [{ label: 'vs usual', value: `${delta(usual.ratio - 1)} · n ${usual.n}`, basis: 'derived' }] : [];
+const usualRow = (usual: VsUsual | null): StatusRow[] => usual ? [statusRow('vs usual', `${delta(usual.ratio - 1)} · n ${usual.n}`, 'derived')] : [];
 
 const blank = (line1: GlanceLine1, line2: GlanceLine2 | null, height: number, extra: Partial<StatusSectionView> = {}): StatusSectionView => ({
-  mode: 'glance', height, line1: { phase: line1.word ?? line1.title ?? '', model: line1.model, rate: line1.rate, attribution: line1.chip?.text ?? '' },
-  line2: line2 && line2.kind === 'spark' ? { chips: line2.chips.map(chip => chip.text), alert: null } : null, rows: [], tip: null,
+  mode: 'glance', height, rows: [],
   glance: { line1, line2, notice: null, alert: null }, turn: null, ...extra,
 });
 const L1 = (partial: Partial<GlanceLine1>): GlanceLine1 => ({ dot: 'idle', word: null, model: null, rate: null, rateBasis: 'reported', unit: null, chip: null, describedBy: false, title: null, since: null, muted: false, ...partial });
@@ -121,42 +117,40 @@ const L1 = (partial: Partial<GlanceLine1>): GlanceLine1 => ({ dot: 'idle', word:
 const turnRows = (input: StatusSectionInput): { rows: StatusRow[]; title: string; sub: string | null; reason: string | null; label: AttributionLabel } | null => {
   const { snapshot, turn, now } = input, request = snapshot?.runtime.request, window = input.window, basis = input.last?.completion.basis ?? 'reported';
   const tokens = basisOf(basis === 'last-observed' ? 'last-observed' : 'reported'), ctx = contextWindow(snapshot);
+  const contextBasis = basisOf(basis === 'last-observed' ? 'last-observed' : 'derived');
   const running = window && window.startedAt !== null && window.endedAt === null && input.attribution.kind !== 'server-wide' && input.fresh !== false;
   if (running && snapshot && (request || ['decode', 'prefill', 'processing'].includes(snapshot.runtime.phase))) {
     const rows: StatusRow[] = [];
-    if (request?.prefillFraction != null && snapshot.runtime.phase === 'prefill') rows.push({ label: 'Response now', value: `Reading ${pct(request.prefillFraction)}${request.prefillEtaMs != null ? ` · about ${dur(request.prefillEtaMs)} left` : ''}`, basis: request.prefillEtaMs != null ? 'estimate' : null });
-    else if (request?.decodeTps != null) rows.push({ label: 'Response now', value: `${tps(request.decodeTps)} tok/s`, basis: null });
-    rows.push({ label: 'Turn time', value: `${dur(now - window.startedAt!)} so far`, basis: 'observed' });
-    if (turn?.modelMs != null && turn.toolMs != null) rows.push({ label: 'Model · tool time', value: `${dur(turn.modelMs)} · ${dur(turn.toolMs)}`, basis: 'observed' });
-    if (request?.promptTokens != null && request.outputTokens != null) rows.push({ label: 'Tokens in · out', value: `${kt(request.promptTokens)} · ${int(request.outputTokens)}`, basis: null });
-    if (request?.promptTokens && request.cachedTokens != null) rows.push({ label: 'Cache %', value: pct(request.cachedTokens / request.promptTokens), basis: null });
-    if (request?.contextUsedTokens && request.contextWindowTokens) rows.push({ label: 'Context used', value: `${kt(request.contextUsedTokens)} of ${kt(request.contextWindowTokens)}`, basis: null });
+    if (request?.prefillFraction != null && snapshot.runtime.phase === 'prefill') rows.push(statusRow('Response now', `Reading ${pct(request.prefillFraction)}${request.prefillEtaMs != null ? ` · about ${dur(request.prefillEtaMs)} left` : ''}`, request.prefillEtaMs != null ? 'estimate' : null));
+    else if (request?.decodeTps != null) rows.push(statusRow('Response now', `${tps(request.decodeTps)} tok/s`, basisOf(snapshot.capabilities['request.decodeRate']?.basis ?? 'reported')));
+    if (request?.ttftMs != null && snapshot.capabilities['request.ttft']) rows.push(statusRow('First token', dur(request.ttftMs), basisOf(snapshot.capabilities['request.ttft'].basis)));
+    rows.push(statusRow('Turn time', `${dur(now - window.startedAt!)} so far`, 'observed'));
+    if (turn?.modelMs != null && turn.toolMs != null) rows.push(statusRow('Model · tool time', `${dur(turn.modelMs)} · ${dur(turn.toolMs)}`, 'observed'));
+    if (request?.promptTokens != null && request.outputTokens != null) rows.push(statusRow('Tokens in · out', `${kt(request.promptTokens)} · ${int(request.outputTokens)}`));
+    if (request?.promptTokens && request.cachedTokens != null) rows.push(statusRow('Cache %', pct(request.cachedTokens / request.promptTokens)));
+    if (request?.contextUsedTokens != null && request.contextWindowTokens) rows.push(statusRow('Context used', `${kt(request.contextUsedTokens)} of ${kt(request.contextWindowTokens)}`, basisOf(snapshot.capabilities['request.context']?.basis ?? 'reported')));
     return { rows, title: 'This turn', sub: turn ? `step ${turn.steps + 1}` : null, reason: null, label: input.attribution };
-  }
-  if (turn && input.last && input.last.label.kind !== 'server-wide') {
-    const rows: StatusRow[] = [];
-    if (turn.decodeTps != null) rows.push({ label: 'Response', value: `${tps(turn.decodeTps)} tok/s`, basis: turn.steps > 1 ? 'derived' : basisOf(basis) });
-    rows.push({ label: 'Turn time', value: dur(turn.wallMs), basis: 'observed' });
-    if (turn.modelMs != null && turn.toolMs != null) rows.push({ label: 'Model · tool time', value: `${dur(turn.modelMs)} · ${dur(turn.toolMs)}`, basis: 'observed' });
-    if (turn.firstTtftMs != null) rows.push({ label: 'First TTFT', value: dur(turn.firstTtftMs), basis: basisOf(basis) });
-    if (turn.promptTokens != null) rows.push({ label: 'Tokens in · out', value: `${kt(turn.promptTokens)} · ${int(turn.outputTokens)}`, basis: tokens });
-    if (turn.cacheFraction != null) rows.push({ label: 'Cache %', value: pct(turn.cacheFraction), basis: tokens });
-    const used = (input.last.completion.promptTokens ?? 0) + (input.last.completion.outputTokens ?? 0);
-    if (used && ctx) rows.push({ label: 'Context used', value: `${kt(used)} of ${kt(ctx)}`, basis: tokens });
-    return { rows: [...rows, ...usualRow(input.vsUsual)], title: 'Last turn', sub: `${turn.steps} ${turn.steps === 1 ? 'step' : 'steps'}`, reason: null, label: input.last.label };
   }
   const last = input.last;
   if (!last) return null;
-  // A withheld turn: no summary; the slot shows the last reply, server-wide, with its reason.
-  const c = last.completion, rows: StatusRow[] = [];
-  if (c.decodeTps != null) rows.push({ label: 'Response', value: `${tps(c.decodeTps)} tok/s`, basis: basisOf(c.basis) });
-  if (c.ttftMs != null) rows.push({ label: 'TTFT', value: dur(c.ttftMs), basis: basisOf(c.basis) });
-  if (c.promptTokens != null && c.outputTokens != null) rows.push({ label: 'Tokens in · out', value: `${kt(c.promptTokens)} · ${int(c.outputTokens)}`, basis: tokens });
-  if (c.promptTokens && c.cachedTokens != null) rows.push({ label: 'Cache %', value: pct(c.cachedTokens / c.promptTokens), basis: tokens });
+  // A withheld turn uses only the last reply; all rows share the same rendering contract.
+  const c = last.completion, summary = last.label.kind === 'server-wide' ? null : turn, rows: StatusRow[] = [];
+  const rate = summary ? summary.decodeTps : c.decodeTps, first = summary ? summary.firstTtftMs : c.ttftMs;
+  const prompt = summary ? summary.promptTokens : c.promptTokens, output = summary ? summary.outputTokens : c.outputTokens;
+  const cache = summary ? summary.cacheFraction : c.promptTokens && c.cachedTokens != null ? c.cachedTokens / c.promptTokens : null;
+  if (rate != null) rows.push(statusRow('Response', `${tps(rate)} tok/s`, summary && summary.steps > 1 ? 'derived' : basisOf(basis)));
+  if (summary) {
+    rows.push(statusRow('Turn time', dur(summary.wallMs), 'observed'));
+    if (summary.modelMs != null && summary.toolMs != null) rows.push(statusRow('Model · tool time', `${dur(summary.modelMs)} · ${dur(summary.toolMs)}`, 'observed'));
+  }
+  if (first != null) rows.push(statusRow('First token', dur(first), basisOf(basis)));
+  if (prompt != null && output != null) rows.push(statusRow('Tokens in · out', `${kt(prompt)} · ${int(output)}`, tokens));
+  if (cache != null) rows.push(statusRow('Cache %', pct(cache), tokens));
   const used = (c.promptTokens ?? 0) + (c.outputTokens ?? 0);
-  if (used && ctx) rows.push({ label: 'Context used', value: `${kt(used)} of ${kt(ctx)}`, basis: tokens });
+  if (used && ctx && c.model === modelOf(snapshot!)) rows.push(statusRow('Context used', `${kt(used)} of ${kt(ctx)}`, contextBasis));
   const reason = last.label.kind === 'server-wide' ? `${withheldWhy(last.label.reason)} · no turn summary` : null;
-  return { rows: [...rows, ...usualRow(input.vsUsual)], title: 'Last reply', sub: null, reason, label: last.label };
+  return { rows: [...rows, ...usualRow(input.vsUsual)], title: summary ? 'Last turn' : 'Last reply',
+    sub: summary ? `${summary.steps} ${summary.steps === 1 ? 'step' : 'steps'}` : ago(c.finishedAt, now), reason, label: last.label };
 };
 
 export const presentStatusSection = (input: StatusSectionInput): StatusSectionView => {
@@ -180,21 +174,33 @@ export const presentStatusSection = (input: StatusSectionInput): StatusSectionVi
     const turn = turnRows(input);
     if (turn) {
       const chip = attrChip(turn.label, turn.label.kind === 'server-wide');
-      return { mode: 'turn-stats', height: turnHeight(turn.rows.length, turn.reason !== null), rows: turn.rows, tip: null,
-        line1: { phase: turn.title, model: null, rate: null, attribution: labelText(turn.label) }, line2: null, glance: null,
-        turn: { dot: turn.title === 'This turn' ? 'live' : 'idle', title: turn.title, sub: turn.sub, chip, reason: turn.reason, spark,
+      return { mode: 'turn-stats', height: Math.min(200, turnHeight(turn.rows.length, turn.reason !== null) + (alert ? 8 : 0)), rows: turn.rows, glance: null,
+        turn: { alert, dot: turn.title === 'This turn' ? 'live' : 'idle', title: turn.title, sub: turn.sub, chip, reason: turn.reason, spark,
           chips: glanceChips(snapshot, { gpu: turn.title === 'This turn', skip: alert?.skip }) } };
     }
   }
-  const model = glanceOr(snapshot), next = input.next, last = input.last, chips = glanceChips(snapshot, { skip: alert?.skip });
+  const model = glanceOr(snapshot), next = input.next, last = input.last, chips = glanceChips(snapshot, { gpu: false, skip: alert?.skip });
   const notice: GlanceNotice | null = !input.tipDismissed ? { text: TIP, action: null, dismiss: 'tip' }
     : input.firstRun && !input.firstRunDismissed ? { text: FIRST_RUN, action: 'Open Scope to manage', dismiss: 'first-run' } : null;
   /** One glance: a server-wide chip is short and names its reason on line 2, which then stays even beside a notice. */
   const glance = (line1: GlanceLine1, line2: GlanceLine2 | null, reasonOnLine2 = false): StatusSectionView => {
-    const keep = line2 && (!notice || reasonOnLine2) ? line2 : null;
-    return { ...blank(line1, keep, glanceHeight(keep !== null, notice, alert !== null)), tip: notice?.dismiss === 'tip' ? notice.text : null,
-      line2: keep?.kind === 'spark' ? { chips: keep.chips.map(chip => chip.text), alert: alert?.text ?? null } : alert ? { chips: [], alert: alert.text } : null,
-      glance: { line1, line2: keep, notice, alert: alert && { severity: alert.severity, text: alert.text, more: alert.more } } };
+    const metrics: StatusRow[] = [];
+    const active = ['decode', 'prefill', 'processing'].includes(phase);
+    if (active && request?.ttftMs != null && snapshot.capabilities['request.ttft']) {
+      metrics.push(statusRow('First token', dur(request.ttftMs), basisOf(snapshot.capabilities['request.ttft'].basis)));
+    } else if (line1.word === 'Last reply' && last?.completion.ttftMs != null && last.completion.basis !== 'last-observed') {
+      metrics.push(statusRow('First token', dur(last.completion.ttftMs), basisOf(last.completion.basis)));
+    }
+    if (active && request?.contextUsedTokens != null && request.contextWindowTokens) {
+      metrics.push(statusRow('Context used', `${kt(request.contextUsedTokens)} of ${kt(request.contextWindowTokens)}`, basisOf(snapshot.capabilities['request.context']?.basis ?? 'reported')));
+    }
+    // Optional onboarding yields to the measurements and warnings; it can reappear when there is room.
+    const fullHeight = glanceHeight(line2 !== null, notice, alert !== null) + (line1.model ? 24 : 0)
+      + (alert ? 8 : 0) + (line1.since && line1.model ? 16 : 0) + metrics.length * 20;
+    const shownNotice = fullHeight <= HEIGHTS.max ? notice : null;
+    const keep = line2 && (!shownNotice || reasonOnLine2) ? line2 : null;
+    return { ...blank(line1, keep, glanceHeight(keep !== null, shownNotice, alert !== null)),
+      glance: { line1, line2: keep, metrics, notice: shownNotice, alert: alert && { severity: alert.severity, text: alert.text, more: alert.more } } };
   };
   const described = (label: AttributionLabel, line: Partial<GlanceLine1>, rest: Omit<Extract<GlanceLine2, { kind: 'spark' }>, 'kind' | 'reason'>): StatusSectionView => {
     const reason = label.kind === 'server-wide' ? withheldWhy(label.reason) : null;
@@ -207,7 +213,7 @@ export const presentStatusSection = (input: StatusSectionInput): StatusSectionVi
       { kind: 'prefill', percent: pct(request.prefillFraction), eta: request.prefillEtaMs != null && !request.prefillStale ? dur(request.prefillEtaMs) : null, toggle: true });
   }
   if (request?.decodeTps != null) {
-    const line = { dot: 'live' as const, model, rate: tps(request.decodeTps), unit: 'tok/s' };
+    const line = { dot: 'live' as const, model, rate: tps(request.decodeTps), rateBasis: snapshot.capabilities['request.decodeRate']?.basis ?? 'reported', unit: 'tok/s' };
     if (next?.kind === 'measuring') return glance(L1({ ...line, chip: attrChip({ kind: 'armed' }) }), { kind: 'measuring', elapsed: dur(Math.max(0, now - next.startedAt)) });
     return described(input.attribution, line, { spark, size: input.attribution.kind === 'server-wide' ? 'sm' : '', last: null, chips, toggle: true });
   }
@@ -218,6 +224,10 @@ export const presentStatusSection = (input: StatusSectionInput): StatusSectionVi
   // Idle, queued or inventory: the last reply keeps its label; an armed Next reply waits for a message.
   const word = phase === 'queued' ? 'Queued' : phase === 'not-loaded' ? 'No model' : ['decode', 'prefill', 'processing'].includes(phase) ? 'Working' : 'Idle';
   if (next?.kind === 'armed') return glance(L1({ word, model, chip: attrChip({ kind: 'armed' }) }), { kind: 'armed', left: mmss(Math.max(0, 120_000 - (now - next.at))) });
+  if (phase === 'idle' && last?.completion.decodeTps != null) return described(last.label,
+    { word: 'Last reply', model: last.completion.model ? glanceModel(last.completion.model) : model,
+      rate: tps(last.completion.decodeTps), rateBasis: last.completion.basis, unit: 'tok/s', since: ago(last.completion.finishedAt, now) },
+    { spark, size: 'sm', last: null, chips, toggle: true });
   if (last && last.label.kind === 'server-wide') return described(last.label, { word, model }, { spark, size: 'sm', last: null, chips, toggle: true });
   return glance(L1({ word, model, chip: last ? attrChip(last.label) : null }), { kind: 'spark', spark, size: 'sm', reason: null, chips, toggle: true,
     last: last?.completion.decodeTps != null ? { rate: tps(last.completion.decodeTps), basis: basisOf(last.completion.basis) } : null });

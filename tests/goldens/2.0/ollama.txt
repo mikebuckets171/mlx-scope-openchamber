@@ -13,21 +13,17 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
 #tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Live performance | Ollama reports residency only · no per-request speed
+#view-live: CPU 5% RAM 24.4 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}: Ollama reports residency only · no per-request speed
 #model: example:14b
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="runtime can’t count requests"}: Server-wide · runtime can’t count requests
 #rate: 2 loaded
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 5% RAM 24.4 / 48 GiB Swap 1.1 GiB
-h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
-#mac-details: Mac details
+h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Ollama
@@ -46,19 +42,22 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #frame-card
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
-#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="true" data-tab="server"}: Server
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
 #panels
-#panel-server {aria-labelledby="tab-server"}
-[server-runtime]: Ready Runtime Ollama Version 0.12.3 Detected /api/version answered · high confidence Reports Replies recorded as None · Ollama doesn’t report them
-h2: Runtime
-span.chip: loaded models
+#panel-live {aria-labelledby="tab-live"}
+#panel-server {aria-labelledby="server-title"}: Back to Live
+#server-title: Server & Mac details
 [server-residency]: i 2 loaded example:14b | 11.2 GiB loaded GPU-resident (Ollama-reported) 10.1 GiB · 90% example-embed:latest | 0.6 GiB loaded GPU-resident (Ollama-reported) 0.6 GiB · 100%
 h2: Loaded models
 span.chip: unloads in 3 m 32 s
 span.chip: unloads in 38 s
+#server-runtime-details: Runtime details Ready
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 5% RAM 24.4 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Ollama

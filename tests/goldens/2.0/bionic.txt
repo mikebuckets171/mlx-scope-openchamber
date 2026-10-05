@@ -13,24 +13,19 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
 #tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Live performance | Model loaded · ready for the next request
+#view-live: CPU 7% RAM 33.9 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}
 #model: example-27b-splash
-#rate: Idle
-#reply-strip: Last reply i 48 s ago | Measure next reply One reply in this chat · arms for 2 min
+#reply-strip: Last reply i 48 s ago | Measure next reply
 span.chip {data-attr="inferred"}: This chat · inferred
 span.val {data-basis="reported"}: 38.6 tok/s
-span.val {data-basis="reported"}: 1,092 out
-span.val {data-basis="reported"}: TTFT 0.51 s
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 7% RAM 33.9 / 48 GiB Swap 1.1 GiB
-h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
-#mac-details: Mac details
+span.val {data-basis="reported"}: First token 0.51 s
+#reply-details: Reply details
+h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash via Bionic
@@ -49,19 +44,12 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #frame-card
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
-#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="true" data-tab="server"}: Server
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
 #panels
-#panel-server {aria-labelledby="tab-server"}
-[server-runtime]: Ready Runtime Splash via Bionic Version 1.1.6 Engine Splash runtime pack Detected /lmstudio-greeting answered · high confidence Reports Replies recorded as Reported by the runtime
-h2: Runtime
-span.chip: request counts
-span.chip: server averages
-span.chip: loaded models
-span.chip: engines
-span.chip: replies
+#panel-live {aria-labelledby="tab-live"}
+#panel-server {aria-labelledby="server-title"}: Back to Live
+#server-title: Server & Mac details
 [server-residency]: i lms ps · refreshed on load/unload example-27b-splash | 17.4 GiB loaded
 h2: Loaded instances
 span.chip: Idle
@@ -80,6 +68,12 @@ h2: Server session
 span.val {data-basis="reported"}: 37.9 tok/s
 span.val {data-basis="reported"}: 61%
 span.val {data-basis="reported"}: 23
+#server-runtime-details: Runtime details Ready
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 7% RAM 33.9 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash via Bionic
@@ -99,24 +93,19 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
 #tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Live performance | Model loaded · ready for the next request
+#view-live: CPU 7% RAM 33.9 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}
 #model: example-27b-splash
-#rate: Idle
-#reply-strip: Last reply i 48 s ago | Measure next reply One reply in this chat · arms for 2 min
+#reply-strip: Last reply i 48 s ago | Measure next reply
 span.chip {data-attr="inferred"}: This chat · inferred
 span.val {data-basis="reported"}: 38.6 tok/s
-span.val {data-basis="reported"}: 1,092 out
-span.val {data-basis="reported"}: TTFT 0.51 s
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 7% RAM 33.9 / 48 GiB Swap 1.1 GiB
-h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
-#mac-details: Mac details
+span.val {data-basis="reported"}: First token 0.51 s
+#reply-details: Reply details
+h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash via Bionic

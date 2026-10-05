@@ -13,30 +13,26 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
 #tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Live performance | tok/s Request average Reported by oMLX i
+#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}: tok/s Request average Reported by oMLX i
 #model: Example-27B-4bit
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Server-wide · not observed
-#rate {data-basis="reported"}: 26.4
-#signal: Decode · request average | −90s Live observations now
+#rate: 26.4
+#signal: Last 90 seconds | −90s Live observations now
 #ceiling: 30 tok/s
 div.plot[role=img] {aria-label="Decode · request average, last 8 s: 26.4 to 26.4 tokens per second, now 26.4"}
-#metrics {aria-label="Current request" data-count="4"}: Output | 612 | tokens so far | Elapsed | 38 s | since it started | Input reused | 83% | 43.0K cached | Requests | 1 | Queue clear
 #context-headroom: Context used i 52.7K of 131K tokens
-#reply-strip: Last reply i 1 min ago | Measure next reply One reply in this chat · arms for 2 min
+#request-details: Request details
+#reply-strip: Last reply i 1 min ago | Measure next reply
 span.chip {data-attr="inferred"}: This chat · inferred
 span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-span.val {data-basis="reported"}: 1,104 out
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 31% RAM 36.1 / 48 GiB Swap 1.1 GiB
-h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
-#mac-details: Mac details
+#reply-details: Reply details
+h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
@@ -55,23 +51,12 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #frame-card
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
-#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="true" data-tab="server"}: Server
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
 #panels
-#panel-server {aria-labelledby="tab-server"}
-[server-runtime]: Ready Runtime Local oMLX Version 0.7.0rc1 Detected /health answered · high confidence Reports Replies recorded as Last observed by Scope
-h2: Runtime
-span.chip: per-request speed
-span.chip: prefill progress
-span.chip: request counts
-span.chip: cache
-span.chip: model memory
-span.chip: server averages
-span.chip: loaded models
-span.chip: usage history
-span.chip: replies
+#panel-live {aria-labelledby="tab-live"}
+#panel-server {aria-labelledby="server-title"}: Back to Live
+#server-title: Server & Mac details
 [server-memory]: i oMLX · reported Model memory Engine-pool ceiling
 h2: Runtime memory
 span.val {data-basis="reported"}: 17.1 GiB
@@ -91,6 +76,12 @@ span.val {data-basis="reported"}: 23.2 tok/s
 span.val {data-basis="reported"}: 598 tok/s
 span.val {data-basis="reported"}: 82%
 span.val {data-basis="reported"}: 381
+#server-runtime-details: Runtime details Ready
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 31% RAM 36.1 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
@@ -104,10 +95,9 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="tr
 #monitor-menu
 #frame-card
 #compact-glance {aria-label="MLX Scope glance"}
-#ws {data-mode="glance" data-presentation="compact" data-variant="glance" style="height:56px"}: Example-27B 26.4 tok/s Expand
+#ws {data-mode="glance" data-presentation="compact" data-variant="glance" style="height:80px"}: Generating 26.4 tok/s Example-27B Expand
 span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
 #ws-why: not observed
-span.chip: GPU 87% busy
 live #connection (hidden): Local oMLX
 live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
 live #action-status (hidden): 
@@ -125,30 +115,26 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
 #tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Live performance | tok/s Request average Reported by oMLX i
+#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}: tok/s Request average Reported by oMLX i
 #model: Example-27B-4bit
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Server-wide · not observed
-#rate {data-basis="reported"}: 26.4
-#signal: Decode · request average | −90s Live observations now
+#rate: 26.4
+#signal: Last 90 seconds | −90s Live observations now
 #ceiling: 30 tok/s
 div.plot[role=img] {aria-label="Decode · request average, last 8 s: 26.4 to 26.4 tokens per second, now 26.4"}
-#metrics {aria-label="Current request" data-count="4"}: Output | 612 | tokens so far | Elapsed | 38 s | since it started | Input reused | 83% | 43.0K cached | Requests | 1 | Queue clear
 #context-headroom: Context used i 52.7K of 131K tokens
-#reply-strip: Last reply i 1 min ago | Measure next reply One reply in this chat · arms for 2 min
+#request-details: Request details
+#reply-strip: Last reply i 1 min ago | Measure next reply
 span.chip {data-attr="inferred"}: This chat · inferred
 span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-span.val {data-basis="reported"}: 1,104 out
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 31% RAM 36.1 / 48 GiB Swap 1.1 GiB
-h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
-#mac-details: Mac details
+#reply-details: Reply details
+h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
@@ -156,7 +142,7 @@ live #connection-result (hidden): Check whether OpenChamber has started the exte
 live #action-status (hidden): 
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="columns" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: OpenChamber | MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: OpenChamber | MLX Scope
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -167,38 +153,27 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #frame-card
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live · History
-#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
-#workspace-action: Measure next reply | One reply in this chat · arms for 2 min
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
+#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
+#workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#col-live
-#hero {aria-label="Inference activity"}: Live performance | tok/s Request average Reported by oMLX i
+#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}: tok/s Request average Reported by oMLX i
 #model: Example-27B-4bit
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Server-wide · not observed
-#rate {data-basis="reported"}: 26.4
-#signal: Decode · request average | −90s Live observations now
+#rate: 26.4
+#signal: Last 90 seconds | −90s Live observations now
 #ceiling: 30 tok/s
 div.plot[role=img] {aria-label="Decode · request average, last 8 s: 26.4 to 26.4 tokens per second, now 26.4"}
-#metrics {aria-label="Current request" data-count="4"}: Output | 612 | tokens so far | Elapsed | 38 s | since it started | Input reused | 83% | 43.0K cached | Requests | 1 | Queue clear
-#context-headroom: Context used i 52.7K of 131K tokens · prompt + output
-#reply-strip: Last reply i 1 min ago
+#context-headroom: Context used i 52.7K of 131K tokens
+#request-details: Request details
+#reply-strip: Last reply i 1 min ago | Measure next reply
 span.chip {data-attr="inferred"}: This chat · inferred
 span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-span.val {data-basis="reported"}: 1,104 out
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 31% RAM 36.1 / 48 GiB Swap 1.1 GiB
-h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
-#mac-details: Mac details
-#col-history {data-mount=""}: i Observed while Scope was open 14:04 1,104 out · 49.8K in (41.2K cached) i 15 min 30 min 60 min Decode speed · reported by oMLX The trend needs the updated service. Pause and resume MLX Scope in Settings → Extensions. History insights Baselines, usage & alerts History storage Stored on this Mac
-h2: Recent replies
-span.chip: 1 last observed
-span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-span.chip {data-attr="inferred"}: This chat · inferred
-h2: Trend
+#reply-details: Reply details
+h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX

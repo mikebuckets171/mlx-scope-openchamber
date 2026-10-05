@@ -10,7 +10,7 @@ import { RegressionTracker, type RegressionFlag } from '../../history/regress.ts
 import { baselineSummary } from '../../history/summary.ts';
 import { HISTORY_LIST_LIMIT, HISTORY_LIST_STEP, presentHistory, type BaselineCard, type HistoryEntry, type HistoryText, type HistoryView, type TrendCard } from '../../present/history.ts';
 import { connectionName } from '../../present/messages.ts';
-import { button, chip, delegate, el, focusKey, morph, section, seg, svg, Tips, val, type Child } from './history-parts.ts';
+import { box, group, small, span, strong, button, chip, delegate, el, focusKey, morph, section, seg, svg, Tips, val, type Child } from './history-parts.ts';
 import type { MountView, ViewContext, ViewHandle } from './types.ts';
 
 // Owner: ui-history. The History tab and the page's History column.
@@ -42,60 +42,60 @@ const GRID = 'M4 4H596 M4 60H596 M4 116H596';
 const trendFigure = (card: TrendCard, page: boolean): HTMLElement => {
   const g = card.geometry, showPlot = !!g || card.gaps.length > 0 && !card.empty;
   return el('figure', { class: 'signal trend' },
-    el('div', { class: 'chart-top' }, el('span', {}, card.title), el('span', {}, card.ceiling ?? '')),
+    box('chart-top', span( card.title), span( card.ceiling ?? '')),
     showPlot ? el('div', { class: 'plot', role: 'img', 'aria-label': card.summary },
       svg('svg', { viewBox: '0 0 600 120', preserveAspectRatio: 'none', 'aria-hidden': 'true' },
         svg('path', { class: 'grid', d: GRID }),
         g ? [svg('path', { class: 'band', d: g.band.join(' ') }), svg('path', { class: 'trace', d: g.segments.join(' ') }),
           g.spans.map(span => svg('rect', { class: 'turn-span', x: span.x.toFixed(1), y: 117, width: span.width.toFixed(1), height: 3 })),
           g.marks.filter(mark => mark.phase === 'started').map(mark => svg('line', { class: 'mark', x1: mark.x.toFixed(1), x2: mark.x.toFixed(1), y1: 4, y2: 116 }))] : null),
-      card.gaps.map(gap => el('div', { class: 'gap-band', 'aria-hidden': 'true', style: `left:${gap.left};width:${gap.width}` }, el('span', {}, 'Not observed · Scope wasn’t open'))))
+      card.gaps.map(gap => el('div', { class: 'gap-band', 'aria-hidden': 'true', style: `left:${gap.left};width:${gap.width}` }, span( 'Not observed · Scope wasn’t open'))))
       : el('p', { class: 'chart-wait' }, card.empty ?? ''),
-    showPlot ? [el('figcaption', {}, el('span', {}, card.from), el('span', {}, page ? card.note : ''), el('span', {}, 'now')),
+    showPlot ? [el('figcaption', {}, span( card.from), span( page ? card.note : ''), span( 'now')),
       page ? null : el('p', { class: 'insight-note' }, card.note),
-      el('div', { class: 'legend' }, el('span', {}, el('i'), 'last reading · shaded min–max'), el('span', {}, el('i', { class: 'tick' }), 'this chat’s turns'),
-        el('span', {}, el('i', { class: 'hatch' }), 'not observed'))] : null);
+      box('legend', span( el('i'), 'last reading · shaded min–max'), span( el('i', { class: 'tick' }), 'this chat’s turns'),
+        span( el('i', { class: 'hatch' }), 'not observed'))] : null);
 };
 const entryRow = (entry: HistoryEntry): HTMLElement => {
-  if (entry.kind === 'gap') return el('li', { class: 'led-row', 'data-kind': 'gap' }, el('div', { class: 'gap-row' }, el('span', {}, entry.text)));
+  if (entry.kind === 'gap') return el('li', { class: 'led-row', 'data-kind': 'gap' }, box('gap-row', span( entry.text)));
   if (entry.kind === 'turn') return el('li', { class: 'led-row', 'data-kind': 't' }, el('time', { datetime: entry.iso }, entry.at),
-    el('div', { class: 'led-main' }, el('strong', {}, entry.title), entry.time && val(entry.time, 'observed', 'observed · waits excluded'),
-      entry.rate && val(entry.rate, 'derived', 'derived'), el('span', {}, entry.detail), chip(entry.attr)));
+    box('led-main', strong( entry.title), entry.time && val(entry.time, 'observed', 'observed · waits excluded'),
+      entry.rate && val(entry.rate, 'derived', 'derived'), span( entry.detail), chip(entry.attr)));
   return el('li', { class: 'led-row' }, el('time', { datetime: entry.iso }, entry.at),
-    el('div', { class: 'led-main' }, val(el('strong', {}, entry.rate ?? entry.output ?? 'No speed reported'), entry.basis, entry.basisLabel),
-      entry.detail ? el('span', {}, entry.detail) : null, entry.ttft ? el('span', {}, entry.ttft) : null,
+    box('led-main', val(strong( entry.rate ?? entry.output ?? 'No speed reported'), entry.basis, entry.basisLabel),
+      entry.detail ? span( entry.detail) : null, entry.ttft ? span( entry.ttft) : null,
       entry.model ? el('span', { translate: 'no' }, entry.model) : null, chip(entry.attr)));
 };
 const baselineBody = (card: BaselineCard, tips: Tips, status: string): Child => {
   const flagTip = card.flag && tips.make('baseline-flag', 'Slower than usual', card.flag.tip);
   return [
     card.empty ? el('p', { class: 'empty' }, card.empty)
-      : el('div', { class: 'values-3' }, card.tiles.map(tile => el('div', {}, el('span', {}, tile.label), el('strong', {}, tile.value), el('small', {}, tile.detail)))),
+      : box('values-3', card.tiles.map(tile => group( span( tile.label), strong( tile.value), small( tile.detail)))),
     card.flag && flagTip ? [el('div', { class: 'chips', style: 'margin-top:10px' }, el('span', { class: 'chip', 'data-tone': 'warn', 'data-basis': 'derived' }, card.flag.chip), flagTip.btn), flagTip.pop] : null,
-    !card.empty && card.rows.length ? el('dl', { class: 'kv' }, card.rows.map(row => el('div', {}, el('dt', {}, row.label),
+    !card.empty && card.rows.length ? el('dl', { class: 'kv' }, card.rows.map(row => group( el('dt', {}, row.label),
       el('dd', {}, row.basis ? val(row.value, 'estimate', row.basis) : row.value)))) : null,
-    card.copy ? el('div', { class: 'actions' }, button('Copy baseline summary', 'copy-baselines'),
+    card.copy ? box('actions', button('Copy baseline summary', 'copy-baselines'),
       el('span', { class: 'insight-note', style: 'margin:0' }, 'Models become “Model A, B”')) : null,
     status ? el('p', { class: 'insight-note', role: 'status' }, status) : null,
   ];
 };
 const storageSection = (view: NonNullable<HistoryView['storage']>, tips: Tips, prefix: string, status: string): HTMLElement => {
-  const tip = tips.make('storage', 'Reply history', ['In OpenChamber’s extension storage on this Mac, which backups include.',
-    'Saved by whichever Scope view is recording (page, panel or Work Status) at most every 5 min, or when it hides. Nothing is written while idle. Model names never leave this Mac.']);
+  const tip = tips.make('storage', 'Reply history', ['Local OpenChamber storage, included in backups. Model names stay on this Mac.',
+    'The recording Scope view saves at most every 5 min or when hidden, never while idle.']);
   const confirm = view.confirm;
   return el('section', { class: 'insight-section storage', 'data-full': String(!!view.full) },
-    el('div', { class: 'section-heading' }, el('div', { class: 'title-row' }, el('h2', {}, 'Reply history'), tip.btn),
-      el('span', {}, view.paused ? el('span', { class: 'chip', 'data-tone': 'warn' }, view.label) : view.label)),
+    box('section-heading', box('title-row', el('h2', {}, 'Reply history'), tip.btn),
+      span( view.paused ? el('span', { class: 'chip', 'data-tone': 'warn' }, view.label) : view.label)),
     tip.pop,
     view.full ? el('div', { class: 'connection-diagnosis', 'data-severity': 'warning', role: 'status' },
-      el('p', { class: 'diag-title' }, el('span', { class: 'sr-only' }, 'Warning: '), el('strong', {}, 'History is full')), el('p', { class: 'diag-meta' }, view.full)) : null,
+      el('p', { class: 'diag-title' }, el('span', { class: 'sr-only' }, 'Warning: '), strong( 'History is full')), el('p', { class: 'diag-meta' }, view.full)) : null,
     view.note ? el('p', { class: 'notice', style: 'margin-top:10px' }, view.note) : null,
     confirm ? el('div', { class: 'connection-diagnosis', 'data-severity': 'critical', role: 'alertdialog', 'aria-labelledby': `${prefix}-clear-title`, 'aria-describedby': `${prefix}-clear-detail` },
       el('p', { class: 'diag-title' }, el('strong', { id: `${prefix}-clear-title` }, confirm.title)), el('p', { class: 'diag-meta', id: `${prefix}-clear-detail` }, confirm.detail),
-      el('div', { class: 'actions' }, button('Clear history', 'clear-confirm', { className: 'btn danger' }), button('Cancel', 'clear-cancel')))
-      : [el('div', { class: 'storage-line' }, el('strong', {}, view.used), el('span', {}, view.detail)),
+      box('actions', button('Clear history', 'clear-confirm', { className: 'btn danger' }), button('Cancel', 'clear-cancel')))
+      : [box('storage-line', strong( view.used), span( view.detail)),
         view.meter ? el('div', { class: 'meter', 'aria-hidden': 'true' }, el('i', { style: `width:${(view.fraction * 100).toFixed(1)}%` })) : null,
-        el('div', { class: 'storage-controls' },
+        box('storage-controls',
           el('label', {}, 'Keep ', el('select', { class: 'btn', 'data-action': 'retention', 'data-focus': 'retention', 'aria-label': 'Keep reply history for' },
             view.options.map(days => el('option', { value: days, selected: days === view.retentionDays }, `${days} days`)))),
           button(view.paused ? 'Resume recording' : 'Pause recording', 'pause'), button('Clear…', 'clear'))],
@@ -136,8 +136,6 @@ class HistoryViewHandle implements ViewHandle {
     this.tips = new Tips(this.prefix);
     this.retention = deps.retentionDays();
     this.paused = deps.paused();
-    // The page is an overview; keep the trend in view and let the reader expand the reply list.
-    if (context.surface === 'page') this.listLimit = 4;
     this.undelegate = delegate(root, (action, arg, target) => void this.act(action, arg, target));
     root.addEventListener('keydown', this.escape);
     void deps.legacyCaptures?.().then(count => { this.legacy = count; this.render(); }).catch(() => {});
@@ -268,47 +266,46 @@ class HistoryViewHandle implements ViewHandle {
     const tips = this.tips, tip = (name: string, title: string, paras: readonly string[]) => tips.make(name, title, paras);
     const trend = section('Trend', seg('Trend window', 'window', view.trend.windows.map(w => ({ label: w.label, arg: String(w.windowMs), pressed: w.pressed }))),
       trendFigure(view.trend, page), tip('trend', 'Trend', view.trend.tip), page ? 'insight-section history-trend' : 'insight-section');
-    const replies = section(page ? 'Recent replies' : 'Replies', view.header, view.repliesEmpty ? el('p', { class: 'empty' }, view.repliesEmpty) : [
-        el('div', { class: 'counts' }, view.counts.map(text => el('span', { class: 'chip' }, text))),
+    const replies = section('Recent replies', view.header, view.repliesEmpty ? el('p', { class: 'empty' }, view.repliesEmpty) : [
+        box('counts', view.counts.map(text => el('span', { class: 'chip' }, text))),
         el('ol', { class: 'ledger' }, view.entries.map(entryRow)),
-        view.more ? el('div', { class: 'actions' }, el('span', { class: 'insight-note', style: 'margin:0' }, view.more),
+        view.more ? box('actions', el('span', { class: 'insight-note', style: 'margin:0' }, view.more),
           view.showMore ? button(view.showMore, 'more', { className: 'btn quiet' }) : null) : null], tip('replies', 'Replies', view.repliesTip),
       page ? 'insight-section recent-replies' : 'insight-section');
     const storage = view.storage ? storageSection(view.storage, tips, this.prefix, this.status.storage) : null;
     // Keep the native disclosure's state across polling morphs. Warnings and confirmation remain visible.
     const storageOpen = this.root.querySelector<HTMLDetailsElement>('.history-storage')?.open ?? false;
     const storageNeedsAttention = !!view.storage?.full || !!view.storage?.note || !!view.storage?.confirm;
-    const storageDetails = page && storage && view.storage ? el('details', {
+    const storageDetails = storage && view.storage ? el('details', {
       class: 'history-storage', open: storageOpen || storageNeedsAttention, 'data-attention': String(storageNeedsAttention),
-    }, el('summary', { 'data-focus': 'history-storage' }, el('span', {}, 'History storage'),
+    }, el('summary', { 'data-focus': 'history-storage' }, span( 'History storage'),
       el('span', { class: 'history-storage-state', 'data-paused': String(view.storage.paused) },
         storageNeedsAttention ? 'Needs attention' : view.storage.label)), storage) : storage;
-    const next = el('div', {},
-      page ? [replies, trend] : [trend, replies],
-      section('Usual speed', view.baseline.model || view.baseline.bucket ? [view.baseline.model ? el('span', { translate: 'no' }, view.baseline.model) : null,
+    const baseline = section('Usual speed', view.baseline.model || view.baseline.bucket ? [view.baseline.model ? el('span', { translate: 'no' }, view.baseline.model) : null,
         view.baseline.model && view.baseline.bucket ? ' · ' : null, view.baseline.bucket] : null, baselineBody(view.baseline, tips, this.status.baseline),
-      tip('baseline', 'Usual speed', view.baseline.tip), page ? 'insight-section history-baseline' : 'insight-section'),
-      view.usage ? section(view.usage.title, seg('Usage range', 'range', view.usage.ranges.map(r => ({ label: r.label, arg: r.label, pressed: r.pressed }))), [
+      tip('baseline', 'Usual speed', view.baseline.tip), 'insight-section history-baseline');
+    const usage = view.usage ? section(view.usage.title, seg('Usage range', 'range', view.usage.ranges.map(r => ({ label: r.label, arg: r.label, pressed: r.pressed }))), [
         el('div', { class: 'usage-bars', role: 'img', 'aria-label': view.usage.aria, 'data-dense': view.usage.dense, style: `grid-template-columns:repeat(${view.usage.bars.length},minmax(0,1fr))` },
           view.usage.bars.map(bar => el('div', { 'aria-hidden': 'true' }, el('i', { style: `height:${bar.height}px` })))),
         el('div', { class: 'usage-days', 'aria-hidden': 'true', 'data-dense': view.usage.dense, style: `grid-template-columns:repeat(${view.usage.bars.length},minmax(0,1fr))` },
-          view.usage.bars.map(bar => el('span', {}, bar.label))),
-        el('div', { class: 'values-3' }, view.usage.rows.map(row => el('div', {}, el('span', {}, row.label), el('strong', {}, row.value), row.detail ? el('small', {}, row.detail) : null)))],
-      tip('usage', view.usage.title, view.usage.tip)) : null,
-      storageDetails,
-      section('Alert log', 'Last 20 · while Scope was open', view.alertLogEmpty ? el('p', { class: 'empty' }, view.alertLogEmpty)
+          view.usage.bars.map(bar => span( bar.label))),
+        box('values-3', view.usage.rows.map(row => group( span( row.label), strong( row.value), row.detail ? small( row.detail) : null)))],
+      tip('usage', view.usage.title, view.usage.tip)) : null;
+    const alertLog = section('Alert log', 'Last 20 · while Scope was open', view.alertLogEmpty ? el('p', { class: 'empty' }, view.alertLogEmpty)
         : el('ol', { class: 'alog' }, view.alertLog.map(entry => el('li', {}, el('time', { datetime: entry.iso }, entry.at),
-          el('span', {}, el('i', { class: 'sev', 'data-severity': entry.severity, 'aria-hidden': 'true' }), el('span', { class: 'sr-only' }, `${entry.severityWord}: `), entry.text),
-          el('small', {}, entry.duration)))),
-      tip('alog', 'Alert log', ['Kept in the service’s memory only, so it clears when the service restarts.'])));
-    if (page) {
-      const open = this.root.querySelector<HTMLDetailsElement>('.history-insights')?.open || !!view.baseline.flag;
-      const extra = Array.from(next.children).filter(child => child !== replies && child !== trend && child !== storageDetails);
-      const insights = el('details', { class: 'history-insights', open },
-        el('summary', {}, el('span', {}, 'History insights'), el('span', { class: 'history-storage-state' }, 'Baselines, usage & alerts')),
-        el('div', { class: 'view-host' }, extra));
-      if (storageDetails) next.insertBefore(insights, storageDetails); else next.append(insights);
-    }
+          span( el('i', { class: 'sev', 'data-severity': entry.severity, 'aria-hidden': 'true' }), el('span', { class: 'sr-only' }, `${entry.severityWord}: `), entry.text),
+          small( entry.duration)))),
+      tip('alog', 'Alert log', ['Kept in the service’s memory only, so it clears when the service restarts.']));
+    const insightsAttention = !!view.baseline.flag;
+    const insights = el('details', { class: 'history-insights', 'data-attention': String(insightsAttention),
+      open: this.root.querySelector<HTMLDetailsElement>('.history-insights')?.open || insightsAttention },
+      el('summary', {}, span( 'Insights'), el('span', { class: 'history-storage-state' }, insightsAttention ? 'Slower than usual' : 'Baselines & usage')),
+      group( baseline, usage));
+    const alertsAttention = this.snapshot?.alerts.some(alert => alert.severity !== 'info') ?? false;
+    const alerts = el('details', { class: 'history-alerts', 'data-attention': String(alertsAttention),
+      open: this.root.querySelector<HTMLDetailsElement>('.history-alerts')?.open || alertsAttention },
+      el('summary', {}, span( 'Alert log'), el('span', { class: 'history-storage-state' }, alertsAttention ? 'Needs attention' : `${view.alertLog.length} recorded`)), alertLog);
+    const next = group( trend, replies, insights, alerts, storageDetails);
     morph(this.root, next);
     const select = this.root.querySelector<HTMLSelectElement>('select[data-action="retention"]');
     if (select) select.value = String(this.retention);

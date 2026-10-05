@@ -6,7 +6,8 @@ import { summarizeTurn } from '../attribution/turn.ts';
 import { CAPTURE_LIMIT, type CaptureV2 } from '../captures/store.ts';
 import { windowRate, type WindowCaptureState, type WindowLengthMs } from '../captures/window.ts';
 import { clamp, redact, SCOPE_TEXT_MAX_CHARS } from '../share/report.ts';
-import { gibText } from './format.ts';
+import { gibText, mmss } from './format.ts';
+import { basisNote, weightedTps } from './parts.ts';
 import { ago, delta, dur, HISTORY_TEXT, int, pct, tps, type AttrChip, type HistoryText } from './history.ts';
 
 // Owner: ui-history. The Captures tab (plan §5.9, G2): Next reply, the 30/60 s window and ≤ 12 saved captures, plus the
@@ -52,9 +53,7 @@ export interface CapturesView {
   legacy: { right: string; rows: SavedRow[] } | null;
 }
 
-const BASIS_NOTE: Readonly<Record<Basis, string | null>> = { reported: null, derived: 'derived', observed: 'observed', 'last-observed': 'last observed', estimate: 'estimate' };
-const value = (text: string, basis: Basis, note?: string): ValueView => ({ text, basis, note: note ?? BASIS_NOTE[basis] });
-const mmss = (ms: number): string => `${Math.floor(ms / 60_000)}:${String(Math.floor(ms % 60_000 / 1000)).padStart(2, '0')}`;
+const value = (text: string, basis: Basis, note?: string): ValueView => ({ text, basis, note: note ?? basisNote(basis) });
 const CANCELLED: Readonly<Record<NextReplyCancel, string>> = {
   switched: 'Cancelled: you switched chats.', unavailable: 'Cancelled: the runtime stopped answering.', hidden: 'Cancelled: this view closed.',
   timeout: 'Stopped: no reply finished in time.', limit: 'Stopped: the reply ran past 10 minutes.',
@@ -73,10 +72,8 @@ const numbers = (entries: Array<[CaptureMeasurement, number | null | undefined]>
   Object.fromEntries(entries.filter((entry): entry is [CaptureMeasurement, number] => entry[1] != null && Number.isFinite(entry[1])));
 /** Token-weighted Σtok / Σ(tok/tps): a multi-step rate is Scope's arithmetic, so it is `derived`. */
 const weighted = (steps: readonly CompletionV2[]): { tps: number; basis: Basis } | null => {
-  const rated = steps.filter(step => step.outputTokens && step.decodeTps);
-  if (!rated.length) return null;
-  const tokens = rated.reduce((sum, step) => sum + step.outputTokens!, 0), seconds = rated.reduce((sum, step) => sum + step.outputTokens! / step.decodeTps!, 0);
-  return { tps: tokens / seconds, basis: steps.length === 1 ? steps[0]!.basis : 'derived' };
+  const tps = weightedTps(steps);
+  return tps === null ? null : { tps, basis: steps.length === 1 ? steps[0]!.basis : 'derived' };
 };
 const sum = (steps: readonly CompletionV2[], pick: (step: CompletionV2) => number | undefined): number | null =>
   steps.every(step => pick(step) !== undefined) && steps.length ? steps.reduce((total, step) => total + pick(step)!, 0) : null;
@@ -191,7 +188,7 @@ export const capturesReport = (captures: readonly CaptureV2[], version: string, 
   const line = (capture: CaptureV2): string => {
     const m = capture.measurements, rate = captureRate(capture);
     return [`${new Date(capture.savedAt).toISOString()} · ${title(capture)} · ${capture.label === 'armed' ? 'Next reply · armed' : 'server-wide'}:`,
-      rate ? `${tps(rate.tps)} tok/s${rate.basis === 'reported' ? '' : ` (${BASIS_NOTE[rate.basis]})`}` : 'no output speed',
+      rate ? `${tps(rate.tps)} tok/s${rate.basis === 'reported' ? '' : ` (${basisNote(rate.basis)})`}` : 'no output speed',
       m.outputTokens !== undefined ? `${int(m.outputTokens)} output tokens` : null, m.wholeMs !== undefined ? `turn ${dur(m.wholeMs)}` : null,
       m.completions !== undefined ? `${int(m.completions)} replies finished` : null, m.cpuMeanFraction !== undefined ? `CPU mean ${pct(m.cpuMeanFraction)}` : null,
       m.memPeakBytes !== undefined ? `RAM peak ${gibText(m.memPeakBytes)}` : null].filter(Boolean).join(' ');

@@ -16,7 +16,7 @@ const release = (): string => (JSON.parse(readFileSync(join(repo(), 'package.jso
 
 type Theme = 'dark' | 'light';
 type Variant = { width: number; theme: Theme; surface: 'panel' | 'page' | 'status'; extra?: string };
-/** `server`: also the Server tab. `shots`: the pixel goldens this case keeps (macOS). */
+/** `server`: also the secondary diagnostics view. `shots`: the pixel goldens this case keeps (macOS). */
 type Case = { name: string; state: string; server?: boolean; page?: boolean; light?: boolean; compact?: boolean; shots?: string[] };
 const CASES: Case[] = [
   { name: 'decode', state: 'decode', server: true, page: true, light: true, compact: true, shots: ['live-320-dark', 'live-320-light', 'server-320-dark', 'live-1160-dark', 'compact-320-dark'] },
@@ -187,7 +187,7 @@ for (const item of CASES) {
     sections.push(await main.text('live'));
     if (shots.has('live-320-dark')) await main.shot(`${item.name}-live-320-dark`);
     if (item.server) {
-      await main.click('#tab-server');
+      await main.click('[data-action="open-server"]');
       sections.push(await main.text('server'));
       if (shots.has('server-320-dark')) await main.shot(`${item.name}-server-320-dark`);
     }
@@ -204,7 +204,7 @@ for (const item of CASES) {
       const light = await open({ width: 320, theme: 'light', surface: 'panel' });
       sections.push(await light.text('live'));
       if (shots.has('live-320-light')) await light.shot(`${item.name}-live-320-light`);
-      if (shots.has('server-320-light')) { await light.click('#tab-server'); await light.shot(`${item.name}-server-320-light`); }
+      if (shots.has('server-320-light')) { await light.click('[data-action="open-server"]'); await light.shot(`${item.name}-server-320-light`); }
       await light.close();
     }
     if (item.page) {
@@ -229,6 +229,27 @@ test('2.0 golden · Work Status section at 280 px', async ({ browser, baseURL })
     await harness.close();
   }
   expect(sections.join('\n')).toMatchSnapshot('status.txt');
+});
+
+test('cleanup golden · Live, History and Captures at 430 px', async ({ browser, baseURL }) => {
+  const sections: string[] = ['# Two primary destinations · 430 px\n'];
+  for (const theme of ['dark', 'light'] as const) {
+    const harness = await Harness.open(browser, baseURL!, `demo=1&state=decode&chat=local&theme=${theme}`, { width: 430, theme, surface: 'panel' }, 'tip');
+    await harness.advance(STEPS);
+    sections.push(await harness.text('live'));
+    await harness.shot(`cleanup-live-430-${theme}`);
+    await harness.click('#tab-history');
+    sections.push(await harness.text('history'));
+    await harness.shot(`cleanup-history-430-${theme}`);
+    await harness.click('[data-action="open-captures"]');
+    sections.push(await harness.text('reply capture'));
+    await harness.shot(`cleanup-captures-430-${theme}`);
+    await harness.click('[data-action="capture-method"][data-arg="window"]');
+    sections.push(await harness.text('timed capture'));
+    await harness.shot(`cleanup-timed-430-${theme}`);
+    await harness.close();
+  }
+  expect(sections.join('\n')).toMatchSnapshot('cleanup-navigation.txt');
 });
 
 test('pixel goldens stay within the repository budget', () => {

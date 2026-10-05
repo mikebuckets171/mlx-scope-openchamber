@@ -21,6 +21,7 @@ export class ScopeState {
   failures = 0;
   surface = 'panel';
   userPaused = false; efficient = false; compact = false; tab: Tab = 'live';
+  serverDetailsVisible = false;             // presentation gate: Compact and blocking cards hide the secondary view
   mounted = false; startupFailed = false; disposed = false;
   generation = 0;                            // bumped to discard a request already in flight
   manualRefresh = false; interrupted = false; awaitingFresh = false;

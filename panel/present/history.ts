@@ -10,6 +10,7 @@ import type { RegressionFlag } from '../history/regress.ts';
 import { SIZE_LABELS } from '../history/summary.ts';
 import { trendGaps, trendGeometry, type TrendGeometry } from '../render/trend-chart.ts';
 import { alertCopy, withheldWhy } from './copy.ts';
+import { BASIS_WORD } from './parts.ts';
 
 // Owner: ui-history. Pure History tab presenter: trend, replies (each with its attr chip), turn summaries, baselines,
 // oMLX usage ("Recorded by oMLX"), storage, alert log. Header "Observed while Scope was open" with counts per basis.
@@ -65,7 +66,6 @@ export interface BaselineCard {
 export interface HistoryView {
   header: string;
   basisCounts: Array<{ basis: string; n: number }>;
-  replies: Array<{ at: string; model: string; rate: string; ttft: string; tokens: string; attr: string; vsUsual: string | null }>;
   usage: { title: string; rows: Array<{ label: string; value: string; detail?: string }>;
     ranges: Array<{ label: UsageRange; pressed: boolean }>; bars: Array<{ height: number; label: string }>; dense: boolean; aria: string; tip: string[] } | null;
   storage: { used: string; fraction: number; retention: string; paused: boolean;
@@ -85,11 +85,10 @@ export interface HistoryView {
 }
 
 export const HISTORY_HEADER = 'Observed while Scope was open';
-export const HISTORY_LIST_LIMIT = 12;
+export const HISTORY_LIST_LIMIT = 6;
 export const HISTORY_LIST_STEP = 24;
 export const RETENTION_OPTIONS = [7, 14, 30, 60, 90] as const;
 const TURN_NOTE = 'Turn times from OpenChamber · readings are server-wide';
-const BASIS_WORD: Readonly<Record<Basis, string>> = { reported: 'reported', derived: 'derived', observed: 'observed', 'last-observed': 'last observed', estimate: 'estimate' };
 const SEVERITY_WORD: Readonly<Record<Severity, string>> = { critical: 'Critical', warning: 'Warning', info: 'Notice' };
 const BASIS_ORDER: readonly Basis[] = ['reported', 'derived', 'observed', 'last-observed', 'estimate'];
 
@@ -175,8 +174,8 @@ const presentTrend = (input: HistoryInput, rt: string): TrendCard => {
     empty: input.trendError ?? (!trend ? 'Loading the trend…' : !series ? `${rt} doesn’t report decode speed, so there’s no trend.`
       : geometry || gaps.length ? null : `No decode readings in the last ${minutes} min. The chart starts after 2 readings.`),
     note: TURN_NOTE, geometry, gaps,
-    tip: [`Decode speed as ${rt} reports it, in ${bucketS} s buckets: the line is each bucket’s last reading and the band its min–max.`,
-      'The line breaks while nothing is generating. Hatched spans weren’t observed because no Scope view was open. Nothing is interpolated.'],
+    tip: [`${rt} decode speed in ${bucketS} s buckets: last reading, with a min–max band.`,
+      'Breaks mean idle; hatching means Scope was closed. No interpolation.'],
   };
 };
 
@@ -268,21 +267,19 @@ export const presentHistory = (input: HistoryInput): HistoryView => {
   const limit = input.listLimit ?? HISTORY_LIST_LIMIT;
   const entries = sorted.slice(0, limit).map(row => row[0] === 'r' ? replyEntry(row, input, text, named)
     : row[0] === 't' ? turnEntry(row, replies, input, text) : gapEntry(row, input.now));
-  const basisCounts = BASIS_ORDER.map(basis => ({ basis: BASIS_WORD[basis], n: replies.filter(row => row[12] === basis).length })).filter(entry => entry.n);
+  const basisCounts = BASIS_ORDER.map(basis => ({ basis: BASIS_WORD[basis] || 'reported', n: replies.filter(row => row[12] === basis).length })).filter(entry => entry.n);
   const gaps = input.rows.filter(row => row[0] === 'g').length;
   const oldest = input.rows.reduce<number | null>((min, row) => min === null || row[1] < min ? row[1] : min, null);
-  const shown = entries.filter((entry): entry is HistoryEntry & { kind: 'reply' } => entry.kind === 'reply');
   return {
     header: HISTORY_HEADER, basisCounts,
     counts: [...basisCounts.map(entry => `${int(entry.n)} ${entry.basis}`), ...gaps ? [plural(gaps, 'gap')] : []],
     entries,
-    replies: shown.map(entry => ({ at: entry.at, model: entry.model ?? '', rate: entry.rate ?? '', ttft: entry.ttft ?? '', tokens: entry.detail, attr: entry.attr.text, vsUsual: null })),
     more: sorted.length > limit ? `Showing the newest ${int(limit)} of ${int(sorted.length)} entries` : null,
     showMore: sorted.length > limit ? `Show ${int(Math.min(HISTORY_LIST_STEP, sorted.length - limit))} more` : null,
     repliesEmpty: input.rows.length ? null : `No replies yet. Scope records a reply when it finishes while any Scope view is open.${input.legacyCaptures ? ' Your 1.6 captures are in Captures.' : ''}`,
-    repliesTip: ['Each reply Scope saw finish while any Scope view was open, with its label.',
-      'A turn summary appears only when every step in it is attributed. Rows with no verdict read “Server-wide · not observed”.',
-      ...replies.some(row => row[12] === 'last-observed') ? ['Where a runtime doesn’t report completions, its rows are Scope’s last reading of the request.'] : []],
+    repliesTip: ['Replies seen finish while Scope was open, with their labels.',
+      'Turn summaries require every step attributed. No verdict means “Server-wide · not observed”.',
+      ...replies.some(row => row[12] === 'last-observed') ? ['Without runtime completions, rows hold Scope’s last request reading.'] : []],
     trend: presentTrend(input, rt),
     baseline: presentBaseline(input, replies, rt),
     usage: presentUsage(input.usage, input),

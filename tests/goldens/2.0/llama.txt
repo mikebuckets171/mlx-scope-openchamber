@@ -13,23 +13,19 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
 #tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="false" data-tab="server"}: Server
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
+#workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#hero {aria-label="Inference activity"}: Live performance | Per-request speed withheld: 2 slots are busy
+#view-live: CPU 22% RAM 21.8 / 48 GiB | Memory normal Thermal normal
+#hero {aria-label="Inference activity"}: Per-request speed withheld: 2 slots are busy
 #model: example-8b-instruct-q4_k_m.gguf
 #attribution: i
 span.chip {data-attr="server" data-outline="" data-reason="overlapping requests"}: Server-wide · overlapping requests
 #rate: 2 requests
 span.val {data-basis="derived"}: Server decode 98.4 tok/s over the last 60 sderived from llama-server counters
-#reply-strip: Last reply | None observed yet · replies appear while Scope is open | Measure next reply | One reply in this chat · arms for 2 min
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 22% RAM 21.8 / 48 GiB Swap 1.1 GiB
-h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
-#mac-details: Mac details
+#reply-strip: Measure next reply
+h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: llama-server
@@ -48,19 +44,12 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #frame-card
 #workspace-nav {aria-label="Scope workspaces"}
 #tablist
-#tab-live {aria-controls="panel-live" aria-selected="false" data-tab="live"}: Live
-#tab-server {aria-controls="panel-server" aria-selected="true" data-tab="server"}: Server
+#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
 #tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#tab-captures {aria-controls="panel-captures" aria-selected="false" data-tab="captures"}: Captures
 #panels
-#panel-server {aria-labelledby="tab-server"}
-[server-runtime]: Ready Runtime llama-server Version b10542 Detected /props answered · high confidence Reports Replies recorded as Observed by Scope
-h2: Runtime
-span.chip: request counts
-span.chip: slots
-span.chip: throughput
-span.chip: speculative decoding
-span.chip: replies
+#panel-live {aria-labelledby="tab-live"}
+#panel-server {aria-labelledby="server-title"}: Back to Live
+#server-title: Server & Mac details
 [server-slots]: i 2 of 4 busy Slot 0 | 412 decoded · 3,180 prompt 32.8K context Slot 1 | 1,290 decoded · 8,420 prompt 32.8K context Slot 2 | Waiting 32.8K context Slot 3 | Waiting 32.8K context
 h2: Slots
 span.chip {data-tone="accent"}: Busy
@@ -79,6 +68,12 @@ span.val {data-basis="reported"}: 3,584 of 5,120
 [server-catalog]: 1 loaded · 1 listed example-8b-instruct-q4_k_m.gguf | Loaded 32.8K context
 h2: Model inventory
 span.chip: gguf
+#server-runtime-details: Runtime details Ready
+#machine {aria-label="This Mac" data-stale="false"}: i | CPU 22% RAM 21.8 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: macOS memory pressure (kernel) | Normal
+[mac-thermal]: Thermal pressure (macOS) i Normal
+#mac-details: Mac details
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: llama-server

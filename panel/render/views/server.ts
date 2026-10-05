@@ -1,5 +1,5 @@
 import type { Block, ServerView } from '../../present/server.ts';
-import { html, type Raw } from '../html.ts';
+import { flag, html, type Raw } from '../html.ts';
 import { callouts, chip, chips, meter, pct100, section, val, type Open } from './parts.ts';
 
 // The Server tab's markup (G2 mock): one card per thing the runtime reports.
@@ -18,5 +18,10 @@ const block = (b: Block): Raw => {
       ${item.reading.length ? html`<div class="resident-reading">${item.reading.map(text => html`<span>${text}</span>`)}</div>` : ''}${item.meter === null ? '' : meter(item.meter)}</li>`)}</ul>`;
   }
 };
-export const serverMarkup = (view: ServerView, open: Open): Raw => html`${callouts(P, view.callouts, open)}${view.cards.map(card =>
-  section(P, card.key, card.title, card.right, card.blocks.map(block), card.tip, open))}`;
+export const serverMarkup = (view: ServerView, open: Open): Raw => {
+  const runtime = view.cards.find(card => card.key === 'runtime');
+  return html`${callouts(P, view.callouts, open)}${view.cards.filter(card => card !== runtime).map(card =>
+    section(P, card.key, card.title, card.right, card.blocks.map(block), card.tip, open))}${runtime ? html`
+<details class="runtime-details" id="server-runtime-details"${flag('open', open.has('server-runtime-details'))}><summary><span>Runtime details</span><span>${runtime.right}</span></summary>
+      ${section(P, runtime.key, runtime.title, '', runtime.blocks.map(block), runtime.tip, open)}</details>` : ''}`;
+};
