@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.1.2
+
+### Changed
+
+- Work Status leads with speed and activity, then model, measurement scope, supported first-token time and context,
+  and a short trace. Last-reply readings keep their age and provenance; warnings stay visible and turn statistics
+  remain expandable within the 200 px section limit.
+- Live and History are the two primary destinations at every width. Live opens Server & Mac details; History opens
+  Captures with separate Reply and Timed window workflows. Resizing preserves the selected destination.
+- Live keeps one next-reply action and a compact Mac summary. History groups insights, alerts and storage in named
+  disclosures, opening storage automatically when action is needed. The full page no longer repeats the latest reply
+  beside a combined Live/History layout.
+- Active capture progress and cancellation remain reachable across navigation. Disclosure state and keyboard focus
+  survive polling, and detailed server data is requested only while diagnostics are visible.
+
+Telemetry contracts, collection cadence, saved history, permissions and connection settings are unchanged.
+
 ## 2.1.1
 
 ### Fixed

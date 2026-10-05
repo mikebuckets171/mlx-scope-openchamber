@@ -68,7 +68,7 @@ Every exec uses an absolute path from `service/lib/argv.ts`, no shell, and a val
 | `lsof -nP -iTCP:<port> -sTCP:LISTEN -t` (oMLX listener) | on a generation change, then every 120 s | — |
 | `footprint -p <pid>` (oMLX only) | 30 s / 10 s | — |
 | `lms ps --json --port <port>` | on a generation change, then every 180 s | — |
-| `lms runtime ls --port <port>` | only while the Server tab is visible, cached 10 min | — |
+| `lms runtime ls --port <port>` | only while Server & Mac details is visible, cached 10 min | — |
 | LM Studio liveness | `GET /lmstudio-greeting` (no spawn) | same |
 | `lms log stream -s server --json --port <port>`, `macmon pipe -i 1000` | streamed, bounded lines, stopped 60 s after the last read | — |
 | **Spawns per minute** | **≤ 24 idle / ≤ 36 active** | **≤ 18** |
