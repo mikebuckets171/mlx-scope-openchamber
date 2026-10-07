@@ -192,6 +192,56 @@ describe('live native decode rates', () => {
   });
 });
 
+describe('recent prefill and generation have independent windows', () => {
+  const prefill = () => {
+    const body = busy(false);
+    Object.assign(body.scheduler, { decoding: 0, waiting_mask: 0, prefilling: 1 });
+    return body;
+  };
+
+  test('prefill uses input-counter deltas and fractional command time, never retained averages or batches', () => {
+    const rates = new SplashRates(), a = prefill();
+    a.metrics.prefill_tokens_per_second = 9999;
+    a.metrics.current_prefill_batch = { valid: true, tokens_per_second: 8888 };
+    const b = after(a, { tokens: [1000, 250.5, 0, 0] }), c = after(b, { tokens: [350, 249.5, 0, 0] });
+    expect(rates.observe(a, 0)).toBeUndefined();
+    expect(rates.observe(b, 1000)).toBeUndefined();
+    expect(rates.observe(c, 2000)).toEqual({ promptTps: 2700, promptWindowMs: 2000, windowMs: 2000 });
+    expect(rates.observe(c, 3000)).toBeUndefined();
+    expect(rates.observe(after(c, { tokens: [450, 250, 0, 0] }), 4000))
+      .toEqual({ promptTps: 2400, promptWindowMs: 4000, windowMs: 4000 });
+  });
+
+  test('mixed work keeps distinct start times and one stage’s rollback does not reset the other', () => {
+    const rates = new SplashRates(), a = busy(true);
+    const b = after(a, { tokens: [100, 200, 100, 1000] }); b.scheduler.prefilling = 1;
+    const c = after(b, { tokens: [600, 500, 100, 1000] }), d = after(c, { tokens: [400, 500, 100, 1000] });
+    expect(rates.observe(a, 0)).toBeUndefined();
+    expect(rates.observe(b, 1000)).toBeUndefined();
+    expect(rates.observe(c, 2000)).toEqual({ decodeTps: 100, windowMs: 2000 });
+    expect(rates.observe(d, 3000)).toEqual({ decodeTps: 100, promptTps: 1000, promptWindowMs: 2000, windowMs: 3000 });
+    const rollback = after(d, { tokens: [1000, 500, 100, 1000] }); rollback.metrics.decode_output_tokens = 1;
+    expect(rates.observe(rollback, 4000)).toEqual({ promptTps: 1333.333, promptWindowMs: 3000, windowMs: 3000 });
+    const stoppedPrefill = after(rollback, { tokens: [0, 0, 100, 1000] }); stoppedPrefill.scheduler.prefilling = 0;
+    expect(rates.observe(stoppedPrefill, 5000)).toBeUndefined();
+    expect(rates.observe(after(stoppedPrefill, { tokens: [0, 0, 100, 1000] }), 6000))
+      .toEqual({ decodeTps: 100, windowMs: 2000 });
+  });
+
+  test('prefill-only, stopped transport and explicit resets cannot retain a generation or prefill window', () => {
+    const rates = new SplashRates(), a = prefill(), b = after(a, { tokens: [200, 1000, 0, 0] });
+    const c = after(b, { tokens: [200, 1000, 0, 0] });
+    rates.observe(a, 0); rates.observe(b, 1000);
+    expect(rates.observe(c, 2000)).toEqual({ promptTps: 200, promptWindowMs: 2000, windowMs: 2000 });
+    const stopped = clone(c); stopped.transport.stopped = true;
+    expect(rates.observe(stopped, 3000)).toBeUndefined();
+    expect(rates.observe(c, 4000)).toBeUndefined();
+    expect(rates.observe(after(c, { tokens: [200, 1000, 0, 0] }), 5000)).toBeUndefined();
+    rates.reset();
+    expect(rates.observe(after(c, { tokens: [400, 2000, 0, 0] }), 6000)).toBeUndefined();
+  });
+});
+
 describe('state precedence (SPIKES S7: recovering > status_stale > not admitting > ready)', () => {
   test.each(FIXTURES.map(item => [`${item.version} ${item.variant}`, item] as const))('%s', (_, { variant, body }) => {
     const result = splashStatus(body, AT);

@@ -66,6 +66,24 @@ test.each(LEAKS)('rejects a body carrying %s', (_, leak) => {
   expect(parseSnapshotV2(body)).toBeNull();
 });
 
+test('server rates preserve an independent prompt window without changing existing shared-window bodies', () => {
+  const rates = (value: Body, capability = true) => parseSnapshotV2(edit(body => {
+    body.runtime.server.rates = value;
+    if (capability) body.capabilities['server.rates'] = { scope: 'server', basis: 'derived' };
+    else delete body.capabilities['server.rates'];
+  }))!.runtime.server.rates;
+  expect(rates({ decodeTps: 50, promptTps: 1000, windowMs: 4000, promptWindowMs: 2350.5 }))
+    .toEqual({ decodeTps: 50, promptTps: 1000, windowMs: 4000, promptWindowMs: 2350.5 });
+  expect(rates({ promptTps: 1000, windowMs: 2500, promptWindowMs: 2500 }))
+    .toEqual({ promptTps: 1000, windowMs: 2500, promptWindowMs: 2500 });
+  expect(rates({ decodeTps: 50, promptTps: 1000, windowMs: 60000 }))
+    .toEqual({ decodeTps: 50, promptTps: 1000, windowMs: 60000 });
+  for (const promptWindowMs of [true, '2500', -1, NaN, Infinity]) {
+    expect(rates({ decodeTps: 50, windowMs: 4000, promptWindowMs })).toEqual({ decodeTps: 50, windowMs: 4000 });
+  }
+  expect(rates({ promptTps: 1000, windowMs: 2500, promptWindowMs: 2500 }, false)).toBeUndefined();
+});
+
 test('values are rebuilt from allowlists: unknown or malformed fields are dropped, lists capped', () => {
   const parsed = parseSnapshotV2(edit(body => {
     body.extra = 'dropped';

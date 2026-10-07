@@ -17,7 +17,7 @@ export const SPLASH_RECOVERING_CACHE_MS = 30_000;
 /** Reads further apart than this bracket a stretch nobody watched: counters that moved across it make no completion. */
 export const SPLASH_GAP_MS = 60_000;
 export const SPLASH_CADENCE_MS = { active: 1_000, idle: 2_000 } as const;
-/** The maximum observation window and continuity gap for recent native decoding. */
+/** The maximum observation window and continuity gap for recent native prefill and decoding. */
 export const SPLASH_RATE_GAP_MS = 5_000;
 export const SPLASH_RATE_MIN_WINDOW_MS = 2_000;
 export const SPLASH_RATE_MIN_SAMPLES = 3;
@@ -131,19 +131,12 @@ const generationKey = (item: Json): string =>
   hash32(JSON.stringify(['instance.id', 'instance.started_at', 'instance.model', 'transport.restarts'].map(path => field(item, path) ?? null)))
     .toString(16).padStart(8, '0');
 
-/**
- * Native decode counters advance after each batch, before the request ends (Splash Status.hpp). Their delta is
- * recent server-wide command throughput, not a request's streamed delivery rate. The reported lifetime average
- * and current_decode_batch are deliberately unused: both retain earlier work while the runtime is idle.
- */
-export class SplashRates {
+/** One native stage's independent counter window. Activity in the other stage cannot establish continuity. */
+class SplashCounterRate {
   private samples: Array<{ key: string; tokens: number; ms: number; at: number }> = [];
 
-  observe(body: unknown, monotonicAt: number): RuntimeV2['server']['rates'] {
-    const item = splashBody(body), scheduler = obj(item?.scheduler), metrics = obj(item?.metrics);
-    const decoding = (count(scheduler?.decoding) ?? 0) + (count(scheduler?.waiting_mask) ?? 0);
-    const tokens = count(metrics?.decode_output_tokens), ms = nonneg(metrics?.decode_wall_ms);
-    if (!item || splashStatus(item).state !== 'ready' || field(item, 'transport.ready') === false || field(item, 'transport.stopped') === true || !decoding
+  observe(item: Json | null, active: number, tokens: number | null, ms: number | null, monotonicAt: number): { tps: number; windowMs: number } | undefined {
+    if (!item || splashStatus(item).state !== 'ready' || field(item, 'transport.ready') === false || field(item, 'transport.stopped') === true || !active
       || tokens === null || ms === null || nonneg(monotonicAt) === null) { this.reset(); return undefined; }
     const current = { key: generationKey(item), tokens, ms, at: monotonicAt }, previous = this.samples.at(-1);
     if (previous && monotonicAt <= previous.at) { this.reset(); return undefined; }
@@ -157,11 +150,33 @@ export class SplashRates {
     if (this.samples.length < SPLASH_RATE_MIN_SAMPLES || windowMs < SPLASH_RATE_MIN_WINDOW_MS
       || tokens <= previous.tokens || ms <= previous.ms) return undefined;
     const deltaTokens = tokens - first.tokens, deltaMs = ms - first.ms;
-    const decodeTps = Math.round(deltaTokens * 1_000_000 / deltaMs) / 1_000;
-    return Number.isFinite(decodeTps) ? { decodeTps, windowMs } : undefined;
+    const tps = Math.round(deltaTokens * 1_000_000 / deltaMs) / 1_000;
+    return Number.isFinite(tps) ? { tps, windowMs } : undefined;
   }
 
   reset(): void { this.samples = []; }
+}
+
+/**
+ * Native stage counters advance after each batch, before the request ends (Splash Status.hpp). Their delta is
+ * recent server-wide command throughput, not a request's streamed delivery rate. Reported lifetime averages
+ * and retained current batches are deliberately unused. Prefill and decode retain separate observation windows.
+ */
+export class SplashRates {
+  private readonly decode = new SplashCounterRate();
+  private readonly prompt = new SplashCounterRate();
+
+  observe(body: unknown, monotonicAt: number): RuntimeV2['server']['rates'] {
+    const item = splashBody(body), scheduler = obj(item?.scheduler), metrics = obj(item?.metrics);
+    const decode = this.decode.observe(item, (count(scheduler?.decoding) ?? 0) + (count(scheduler?.waiting_mask) ?? 0),
+      count(metrics?.decode_output_tokens), nonneg(metrics?.decode_wall_ms), monotonicAt);
+    const prompt = this.prompt.observe(item, count(scheduler?.prefilling) ?? 0,
+      count(metrics?.prefill_input_tokens), nonneg(metrics?.prefill_wall_ms), monotonicAt);
+    return decode || prompt ? defined({ decodeTps: decode?.tps, promptTps: prompt?.tps,
+      promptWindowMs: prompt?.windowMs, windowMs: decode?.windowMs ?? prompt!.windowMs }) : undefined;
+  }
+
+  reset(): void { this.decode.reset(); this.prompt.reset(); }
 }
 
 const emptyRuntime = (at: number): RuntimeV2 => ({ sampledAt: at, phase: 'unknown', request: null, server: { active: null, queued: null },

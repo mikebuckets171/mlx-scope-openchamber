@@ -61,7 +61,8 @@ export interface RuntimeV2 {
     histograms?: { ttftMs?: Quantiles; itlMs?: Quantiles };
     cache?: { ramBytes?: number; ssdBytes?: number; ramEntries?: number; ssdEntries?: number; lastLookup?: 'hit' | 'miss' };
     speculative?: { draftedTokens: number; acceptedTokens: number; acceptanceFraction: number; windowMs: number };
-    rates?: { promptTps?: number; decodeTps?: number; windowMs: number };
+    rates?: { promptTps?: number; decodeTps?: number; windowMs: number;
+              promptWindowMs?: number };    // independent prompt interval; windowMs is decode's when both are present
   };
   memory: { processBytes?: number; modelBytes?: number; metalBytes?: number; metalPeakBytes?: number; ceilingBytes?: number;
             guard?: MemoryGuard };           // §12.4: the oMLX process memory guard, not macOS pressure
@@ -230,7 +231,8 @@ const server = (value: unknown): RuntimeV2['server'] => {
       ssdEntries: int(cache.ssdEntries), lastLookup: opt(oneOf(['hit', 'miss'] as const)(cache.lastLookup)) })) : undefined,
     speculative: drafted !== null && accepted !== null && accepted <= drafted && acceptance !== null && specWindow !== null
       ? { draftedTokens: drafted, acceptedTokens: accepted, acceptanceFraction: acceptance, windowMs: specWindow } : undefined,
-    rates: rateWindow !== null ? defined({ promptTps: num(rates!.promptTps), decodeTps: num(rates!.decodeTps), windowMs: rateWindow }) : undefined,
+    rates: rateWindow !== null ? defined({ promptTps: num(rates!.promptTps), decodeTps: num(rates!.decodeTps), windowMs: rateWindow,
+      promptWindowMs: num(rates!.promptWindowMs) }) : undefined,
   });
 };
 const memory = (value: unknown): RuntimeV2['memory'] => {
