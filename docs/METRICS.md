@@ -54,7 +54,7 @@ value travels without one.
 | Server requests | Active and queued counts; `null` means the runtime cannot count, and nothing is shown |
 | Server averages | Session averages since start: decode, prefill, cache efficiency, request totals, uptime |
 | Server latency | Native first-token and inter-token p50/p95 with sample counts (Splash) |
-| Server rates / speculative | Splish/Splash live decode throughput; llama-server prompt/decode rates and draft acceptance, over a stated window |
+| Server rates / speculative | Splish/Splash recent prefill and generation throughput; llama-server prompt/decode rates and draft acceptance, over a stated window |
 | Server memory (process, model, Metal, ceiling) | Each kept separate; never added together |
 | Server residency, slots, catalog, engines | Loaded models, llama-server slots, available models, `lms runtime ls` engines |
 | Server usage | oMLX's own 7/30/90-day records |
@@ -86,7 +86,8 @@ value travels without one.
 | oMLX process footprint | `footprint` of the process listening on the oMLX port; the process ID never leaves the service |
 | Model allocation | Reported model allocation, separate from process footprint |
 | RAM / SSD cache | Reported server cache sizes, kept separate from model allocation |
-| Splish/Splash recent engine speed | 1,000 × change in native output tokens / change in native decode-command milliseconds, across a rolling observation window of up to five seconds (derived). At least three valid samples spanning two seconds are required; the actual interval is shown. Combined server throughput across all requests, excluding draft candidates |
+| Splish/Splash recent generation speed | 1,000 × change in native output tokens / change in native decode-command milliseconds, across a rolling observation window of up to five seconds (derived). At least three valid samples spanning two seconds are required; the actual interval is shown in the full view or tooltip. Combined server throughput across all requests, excluding draft candidates |
+| Splish/Splash recent prefill speed | 1,000 × change in native processed input tokens / change in native prefill-command milliseconds, using the same qualification rules and an independent observation interval (derived). Combined prompt-processing throughput across all requests; it is not whole-request progress or a cache-reuse percentage |
 | Splash average since engine start | Native lifetime aggregate since engine start, shown separately in Server & Mac details and copied diagnostics |
 | Splash completed / failed | Native counters since engine start; reset on engine restart |
 | Splash Metal allocation | Current and peak Metal allocator values; not process RSS or model-only memory |
@@ -145,14 +146,16 @@ from several requests. Distributed rank summaries do not establish request ident
 
 ## Trends and freshness
 
-Splish/Splash's **Recent engine speed** uses the oldest and newest eligible counter samples within five seconds of the
-latest sample. It does not average individual batch rates. The displayed “last 2–5 s” interval is the span between
-observations; the rate's divisor is accumulated native decode-command time. This engine measurement does not establish
+Splish/Splash's recent **Prefill** and **Generation** speeds each use the oldest and newest eligible counter samples
+within five seconds of the latest sample. They do not average individual batch rates. The “last 2–5 s” interval in
+the full view or tooltip is the span between observations; the rate's divisor is accumulated native command time for
+that stage. The intervals can differ. This engine measurement does not establish
 when tokens arrive in OpenChamber. Independently sampled monitors may report different rates when their windows cover
 different work.
 
-Only fresh, ready, active native decoding can produce a recent rate, and the newest pair must advance both output
-tokens and decode time. A missing rate reads **Collecting samples or waiting for fresh output**, never a lifetime or
+Only fresh, ready, active native work can produce a recent rate, and the newest pair must advance both the stage's
+tokens and command time. Prefill requires active prompt processing; generation requires active decoding or pending
+decode-mask work. A missing rate shows a short waiting state, never a lifetime or
 retained-rate fallback. Idle, stale/malformed data, recovery, disconnect, backwards counters/clocks, endpoint/model/engine
 changes, monitoring pause, and gaps longer than five seconds reset the window. Hidden or energy-saving monitoring with
 longer intervals cannot sustain a recent rate; resuming collects a new baseline. Prompt processing alone does not imply
@@ -206,3 +209,20 @@ observed generation in each window; differences are descriptive, not causal.
 
 Saved captures are user-triggered, timestamped, and sanitized. OpenChamber extension storage retains the 12 newest.
 They contain measurements without model names, request identifiers, credentials, chat content, or private paths.
+
+## Standalone Splash prompt progress
+
+The optional OpenCode companion reads Splash's supported `prompt_progress` stream messages from existing replies.
+`processed / total` is whole-prompt completion, including the `cache` portion; it is separate from prefill speed and
+cache reuse. The companion enables `return_progress: true` on eligible streaming requests without changing the route
+or starting another request. See [companion setup](../bridge/opencode/README.md).
+
+Scope publishes a percentage only with a fresh ready Splash status, one active request reading its prompt, and one
+matching primary response record for the configured provider, endpoint and model. Other response kinds participate
+in ambiguity checks but are not shown as the main prompt. Cached progress stays usable for 15 seconds; after six
+seconds without a newer event it is labelled as the last reading. Progress never advances on a timer. Generation,
+recovery, a connection or server identity change, contradictory counts, and expired records clear it. Pause and resume
+require a newer event before displaying progress again. Near-complete unfinished values stay below 100%.
+
+The existing oMLX percentage remains the current reported stage. Scope does not pretend staged oMLX counts and Splash's
+whole-prompt counts have the same denominator.

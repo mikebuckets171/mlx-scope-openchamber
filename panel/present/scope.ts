@@ -20,6 +20,7 @@ export interface ScopeInput {
   stale?: boolean;                           // the no-fresh-reading deadline passed (otherwise a not-fresh body is refreshing)
   frame: FrameIssue | null;                  // the newest poll had no body
   paused: boolean;
+  efficient?: boolean;
   attribution: AttributionLabel;             // the live reading's label (attribution join)
   chatRuntime: string | null;                // the open chat's runtime name, for "this chat uses …"
   last: LastReply | null;
@@ -39,14 +40,15 @@ export const glanceModel = (model: string): string => (model.split('/').at(-1) ?
 export const heldBySource = (snapshot: SnapshotV2): boolean => snapshot.status.state === 'recovering' || snapshot.status.reason === 'status_stale';
 
 /** Splash's batch counters advance during generation. Other runtimes' server rates may only advance on completion. */
-export const liveSplashRate = (snapshot: SnapshotV2 | null): number | null => {
+export const liveSplashRate = (snapshot: SnapshotV2 | null, stage: 'decode' | 'prefill' = 'decode'): number | null => {
   if (!snapshot || snapshot.connection.runtime !== 'splash' || snapshot.status.state !== 'ready' || snapshot.status.reason !== null
-    || snapshot.capabilities['server.rates']?.basis !== 'derived' || !['decode', 'processing'].includes(snapshot.runtime.phase)
+    || snapshot.capabilities['server.rates']?.basis !== 'derived' || ![stage, 'processing'].includes(snapshot.runtime.phase)
     || !(snapshot.runtime.server.active! > 0)) return null;
-  const rates = snapshot.runtime.server.rates, rate = rates?.decodeTps;
-  return rate !== undefined && Number.isFinite(rate) && rate > 0 && Number.isFinite(rates!.windowMs)
-    && rates!.windowMs >= 2_000 && rates!.windowMs <= 5_000 ? rate : null;
+  const rates = snapshot.runtime.server.rates, prefill = stage === 'prefill', rate = prefill ? rates?.promptTps : rates?.decodeTps;
+  const window = prefill ? rates?.promptWindowMs ?? (rates?.decodeTps === undefined ? rates?.windowMs : undefined) : rates?.windowMs;
+  return rate !== undefined && Number.isFinite(rate) && rate > 0 && window !== undefined && Number.isFinite(window)
+    && window >= 2_000 && window <= 5_000 ? rate : null;
 };
 /** No observer-reason field exists on the wire, so a missing rate cannot distinguish warmup from stalled counters. */
-export const ENGINE_SPEED = 'Recent engine speed';
-export const SPLASH_WAITING = 'Collecting samples or waiting for fresh output';
+export const ENGINE_SPEED = 'Recent generation speed';
+export const SPLASH_WAITING = 'Waiting for update';

@@ -89,3 +89,70 @@ test('a paused frame does not invalidate a continuously visible frame or other r
   expect(paused.state.snapshot).toBe(omlx);
   expect(paused.state.latest.request?.decodeTps).toBe(omlx.runtime.request!.decodeTps);
 });
+
+test.each(['prefill', 'generation'])('qualifying %s does not release the other stage’s older window after pause', first => {
+  const { monitor, clock, state } = harness();
+  monitor.apply(splash(clock.at)); state.userPaused = true; monitor.sync();
+  clock.at += 500; state.userPaused = false; monitor.sync();
+  const mixed = (elapsed: number): Reading => {
+    const reading = splash(clock.at + elapsed, first === 'generation' ? 2_000 : 4_000);
+    reading.body!.runtime.phase = 'processing';
+    Object.assign(reading.body!.runtime.server.rates!, { promptTps: 600, promptWindowMs: first === 'prefill' ? 2_000 : 4_000 });
+    return reading;
+  };
+  const shared = mixed(2_000);
+  monitor.apply(shared);
+  expect(state.snapshot!.runtime.server.rates).toEqual(first === 'generation'
+    ? { decodeTps: 43.8, windowMs: 2_000 }
+    : { promptTps: 600, promptWindowMs: 2_000, windowMs: 2_000 });
+  monitor.apply(mixed(3_000));
+  expect(first === 'generation' ? state.snapshot!.runtime.server.rates?.promptTps : state.snapshot!.runtime.server.rates?.decodeTps).toBeUndefined();
+  monitor.apply(mixed(4_000));
+  expect(state.snapshot!.runtime.server.rates).toMatchObject({ decodeTps: 43.8, promptTps: 600 });
+  expect(shared.body!.runtime.server.rates).toMatchObject({ decodeTps: 43.8, promptTps: 600 });
+});
+
+test('a fresh status cannot restore prompt progress collected before this frame resumed', () => {
+  const { monitor, clock, state } = harness();
+  monitor.apply(splash(clock.at)); state.userPaused = true; monitor.sync();
+  clock.at += 500; state.userPaused = false; monitor.sync();
+  const progress = (observedAt: number, withRate = false): Reading => {
+    const reading = splash(clock.at + 4_000);
+    reading.body!.runtime.phase = 'prefill';
+    if (!withRate) delete reading.body!.runtime.server.rates;
+    else reading.body!.runtime.server.rates = { promptTps: 612, promptWindowMs: 3_200, windowMs: 3_200 };
+    reading.body!.runtime.request = { model: 'Example-27B', prefillFraction: .64, prefillProcessedTokens: 64,
+      prefillTotalTokens: 100, prefillObservedAt: observedAt };
+    reading.body!.capabilities['request.prefillProgress'] = { scope: 'request', basis: 'reported' };
+    return fromSnapshot(reading.body!);
+  };
+  const cached = progress(clock.at - 500);
+  monitor.apply(cached);
+  expect(state.snapshot!.runtime.request).toEqual({ model: 'Example-27B' });
+  expect(state.latest.request?.prefillFraction).toBeUndefined();
+  expect(state.snapshot!.capabilities['request.prefillProgress']).toBeUndefined();
+  expect(cached.body!.runtime.request!.prefillFraction).toBe(.64);
+  expect(cached.body!.capabilities['request.prefillProgress']).toBeDefined();
+
+  // A qualified speed is independent evidence and cannot release the progress watermark.
+  monitor.apply(progress(clock.at - 500, true));
+  expect(state.snapshot!.runtime.server.rates?.promptTps).toBe(612);
+  expect(state.snapshot!.runtime.request?.prefillFraction).toBeUndefined();
+  monitor.apply(progress(clock.at));
+  expect(state.snapshot!.runtime.request?.prefillFraction).toBe(.64);
+  expect(state.latest.request?.prefillObservedAt).toBe(clock.at);
+  expect(state.snapshot!.capabilities['request.prefillProgress']).toBeDefined();
+});
+
+test('switching connections suppresses cached progress without leaving an empty request', () => {
+  const { monitor, state } = harness();
+  monitor.apply(splash(MOCK_NOW));
+  const body = splash(MOCK_NOW + 500, 4_000, 'other').body!;
+  body.runtime.phase = 'prefill'; delete body.runtime.server.rates;
+  body.runtime.request = { model: null, prefillFraction: .64, prefillObservedAt: MOCK_NOW };
+  body.capabilities['request.prefillProgress'] = { scope: 'request', basis: 'reported' };
+  monitor.apply(fromSnapshot(body));
+  expect(state.snapshot!.runtime.request).toBeNull();
+  expect(state.latest.request).toBeNull();
+  expect(state.snapshot!.capabilities['request.prefillProgress']).toBeUndefined();
+});

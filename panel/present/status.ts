@@ -33,6 +33,7 @@ export interface StatusSectionInput {
   // Additions (ui-core, Stage 8): what the glance needs beyond the frozen fields. All optional; absent = not known.
   fresh?: boolean;
   paused?: boolean;
+  efficient?: boolean;
   last?: { completion: CompletionV2; label: AttributionLabel } | null;
   next?: NextReplyState;
   window?: TurnWindow | null;                // the open chat's newest turn window
@@ -78,7 +79,7 @@ export const sparkline = (trend: TrendV2 | null): Spark | null => {
     open = true;
   });
   const values = read.map(bucket => bucket![2]);
-  return { path: path.trim(), label: `Decode speed, last ${Math.round((trend!.windowMs) / 60_000)} min: ${tps(Math.min(...values))} to ${tps(Math.max(...values))} tokens per second` };
+  return { path: path.trim(), label: `Generation speed, last ${Math.round((trend!.windowMs) / 60_000)} min: ${tps(Math.min(...values))} to ${tps(Math.max(...values))} tokens per second` };
 };
 
 /** Chips say something or are left out: pressure and thermal when not normal, GPU busy while a request runs. */
@@ -105,7 +106,7 @@ const statusRow = (label: string, value: string, basis: string | null = null): S
 const basisOf = (basis: Basis): string | null => basis === 'reported' ? null : BASIS_WORD[basis];
 const contextWindow = (snapshot: SnapshotV2 | null): number | null => snapshot?.runtime.request?.contextWindowTokens
   ?? snapshot?.runtime.residency.find(model => model.contextWindowTokens)?.contextWindowTokens ?? snapshot?.runtime.catalog.find(model => model.loaded)?.contextWindowTokens ?? null;
-const usualRow = (usual: VsUsual | null): StatusRow[] => usual ? [statusRow('vs usual', `${delta(usual.ratio - 1)} · n ${usual.n}`, 'derived')] : [];
+const usualRow = (usual: VsUsual | null): StatusRow[] => usual ? [statusRow('vs usual', `${delta(usual.ratio - 1)} · ${usual.n} replies`, 'derived')] : [];
 
 const blank = (line1: GlanceLine1, line2: GlanceLine2 | null, height: number, extra: Partial<StatusSectionView> = {}): StatusSectionView => ({
   mode: 'glance', height, rows: [],
@@ -158,7 +159,7 @@ export const presentGlance = (input: StatusSectionInput): StatusSectionView => {
   if (reason === 'needs_approval') return blank(L1({ title: APPROVAL.title }), { kind: 'note', text: APPROVAL.glance }, HEIGHTS.glance);
   if (reason === 'contract_mismatch') return blank(L1({ title: RESTART.title }), { kind: 'note', text: RESTART.glance }, HEIGHTS.glance);
   if (input.chatIsLocal === false) return { ...blank(L1({ title: NON_LOCAL, muted: true }), null, HEIGHTS.nonLocal), mode: 'non-local' };
-  if (!snapshot) return blank(L1({ dot: reading.reason ? 'warn' : 'idle', title: reading.reason ? 'MLX Scope can’t read its service' : 'Connecting to the local runtime' }),
+  if (!snapshot) return blank(L1({ dot: reading.reason ? 'warn' : 'idle', title: reading.reason ? 'MLX Scope can’t read its service' : 'Connecting to the local server' }),
     reading.message ? { kind: 'note', text: reading.message } : null, HEIGHTS.glance);
   if (input.paused) return blank(L1({ word: 'Paused', model: glanceOr(snapshot) }), { kind: 'note', text: 'Only this monitor is paused; your model keeps running' }, HEIGHTS.glance);
   const status = statusCopy(snapshot);
@@ -166,7 +167,7 @@ export const presentGlance = (input: StatusSectionInput): StatusSectionView => {
     const dot: DotTone = status.severity === 'critical' ? 'bad' : status.severity === 'warning' ? 'warn' : 'idle';
     return blank(L1({ dot, title: status.title, since: sinceText(status.since, now) || null }), { kind: 'note', text: statusGlanceNote(snapshot) }, HEIGHTS.glance);
   }
-  if (input.fresh === false) return blank(L1({ dot: 'warn', title: 'No fresh readings' }), { kind: 'note', text: 'Retained readings are not live' }, HEIGHTS.glance);
+  if (input.fresh === false) return blank(L1({ dot: 'warn', title: 'No fresh readings' }), { kind: 'note', text: 'Waiting for update' }, HEIGHTS.glance);
 
   const alert = alertLine(snapshot), spark = sparkline(input.sparkline), request = snapshot.runtime.request, phase = snapshot.runtime.phase;
   const model = glanceOr(snapshot), next = input.next, last = input.last, chips = glanceChips(snapshot, { gpu: false, skip: alert?.skip });

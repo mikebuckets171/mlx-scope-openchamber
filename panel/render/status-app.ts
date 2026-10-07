@@ -1,7 +1,5 @@
 import type { HostClient, SessionSnapshot } from '@openchamber/sdk';
-import type { TrendV2 } from '../../src/contract/trend.ts';
 import type { SnapshotClient } from '../data/client.ts';
-import { HistoryClient } from '../data/history.ts';
 import type { PrefsV2 } from '../preferences.ts';
 import { presentSessionSection } from '../present/session.ts';
 import type { Pipeline } from '../state/pipeline.ts';
@@ -12,8 +10,6 @@ import { sessionMarkup } from './views/session.ts';
 // The Session summary (surface 'status') stays compact; its text action opens the full Scope panel.
 // Glance tier; it can lead, so it may record and toast.
 
-/** The 15 min sparkline comes from the service trend, refreshed at most this often while the section is visible. */
-export const SPARKLINE_EVERY_MS = 30_000;
 export interface StatusParts { root: HTMLElement; host: HostClient; state: ScopeState; client: SnapshotClient; pipeline: Pipeline; prefs: PrefsV2; visible: () => boolean }
 
 /** A chat is local when its provider is the monitored connection or another local connection the service lists. */
@@ -25,43 +21,29 @@ export const chatIsLocal = (session: SessionSnapshot | null, connection: { id: s
 
 export class StatusApp {
   private height = 0;
-  private trend: TrendV2 | null = null;
-  private trendAt = -Infinity;
   private session: SessionSnapshot | null = null;
   private actionError: string | null = null;
-  private readonly history: HistoryClient;
   private readonly unsubscribe: () => void;
   constructor(private readonly p: StatusParts, session: SessionSnapshot | null) {
     this.session = session;
-    this.history = new HistoryClient(p.host);
     this.unsubscribe = p.host.onSession(next => { this.session = next; this.render(); });
     p.root.addEventListener('click', this.onClick);
   }
   render(): void {
     const { state, pipeline, prefs, client } = this.p, snapshot = state.snapshot, pref = prefs.value, last = state.lastRequest;
     if (state.disposed || !state.mounted) return;
-    this.refreshTrend();
     const view = presentSessionSection({
       now: client.now(), reading: state.latest, snapshot, attribution: pipeline.liveLabel(snapshot), turn: pipeline.turn(),
       vsUsual: last ? pipeline.usualFor(last, snapshot?.connection.runtime ?? null).vsUsual : null,
-      sparkline: this.trend, chatIsLocal: chatIsLocal(this.session, snapshot?.connection ?? null), expanded: pref.statusExpanded === true,
-      tipDismissed: pref.tipDismissed === true, fresh: snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh, paused: state.userPaused,
+      sparkline: null, chatIsLocal: chatIsLocal(this.session, snapshot?.connection ?? null), expanded: pref.statusExpanded === true,
+      tipDismissed: pref.tipDismissed === true, fresh: snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh, paused: state.userPaused, efficient: state.efficient,
       last: last ? { completion: last, label: pipeline.label(last) } : null, next: pipeline.nextState, window: pipeline.window(),
       firstRun: pipeline.firstRun, firstRunDismissed: pref.firstRunDismissed === true,
     });
     const actionError = view.mode === 'summary' ? this.actionError : null;
-    const height = view.height + (actionError ? 36 : 0);
-    morph(this.p.root, sessionMarkup({ ...view, height }, actionError));
+    const height = view.height + (actionError ? 30 - (view.note ? 30 : 0) : 0);
+    morph(this.p.root, sessionMarkup({ ...view, height, note: actionError ? null : view.note }, actionError));
     if (height !== this.height) { this.height = height; void this.p.host.setHeight(height).catch(() => {}); }
-  }
-  /** Only while visible, and never faster than every 30 s; a failed or unserved read leaves "Chart starts after 2 readings". */
-  private refreshTrend(): void {
-    const now = Date.now(), snapshot = this.p.state.snapshot;
-    if (!this.p.visible() || !snapshot || now - this.trendAt < SPARKLINE_EVERY_MS) return;
-    this.trendAt = now;
-    const connection = snapshot.connection;
-    void this.history.trend({ ...connection.id !== 'auto' ? { provider: connection.id } : {}, windowMs: 900_000, series: ['decodeTps'] })
-      .then(result => { if (result.ok) { this.trend = result.body; this.render(); } }).catch(() => {});
   }
   private readonly onClick = (event: MouseEvent): void => {
     const action = (event.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action, prefs = this.p.prefs;

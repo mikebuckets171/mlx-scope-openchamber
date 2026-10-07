@@ -22,7 +22,7 @@ export interface ScopeTextInput { version: string; now: number; snapshot: unknow
 const BASES = ['reported', 'derived', 'observed', 'last-observed', 'estimate'];
 const PRESSURE = ['', 'normal', 'warning', '', 'critical'];
 const THERMAL = ['nominal', 'moderate', 'heavy', 'trapping', 'sleeping'];
-const METRICS: Record<string, string> = { decodeTps: 'decode', prefillTps: 'prefill', ttftMs: 'first token' };
+const METRICS: Record<string, string> = { decodeTps: 'generation', prefillTps: 'prefill', ttftMs: 'first token' };
 
 const round = (value: number, digits = 1): string => String(+value.toFixed(digits));
 const secs = (ms: number): string => ms < 1_000 ? `${Math.round(ms)} ms` : `${round(ms / 1000, 2)} s`;
@@ -73,7 +73,7 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
   const runtimeBody = obj(body.runtime), status = obj(body.status);
   const phase = code(runtimeBody?.phase) ?? 'unknown', reason = code(status?.reason), state = code(status?.state) ?? 'unknown';
   const sampledAt = nonneg(runtimeBody?.sampledAt) ?? serverNow;
-  line('Runtime', [runtime === 'lmstudio' && (splash || bionic) ? `${splash ? 'Splash via ' : ''}${bionic ? 'Bionic' : 'LM Studio'}`
+  line('Server', [runtime === 'lmstudio' && (splash || bionic) ? `${splash ? 'Splash via ' : ''}${bionic ? 'Bionic' : 'LM Studio'}`
     : runtime ? runtimeNames[runtime] : 'unknown', typeof version === 'string' && /^[\w.+-]{1,40}$/.test(version) && `version ${version}`,
   `status ${state}${reason ? ` (${reason})` : ''}`, `phase ${phase}`,
   `reading ${secs(Math.max(0, serverNow - sampledAt))} old`]);
@@ -89,9 +89,9 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
     const eta = progress !== null && progress < 1 && !stale && prefill ? value(request, 'prefillEtaMs', 'request.prefillEta') : null;
     const context = value(request, 'contextUsedTokens', 'request.context') ?? value(request, 'promptTokens', 'request.tokens');
     const ttft = value(request, 'ttftMs', 'request.ttft');
-    line('Current request', [rate('decode', request, 'decodeTps', 'request.decodeRate'), !stale && rate('prefill', request, 'prefillTps', PREFILL),
+    line('Current request', [rate('generation', request, 'decodeTps', 'request.decodeRate'), !stale && rate('prefill', request, 'prefillTps', PREFILL),
       progress !== null && tagged(`prefill ${progressPct(progress)} ${standalone ? 'of the whole prompt, including cached tokens' : 'of this stage'}${stale ? ', held' : ''}`, PROGRESS),
-      eta !== null && `about ${secs(eta)} left (runtime estimate)`, ttft !== null && tagged(`first token ${secs(ttft)}`, 'request.ttft'),
+      eta !== null && `about ${secs(eta)} left (server estimate)`, ttft !== null && tagged(`first token ${secs(ttft)}`, 'request.ttft'),
       context !== null && bucket(context)]);
   }
 
@@ -104,8 +104,8 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
     return (!recent || interval !== null && (!standalone || basis(RATES) === 'derived' && interval >= 2000 && interval <= 5000 && active
       && (phase === stage || phase === 'processing') && state === 'ready' && status?.reason === null
       && Math.max(serverNow, now) - sampledAt <= Math.max(6000, 2 * (nonneg(body.nextPollMs) ?? 2000) + 1000)))
-      && rate(recent ? standalone ? `recent ${prefill ? stage + ' ' : ''}engine speed over ${secs(interval!)} (${prefill ? 'input' : 'output'}/native ${stage} time)`
-        : `decode over ${secs(interval!)}` : standalone ? `${prefill ? stage + ' ' : ''}average since engine start` : `average ${stage}`,
+      && rate(recent ? standalone ? `recent ${prefill ? 'prefill' : 'generation'} speed over ${secs(interval!)} (${prefill ? 'input/time reading prompts' : 'output/time generating'})`
+        : `generation over ${secs(interval!)}` : standalone ? `${prefill ? 'prefill' : 'generation'} average since model start` : `average ${prefill ? 'prefill' : 'generation'}`,
       server, `${recent ? 'rates' : 'averages'}.${prefill && recent ? 'prompt' : stage}Tps`, recent ? RATES : AVERAGES);
   };
   const ttft = basis(LATENCY) ? obj(at(server, 'histograms.ttftMs')) : null, p50 = nonneg(ttft?.p50), p95 = nonneg(ttft?.p95);
@@ -114,7 +114,7 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
     .filter(Boolean).join(', '), REQUESTS),
     speed(false, false), speed(true, false),
     p50 !== null && p95 !== null && p50 <= p95 && ttft?.window === 'native-last-4096'
-      && tagged(`first token p50 ${secs(p50)} p95 ${secs(p95)} over ${nonneg(ttft.n)} requests`, LATENCY),
+      && tagged(`first token typically ${secs(p50)}, 95% within ${secs(p95)} over ${nonneg(ttft.n)} requests`, LATENCY),
     speed(false, true), standalone && speed(true, true)]);
 
   const last = lastReply(body, basis('server.completions'));
@@ -122,14 +122,14 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
     const n = (key: string): number | null => nonneg(last[key]), prompt = n('promptTokens'), cached = n('cachedTokens'), verdict = obj(last.verdict);
     const decode = n('decodeTps'), prefill = n('prefillTps'), first = n('ttftMs'), attr = code(verdict?.attr);
     line(`Last finished reply (${secs(Math.max(0, serverNow - n('finishedAt')!))} ago, ${last.basis})`, [
-      decode !== null && `decode ${round(decode)} tok/s`, prefill !== null && `prefill ${round(prefill)} tok/s`, first !== null && `first token ${secs(first)}`,
+      decode !== null && `generation ${round(decode)} tok/s`, prefill !== null && `prefill ${round(prefill)} tok/s`, first !== null && `first token ${secs(first)}`,
       prompt !== null && bucket(prompt), prompt && cached !== null && cached <= prompt && `${pct(cached / prompt)} cached`,
       (last.overlapped === true || (n('aggregateOf') ?? 0) > 1) && 'may mix several requests']);
-    line('Label', [attr === 'inferred' ? 'inferred for Scope’s chat at sampling time' : attr === 'armed' ? 'armed Next reply'
+    line('Label', [attr === 'inferred' ? 'likely this chat at the time recorded' : attr === 'armed' ? 'Next reply'
       : `server-wide (${attr === 'withheld' && code(verdict?.reason) || 'not labelled'})`]);
     if (vsUsual !== undefined) line('vs usual', [vsUsual === null ? 'history unavailable'
       : vsUsual.filter(item => METRICS[item.metric] && item.ratio > 0 && item.n >= 5)
-        .map(item => `${METRICS[item.metric]} ${round(item.ratio, 2)}× (n=${item.n})`).join(', ') || 'no baseline yet']);
+        .map(item => `${METRICS[item.metric]} ${round(item.ratio, 2)}× (${item.n} replies)`).join(', ') || 'no baseline yet']);
   }
 
   const host = at(body, 'host'), level = value(host, 'mac.pressureLevel', 'host.pressure', 4), thermal = value(host, 'thermal.level', 'host.thermal', 4);
@@ -147,7 +147,7 @@ export const scopeText = (input: ScopeTextInput): string => {
   const usable = body?.contractVersion === CONTRACT_VERSION ? body : null;
   const lines = [`${SCOPE_HEADER}.`,
     `MLX Scope ${input.version}: local server/Mac; replies labelled separately. No chat content, model names, paths or IDs.`, '',
-    ...usable ? scopeLines(usable, input.vsUsual, input.now) : ['No runtime reading.']];
+    ...usable ? scopeLines(usable, input.vsUsual, input.now) : ['No server reading.']];
   return clamp(redact(lines.join('\n'), usable ? modelNames(usable).filter(name => typeof name === 'string') as string[] : []), SCOPE_TEXT_MAX_CHARS);
 };
 /** `version`'s README: releases link their tag, prereleases `main` (the connection-help.ts link rule). */

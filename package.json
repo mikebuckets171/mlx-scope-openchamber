@@ -89,7 +89,7 @@
     "build:service": "bun build service/main.ts --target=node --format=esm --minify --outfile=service/main.js",
     "build:background": "openchamber-guest-bundle background/main.ts background/main.js && bun scripts/minify-guest.ts background/main.js",
     "type-check": "tsc --noEmit",
-    "test": "bun test ./service ./src ./panel ./background ./scripts ./tests/fixtures",
+    "test": "bun test ./service ./src ./panel ./background ./scripts ./tests/fixtures && node --test bridge/opencode/bridge.test.js",
     "preview": "bun run build:panel && bun run build:background && bun tests/browser/server.ts",
     "test:browser": "playwright test",
     "test:goldens": "playwright test tests/browser/goldens.spec.ts",
@@ -129,6 +129,11 @@
     "docs/CONFIGURATION.md",
     "docs/METRICS.md",
     "docs/ARCHITECTURE.md",
-    "docs/COMPATIBILITY.md"
+    "docs/COMPATIBILITY.md",
+    "bridge/opencode/README.md",
+    "bridge/opencode/package.json",
+    "bridge/opencode/index.js",
+    "bridge/opencode/store.js",
+    "bridge/opencode/stream.js"
   ]
 }

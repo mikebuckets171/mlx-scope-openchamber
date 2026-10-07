@@ -66,19 +66,31 @@ export class Monitor {
   /** Each frame starts afresh after a pause or connection switch without resetting other frames' shared samples. */
   private afterSplashBoundary(reading: Reading): Reading {
     const body = reading.body, boundary = this.splashBoundaryAt;
-    if (boundary === null || body?.connection.runtime !== 'splash' || !body.runtime.server.rates) return reading;
-    const rates = body.runtime.server.rates, sampledAt = body.runtime.sampledAt;
-    if (sampledAt !== undefined && Number.isFinite(sampledAt) && Number.isFinite(rates.windowMs)
-      && rates.windowMs >= 2_000 && rates.windowMs <= 5_000
-      && sampledAt - rates.windowMs >= boundary) {
-      this.splashBoundaryAt = null;
-      return reading;
-    }
-    // Only the recent observation is interrupted. Lifetime statistics, host data and completions retain their
-    // separate bases, and the service body stays untouched for other consumers.
+    if (boundary === null || body?.connection.runtime !== 'splash') return reading;
+    const source = body.runtime.server.rates, sampledAt = body.runtime.sampledAt;
+    const follows = (window: number | undefined): boolean => sampledAt !== undefined && window !== undefined
+      && window >= 2_000 && window <= 5_000 && sampledAt - window >= boundary;
+    const rates = { ...source };
+    if (source && !follows(source.windowMs)) delete rates.decodeTps;
+    if (source && !follows(source.promptWindowMs ?? (source.decodeTps === undefined ? source.windowMs : undefined))) { delete rates.promptTps; delete rates.promptWindowMs; }
+    const previous = body.runtime.request;
+    const oldProgress = previous?.prefillFraction !== undefined && !(previous.prefillObservedAt !== undefined && previous.prefillObservedAt >= boundary);
+    if (!oldProgress && (!source || rates.decodeTps === source.decodeTps && rates.promptTps === source.promptTps)) return reading;
+    // Keep the boundary for both stages: qualifying generation must not release an older prefill window.
+    // The shared service body, lifetime statistics, host data and completions retain their separate bases.
     const server = { ...body.runtime.server }, capabilities = { ...body.capabilities };
-    delete server.rates; delete capabilities['server.rates'];
-    return { ...reading, body: { ...body, capabilities, runtime: { ...body.runtime, server } } };
+    if (source) {
+      if (rates.decodeTps === undefined && rates.promptTps === undefined) { delete server.rates; delete capabilities['server.rates']; }
+      else { if (rates.decodeTps === undefined) rates.windowMs = rates.promptWindowMs ?? rates.windowMs; server.rates = rates as typeof source; }
+    }
+    let request = previous;
+    if (oldProgress) {
+      request = { ...previous! };
+      for (const key of ['prefillFraction', 'prefillProcessedTokens', 'prefillTotalTokens', 'prefillStale', 'prefillObservedAt', 'prefillEtaMs', 'prefillTps'] as const) delete request[key];
+      delete capabilities['request.prefillProgress']; delete capabilities['request.prefillEta']; delete capabilities['request.prefillRate'];
+      if (!Object.values(request).some(value => value != null)) request = null;
+    }
+    return { ...reading, request, body: { ...body, capabilities, runtime: { ...body.runtime, server, request } } };
   }
 
   clearFreshness(): void { const state = this.p.state; if (state.freshnessTimer !== null) clearTimeout(state.freshnessTimer); state.freshnessTimer = null; }

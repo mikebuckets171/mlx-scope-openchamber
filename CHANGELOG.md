@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.1.5
+
+### Added
+
+- Real standalone Splash prompt progress through an optional OpenCode companion bundled with the update. The
+  percentage uses Splash's processed/total prompt counts, includes cached tokens, and clears when the reply starts
+  or a fresh single request cannot be established. Existing oMLX progress remains supported.
+
+### Changed
+
+- The Session sidebar follows OpenChamber's Turn stats layout, with simple label/value rows for prompt progress,
+  prefill speed and generation speed. The model, warnings and **Open MLX Scope** action stay compact.
+  Labels and help text across Scope use plain language. Measurement explanations remain in the full view and tooltips.
+- Standalone Splish/Splash now shows recent prefill and generation speeds separately. Each uses its own fresh
+  observations and native command time; neither falls back to an old batch speed or an average since engine start.
+- Live, compact views and copied diagnostics keep the two stages and their observation intervals separate.
+  Lifetime averages remain available in Server & Mac details. Existing oMLX progress and speed support is preserved.
+
+### Fixed
+
+- Speeds clear when monitoring pauses or readings become stale, unavailable or interrupted. Resuming waits for
+  fresh observations. Recovery and setup messages take priority over retained activity.
+
+The update preserves saved history, preferences, permissions and the existing passive monitoring cadence.
+
 ## 2.1.4 (local)
 
 ### Fixed

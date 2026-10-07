@@ -63,8 +63,8 @@ export class WindowCapture {
     if (!s || s.status !== 'recording') return;
     const now = snapshot.serverNow;
     if (now < s.endedAt || now - s.endedAt > WINDOW_GAP_MS) { this.stop('Monitoring gap'); return; }
-    if (identity(snapshot) !== this.connection) { this.stop('The connection or runtime changed'); return; }
-    if (!usable(snapshot)) { this.stop('The runtime stopped answering'); return; }
+    if (identity(snapshot) !== this.connection) { this.stop('The connection or server changed'); return; }
+    if (!usable(snapshot)) { this.stop('The server stopped answering'); return; }
     // A late poll cannot supply the unobserved end of the window.
     const end = Math.min(now, s.startedAt + s.targetMs);
     s.endedAt = end;

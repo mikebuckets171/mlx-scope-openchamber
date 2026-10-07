@@ -10,14 +10,14 @@ value that is not reported directly by the runtime says how it was obtained.
 
 | Runtime | Readings |
 | --- | --- |
-| **oMLX** | Prefill remaining and stage estimate, generation and recent output speed, context and reuse, model activity, cache, process footprint, and a 7/30/90-day usage card "Recorded by oMLX" |
+| **oMLX** | Prompt progress, remaining work and time estimate, generation and recent output speed, context and reuse, model activity, cache, process footprint, and a 7/30/90-day usage card "Recorded by oMLX" |
 | **Splash via Bionic** *(recommended for Splash)* | Your Splash models with a Splash badge and which one is loaded; live prompt reading and generating; exact tok/s, first-token time, context use and input reuse for each finished response; loaded instances and an Engines card from `lms` |
 | **LM Studio** | Available and loaded models, format and context limits; with the `lms` CLI installed, the same live request state and exact per-response figures as Bionic |
 | **llama-server** | Health, context, model and slots, with live speed while exactly one slot is busy; server rates and speculative-decoding acceptance with `--metrics` |
 | **Ollama** | Which models are resident, their GPU-resident size as Ollama reports it, and when each unloads. Ollama reports residency only |
 | **vllm-mlx** | Reported request activity, queue, output and speed; prefill and reuse where the engine exposes usable data |
 | **mlx-lm** | Server availability and the available model catalogue |
-| **Splish / Splash (standalone)** | Recent engine speed across all requests in the main view and Session widget, with the actual 2–5-second observation window; average since engine start shown separately; loaded model and context, idle/generating/recovering state, first-token and inter-token p50/p95 from Splash itself, completed/failed counters, vision chips, and GPU (Metal) memory now/peak |
+| **Splish / Splash (standalone)** | Real prompt progress with the optional OpenCode companion, plus separate recent prefill and generation speeds across all requests in the main view and Session widget; each stage's actual 2–5-second observation interval and average since engine start in the full view; loaded model and context, idle/generating/recovering state, typical and slow first-token and between-token times from Splash itself, completed/failed counters, vision chips, and GPU (Metal) memory now/peak |
 
 On macOS, every runtime also gets host readings: CPU, memory, swap, the kernel's memory pressure level, the GPU
 wired-memory limit, GPU busy and GPU memory as the graphics driver reports them, thermal pressure, and optionally a chip
@@ -31,8 +31,9 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
 
 ## Where MLX Scope shows up
 
-- **Work Status section.** A compact summary in the Session pane: activity and speed lead, followed by the model
-  and plain measurement scope. Completed reply measurements keep their age; idle and unavailable states stay
+- **Work Status section.** A compact summary in the Session pane, following Turn stats' simple label/value rows.
+  Prompt progress appears when the runtime reports it; prefill and generation speeds stay separate. Measurement
+  details are available in tooltips and the full view. Completed reply measurements keep their age; idle and unavailable states stay
   concise. Memory warnings remain visible in one row. **Open MLX Scope** opens the full view for turn statistics,
   charts and controls. Cloud chats show a neutral, single-line state. Typography, alignment and the transparent
   background follow the surrounding OpenChamber rows. The section runs only while the Work Status panel is open
@@ -53,24 +54,39 @@ colors use the host's semantic palette; the Session widget lets the surrounding 
 A view that is hidden (a rail tab behind another tab, a collapsed section, a closed page, a hidden window) makes no
 requests. With several views open, one visible view at a time records history and raises toasts.
 
+## Prompt progress for standalone Splash
+
+Splash's normal status readings provide speed but do not provide the current prompt's total size. The optional
+[OpenCode companion](bridge/opencode/README.md) enables Splash's own progress messages on existing streaming replies.
+With it installed, **Prompt progress** shows the portion read, including tokens reused from cache. Both the Session
+section and the full view show the percentage. It clears when the response starts, stops, or becomes uncertain.
+
+The companion is included in the installation ZIP and does not activate automatically. Add `bridge/opencode` to
+OpenCode's existing plugin list using the companion's setup instructions. OpenCode 2.0.22 is verified with the
+OpenAI-compatible provider used by Splash; older OpenCode versions may not expose the needed response hooks. New
+replies acquire progress after activation; an already running reply cannot acquire it retroactively.
+
+oMLX keeps its existing progress support and does not need the companion. A missing or ambiguous Splash progress
+record produces no percentage; Scope does not estimate one from elapsed time or speed.
+
 ## Per-chat labels
 
 Readings are **server-wide** unless Scope can tell they belong to the open chat. A finished reply is labelled
-**"This chat · inferred"** only when all of these hold across it:
+**"Likely this chat"** only when all of these hold across it:
 - the open chat uses the connection Scope watches, with the same model;
 - the runtime counts its requests, and at most one was active at every sample;
 - the reply falls inside a turn Scope saw start and finish, with no gap in its samples;
 - auto-labelling is on (the default).
 
-Otherwise the reply stays "Server-wide" with one reason, such as "This chat uses Splash · Watch Splash". **Limits:**
+Otherwise the reply stays "All server activity" with one reason, such as "This chat uses Splash · Watch Splash". **Limits:**
 - Scope does not request the `sessions` permission, so it cannot see other chats. Another chat alternating requests on
   the same runtime during this turn can't be ruled out.
 - OpenChamber's own background model calls, such as title generation, can fall inside a labelled turn.
 - A view opened mid-turn starts labelling at the next turn.
 - Ollama and mlx-lm don't report per-request activity, so their readings are never labelled per chat.
 
-**Next reply · armed.** Arm it to measure your next reply in this chat. It waits up to 2 minutes for you to send, follows
-the reply for up to 10 minutes, and records it as "Next reply · armed".
+**Measure next reply.** Start it to measure your next reply in this chat. It waits up to 2 minutes for you to send, follows
+the reply for up to 10 minutes, and records it as "Next reply".
 - It won't arm when the chat's provider or model differs from the watched connection; it offers "Watch …" instead.
 - It cancels when you switch chats, when the runtime becomes unavailable, or when the Scope view is hidden or closed.
 - Every step must pass the one-active-request rule. A step that fails is kept as server-wide, and the turn gets no
@@ -145,7 +161,7 @@ them at a time, and a sent chip stays in the chat's session record like any atta
    https://github.com/mikebuckets171/mlx-scope-openchamber
    ```
 
-Alternatively, install the named versioned `mlx-scope-openchamber-<version>.zip` from
+Alternatively, install the named versioned `mlx-scope-openchamber-2.1.5.zip` from
 [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest), or the supplied local package. Use the named install package, not
 GitHub's generated source archives. The ZIP includes built JavaScript; installing it needs no build toolchain.
 
@@ -198,7 +214,7 @@ still the previous version, pause MLX Scope and resume it in Settings → Extens
 ## What the readings mean
 
 Readings are **server-wide**: they describe the whole runtime and the whole Mac, not the selected chat, unless a reply is
-labelled "This chat · inferred" or "Next reply · armed". Values the runtime doesn't report are left out. Idle time is a
+labelled "This chat · inferred" or "Next reply". Values the runtime doesn't report are left out. Idle time is a
 gap in a chart, never a zero. Held or stale readings are labelled, and every value that isn't reported directly carries
 its basis: derived, observed, last observed or estimate.
 

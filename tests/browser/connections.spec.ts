@@ -18,7 +18,7 @@ const choose = async (page: Page, provider: string, runtime = '') => {
   const frame = page.frameLocator('iframe');
   await menu(frame, '#connection-change');
   await frame.getByLabel('Connection', { exact: true }).selectOption(provider);
-  await frame.getByLabel('Runtime', { exact: true }).selectOption(runtime);
+  await frame.getByLabel('Server type', { exact: true }).selectOption(runtime);
   await frame.getByRole('button', { name: 'Use connection', exact: true }).click();
 };
 const server = async (frame: FrameLocator) => frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
@@ -29,7 +29,8 @@ test('a chosen connection is stored without credentials, sent with each poll, an
   await expect(frame.locator('#prefill-percent')).toHaveText('64%');
   await choose(page, 'studio');
   await expect(frame.locator('#connection')).toHaveText('LM Studio local');
-  await expect(frame.locator('#rate')).toHaveText('Connected');
+  await expect(frame.locator('.instrument-heading h2')).toHaveText('Connected');
+  await expect(frame.locator('#rate')).toHaveCount(0);
   await expect(frame.locator('#hero')).toContainText('LM Studio lists its models · no live request readings');
   await expect(frame.locator('#metrics')).toHaveCount(0);
   await expect(frame.locator('.machine-summary')).toBeVisible();
@@ -63,20 +64,21 @@ test('standalone Splash: server-wide averages and Metal memory stay separate, an
   await choose(page, 'splash');
   await expect(frame.locator('#connection')).toHaveText('Inco AI Splash');
   await expect(frame.locator('#model')).toHaveText('incoai/Qwen3.8-27B-Splash');
-  await expect(frame.locator('#rate')).toHaveText('Idle');
+  await expect(frame.locator('.instrument-heading h2')).toHaveText('Idle');
+  await expect(frame.locator('#rate')).toHaveCount(0);
   await expect(frame.locator('#metrics')).toHaveCount(0);
   await server(frame);
   await expect(frame.locator('[data-key="server-session"]')).toContainText('47.2 tok/s');
   await expect(frame.locator('[data-key="server-session"]')).toContainText('1 failed');
-  await expect(frame.locator('[data-key="server-memory"]')).toContainText('Metal memory');
+  await expect(frame.locator('[data-key="server-memory"]')).toContainText('GPU allocations');
   await expect(frame.locator('[data-key="server-memory"]')).toContainText('11.6 GiB');
   expect(await frame.locator('#scope').evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   await openMenu(frame); await frame.getByRole('button', { name: 'Share', exact: true }).click();
   await frame.getByRole('menuitem', { name: 'Copy stats', exact: true }).click();
   await expect(frame.locator('#action-status')).toContainText('Stats copied');
   const shared = await page.evaluate(() => (window as W).previewCopied as string);
-  expect(shared).toContain('Splash average since engine start (all requests): 47.2 tok/s');
-  expect(shared).not.toMatch(/Recent engine speed[^\n]*47\.2 tok\/s/);
+  expect(shared).toContain('Splash average generation speed since model start (all requests): 47.2 tok/s');
+  expect(shared).not.toMatch(/Recent generation speed[^\n]*47\.2 tok\/s/);
   expect(shared).not.toContain('Qwen3.8-27B-Splash');
 });
 
@@ -94,7 +96,8 @@ test('Splash in Bionic is named, keeps its last reply exact, and lists its Splas
   await expect(frame.locator('#connection')).toHaveText('Splash via Bionic');
   await expect(frame.locator('#phase')).toHaveText('Generating');
   await expect(frame.locator('#model')).toHaveText('local/qwen3.8-27b-splash-levels');
-  await expect(frame.locator('#rate')).toHaveText('Working');
+  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('[data-stage="generation"]')).toContainText('Measuring…');
   await expect(frame.locator('#reply-strip')).toContainText('38.6');
   await expect(frame.locator('#reply-strip')).toContainText('0.50 s');
   await expect(frame.locator('#panel-live')).not.toContainText(/LM Studio|not reported/);
@@ -143,7 +146,7 @@ test('switching while paused keeps the pause and discards the previous connectio
   expect(await page.evaluate(() => (window as W).previewRequests)).toBe(before);
   await frame.locator('#pause').click();
   await expect(frame.locator('#connection')).toHaveText('LM Studio local');
-  await expect(frame.locator('#reply-strip')).toHaveCount(0);
+  await expect(frame.locator('#last-reply')).toHaveCount(0);
 });
 
 test('a late response from the previous connection cannot repaint its readings', async ({ page }) => {
@@ -165,7 +168,7 @@ test('an automatic discovery that lands on another runtime clears the previous o
   await page.evaluate(() => { (window as W).previewAutoProvider = 'studio'; });
   await menu(frame, '#refresh');
   await expect(frame.locator('#connection')).toHaveText('LM Studio local');
-  await expect(frame.locator('#reply-strip')).toHaveCount(0);
+  await expect(frame.locator('#last-reply')).toHaveCount(0);
 });
 
 test('detailed vllm-mlx readings keep the prefill progress and its runtime estimate', async ({ page }) => {
@@ -173,5 +176,5 @@ test('detailed vllm-mlx readings keep the prefill progress and its runtime estim
   await choose(page, 'vllm');
   await expect(frame.locator('#connection')).toHaveText('vllm-mlx local');
   await expect(frame.locator('#prefill-percent')).toHaveText('64%');
-  await expect(frame.locator('#prefill-progress')).toContainText('Runtime estimate · may change');
+  await expect(frame.locator('#prefill-progress')).toContainText('Server estimate');
 });

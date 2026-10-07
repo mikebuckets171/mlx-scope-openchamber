@@ -2,8 +2,9 @@ import type { CapabilityKey } from '../../src/contract/capabilities.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { connName, PHASE, rtName } from './copy.ts';
 import { clock, dur, int, kt, pct, size, tps } from './format.ts';
-import { callouts, splashRateTip, tip, type Callout, type Chip, type Tip, type Val } from './parts.ts';
-import { ENGINE_SPEED, heldBySource, liveSplashRate } from './scope.ts';
+import { callouts, tip, type Callout, type Chip, type Tip, type Val } from './parts.ts';
+import { heldBySource, liveSplashRate } from './scope.ts';
+import { SPLASH_SPEED_HELP } from './speeds.ts';
 
 // The Server tab (plan §5.9, G2 mock): the runtime card with its detection basis, then only the cards the runtime can
 // fill: slots, throughput, speculative decoding, native latency, memory and ceiling, cache, residency or lms instances,
@@ -24,33 +25,33 @@ const labelled = <T>(label: string, value: T, small?: string): { label: string; 
 const values = (items: ValueBlock['items'], cols: 2 | 3, big?: boolean): ValueBlock => ({ kind: 'values', cols, items, ...big !== undefined ? { big } : {} });
 const card = (key: string, title: string, right: string, detail: Tip | string[] | null, blocks: Block[], tipKey = key): ServerCard =>
   ({ key, title, right, tip: Array.isArray(detail) ? tip(tipKey, title, detail) : detail, blocks });
-const REPORTS: ReadonlyArray<readonly [CapabilityKey, string]> = [['request.decodeRate', 'per-request speed'], ['request.prefillProgress', 'prefill progress'],
-  ['server.requests', 'request counts'], ['server.cache', 'cache'], ['server.memory.model', 'model memory'], ['server.memory.metal', 'Metal memory'],
-  ['server.averages', 'server averages'], ['server.latency', 'latency percentiles'], ['server.slots', 'slots'], ['server.rates', 'throughput'],
-  ['server.speculative', 'speculative decoding'], ['server.residency', 'loaded models'], ['server.engines', 'engines'], ['server.usage', 'usage history'],
+const REPORTS: ReadonlyArray<readonly [CapabilityKey, string]> = [['request.decodeRate', 'per-request speed'], ['request.prefillProgress', 'prompt progress'],
+  ['server.requests', 'request counts'], ['server.cache', 'cache'], ['server.memory.model', 'model memory'], ['server.memory.metal', 'GPU allocations'],
+  ['server.averages', 'server averages'], ['server.latency', 'response timing'], ['server.slots', 'slots'], ['server.rates', 'speeds'],
+  ['server.speculative', 'speculative decoding'], ['server.residency', 'loaded models'], ['server.engines', 'model software'], ['server.usage', 'usage history'],
   ['server.completions', 'replies']];
 const STATE_WORD: Record<SnapshotV2['status']['state'], string> = { ready: 'Ready', degraded: 'Limited', recovering: 'Recovering', failing: 'Not responding', detecting: 'Detecting', unconfigured: 'Not set up' };
-const RECORDED: Record<string, string> = { reported: 'Reported by the runtime', 'last-observed': 'Last observed by Scope', derived: 'Derived from counters', observed: 'Observed by Scope', estimate: 'Estimated' };
+const RECORDED: Record<string, string> = { reported: 'From server', 'last-observed': 'Last reading', derived: 'Calculated', observed: 'Measured', estimate: 'Estimated' };
 
 const runtimeCard = (s: SnapshotV2): ServerCard => {
   const c = s.connection, reports = REPORTS.filter(([key]) => s.capabilities[key]).map(([, text]) => ({ text })), replies = s.capabilities['server.completions'];
-  const rows: Array<{ label: string; value: string; chips?: Chip[] }> = [labelled('Runtime', connName(c))];
+  const rows: Array<{ label: string; value: string; chips?: Chip[] }> = [labelled('Server', connName(c))];
   if (c.runtime) rows.push(labelled('Version', c.version ?? 'Not reported'));
-  if (c.engine) rows.push(labelled('Engine', c.engine === 'splash' ? 'Splash runtime pack' : c.engine));
+  if (c.engine) rows.push(labelled('Model software', c.engine === 'splash' ? 'Splash' : c.engine));
   rows.push(labelled('Detected', c.detection.probe ? `${c.detection.probe} answered · ${c.detection.confidence} confidence`
     : c.detection.basis === 'explicit' ? 'Chosen under Connection' : c.detection.basis === 'hint' ? `From its connection name · ${c.detection.confidence} confidence` : `${c.detection.confidence} confidence`));
   rows.push({ label: 'Reports', value: reports.length ? '' : 'Nothing yet', chips: reports });
   if (c.runtime) rows.push(labelled('Replies recorded as', replies ? RECORDED[replies.basis] ?? replies.basis : `None · ${rtName(c)} doesn’t report them`));
-  return card('runtime', 'Runtime', s.status.reason === 'sleeping' ? 'Asleep' : STATE_WORD[s.status.state], null, [{ kind: 'kv', rows }]);
+  return card('runtime', 'Server', s.status.reason === 'sleeping' ? 'Asleep' : STATE_WORD[s.status.state], null, [{ kind: 'kv', rows }]);
 };
 const memoryCard = (s: SnapshotV2): ServerCard | null => {
   const m = s.runtime.memory, held = heldBySource(s);
-  if (m.metalBytes != null) return card('memory', 'Runtime memory', `Splash · ${held ? 'last observed' : 'reported'}`, ['Splash Metal allocation is separate from process memory; This Mac compares it to the macOS GPU wired limit.'], [values([labelled('Metal memory', v(size(m.metalBytes))), ...m.metalPeakBytes != null ? [labelled('Metal peak', v(size(m.metalPeakBytes)))] : []], 2)], 'mem');
+  if (m.metalBytes != null) return card('memory', 'Model memory', `Splash · ${held ? 'last reading' : 'from server'}`, ['Splash reports memory used for GPU work separately from its process memory. This Mac compares it with the macOS limit for GPU work.'], [values([labelled('GPU allocations', v(size(m.metalBytes))), ...m.metalPeakBytes != null ? [labelled('Peak GPU allocations', v(size(m.metalPeakBytes)))] : []], 2)], 'mem');
   if (m.modelBytes == null && m.processBytes == null) return null;
   const items = [...m.modelBytes != null ? [labelled('Model memory', v(size(m.modelBytes)))] : [],
-    ...m.ceilingBytes != null ? [labelled('Engine-pool ceiling', v(size(m.ceilingBytes)))] : m.processBytes != null ? [labelled('Process memory', v(size(m.processBytes)))] : []];
-  return card('memory', 'Runtime memory', `${rtName(s.connection)} · reported`, [`${rtName(s.connection)}’s reported allocation${m.ceilingBytes != null ? ' and engine-pool ceiling' : ''}; not per-chat.`,
-      'This Mac: process footprint and macOS GPU wired limit.'], [{ kind: 'values', cols: 2, items }, ...m.modelBytes != null && m.ceilingBytes ? [{ kind: 'meter' as const, fraction: Math.min(1, m.modelBytes / m.ceilingBytes) }] : []], 'mem');
+    ...m.ceilingBytes != null ? [labelled('Model memory limit', v(size(m.ceilingBytes)))] : m.processBytes != null ? [labelled('Process memory', v(size(m.processBytes)))] : []];
+  return card('memory', 'Model memory', `${rtName(s.connection)} · from server`, [`${rtName(s.connection)}’s memory use${m.ceilingBytes != null ? ' and model memory limit' : ''} across all requests.`,
+      'This Mac shows process memory and the macOS limit for GPU work.'], [{ kind: 'values', cols: 2, items }, ...m.modelBytes != null && m.ceilingBytes ? [{ kind: 'meter' as const, fraction: Math.min(1, m.modelBytes / m.ceilingBytes) }] : []], 'mem');
 };
 const cacheCard = (s: SnapshotV2): ServerCard | null => {
   const request = s.runtime.request, c = s.runtime.server.cache;
@@ -58,7 +59,7 @@ const cacheCard = (s: SnapshotV2): ServerCard | null => {
   const reuse = request?.promptTokens && request.cachedTokens != null ? request : null;
   const cacheItems = [...c.ramBytes != null ? [labelled('RAM cache', v(size(c.ramBytes)), c.ramEntries != null ? `${int(c.ramEntries)} entries` : undefined)] : [],
     ...c.ssdBytes != null ? [labelled('SSD cache', v(size(c.ssdBytes)), c.ssdEntries != null ? `${int(c.ssdEntries)} entries` : undefined)] : []];
-  return card('cache', 'Cache & input', reuse ? 'Current request' : 'Server cache', ['Runtime counts for this request. Unreused input need not equal a prefill stage.'], [...reuse ? [values([labelled('Reused tokens', v(int(reuse.cachedTokens!))),
+  return card('cache', 'Cache & input', reuse ? 'Current request' : 'Server cache', ['From server counts for this request. Input that was not reused can differ from the tokens read during prefill.'], [...reuse ? [values([labelled('Reused tokens', v(int(reuse.cachedTokens!))),
       labelled('Not reused', v(int(reuse.promptTokens! - reuse.cachedTokens!)))], 2 as const, true), { kind: 'bar' as const, fraction: reuse.cachedTokens! / reuse.promptTokens! }] : [],
     ...cacheItems.length ? [values(cacheItems, 2 as const)] : []]);
 };
@@ -68,7 +69,7 @@ const residencyCard = (s: SnapshotV2, now: number): ServerCard | null => {
   const source = list[0]!.source, many = list.length > 1;
   const items = list.map(m => m.source === 'ollama-ps' ? {
     title: m.model, loaded: true, chips: m.unloadsAt != null ? [{ text: `unloads in ${dur(Math.max(0, m.unloadsAt - now))}` }] : [],
-    reading: [...m.bytes != null ? [`${size(m.bytes)} loaded`] : [], ...m.gpuResidentBytes != null ? [`GPU-resident (Ollama-reported) ${size(m.gpuResidentBytes)}${m.bytes ? ` · ${pct(m.gpuResidentBytes / m.bytes)}` : ''}`] : []],
+    reading: [...m.bytes != null ? [`${size(m.bytes)} loaded`] : [], ...m.gpuResidentBytes != null ? [`GPU memory (from Ollama) ${size(m.gpuResidentBytes)}${m.bytes ? ` · ${pct(m.gpuResidentBytes / m.bytes)}` : ''}`] : []],
     meter: m.gpuResidentBytes != null && m.bytes ? Math.min(1, m.gpuResidentBytes / m.bytes) : null,
   } : {
     title: m.model, loaded: true, chips: [{ text: PHASE[m.phase], ...m.phase !== 'idle' ? { tone: 'accent' as const } : {} }],
@@ -77,9 +78,9 @@ const residencyCard = (s: SnapshotV2, now: number): ServerCard | null => {
   const title = source === 'lms-ps' ? 'Loaded instances' : 'Loaded models';
   const count = s.runtime.residencyCount ?? list.length;
   return { key: 'residency', title, right: source === 'lms-ps' ? 'lms ps · refreshed on load/unload' : `${count} loaded`,
-    tip: tip('resident', title, source === 'ollama-ps' ? ['Ollama reports GPU residency only. Apple silicon shares one memory pool; GPU-resident is not separate memory.']
+    tip: tip('resident', title, source === 'ollama-ps' ? ['Ollama reports memory used by GPU work. Apple silicon shares one memory pool; this is not extra memory.']
       : source === 'lms-ps' ? ['LM Studio’s no-wake command never starts Bionic. Inventory lists context sizes and formats.']
-        : ['Runtime-loaded models, not assigned to a chat.', !many && 'One loaded model uses Runtime memory.']),
+        : ['Models loaded on this server, across all chats.', !many && 'The loaded model uses the memory shown above.']),
     blocks: [{ kind: 'list', items }] };
 };
 const sessionCard = (s: SnapshotV2, now: number): ServerCard | null => {
@@ -87,18 +88,18 @@ const sessionCard = (s: SnapshotV2, now: number): ServerCard | null => {
   if (!a) return null;
   const held = heldBySource(s), basis = held ? 'last-observed' as const : 'reported' as const;
   const since = held && s.status.sinceAt ? `before ${clock(s.status.sinceAt, now)}` : a.uptimeMs ? `${dur(a.uptimeMs)} · since start`
-    : s.connection.runtime === 'lmstudio' ? 'Since the log stream started' : 'Since the runtime started';
-  const items = [...a.decodeTps != null ? [labelled(s.connection.runtime === 'splash' ? 'Average since engine start' : 'Decode average', v(`${tps(a.decodeTps)} tok/s`, basis))] : [],
-    ...a.prefillTps != null ? [labelled('Prefill average', v(`${tps(a.prefillTps)} tok/s`, basis))] : [],
+    : s.connection.runtime === 'lmstudio' ? 'Since the log stream started' : 'Since the server started';
+  const items = [...a.decodeTps != null ? [labelled('Generation speed', v(`${tps(a.decodeTps)} tok/s`, basis))] : [],
+    ...a.prefillTps != null ? [labelled('Prefill speed', v(`${tps(a.prefillTps)} tok/s`, basis))] : [],
     ...a.cacheEfficiencyFraction != null ? [labelled('Cache efficiency', v(pct(a.cacheEfficiencyFraction), basis))] : [],
     ...a.requestsTotal != null ? [labelled('Completed', v(int(a.requestsTotal), basis), a.failedTotal ? `${int(a.failedTotal)} failed` : undefined)] : []];
-  return items.length ? card('session', 'Server session', since, ['Runtime-reported totals across all models and apps.'], [{ kind: 'values', cols: 2, items }]) : null;
+  return items.length ? card('session', 'Overall average', s.connection.runtime === 'splash' ? `${held ? 'Last reading · ' : ''}Since this model started` : since, [s.connection.runtime === 'splash' ? 'Since this model started, across all requests.' : 'From server totals across models and apps.'], [{ kind: 'values', cols: 2, items }]) : null;
 };
 const latencyCard = (s: SnapshotV2): ServerCard | null => {
   const h = s.runtime.server.histograms;
   if (!h || !h.ttftMs && !h.itlMs) return null;
-  const q = (label: string, x: NonNullable<typeof h.ttftMs>) => (labelled(`${label} p50 · p95`, v(`${dur(x.p50)} · ${dur(x.p95)}`), `n ${int(x.n)}`));
-  return card('latency', 'Latency', heldBySource(s) ? 'Splash native · last observed' : 'Splash native', ['Splash’s last 4,096 samples, all clients. Splash uses p95; Scope baselines use p90.'], [values([...h.ttftMs ? [q('TTFT', h.ttftMs)] : [], ...h.itlMs ? [q('Between tokens', h.itlMs)] : []], 2)]);
+  const q = (label: string, x: NonNullable<typeof h.ttftMs>) => (labelled(`${label} typical · slowest 5%`, v(`${dur(x.p50)} · ${dur(x.p95)}`), `${int(x.n)} readings`));
+  return card('latency', 'Response timing', heldBySource(s) ? 'Splash · last reading' : 'From Splash', ['Splash’s last 4,096 readings across all apps. Typical means the middle reading; the second value is the cutoff for the slowest 5%. Scope’s usual-speed comparisons use the slowest 10% cutoff.'], [values([...h.ttftMs ? [q('First token', h.ttftMs)] : [], ...h.itlMs ? [q('Between tokens', h.itlMs)] : []], 2)]);
 };
 const slotsCard = (s: SnapshotV2): ServerCard | null => {
   const slots = s.runtime.slots;
@@ -111,23 +112,26 @@ const slotsCard = (s: SnapshotV2): ServerCard | null => {
 };
 const ratesCard = (s: SnapshotV2): ServerCard | null => {
   const r = s.runtime.server.rates, server = s.runtime.server, splash = s.connection.runtime === 'splash';
-  if (!r || splash && liveSplashRate(s) === null) return null;
-  return card('rates', splash ? ENGINE_SPEED : 'Server throughput', splash ? `Server-wide · last ${dur(r.windowMs)}` : `last ${Math.round(r.windowMs / 1_000)} s`,
-    splash ? splashRateTip('rates', r.windowMs) : tip('rates', 'Server throughput', [`Derived from ${rtName(s.connection)} totals, excluding gauges reset per scrape.`]),
-    [values([...!splash && r.promptTps != null ? [labelled('Prompt', v(`${int(r.promptTps)} tok/s`, 'derived'))] : [],
-      ...r.decodeTps != null ? [labelled('Decode', v(`${tps(r.decodeTps)} tok/s`, 'derived'))] : [],
+  const decode = splash ? liveSplashRate(s) : r?.decodeTps, prompt = splash ? liveSplashRate(s, 'prefill') : r?.promptTps;
+  if (!r || splash && decode == null && prompt == null) return null;
+  const window = decode != null ? r.windowMs : r.promptWindowMs ?? r.windowMs;
+  return card('rates', splash ? 'Recent speeds' : 'All server speeds', splash ? `All server activity · last ${dur(window)}` : `last ${Math.round(window / 1_000)} s`,
+    splash ? tip('rates', 'How speeds are measured', SPLASH_SPEED_HELP)
+      : tip('rates', 'All server speeds', [`Calculated from ${rtName(s.connection)} totals. Counts that reset at each update are excluded.`]),
+    [values([...prompt != null ? [labelled('Prefill speed', v(`${tps(prompt)} tok/s`, 'derived'), splash ? `last ${dur(r.promptWindowMs ?? window)}` : undefined)] : [],
+      ...decode != null ? [labelled('Generation speed', v(`${tps(decode)} tok/s`, 'derived'), splash ? `last ${dur(r.windowMs)}` : undefined)] : [],
       ...server.active != null ? [labelled('Processing · deferred', v(`${server.active} · ${server.queued ?? 0}`))] : []], splash ? 2 : 3)]);
 };
 const specCard = (s: SnapshotV2): ServerCard | null => {
   const sp = s.runtime.server.speculative;
   if (!sp) return null;
-  return card('spec', 'Speculative decoding', `last ${Math.max(1, Math.round(sp.windowMs / 60_000))} min`, ['Server-wide llama-server counters. Acceptance: draft tokens kept by the main model.'], [values([labelled('Draft acceptance', v(pct(sp.acceptanceFraction), 'derived')),
+  return card('spec', 'Draft token reuse', `last ${Math.max(1, Math.round(sp.windowMs / 60_000))} min`, ['Across all llama-server requests. Acceptance is the share of draft tokens kept by the main model.'], [values([labelled('Draft acceptance', v(pct(sp.acceptanceFraction), 'derived')),
       labelled('Accepted', v(`${int(sp.acceptedTokens)} of ${int(sp.draftedTokens)}`))], 2), { kind: 'meter', fraction: sp.acceptanceFraction }]);
 };
 const enginesCard = (s: SnapshotV2): ServerCard | null => {
   const engines = s.runtime.engines;
   if (!engines.length) return null;
-  return card('engines', 'Engines', 'lms runtime ls · cached 10 min', ['Read in Server & Mac details. Scope never installs, selects or updates them.'], [{ kind: 'list', items: engines.map(engine => ({ title: `${engine.name} ${engine.version}`, loaded: false, reading: [], meter: null,
+  return card('engines', 'Model software', 'LM Studio · checked every 10 min', ['Read from LM Studio. Scope never installs, selects or updates this software.'], [{ kind: 'list', items: engines.map(engine => ({ title: `${engine.name} ${engine.version}`, loaded: false, reading: [], meter: null,
       chips: [{ text: engine.selected ? 'In use' : 'Installed', ...engine.selected ? { tone: 'accent' as const } : {} }] })) }]);
 };
 const catalogCard = (s: SnapshotV2): ServerCard | null => {

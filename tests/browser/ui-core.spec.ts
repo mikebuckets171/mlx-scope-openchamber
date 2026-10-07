@@ -125,7 +125,7 @@ test('secondary views return to their parent and server-only reads stop outside 
 
 test('ⓘ is a disclosure: one open at a time, in flow, Esc closes it and returns focus; it survives polls', async ({ page }) => {
   const frame = await load(page, 'state=decode');
-  const attr = frame.locator('#attribution .info'), basis = frame.locator('.basis-line .info');
+  const attr = frame.locator('#attribution .info'), basis = frame.locator('.instrument-basis .info');
   await attr.click();
   await expect(attr).toHaveAttribute('aria-expanded', 'true');
   await expect(frame.locator('#pop-live-attr')).toBeVisible();
@@ -175,7 +175,7 @@ test('needs approval (NO_SERVICE) and version skew replace the tabs with their S
   await expect(frame.locator('#phase')).toHaveText('Needs restart');
 });
 
-test('Compact is the glance, at most 160 px, and Expand returns to the tabs', async ({ page }) => {
+test('Compact shows both speeds, at most 200 px, and Expand returns to the tabs', async ({ page }) => {
   const frame = await load(page, 'state=pressure');
   await frame.locator('#monitor-menu > summary').click();
   await frame.locator('#compact').click();
@@ -184,8 +184,8 @@ test('Compact is the glance, at most 160 px, and Expand returns to the tabs', as
   const compactSize = await frame.locator('#scope').evaluate(el => Object.fromEntries([el, ...Array.from(el.querySelectorAll('.masthead, #compact-glance, #ws'))].map(node => [node.id || node.className, {
     height: node.getBoundingClientRect().height, scroll: node.scrollHeight, padding: getComputedStyle(node).padding, margin: getComputedStyle(node).margin,
   }])));
-  expect(compactSize.scope!.scroll, JSON.stringify(compactSize)).toBeLessThanOrEqual(160);
-  await expect(frame.locator('#compact-glance .ws-alert')).toContainText('macOS memory pressure: warning');
+  expect(compactSize.scope!.scroll, JSON.stringify(compactSize)).toBeLessThanOrEqual(200);
+  await expect(frame.locator('#compact-glance .ws-alert-row')).toContainText('Memory pressure');
   expect(await problems(page)).toEqual([]);
   await frame.getByRole('button', { name: 'Expand' }).click();
   await expect(frame.locator('#workspace-nav')).toBeVisible();
@@ -208,7 +208,7 @@ test('Session summary leads with reply speed, keeps warnings visible, and fits i
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
   await expect(frame.locator('.ws-rate')).toContainText('26.4');
-  await expect(frame.locator('.ws-scope')).toHaveText('Server-wide');
+  await expect(frame.locator('.ws-scope')).toHaveText('All server activity');
   await expect(frame.locator('.chip, .ws-spark, .ws-key-stats, .ts-rows')).toHaveCount(0);
   await expect(frame.getByRole('button', { name: 'Show turn stats' })).toHaveCount(0);
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
@@ -225,7 +225,7 @@ test('Session summary leads with reply speed, keeps warnings visible, and fits i
   frame = await status(page, 'state=decode&chat=cloud');
   await expect.poll(() => lastHeight(page)).toBe(24);
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'non-local');
-  await expect(frame.locator('#ws')).toHaveText('Chat uses a non-local model');
+  await expect(frame.locator('#ws')).toHaveText('This chat is not using a local model');
   expect(await problems(page)).toEqual([]);
   for (const state of ['offline', 'splash-recovering', 'needs-approval', 'prefill', 'idle', 'pressure-critical']) {
     frame = await status(page, `state=${state}`);
@@ -265,9 +265,9 @@ test('Session summary ignores a remembered stats expansion and opens the full pa
   await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ statusExpanded: true, tipDismissed: true, noticeDismissed: true })));
   let frame = await status(page, 'state=bionic&chat=local');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
-  await expect(frame.locator('.ws-phase')).toHaveText('Last reply');
-  await expect(frame.locator('.ws-rate')).toContainText('tok/s');
-  await expect(frame.locator('.ws-age')).toContainText('ago');
+  await expect(frame.locator('.ws-phase')).toHaveText('Idle');
+  await expect(frame.locator('.speed-rows:not(.progress-row)')).not.toContainText('tok/s');
+  await expect(frame.locator('.ws-age')).toHaveCount(0);
   await expect(frame.locator('.ts-rows, .ts-head')).toHaveCount(0);
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
   await expect.poll(() => host(page, w => w.previewOpenedSurfaces)).toEqual(['plugin:mlx-scope']);
@@ -300,7 +300,7 @@ test('Session summary returns to the compact cloud row after a failed full-panel
     id: 'cloud-chat', title: 'Cloud chat', busy: false, model: 'cloud-provider/fixture-model',
   }));
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'non-local');
-  await expect(frame.locator('#ws')).toHaveText('Chat uses a non-local model');
+  await expect(frame.locator('#ws')).toHaveText('This chat is not using a local model');
   await expect(frame.locator('#ws-action-error')).not.toBeVisible();
   await expect.poll(() => lastHeight(page)).toBe(24);
   expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(24);
@@ -374,7 +374,7 @@ test('badge and toast come only from the leader, once per toastSeq, and never na
   await expect.poll(() => host(page, w => w.previewToasts.length)).toBe(1);
   await expect.poll(() => host(page, w => w.previewBadges.at(-1))).toBe(1);
   const [toast] = await host(page, w => w.previewToasts);
-  expect(toast).toMatchObject({ kind: 'error', dismiss: true, message: 'MLX Scope · macOS memory pressure: critical. Reported by the macOS kernel · replies may slow sharply until memory frees up.' });
+  expect(toast).toMatchObject({ kind: 'error', dismiss: true, message: 'MLX Scope · macOS memory pressure: critical. Reported by macOS · replies may slow until memory frees up.' });
   await page.waitForTimeout(1_500);
   expect(await host(page, w => w.previewToasts.length)).toBe(1);
   // Not the leader: nothing.

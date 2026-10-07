@@ -20,5 +20,5 @@ const block = (b: Block): Raw => {
 export const serverMarkup = (view: ServerView, open: Open): Raw => {
   const runtime = view.cards.find(card => card.key === 'runtime');
   return html`${callouts(P, view.callouts, open)}${view.cards.filter(card => card !== runtime).map(card =>
-    section(P, card.key, card.title, card.right, card.blocks.map(block), card.tip, open))}${runtime ? html`<details class="runtime-details" id="server-runtime-details"${flag('open', open.has('server-runtime-details'))}><summary><span>Runtime details</span><span>${runtime.right}</span></summary>${section(P, runtime.key, runtime.title, '', runtime.blocks.map(block), runtime.tip, open)}</details>` : ''}`;
+    section(P, card.key, card.title, card.right, card.blocks.map(block), card.tip, open))}${runtime ? html`<details class="runtime-details" id="server-runtime-details"${flag('open', open.has('server-runtime-details'))}><summary><span>Server details</span><span>${runtime.right}</span></summary>${section(P, runtime.key, runtime.title, '', runtime.blocks.map(block), runtime.tip, open)}</details>` : ''}`;
 };

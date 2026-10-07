@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 
-const ROOTS = ['tests/', 'docs/', 'scripts/', 'service/', 'panel/', 'src/', 'background/', 'ui/', 'README.md', 'CHANGELOG.md', 'PRIVACY.md', 'SECURITY.md', 'CONTRIBUTING.md'];
+const ROOTS = ['tests/', 'docs/', 'scripts/', 'service/', 'panel/', 'src/', 'background/', 'bridge/', 'ui/', 'README.md', 'CHANGELOG.md', 'PRIVACY.md', 'SECURITY.md', 'CONTRIBUTING.md'];
 const SKIP = /(^|\/)(main\.js|.*\.(png|jpe?g|gif|ico|zip|svg))$/;
 const RULES: Array<{ name: string; pattern: RegExp; allow?: RegExp }> = [
   { name: 'home path', pattern: /\/Users\/[A-Za-z0-9._-]+/g, allow: /^\/Users\/(someone|fixture|USER)$/ },

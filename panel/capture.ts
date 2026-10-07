@@ -49,9 +49,9 @@ export class PerformanceCapture {
       meanMemoryBytes: null, peakMemoryBytes: null, memorySamples: 0,
       requestCountChange: null, startSwapBytes: null, lastSwapBytes: null,
       status: 'recording', note: resourcesOnly ? reading.runtime === 'splash'
-        ? 'Observing host resources. Splash reports one decode speed shared across all requests.'
-        : 'Observing host resources. This runtime does not report passive output speed.'
-        : 'Observing this model. No extra inference is started.' };
+        ? 'Recording Mac activity. Splash generation speed includes all requests.'
+        : 'Recording Mac activity. This server does not provide live output speed.'
+        : 'Recording this model’s existing activity.' };
     this.previous = null;
     this.lastRuntimeAt = this.lastSystemAt = this.lastMacAt = null;
     this.initialRequests = this.previousRequests = this.previousUptime = null;
@@ -70,7 +70,7 @@ export class PerformanceCapture {
     this.lastClock = now;
     // A late response cannot supply the unobserved end of the requested window.
     if (now - this.started > c.targetSeconds * 1000) { this.finish(); return; }
-    if (!reading.available) { this.stop('Runtime unavailable'); return; }
+    if (!reading.available) { this.stop('Server unavailable'); return; }
     if (this.resourcesOnly ? !RESOURCES.includes(reading.link?.coverage ?? '') || resourceKey(reading) !== c.model
       : reading.model !== c.model || (reading.active ?? 0) > 1) { this.stop('Model, connection or workload changed'); return; }
     if (this.lastRuntimeAt !== null && reading.sampledAt < this.lastRuntimeAt) { this.stop('Observation clock changed'); return; }
@@ -182,17 +182,17 @@ export class PerformanceCapture {
   }
   report(version: string): string {
     const lines = [`MLX Scope ${version} — performance observations`,
-      'Server-wide observations, not selected-chat attribution or a controlled benchmark. Speed uses continuous fresh output intervals, including zero-token intervals; idle, processing and prefill are excluded. Resource means use distinct samples, not time weighting. Differences do not establish causality.'];
+      'These readings cover all server activity. Speed uses fresh output counts while generating, including intervals with no new output. Reading the prompt and idle time are excluded. Resource averages use distinct readings. Other apps and chats can affect comparisons.'];
     const percent = (value: number | null) => value === null ? 'not reported' : value.toFixed(1) + '%';
     const memory = (bytes: number | null) => bytes === null ? 'not reported' : gibFixed(bytes, 2) + ' GiB';
     const print = (label: string, c: Capture) => {
       const rate = capturedRate(c);
-      lines.push(`${label}: ${c.status}, ${c.seconds.toFixed(1)}s observed in a ${c.targetSeconds}s window, ${c.samples} runtime samples; ${c.note}`,
-        `Observed output: ${rate === null ? 'not enough data' : rate.toFixed(1) + ' tok/s'} across ${c.decodeSeconds.toFixed(1)}s; ${c.decodeTokens} observed token increments.`,
-        `Sampled host CPU: mean ${percent(c.meanCPU)}, peak ${percent(c.peakCPU)} (${c.cpuSamples} samples).`,
-        `Sampled non-free host RAM: mean ${memory(c.meanMemoryBytes)}, peak ${memory(c.peakMemoryBytes)} (${c.memorySamples} samples).`,
-        `Peak sampled runtime footprint: ${memory(c.peakProcessBytes)} (${c.processSamples} samples).`,
-        `Reported server request count change: ${c.requestCountChange === null ? 'not available for this window' : c.requestCountChange}.`);
+      lines.push(`${label}: ${c.status}, ${c.seconds.toFixed(1)}s observed in a ${c.targetSeconds}s window, ${c.samples} server readings; ${c.note}`,
+        `Measured generation speed: ${rate === null ? 'not enough data' : rate.toFixed(1) + ' tok/s'} across ${c.decodeSeconds.toFixed(1)}s; ${c.decodeTokens} new output tokens.`,
+        `Mac CPU use: average ${percent(c.meanCPU)}, peak ${percent(c.peakCPU)} (${c.cpuSamples} samples).`,
+        `Memory allocated: average ${memory(c.meanMemoryBytes)}, peak ${memory(c.peakMemoryBytes)} (${c.memorySamples} samples).`,
+        `Peak server memory: ${memory(c.peakProcessBytes)} (${c.processSamples} samples).`,
+        `New finished requests: ${c.requestCountChange === null ? 'not available for this window' : c.requestCountChange}.`);
     };
     if (this.current) print('Current capture', this.current);
     if (this.baseline) print('Pinned reference', this.baseline);

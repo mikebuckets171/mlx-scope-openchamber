@@ -29,7 +29,7 @@ test('first-token provenance is independent of token-count capability and omitte
     body.runtime.request.outputTokens = null;
   });
   expect(presentLive(input).hero?.firstToken).toEqual({ text: 'First token', strong: '0.42 s', basis: 'observed' });
-  expect(status(input).glance?.metrics).toContainEqual({ label: 'First token', value: '0.42 s', basis: 'observed' });
+  expect(status(input).glance?.metrics).toContainEqual({ label: 'First token', value: '0.42 s', basis: 'measured' });
   expect(presentLive(fixture()).hero?.firstToken).toBeNull();
 });
 
@@ -64,7 +64,7 @@ test('a withheld Next reply result stays server-wide without a chat turn summary
   input.next = { kind: 'result', startedAt: input.now - 20_000, endedAt: input.now - 1_000,
     steps: [completion], attributed: false, summary: null };
   const withheld = presentLive(input).hero!.reply!;
-  expect(withheld.chip).toMatchObject({ attr: 'server', text: 'Server-wide · overlapping requests' });
+  expect(withheld.chip).toMatchObject({ attr: 'server', text: 'All server activity · several requests at once' });
   expect(withheld.split).toEqual([]);
   expect(withheld.tip?.paras.join(' ')).toContain('no turn summary');
   expect(withheld.values.some(value => value.unit === 'tok/s')).toBe(true);
@@ -72,12 +72,12 @@ test('a withheld Next reply result stays server-wide without a chat turn summary
   completion.verdict = { attr: 'armed', at: input.now };
   input.next.attributed = true;
   const armed = presentLive(input).hero!.reply!;
-  expect(armed.chip).toMatchObject({ attr: 'armed', text: 'Next reply · armed' });
+  expect(armed.chip).toMatchObject({ attr: 'armed', text: 'Next reply' });
   expect(armed.split.some(value => value.text === 'Turn')).toBe(true);
 
   input.next.attributed = false;
   input.next.steps = [];
-  expect(presentLive(input).hero!.reply!.chip).toMatchObject({ attr: 'server', text: 'Server-wide · not observed' });
+  expect(presentLive(input).hero!.reply!.chip).toMatchObject({ attr: 'server', text: 'All server activity · not recorded' });
 });
 
 test('supported glance metrics and warnings stay within the status section height budget', () => {
@@ -88,7 +88,7 @@ test('supported glance metrics and warnings stay within the status section heigh
     const view = status(input, { tipDismissed });
     expect(statusHeight(view)).toBeLessThanOrEqual(200);
     expect(view.glance?.metrics?.map(row => row.label)).toEqual(['First token', 'Context used']);
-    expect(view.glance?.line2).toMatchObject({ kind: 'spark', reason: 'overlapping requests' });
+    expect(view.glance?.line2).toMatchObject({ kind: 'spark', reason: 'several requests at once' });
     expect(view.glance?.alert?.severity).toBe('warning');
     expect(view.glance?.notice).toBeNull();
     const toggles = statusMarkup(view).markup.match(/id="ws-toggle"/g) ?? [];

@@ -12,7 +12,7 @@ import { dur } from './format.ts';
 
 /** Anything but `reported` carries its basis in the UI (P3); `note` replaces the default word. */
 export interface Val { text: string; strong?: string; unit?: string; basis: Basis; note?: string }
-export const BASIS_WORD: Record<Basis, string> = { reported: '', derived: 'derived', observed: 'observed', 'last-observed': 'last observed', estimate: 'estimate' };
+export const BASIS_WORD: Record<Basis, string> = { reported: '', derived: 'calculated', observed: 'measured', 'last-observed': 'last reading', estimate: 'estimate' };
 export const basisNote = (basis: Basis, note?: string): string | null => basis === 'reported' ? null : note ?? BASIS_WORD[basis];
 /** Token-weighted speed across the steps that contain both token and speed readings. */
 export const weightedTps = (steps: readonly CompletionV2[]): number | null => {
@@ -25,10 +25,10 @@ export type ChipTone = 'accent' | 'warn' | 'bad';
 export interface Chip { text: string; tone?: ChipTone; outline?: boolean; attr?: 'inferred' | 'armed' | 'server'; reason?: string; basis?: Basis }
 /** A server-wide chip always names its reason: inside the chip, or (glance) in a line the chip points to. */
 export const attrChip = (label: AttributionLabel, short = false, chatRuntime: string | null = null): Chip => {
-  if (label.kind === 'inferred') return { text: 'This chat · inferred', attr: 'inferred' };
-  if (label.kind === 'armed') return { text: 'Next reply · armed', attr: 'armed', outline: true };
+  if (label.kind === 'inferred') return { text: 'Likely this chat', attr: 'inferred' };
+  if (label.kind === 'armed') return { text: 'Next reply', attr: 'armed', outline: true };
   const why = withheldWhy(label.reason, chatRuntime);
-  return { text: short ? 'Server-wide' : `Server-wide · ${why}`, attr: 'server', outline: true, reason: why };
+  return { text: short ? 'All server activity' : `All server activity · ${why}`, attr: 'server', outline: true, reason: why };
 };
 
 /** An ⓘ disclosure: a 24 px button whose explanation opens in flow under its row. `key` is stable across polls. */
@@ -37,10 +37,10 @@ export const tip = (key: string, title: string, paras: ReadonlyArray<string | nu
   ({ key, title, paras: paras.filter((p): p is string => typeof p === 'string' && p.length > 0) });
 /** The same measurement explanation follows Splash rates in Live and Server details. */
 export const splashRateTip = (key: string, windowMs: number): Tip => tip(key, ENGINE_SPEED, [
-  'Output tokens / native decode-command time, server-wide; excludes draft candidates.',
-  `Last ${dur(windowMs)}; at least 3 samples across 2 s or more, rolling window up to 5 s.`,
-  'Observation time is not the active decode time divisor.',
-  'Lifetime average is separate. Client delivery speed is not measured here.',
+  'Generated tokens divided by the time Splash spent generating them. Includes every request on this server.',
+  `Based on updates over the last ${dur(windowMs)}. Scope waits for at least 3 updates over 2 seconds.`,
+  'Time spent generating can differ from the time between updates. Unused draft tokens are excluded.',
+  'The overall average is shown separately. This does not measure how quickly tokens reach your chat.',
 ]);
 export const attrTip = (key: string, label: AttributionLabel, snapshot: SnapshotV2 | null, live: boolean, chatRuntime: string | null = null): Tip => {
   const [title, ...paras] = whyCopy(label.kind === 'server-wide' ? label.reason : label.kind, rtName(snapshot?.connection ?? null), live, chatRuntime);

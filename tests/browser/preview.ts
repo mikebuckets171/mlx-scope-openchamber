@@ -63,7 +63,7 @@ test('relay srcdoc transport renders packaged assets, follows theme changes and 
   expect(document).toContain('http-equiv="Content-Security-Policy"');
   expect(document).toMatch(/src="data:(?:application|text)\/javascript;base64,/);
   expect(await page.evaluate(() => (window as W).previewTransportError)).toBe('');
-  await expect(frame.locator('#phase')).toHaveText('Reading context');
+  await expect(frame.locator('#phase')).toHaveText('Reading prompt');
   await expect(frame.locator('#connection')).toHaveText('oMLX');
   await expect(frame.locator('#prefill-percent')).toHaveText('64%');
   await expect(frame.locator('#prefill-progress')).toContainText('5,824 of 9,100 new tokens read');
@@ -321,8 +321,9 @@ test('live host theme changes update the view in place without restarting monito
 
 test('concurrent requests withhold per-request speed, and hostile model names render as text', async ({ page }) => {
   const frame = await openPanel(page, 'multi=1');
-  await expect(frame.locator('#rate')).toHaveText('2 requests');
-  await expect(frame.locator('#attribution')).toContainText('Server-wide · overlapping requests');
+  await expect(frame.locator('#hero')).toContainText('2 requests');
+  await expect(frame.locator('.speed-pair')).not.toContainText('tok/s');
+  await expect(frame.locator('#attribution')).toContainText('All server activity · several requests at once');
   await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
   await expect(frame.locator('[data-key="server-residency"] .resident-row')).toHaveCount(2);
   await page.evaluate(() => (window as W).setPreviewOverride({ residentModels: [{ id: '<img src=x onerror=alert(1)>', phase: 'idle', activeRequests: 0 }] }));
@@ -333,11 +334,13 @@ test('concurrent requests withhold per-request speed, and hostile model names re
 
 test('DFlash output without a reported rate reads as working, never an invented average or prefill percentage', async ({ page }) => {
   const frame = await openPanel(page, 'state=dflash-preparing');
-  await expect(frame.locator('#phase')).toHaveText('Processing');
+  await expect(frame.locator('#phase')).toHaveText('Working');
   await expect(frame.locator('#prefill-progress')).toHaveCount(0);
-  await expect(frame.locator('#rate')).toHaveText('Working');
+  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('[data-stage="generation"]')).toContainText('Waiting for samples');
   await page.evaluate(() => (window as W).setPreviewState('dflash'));
   await expect(frame.locator('#phase')).toHaveText('Generating');
-  await expect(frame.locator('#rate')).toHaveText('Working');
+  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('[data-stage="generation"]')).toContainText('Waiting for samples');
   await expect(frame.locator('#hero')).toContainText('doesn’t report this request’s speed');
 });

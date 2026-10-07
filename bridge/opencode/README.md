@@ -2,7 +2,22 @@
 
 This OpenCode 2 plugin enables Splash's `return_progress` option on existing streaming requests. It observes the same HTTP response, without changing the model route, starting a proxy, or submitting a prompt. Scope can then show **Prompt progress** from `processed / total`; the completed portion includes cached prompt tokens. oMLX monitoring does not use this companion.
 
-Add this directory to OpenCode's `plugins` configuration when it is safe to reload OpenCode. The default scope is provider `splish` at `http://127.0.0.1:8000/v1`. The object plugin form can set `options.providerID` and `options.baseURL`; the endpoint must be loopback. Existing active requests cannot acquire progress retroactively. Installation/reload is intentionally separate from running the tests.
+Add this directory to OpenCode's existing `plugins` list; keep the other entries:
+
+```json
+{
+  "package": "/absolute/path/to/mlx-scope/bridge/opencode",
+  "options": {
+    "providerID": "splish",
+    "baseURL": "http://127.0.0.1:8000/v1"
+  }
+}
+```
+
+Use the absolute path to the extracted companion directory and the provider name/base URL already configured for
+Splash. OpenCode 2.0.22 can activate it when configuration changes without restarting the server; this was verified
+while an existing response continued. Check OpenCode's plugin list for **mlx-scope-prompt-progress** before starting a
+new reply. On other versions, follow that version's normal plugin reload steps when no reply is running. The default scope is provider `splish` at `http://127.0.0.1:8000/v1`. The object plugin form can set `options.providerID` and `options.baseURL`; the endpoint must be loopback. Existing active requests cannot acquire progress retroactively. Installation/reload is intentionally separate from running the tests.
 
 The plugin uses the supported `session.hook('http.request')` and `session.hook('http.response')` APIs. The bundled OpenCode inspected on 2026-10-07 also routes AI SDK fetches through this hook chain; older OpenCode versions may only support the native provider path. No global fetch override is used. See [OpenCode plugin documentation](https://opencode.ai/v2/docs/build/plugins/#native-http).
 

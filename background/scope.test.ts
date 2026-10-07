@@ -58,16 +58,16 @@ describe('resolveScope', () => {
     body.runtime.server.averages!.prefillTps = 1500;
     const { host, calls } = fakeHost(ok(body));
     const item = await resolveScope(host, { command: 'scope', args: 'CANARY private text' }, () => AT);
-    expect(item!.text).toContain('recent prefill engine speed over 2.35 s (input/native prefill time) 1200 tok/s (derived)');
-    expect(item!.text).toContain('recent engine speed over 4 s (output/native decode time) 43.8 tok/s (derived)');
-    expect(item!.text).toContain('prefill average since engine start 1500 tok/s (reported)');
+    expect(item!.text).toContain('recent prefill speed over 2.35 s (input/time reading prompts) 1200 tok/s (derived)');
+    expect(item!.text).toContain('recent generation speed over 4 s (output/time generating) 43.8 tok/s (derived)');
+    expect(item!.text).toContain('prefill average since model start 1500 tok/s (reported)');
     expect(item!.text).not.toContain('Current request:');
     expect(item!.text).not.toContain('CANARY');
     expect(calls.filter(call => call.method === 'serviceRequest')).toHaveLength(1);
     const held = await resolveScope(fakeHost(ok(body)).host, { command: 'scope', args: '' }, () => AT + 30_000);
-    expect(held!.text).not.toContain('recent prefill engine speed');
-    expect(held!.text).not.toContain('recent engine speed');
-    expect(held!.text).toContain('average since engine start');
+    expect(held!.text).not.toContain('recent prefill speed');
+    expect(held!.text).not.toContain('recent generation speed');
+    expect(held!.text).toContain('average since model start');
   });
   test('the saved connection, one /v2/snapshot?surface=background read and two storage gets: no frame, cursor, marks or verdicts, no writes', async () => {
     const { host, calls } = fakeHost(ok());
@@ -82,9 +82,9 @@ describe('resolveScope', () => {
       text: expect.any(String) });
     const lines = item!.text!.split('\n');
     expect(lines[0]).toBe(`${SCOPE_HEADER}.`);
-    expect(lines).toContain('Runtime: Splash via Bionic, status ready, phase idle, reading 0 ms old');
-    expect(lines).toContain('Last finished reply (5 s ago, reported): decode 30 tok/s, prefill 900 tok/s, first token 600 ms, context 8k–32k tokens, 80% cached');
-    expect(lines).toContain('vs usual: decode 0.75× (n=34), prefill 0.9× (n=12)');
+    expect(lines).toContain('Server: Splash via Bionic, status ready, phase idle, reading 0 ms old');
+    expect(lines).toContain('Last finished reply (5 s ago, reported): generation 30 tok/s, prefill 900 tok/s, first token 600 ms, context 8k–32k tokens, 80% cached');
+    expect(lines).toContain('vs usual: generation 0.75× (34 replies), prefill 0.9× (12 replies)');
     expect(lines).toContain('This Mac: memory pressure normal');
     expect(item!.text!.length).toBeLessThanOrEqual(SCOPE_TEXT_MAX_CHARS);
   });

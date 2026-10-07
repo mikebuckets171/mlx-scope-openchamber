@@ -63,7 +63,7 @@ releases you trust.
   the explicit port and server-info path that keep it from launching LM Studio or Bionic.
 - llama-server: on builds that can sleep, slots are read only while `/metrics` reports work in progress, so Scope never
   wakes a sleeping server. Only numeric slot fields are read, never prompts, and the model path is cut to its file name.
-- Splash: Scope reads `/status` only. While the server is recovering it polls at most every 30 seconds so it does not add
+- Splash: Scope reads `/status` and, when installed, the companion's bounded private progress files. While the server is recovering it polls at most every 30 seconds so it does not add
   to the restart retries. Crash traces, error text and instance identifiers are never forwarded.
 - Scope never starts, loads or unloads a model or server, and never sends inference.
 
@@ -80,3 +80,12 @@ summaries are accepted only from the runtime's own lifecycle lines, so generated
 Automated checks cover these contracts: unit and fixture tests, privacy canaries across every share path, a
 committed-file scrub, the package checks, and browser tests. They are not an independent security audit or a guarantee
 against defects; an independent code and privacy review precedes the 2.0.0 release.
+
+## Optional Splash companion
+
+The companion uses OpenCode's supported request/response hooks for one configured loopback Splash provider. It enables
+one documented boolean option on existing streaming requests; it does not start inference, change routes, or override
+global fetch. It preserves response bytes, cancellation and backpressure. Invalid or oversized progress frames disable
+observation while response delivery continues. Private cache writes are bounded and atomic. Consumers reject malformed,
+expired, unsafe, oversized or ambiguous records and publish only corroborated numeric progress. Its matching hashes
+and response IDs are never exported. The companion has its own focused stream, isolation, permission and expiry tests.

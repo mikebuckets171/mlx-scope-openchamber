@@ -43,7 +43,7 @@ test('ⓘ disclosures are 24 px buttons with aria-expanded and aria-controls, th
   }
   const open = liveMarkup(presentLive(input), new Set(['pop-live-attr'])).markup;
   expect(open).toContain('aria-expanded="true" aria-controls="pop-live-attr"');
-  expect(open).toMatch(/<div class="pop" id="pop-live-attr" role="note"><strong>This chat · inferred<\/strong>/);
+  expect(open).toMatch(/<div class="pop" id="pop-live-attr" role="note"><strong>Likely this chat<\/strong>/);
 });
 
 test('every mock state renders every view without a raw placeholder', () => {

@@ -588,3 +588,53 @@ dd { margin: 0; }
 .capture-methods button[aria-pressed="true"] { background: var(--scope-surface-2); color: var(--scope-fg); }
 .capture-activity { padding: 12px; border: 1px solid var(--scope-line); border-radius: var(--scope-radius); }
 /* ---------- end History and Captures ---------- */
+/* Two persistent stage lanes. The Session host supplies the section heading. */
+.speed-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
+.speed-lane { min-width: 0; }
+.speed-lane h3 { font-size: 14px; font-weight: 550; color: var(--scope-muted); }
+.speed-value { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; }
+.speed-value strong { font-size: clamp(34px, 7vw, 54px); line-height: 1.1; font-weight: 600; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
+.speed-value > span { color: var(--scope-muted); font-size: 13px; }
+.speed-source { margin-top: 8px; color: var(--scope-muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.speed-lane[data-active="false"] .speed-value strong { color: var(--scope-muted); font-weight: 450; }
+.instrument-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.instrument-heading h2 { font-size: 17px; font-weight: 600; }
+.instrument-model { margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--scope-muted); font-size: 13px; }
+.instrument-basis { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; color: var(--scope-muted); font-size: 12px; margin-top: 18px; }
+.speed-averages { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--scope-line); }
+.speed-averages .section-heading { flex-wrap: wrap; }
+.speed-averages .section-heading h3 { white-space: normal; font-size: 13px; }
+.speed-averages dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 10px; }
+.speed-averages dt { font-size: 12px; color: var(--scope-muted); }
+.speed-averages dd { margin-top: 2px; font-size: 17px; font-weight: 500; }
+.speed-averages small { color: var(--scope-muted); font-size: 12px; font-weight: 400; }
+.ws.ws-session { font-size: 12px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.ws-session .ws-heading { height: 24px; align-items: baseline; }
+.ws-session .ws-phase { font-weight: 600; }
+.ws-session .ws-scope { font-size: 11px; color: var(--scope-muted); text-align: right; }
+.ws-session .ws-model { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--scope-muted); }
+.ws-session .ws-note { height: 30px; line-height: 15px; }
+.ws-session .ws-alert-row { height: 24px; font-size: 12px; }
+.ws-session .ws-actions { height: 28px; }
+.ws-session .ws-details { font-size: 11px; color: var(--scope-fg); }
+@media (max-width: 340px) { .speed-pair { gap: 16px; } .speed-value > span { font-size: 12px; } }
+.scope[data-compact="true"] .compact-glance { border: 0; border-radius: 0; background: transparent; }
+.ws-session .ws-details:focus-visible { outline-offset: -2px; }
+.speed-source.basis { white-space: normal; }
+/* Session follows OpenChamber's Turn stats: native rows without inner card chrome. */
+.ws.ws-session .speed-rows { margin: 0; }
+.speed-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; height: 28px; line-height: 28px; }
+.speed-row dt { color: var(--scope-muted); font-size: 13px; font-weight: 400; }
+.speed-row dd { min-width: 0; text-align: right; color: var(--scope-fg); font-size: 13px; white-space: nowrap; }
+.ws.ws-session .speed-row .speed-value { display: inline-flex; gap: 4px; margin: 0; font-size: 13px; }
+.ws.ws-session .speed-row .speed-value strong { font-size: 13px; line-height: 28px; letter-spacing: 0; font-weight: 500; }
+.ws.ws-session .speed-row .speed-value > span { font-size: 13px; font-weight: 400; color: inherit; }
+.speed-row[data-active="false"] dd { color: var(--scope-muted); }
+.ws-session .ws-context { height: 22px; margin-top: 0; color: var(--scope-muted); }
+.ws.ws-session .ws-context .ws-phase { flex: none; font-size: 12px; font-weight: 400; color: var(--scope-fg); }
+.ws-session .ws-context .ws-model { flex: 1 1 auto; margin-left: auto; text-align: right; font-size: 12px; }
+.ws-session .ws-details { font-size: 12px; }
+.ws-session .ws-action-error { line-height: 15px; }
+.scope[data-compact="true"] .masthead { min-height: 32px; }
+.compact-glance .ws-note { height: 15px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.compact-glance .ws-alert-row { height: 18px; }

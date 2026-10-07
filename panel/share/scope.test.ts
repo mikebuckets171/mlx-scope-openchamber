@@ -36,47 +36,47 @@ test('Splash scope exports separate recent stage intervals and retain only label
   snapshot.runtime.server.rates = { decodeTps: 43.8, windowMs: 4000, promptTps: 1200, promptWindowMs: 2350 };
   snapshot.runtime.server.averages!.prefillTps = 1500;
   const read = (now = AT) => scopeText({ version: '2.1.5', now, snapshot });
-  expect(read()).toContain('recent engine speed over 4 s (output/native decode time) 43.8 tok/s (derived)');
-  expect(read()).toContain('recent prefill engine speed over 2.35 s (input/native prefill time) 1200 tok/s (derived)');
-  expect(read()).toContain('prefill average since engine start 1500 tok/s (reported)');
+  expect(read()).toContain('recent generation speed over 4 s (output/time generating) 43.8 tok/s (derived)');
+  expect(read()).toContain('recent prefill speed over 2.35 s (input/time reading prompts) 1200 tok/s (derived)');
+  expect(read()).toContain('prefill average since model start 1500 tok/s (reported)');
   expect(read()).not.toContain('Current request:');
   for (const invalid of [true, '2350', -1, Infinity]) {
     snapshot.runtime.server.rates.promptWindowMs = invalid as number;
-    expect(read()).not.toContain('recent prefill engine speed');
-    expect(read()).toContain('recent engine speed');
+    expect(read()).not.toContain('recent prefill speed');
+    expect(read()).toContain('recent generation speed');
   }
   delete snapshot.runtime.server.rates.promptWindowMs;
-  expect(read()).not.toContain('recent prefill engine speed');
+  expect(read()).not.toContain('recent prefill speed');
   snapshot.runtime.server.rates.promptWindowMs = 2350;
   snapshot.capabilities['server.rates']!.basis = 'reported';
-  expect(read()).not.toContain('recent prefill engine speed');
-  expect(read()).not.toContain('recent engine speed');
+  expect(read()).not.toContain('recent prefill speed');
+  expect(read()).not.toContain('recent generation speed');
   snapshot.capabilities['server.rates']!.basis = 'derived';
-  expect(read(AT + 30_000)).not.toContain('recent prefill engine speed');
-  expect(read(AT + 30_000)).not.toContain('recent engine speed');
+  expect(read(AT + 30_000)).not.toContain('recent prefill speed');
+  expect(read(AT + 30_000)).not.toContain('recent generation speed');
   snapshot.runtime.phase = 'prefill'; delete snapshot.runtime.server.rates.decodeTps;
   delete snapshot.runtime.server.rates.promptWindowMs;
-  expect(read()).toContain('recent prefill engine speed over 4 s');
-  expect(read()).not.toContain('recent engine speed');
+  expect(read()).toContain('recent prefill speed over 4 s');
+  expect(read()).not.toContain('recent generation speed');
   snapshot.runtime.server.rates = undefined;
-  expect(read()).not.toContain('recent prefill engine speed');
-  expect(read()).toContain('prefill average since engine start');
+  expect(read()).not.toContain('recent prefill speed');
+  expect(read()).toContain('prefill average since model start');
 });
 
-test('Splash scope diagnostics separate recent engine speed and lifetime rate, suppressing held recent rates', () => {
+test('Splash scope diagnostics separate recent generation speed and lifetime rate, suppressing held recent rates', () => {
   const snapshot = parseSnapshotV2(mockBody('splash-decode'))!;
   const read = () => scopeText({ version: '2.1.4', now: AT, snapshot });
-  expect(read()).toContain('average since engine start 47.2 tok/s (reported)');
-  expect(read()).toContain('recent engine speed over 4 s (output/native decode time) 43.8 tok/s (derived)');
+  expect(read()).toContain('average since model start 47.2 tok/s (reported)');
+  expect(read()).toContain('recent generation speed over 4 s (output/time generating) 43.8 tok/s (derived)');
   snapshot.capabilities['server.rates']!.basis = 'reported';
-  expect(read()).not.toContain('recent engine speed');
+  expect(read()).not.toContain('recent generation speed');
   snapshot.capabilities['server.rates']!.basis = 'derived';
   snapshot.status.state = 'recovering';
-  expect(read()).not.toContain('recent engine speed');
+  expect(read()).not.toContain('recent generation speed');
   snapshot.status.state = 'ready'; snapshot.runtime.phase = 'prefill';
-  expect(read()).not.toContain('recent engine speed');
+  expect(read()).not.toContain('recent generation speed');
   snapshot.runtime.phase = 'decode'; snapshot.runtime.server.rates!.windowMs = 1_000;
-  expect(read()).not.toContain('recent engine speed');
+  expect(read()).not.toContain('recent generation speed');
 });
 const cap = (key: string, basis = 'reported') => [key, { scope: key.slice(0, key.indexOf('.')), basis }];
 const MODEL = 'CANARY-MODEL-qwen9-1234b';
@@ -121,13 +121,13 @@ describe('/scope text (plan §5.8)', () => {
     expect(lines.slice(1)).toEqual([
       'MLX Scope 2.0.0: local server/Mac; replies labelled separately. No chat content, model names, paths or IDs.',
       '',
-      'Runtime: oMLX, version 0.7.0rc1, status ready, phase decode, reading 400 ms old',
-      'Current request: decode 24.6 tok/s (reported), first token 812 ms (reported), context 32k–64k tokens',
-      'Server, all requests: 1 active, 0 queued (reported), average decode 23.2 tok/s (reported), average prefill 184.5 tok/s (reported), '
-        + 'first token p50 410 ms p95 1.21 s over 412 requests (reported), decode over 30 s 38.2 tok/s (derived)',
-      'Last finished reply (42 s ago, last-observed): decode 38.6 tok/s, first token 500 ms, context 8k–32k tokens, 61% cached',
-      'Label: inferred for Scope’s chat at sampling time',
-      'vs usual: decode 0.82× (n=34), first token 1.3× (n=12)',
+      'Server: oMLX, version 0.7.0rc1, status ready, phase decode, reading 400 ms old',
+      'Current request: generation 24.6 tok/s (reported), first token 812 ms (reported), context 32k–64k tokens',
+      'Server, all requests: 1 active, 0 queued (reported), average generation 23.2 tok/s (reported), average prefill 184.5 tok/s (reported), '
+        + 'first token typically 410 ms, 95% within 1.21 s over 412 requests (reported), generation over 30 s 38.2 tok/s (derived)',
+      'Last finished reply (42 s ago, last-observed): generation 38.6 tok/s, first token 500 ms, context 8k–32k tokens, 61% cached',
+      'Label: likely this chat at the time recorded',
+      'vs usual: generation 0.82× (34 replies), first token 1.3× (12 replies)',
       'This Mac: memory pressure warning, GPU 62% busy, GPU memory 30 GiB allocated (includes other apps, not model size), GPU values driver-reported, thermal pressure heavy',
       'Alerts: model-unloaded, pressure-warning',
     ]);
@@ -136,7 +136,7 @@ describe('/scope text (plan §5.8)', () => {
     const prefill = (request: object) => text(body(value => { value.runtime.phase = 'prefill'; value.runtime.request = { model: MODEL, ...request }; }))
       .split('\n').find(line => line.startsWith('Current request'));
     expect(prefill({ prefillTps: 184.5, prefillProcessedTokens: 5_824, prefillTotalTokens: 9_100, prefillFraction: 0.1, prefillEtaMs: 17_750, promptTokens: 9_100 }))
-      .toBe('Current request: prefill 184.5 tok/s (reported), prefill 64% of this stage (reported), about 17.75 s left (runtime estimate), context 8k–32k tokens');
+      .toBe('Current request: prefill 184.5 tok/s (reported), prefill 64% of this stage (reported), about 17.75 s left (server estimate), context 8k–32k tokens');
     expect(prefill({ prefillTps: 184.5, prefillFraction: 0.64, prefillStale: true, prefillEtaMs: 17_750 }))
       .toBe('Current request: prefill 64% of this stage, held (reported)');
     expect(prefill({ prefillProcessedTokens: 10, prefillTotalTokens: 0, prefillFraction: 0.5 })).toBeUndefined();
@@ -146,7 +146,7 @@ describe('/scope text (plan §5.8)', () => {
       value.runtime.phase = 'idle'; value.runtime.request = null; value.capabilities = {};
       value.runtime.server = { active: 0, queued: 0, averages: { decodeTps: 23.2 } };
     }));
-    expect(lines).toContain('Runtime: oMLX, version 0.7.0rc1, status ready, phase idle');
+    expect(lines).toContain('Server: oMLX, version 0.7.0rc1, status ready, phase idle');
     for (const absent of ['Current request', 'Server,', 'Last finished', 'This Mac', 'tok/s', ' 0 ', '0%']) expect(lines).not.toContain(absent);
     expect(lines).toContain('Alerts: model-unloaded, pressure-warning');
   });
@@ -154,7 +154,7 @@ describe('/scope text (plan §5.8)', () => {
     const label = (verdict: object | undefined, vsUsual?: null | []) => text(body(value => { value.completions.items[0].verdict = verdict; }), vsUsual)
       .split('\n').filter(line => /^(Label|vs usual)/.test(line));
     expect(label({ attr: 'withheld', reason: 'other-provider', at: AT })).toEqual(['Label: server-wide (other-provider)']);
-    expect(label({ attr: 'armed', at: AT }, [])).toEqual(['Label: armed Next reply', 'vs usual: no baseline yet']);
+    expect(label({ attr: 'armed', at: AT }, [])).toEqual(['Label: Next reply', 'vs usual: no baseline yet']);
     expect(label(undefined, null)).toEqual(['Label: server-wide (not labelled)', 'vs usual: history unavailable']);
   });
   test('a pressure or thermal level outside the macOS scale is left out, not named', () => {
@@ -171,7 +171,7 @@ describe('/scope text (plan §5.8)', () => {
   });
   test('stays under the SDK chip limit even for a body filled to its caps', () => {
     expect(text(fullSnapshot()).length).toBeLessThan(SCOPE_TEXT_MAX_CHARS);
-    expect(text({ contractVersion: 1 })).toContain('No runtime reading.');
+    expect(text({ contractVersion: 1 })).toContain('No server reading.');
     expect(text(null).split('\n')[0]).toBe(`${SCOPE_HEADER}.`);
   });
 });

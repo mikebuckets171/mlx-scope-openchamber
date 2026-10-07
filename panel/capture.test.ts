@@ -49,8 +49,8 @@ test('two bounded summaries compare observed generation only and redact identity
   for(now=11000;now<=16000;now+=1000)c.observe(frame(now,(now-10000)/40));c.stop();
   expect(c.comparison()).toBeCloseTo(25);
   const report=c.report('1.0.0');expect(report).not.toContain('private/model');expect(report).toContain('partial');
-  expect(report).not.toContain('traceEpoch');expect(report).toContain('not selected-chat');
-  expect(report).toContain('mean 27.94 GiB, peak 27.94 GiB');
+  expect(report).not.toContain('traceEpoch');expect(report).toContain('all server activity');
+  expect(report).toContain('average 27.94 GiB, peak 27.94 GiB');
   c.clear();expect(c.current).toBeNull();expect(c.baseline).toBeNull();
 });
 
@@ -130,7 +130,7 @@ test('missing resource values remain unavailable and cannot be pinned as measure
   expect(c.current?.meanCPU).toBeNull(); expect(c.current?.peakCPU).toBeNull();
   expect(c.current?.meanMemoryBytes).toBeNull(); expect(c.current?.peakMemoryBytes).toBeNull();
   expect(c.current?.peakProcessBytes).toBeNull(); expect(c.current?.requestCountChange).toBeNull();
-  expect(c.pin()).toBe(false); expect(c.report('1.0.0')).toContain('mean not reported');
+  expect(c.pin()).toBe(false); expect(c.report('1.0.0')).toContain('average not reported');
 });
 
 test('fresh zero-output intervals count toward rate while idle, prefill and processing break continuity', () => {
@@ -149,7 +149,7 @@ test('fresh zero-output intervals count toward rate while idle, prefill and proc
   expect(capturedRate(c.current)).toBeCloseTo(40 / 3);
 });
 
-test('DFlash output counters are observed without borrowing the runtime request-average rate', () => {
+test('DFlash output counters are observed without borrowing the server request-average rate', () => {
   let now = 0; const c = new PerformanceCapture(() => now);
   c.start(frame(0, 0, { phase: 'processing', liveDecodeTPS: null }), 30);
   now = 1_000; c.observe(frame(now, 10, { liveDecodeTPS: null }));
@@ -171,7 +171,7 @@ test('request count changes require fresh monotonic reported totals across the o
   expect(c.current?.requestCountChange).toBe(0);
   now = 2_000; c.observe(requestsFrame(now, 103));
   expect(c.current?.requestCountChange).toBe(3);
-  expect(c.report('1.0.0')).toContain('Reported server request count change: 3.');
+  expect(c.report('1.0.0')).toContain('New finished requests: 3.');
   for (const failure of ['stale', 'missing', 'rollback', 'restart'] as const) {
     now = 0; const capture = new PerformanceCapture(() => now);
     capture.start(requestsFrame(0, 100), 30);

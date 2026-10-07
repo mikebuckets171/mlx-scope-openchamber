@@ -72,7 +72,7 @@ const inspect = (page: Page, openAll = false): Promise<string[]> => page.evaluat
   document.querySelectorAll<HTMLElement>('.chip[data-attr]').forEach(chip => {
     if (!visible(chip)) return;
     const t = chip.textContent!.trim();
-    if (!/^(This chat · inferred|Next reply · armed|Server-wide · .+)$/.test(t)) problems.push(`attribution chip "${t}" (server-wide needs its reason)`);
+    if (!/^(Likely this chat|Next reply|All server activity · .+)$/.test(t)) problems.push(`attribution chip "${t}" (server-wide needs its reason)`);
     if (chip.scrollWidth > chip.clientWidth + 1) problems.push(`attribution chip truncated: "${t}"`);
   });
   if (/This chat(?! · inferred| uses)/.test(text) && !/this chat, then|in this chat|this chat’s/i.test(text.replace(/This chat · inferred/g, ''))) problems.push('"This chat" without "inferred"');
@@ -127,13 +127,13 @@ test.describe('History tab', () => {
       await expect(view.locator('.history-storage')).toHaveJSProperty('open', false);
       await reveal(page, '.history-insights', '.history-alerts', '.history-storage');
       await expect(view.locator('section h2')).toHaveText(['Trend', 'Recent replies', 'Usual speed', 'Recorded by oMLX', 'Alert log', 'Reply history']);
-      await expect(view.locator('.chart-top')).toHaveText(/Decode speed · reported by oMLX\s*30 tok\/s/);
+      await expect(view.locator('.chart-top')).toHaveText(/Generation speed · from oMLX\s*30 tok\/s/);
       await expect(view.locator('.plot')).toHaveAttribute('aria-label', /6 turns, 21\.5 to 27\.6 tokens per second; not observed from 13:24 to 13:46\./);
       await expect(view.locator('.gap-band')).toHaveText('Not observed · Scope wasn’t open');
       await expect(view.locator('.counts .chip')).toHaveText(['41 last observed', '1 gap']);
       await expect(view.locator('.led-row').first()).toContainText('Turn · 3 steps');
       await expect(view.locator('.ledger > li')).toHaveCount(6);
-      await expect(view.locator('.led-row .chip[data-attr="server"]').first()).toHaveText('Server-wide · overlapping requests');
+      await expect(view.locator('.led-row .chip[data-attr="server"]').first()).toHaveText('All server activity · several requests at once');
       await expect(view.getByText('No baseline · oMLX doesn’t report it')).toBeVisible();
       await expect(view.locator('.usage-bars > div')).toHaveCount(7);
       await expect(view.locator('.storage-line')).toHaveText(/412 KiB\s*of 1\.25 MiB · 41 replies · 13 days/);
@@ -244,7 +244,7 @@ test.describe('History tab', () => {
     await page.getByRole('button', { name: 'Copy baseline summary' }).click();
     await expect(page.getByText('Baseline summary copied, with models as “Model A, B”.')).toBeVisible();
     const copied = await read(page, 'copied') as string;
-    expect(copied).toContain('Model A · oMLX · 32–64K context · decode: p50 25.9 tok/s · p90 27.2 tok/s · n 33');
+    expect(copied).toContain('Model A · oMLX · 32–64K context · Generation speed: typical 25.9 tok/s · 90% at or below 27.2 tok/s · 33 replies');
     expect(copied).not.toMatch(/Example-|canary/);
     await page.getByLabel('Keep reply history for').selectOption('60');
     await expect(page.getByText('Keeping 60 days. Older replies go at the next save.')).toBeVisible();
@@ -260,7 +260,7 @@ test.describe('History tab', () => {
     await info.focus();
     await page.keyboard.press('Enter');
     await expect(info).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.getByRole('note').filter({ hasText: 'p50 needs 5 replies and p90 needs 10' })).toBeVisible();
+    await expect(page.getByRole('note').filter({ hasText: 'Typical values need 5 replies; fast and slow cutoffs need 10' })).toBeVisible();
     // A poll a minute later re-renders the whole view (clock labels move); the tree is patched, not replaced.
     await page.evaluate(() => { const h = (window as unknown as { harness: Harness }).harness; h.now += 60_000; h.push(h.snapshot); });
     await expect(page.locator('.pop').filter({ hasText: 'Refreshed' })).toContainText('Refreshed 4 min ago');
@@ -274,7 +274,7 @@ test.describe('History tab', () => {
     await expect(column.locator(':scope > section h2')).toHaveText(['Trend', 'Recent replies']);
     await expect(column.locator('.history-insights')).toHaveJSProperty('open', false);
     await expect(column.locator('.history-insights h2')).toHaveText(['Usual speed', 'Recorded by oMLX']);
-    await expect(column.locator('.recent-replies .section-heading')).toContainText('Observed while Scope was open');
+    await expect(column.locator('.recent-replies .section-heading')).toContainText('Recorded while Scope was open');
     await expect(column.locator('.ledger > li')).toHaveCount(6);
     await expect(column.locator('.history-alerts')).toHaveJSProperty('open', false);
     await expect(column.locator('.history-storage')).toHaveJSProperty('open', false);
@@ -340,8 +340,8 @@ test.describe('Captures tab', () => {
       await expect(view.locator('[data-window]')).toHaveCount(0);
       await expect(view.getByRole('button', { name: 'Measure next reply' })).toHaveClass(/primary/);
       await expect(view.locator('.chip[data-attr="armed"]')).toHaveCount(1);   // only the saved Next reply, nothing armed
-      await view.getByRole('button', { name: 'Timed window', exact: true }).click();
-      await expect(view.locator('h2')).toHaveText(['Timed window', 'Saved']);
+      await view.getByRole('button', { name: 'Timed recording', exact: true }).click();
+      await expect(view.locator('h2')).toHaveText(['Timed recording', 'Saved']);
       await expect(view.getByText('Monitoring keeps running while you capture.')).toBeVisible();
       await view.getByRole('button', { name: 'Reply', exact: true }).click();
       await expect(view.locator('section').filter({ has: page.getByRole('heading', { name: 'Saved', exact: true }) }).locator('.section-heading')).toContainText('3 of 12 · oldest replaced when full');
@@ -356,7 +356,7 @@ test.describe('Captures tab', () => {
   test('Next reply arms, counts down on its own clock, and cancels', async ({ page }) => {
     await open(page, 'tab=captures&state=next-armed');
     const card = page.locator('[data-next]');
-    await expect(card.locator('.section-heading .chip[data-attr="armed"]')).toHaveText('Next reply · armed');
+    await expect(card.locator('.section-heading .chip[data-attr="armed"]')).toHaveText('Next reply');
     await expect(card.locator('.actions')).toContainText('1:48 left');
     await clean(page);
     await shot(page, 'captures-next-armed-dark-320');
@@ -380,9 +380,9 @@ test.describe('Captures tab', () => {
   test('a result is saved once, as numbers and a runtime kind, and joins the saved list', async ({ page }) => {
     await open(page, 'tab=captures&state=next-result');
     const card = page.locator('[data-next]');
-    await expect(card.locator('.reply-head')).toHaveText(/Last reply\s*Next reply · armed\s*9 s ago/);
-    await expect(card.locator('.reply-values')).toHaveText(/25\.1 tok\/s\s*derived\s*1,204 out/);
-    await expect(card.locator('.split')).toHaveText(/Turn 38 s\s*observed/);
+    await expect(card.locator('.reply-head')).toHaveText(/Last reply\s*Next reply\s*9 s ago/);
+    await expect(card.locator('.reply-values')).toHaveText(/25\.1 tok\/s\s*calculated\s*1,204 out/);
+    await expect(card.locator('.split')).toHaveText(/Turn 38 s\s*measured/);
     await clean(page);
     await shot(page, 'captures-next-result-dark-320');
     await card.getByRole('button', { name: 'Save to Captures' }).click();
@@ -403,12 +403,12 @@ test.describe('Captures tab', () => {
   });
   test('a 30 s window records while monitoring runs, finishes on the service clock, and saves server-wide', async ({ page }) => {
     await open(page, 'tab=captures&state=decode', 430);
-    await page.getByRole('button', { name: 'Timed window', exact: true }).click();
+    await page.getByRole('button', { name: 'Timed recording', exact: true }).click();
     const card = page.locator('[data-window]');
-    await card.getByLabel('Window length').selectOption('30000');
+    await card.getByLabel('Recording length').selectOption('30000');
     await card.getByRole('button', { name: 'Start capture' }).click();
     await expect(card).toHaveAttribute('data-window', 'recording');
-    await expect(card.getByRole('progressbar', { name: 'Window' })).toBeVisible();
+    await expect(card.getByRole('progressbar', { name: 'Recording progress' })).toBeVisible();
     await page.evaluate(() => { const h = (window as unknown as { harness: Harness }).harness; for (let i = 1; i <= 30; i += 1) h.decode(i * 500, 1000 + i * 12); });
     await expect(card.locator('.section-heading')).toContainText('15 / 30 s');
     await expect(card.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');

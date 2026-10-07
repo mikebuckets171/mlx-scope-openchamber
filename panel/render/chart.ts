@@ -22,7 +22,7 @@ export const liveChart = (samples: readonly SignalPoint[], now: number, turnStar
   }
   const path = (segment: SignalPoint[]): string => segment.map((point, index) => `${index ? 'L' : 'M'}${x(point.at, now).toFixed(1)} ${y(point.rate).toFixed(1)}`).join(' ');
   const base = (H - 4).toFixed(1);
-  const low = Math.min(...points.map(point => point.rate)), latest = points.at(-1)!.rate, title = scope === 'server' ? `${ENGINE_SPEED} · server-wide · derived` : 'Decode · request average';
+  const low = Math.min(...points.map(point => point.rate)), latest = points.at(-1)!.rate, title = scope === 'server' ? `${ENGINE_SPEED} · all server activity · calculated` : 'Generation speed · average for this request';
   return {
     title, ceiling: `${ceiling} tok/s`, points: points.length,
     label: `${title}, last ${Math.round((now - points[0]!.at) / 1_000)} s: ${tps(low)} to ${tps(peak)} tokens per second, now ${tps(latest)}`,

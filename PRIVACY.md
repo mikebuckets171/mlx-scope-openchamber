@@ -26,6 +26,22 @@ alerts. It writes no files, and all of this is lost when the service stops. The 
 records through its admin login; they are cached in memory for 5 minutes, never stored and never merged into the reply
 history.
 
+## Optional Splash prompt progress companion
+
+The companion is installed separately in OpenCode. It parses the existing streaming request body in memory to add
+Splash's `return_progress` option and observes the response as OpenCode reads it. It does not submit a prompt or change
+the selected model. Scope's service still writes no files.
+
+The companion stores brief numeric progress records under `~/.cache/mlx-scope/prompt-progress/`, using private
+owner-only directories and files. Records contain prompt counts, timestamps, provider names, random response IDs and
+hashes for matching the session, endpoint and model. No prompt, response text, credentials, headers or raw session or
+model IDs are stored. Hashes can correlate known identifiers and are not anonymization. Entries expire after 15 seconds;
+files are removed when streams finish or the companion unloads. A crash may leave an expired file.
+
+The service reads a bounded set of matching records and sends only numeric progress and its freshness timestamp to the
+views. Matching keys and response IDs never reach Scope history or shared diagnostics. See the
+[companion data contract](bridge/opencode/README.md) for limits and validation.
+
 ## Reply history stored on this computer
 
 MLX Scope keeps a local history of the replies it observed while a Scope view was visible. It lives in OpenChamber
