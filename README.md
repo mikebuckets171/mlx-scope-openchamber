@@ -161,7 +161,7 @@ them at a time, and a sent chip stays in the chat's session record like any atta
    https://github.com/mikebuckets171/mlx-scope-openchamber
    ```
 
-Alternatively, install the named versioned `mlx-scope-openchamber-2.1.5.zip` from
+Alternatively, install the named versioned `mlx-scope-openchamber-2.1.6.zip` from
 [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest), or the supplied local package. Use the named install package, not
 GitHub's generated source archives. The ZIP includes built JavaScript; installing it needs no build toolchain.
 

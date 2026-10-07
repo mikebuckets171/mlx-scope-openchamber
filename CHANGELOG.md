@@ -1,6 +1,8 @@
 # Changelog
 
-## 2.1.5
+## 2.1.6
+
+- Long activity explanations now wrap within narrow panels, keeping their help button inside the panel in WebKit.
 
 ### Added
 
