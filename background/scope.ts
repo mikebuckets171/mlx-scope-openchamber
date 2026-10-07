@@ -16,7 +16,7 @@ export const PROVIDER = /^[^\0-\x1f\x7f]{1,120}$/;
 export const SCOPE_ERRORS = {
   approval: 'Allow MLX Scope in Settings → Extensions; retry /scope.',
   unreachable: 'Open MLX Scope; retry /scope. Service unavailable.',
-  mismatch: 'Restart MLX Scope in Settings → Extensions (pause/resume).',
+  mismatch: 'MLX Scope’s service is out of date. Pause and resume MLX Scope in Settings → Extensions.',
 } as const;
 
 // The host's own 20 s deadline covers a service or storage read that hangs.
