@@ -1,5 +1,5 @@
 import type { AttachIssueRequest } from '@openchamber/sdk';
-import { arr as list, nonneg, obj, oneOf, type Json } from '../../src/contract/guards.ts';
+import { arr as list, count, nonneg, obj, oneOf, type Json } from '../../src/contract/guards.ts';
 import { runtimeNames, runtimeKind } from '../../src/contract/runtime.ts';
 import { CONTRACT_VERSION } from '../../src/contract/version.ts';
 import type { VsUsual } from '../history/regress.ts';
@@ -27,6 +27,7 @@ const METRICS: Record<string, string> = { decodeTps: 'decode', prefillTps: 'pref
 const round = (value: number, digits = 1): string => String(+value.toFixed(digits));
 const secs = (ms: number): string => ms < 1_000 ? `${Math.round(ms)} ms` : `${round(ms / 1000, 2)} s`;
 const pct = (value: number): string => `${Math.round(value * 100)}%`;
+const progressPct = (value: number): string => value > 0.99 && value < 1 ? '>99%' : `${value === 1 ? 100 : Math.floor(value * 100 + Number.EPSILON * 100)}%`;
 /** The ledger's size buckets (<8k, 8–32k, 32–64k, 64–128k, >128k tokens); ledger-schema.ts sizeBucket, pinned by a test. */
 export const sizeBucket = (tokens: number | null): number | null => tokens === null ? null : [8_192, 32_768, 65_536, 131_072, Infinity].findIndex(top => tokens < top);
 /** Context sizes as buckets, never the exact count. */
@@ -80,7 +81,7 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
   // The current request, with parseSnapshotV2's cross-field rules: progress only in prefill, an estimate only while it moves.
   const request = obj(runtimeBody?.request), PROGRESS = 'request.prefillProgress', PREFILL = 'request.prefillRate';
   if (request) {
-    const done = nonneg(request.prefillProcessedTokens), total = nonneg(request.prefillTotalTokens), stale = request.prefillStale === true;
+    const done = count(request.prefillProcessedTokens), total = count(request.prefillTotalTokens), stale = request.prefillStale === true;
     // Counts, when sent, decide progress; a fraction without valid counts is not trusted.
     const counted = request.prefillProcessedTokens != null || request.prefillTotalTokens != null
       ? done !== null && total && done <= total ? done / total : null : value(request, 'prefillFraction', PROGRESS, 1);
@@ -89,7 +90,7 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
     const context = value(request, 'contextUsedTokens', 'request.context') ?? value(request, 'promptTokens', 'request.tokens');
     const ttft = value(request, 'ttftMs', 'request.ttft');
     line('Current request', [rate('decode', request, 'decodeTps', 'request.decodeRate'), !stale && rate('prefill', request, 'prefillTps', PREFILL),
-      progress !== null && tagged(`prefill ${pct(progress)} of this stage${stale ? ', held' : ''}`, PROGRESS),
+      progress !== null && tagged(`prefill ${progressPct(progress)} ${standalone ? 'of the whole prompt, including cached tokens' : 'of this stage'}${stale ? ', held' : ''}`, PROGRESS),
       eta !== null && `about ${secs(eta)} left (runtime estimate)`, ttft !== null && tagged(`first token ${secs(ttft)}`, 'request.ttft'),
       context !== null && bucket(context)]);
   }

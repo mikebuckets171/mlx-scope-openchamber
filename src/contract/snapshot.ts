@@ -79,6 +79,8 @@ export interface RequestV2 {
   model: string | null;
   decodeTps?: number; prefillTps?: number;
   prefillProcessedTokens?: number; prefillTotalTokens?: number; prefillFraction?: number; prefillStale?: boolean;
+  /** Native progress observation time, separate from the current /status sample time. Never a request identity. */
+  prefillObservedAt?: number;
   prefillEtaMs?: number;                     // runtime estimate; only while prefill is live and fraction < 1
   promptTokens?: number; cachedTokens?: number; outputTokens?: number;
   elapsedMs?: number; ttftMs?: number;
@@ -114,6 +116,7 @@ export const HONESTY: ReadonlyArray<readonly [string, CapabilityKey]> = [
   ['runtime.request.decodeTps', 'request.decodeRate'], ['runtime.request.prefillTps', 'request.prefillRate'],
   ['runtime.request.prefillFraction', 'request.prefillProgress'], ['runtime.request.prefillProcessedTokens', 'request.prefillProgress'],
   ['runtime.request.prefillTotalTokens', 'request.prefillProgress'], ['runtime.request.prefillStale', 'request.prefillProgress'],
+  ['runtime.request.prefillObservedAt', 'request.prefillProgress'],
   ['runtime.request.prefillEtaMs', 'request.prefillEta'], ['runtime.request.ttftMs', 'request.ttft'],
   ['runtime.request.promptTokens', 'request.tokens'], ['runtime.request.cachedTokens', 'request.tokens'],
   ['runtime.request.outputTokens', 'request.tokens'], ['runtime.request.elapsedMs', 'request.elapsed'],
@@ -172,6 +175,7 @@ const request = (value: unknown, current: Phase): RequestV2 | null => {
     model: modelLabel(item.model), decodeTps: num(item.decodeTps), prefillTps: opt(prefillTps),
     prefillProcessedTokens: prefill !== null ? opt(done) : undefined, prefillTotalTokens: prefill !== null ? opt(total) : undefined,
     prefillFraction: opt(prefill), prefillStale: stale || undefined,
+    prefillObservedAt: prefill !== null && count(item.prefillObservedAt) !== null ? opt(at(item.prefillObservedAt)) : undefined,
     prefillEtaMs: prefill !== null && prefill < 1 && !stale && (prefillTps ?? 0) > 0 ? num(item.prefillEtaMs) : undefined,
     promptTokens: int(item.promptTokens), cachedTokens: int(item.cachedTokens), outputTokens: int(item.outputTokens),
     elapsedMs: num(item.elapsedMs), ttftMs: num(item.ttftMs),

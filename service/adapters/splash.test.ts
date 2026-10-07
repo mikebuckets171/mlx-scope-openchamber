@@ -693,6 +693,7 @@ describe('the descriptor', () => {
     expect([true, false].map(activity => splashDescriptor.cadence({ activity, tier: 'full', recovering: false }))).toEqual([1_000, 2_000]);
     expect(splashDescriptor.identityEveryMs).toBe(60_000);
     expect(splashDescriptor.capabilities).toEqual([
+      { key: 'request.prefillProgress', basis: 'reported' },
       { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' }, { key: 'server.rates', basis: 'derived' },
       { key: 'server.latency', basis: 'reported' },
       { key: 'server.memory.metal', basis: 'reported' }, { key: 'server.catalog', basis: 'reported' }, { key: 'server.completions', basis: 'derived' }]);

@@ -19,7 +19,7 @@ export const measurementReport = (reading: Reading, system: HostReading | null, 
     if (budget) lines.push(`Model context: ${budget.used} / ${budget.limit}; ${budget.remaining} tokens to reported limit (not OpenCode compaction or output budget)`);
     const progress = prefillReading(reading);
     if (progress) {
-      lines.push(`Prefill: ${progress.remaining}${progress.stale || paused ? ' (last reading)' : ''} — current stage only`);
+      lines.push(`Prefill: ${progress.remaining}${progress.stale || paused ? ' (last reading)' : ''} — ${reading.runtime === 'splash' ? 'whole prompt, including cached tokens' : 'current stage only'}`);
       if (!paused && !progress.stale && eta !== null) lines.push(`Prefill stage estimate: ${scalar(eta / 1000, ' seconds')} (reported stage estimate, not a completion deadline)`);
       if (progress.counts) lines.push(`Prefill tokens: ${progress.counts.done} / ${progress.counts.total}; ${progress.counts.remaining} remaining`);
     }

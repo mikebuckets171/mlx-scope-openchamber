@@ -10,6 +10,26 @@ import { lastReply, SCOPE_HEADER, SCOPE_TEXT_MAX_CHARS, scopeItem, scopeReadme, 
 
 const AT = 1_790_690_700_000;
 
+test('Splash diagnostics preserve the overall cached-inclusive prompt percentage without rounding unfinished work to complete', () => {
+  const snapshot = parseSnapshotV2(mockBody('splash-prefill'))!;
+  snapshot.runtime.request = { model: null, prefillFraction: 0.85, prefillProcessedTokens: 850, prefillTotalTokens: 1000, prefillObservedAt: AT };
+  snapshot.capabilities['request.prefillProgress'] = { scope: 'request', basis: 'reported' };
+  const read = () => scopeText({ version: '2.1.5', now: AT, snapshot });
+  expect(read()).toContain('prefill 85% of the whole prompt, including cached tokens (reported)');
+  expect(read()).not.toContain('of this stage');
+  snapshot.runtime.request.prefillProcessedTokens = 999; snapshot.runtime.request.prefillFraction = 0.999;
+  expect(read()).toContain('prefill >99% of the whole prompt');
+  expect(read()).not.toContain('prefill 100%');
+  snapshot.runtime.request.prefillStale = true;
+  expect(read()).toContain('including cached tokens, held (reported)');
+  for (const invalid of [true, '999', 999.5, Number.MAX_SAFE_INTEGER + 1]) {
+    snapshot.runtime.request.prefillProcessedTokens = invalid as number;
+    expect(read()).not.toContain('whole prompt');
+  }
+  delete snapshot.capabilities['request.prefillProgress'];
+  expect(read()).not.toContain('whole prompt');
+});
+
 test('Splash scope exports separate recent stage intervals and retain only labeled lifetime values while held', () => {
   const snapshot = parseSnapshotV2(mockBody('splash-decode'))!;
   snapshot.runtime.phase = 'processing';

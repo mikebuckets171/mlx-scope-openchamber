@@ -6,6 +6,7 @@ import { requiredCapabilities, type CatalogV2, type Phase, type Quantiles, type 
 import type { AdapterContextV2, AdapterReadingV2, AdapterV2, CompletionDraft, DescriptorV2 } from '../core/adapter-v2.ts';
 import { HttpFailure } from '../http.ts';
 import { modelLabel, positive } from '../lib/parse.ts';
+import { SplashPromptProgress, type ProgressScope } from './splash-progress.ts';
 
 // Owner: ad-splash. Splash 1.0.2–1.2 through GET /status only (G1: no /metrics, no /v1/models). Precedence recovering >
 // status_stale > not admitting > ready; native ttft_ms/itl_ms p50/p95 with n. last_crash_trace, transport.error and
@@ -23,6 +24,7 @@ export const SPLASH_RATE_MIN_WINDOW_MS = 2_000;
 export const SPLASH_RATE_MIN_SAMPLES = 3;
 
 const CAPABILITIES: readonly CapabilityDescriptor[] = [
+  { key: 'request.prefillProgress', basis: 'reported' },
   { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' }, { key: 'server.rates', basis: 'derived' },
   { key: 'server.latency', basis: 'reported' }, { key: 'server.memory.metal', basis: 'reported' },
   { key: 'server.catalog', basis: 'reported' }, { key: 'server.completions', basis: 'derived' },
@@ -275,7 +277,7 @@ class SplashAdapter implements AdapterV2 {
   private readonly completions = new SplashCompletions();
   private readonly rates = new SplashRates();
   private readSequence = 0;
-  constructor(private readonly context: AdapterContextV2) {}
+  constructor(private readonly context: AdapterContextV2, private readonly progress = new SplashPromptProgress()) {}
 
   async read(): Promise<AdapterReadingV2> {
     const held = this.hold();
@@ -283,7 +285,7 @@ class SplashAdapter implements AdapterV2 {
     const sequence = ++this.readSequence;
     let body: unknown;
     try { body = await this.status(); }
-    catch (error) { if (sequence === this.readSequence) this.rates.reset(); throw error; }
+    catch (error) { if (sequence === this.readSequence) { this.rates.reset(); this.progress.reset(this.context.now()); } throw error; }
     const at = this.context.now(), monotonicAt = this.context.monotonic();
     // RuntimeClient normally coalesces reads. If a read overlaps or the adapter is disposed mid-fetch, its
     // older response must not establish a new baseline or rewind the current completion bracket.
@@ -293,6 +295,25 @@ class SplashAdapter implements AdapterV2 {
     if (rates) {
       reading.runtime.server.rates = rates;
       reading.capabilities['server.rates'] = { scope: 'server', basis: 'derived' };
+    }
+    const item = splashBody(body), scheduler = obj(item?.scheduler), nativeModel = field(item, 'instance.model');
+    const started = nonneg(field(item, 'instance.started_at')), startedAtMs = started === null ? undefined : started * 1000;
+    const origin = this.context.config.baseURL?.origin;
+    const scope: ProgressScope | null = item && origin && reading.status.state === 'ready'
+      && field(item, 'transport.ready') !== false && field(item, 'transport.stopped') !== true
+      && reading.runtime.phase === 'prefill' && reading.runtime.server.active === 1 && reading.runtime.server.queued === 0
+      && count(scheduler?.prefilling) === 1 && count(scheduler?.decoding) === 0 && count(scheduler?.waiting_mask) === 0
+      && typeof nativeModel === 'string' && nativeModel.length > 0 && nativeModel.length <= 1024
+      && (startedAtMs === undefined || Number.isFinite(startedAtMs) && startedAtMs >= 0 && startedAtMs <= at)
+      ? { providerID: this.context.connection.id, endpointOrigin: origin, model: nativeModel, generationKey: reading.generationKey!, startedAtMs } : null;
+    const progress = await this.progress.observe(scope, at, monotonicAt);
+    if (sequence !== this.readSequence) return { ...splashReading(body, at), completions: [] };
+    if (progress) {
+      // Splash reports the whole prompt, including cached input. These are not the current native chunk's counters.
+      reading.runtime.request = { model: null, prefillFraction: progress.processed / progress.total,
+        prefillProcessedTokens: progress.processed, prefillTotalTokens: progress.total,
+        prefillObservedAt: progress.observedAt, ...progress.stale ? { prefillStale: true } : {} };
+      reading.capabilities['request.prefillProgress'] = { scope: 'request', basis: 'reported' };
     }
     this.held = reading.status.state === 'recovering' ? { reading, until: this.context.monotonic() + SPLASH_RECOVERING_CACHE_MS } : null;
     return reading;
@@ -304,7 +325,7 @@ class SplashAdapter implements AdapterV2 {
     return splashBody((await this.context.get('/status')).body) !== null;
   }
 
-  dispose(): void { this.readSequence += 1; this.held = null; this.completions.reset(); this.rates.reset(); }
+  dispose(): void { this.readSequence += 1; this.held = null; this.completions.reset(); this.rates.reset(); this.progress.reset(this.context.now()); }
 
   private hold(): AdapterReadingV2 | null {
     const left = this.held ? this.held.until - this.context.monotonic() : 0;
@@ -322,6 +343,9 @@ class SplashAdapter implements AdapterV2 {
   }
 }
 
+/** Private cache options are a test seam; shipped adapters only read the standard companion directory. */
+export const createSplashAdapter = (context: AdapterContextV2, progress?: SplashPromptProgress): AdapterV2 => new SplashAdapter(context, progress);
+
 const BIONIC = /bionic|lm[\s_-]*studio/i;
 /** /status schema versions with a qualified corpus: 5 (Splash 1.0.2 and 1.1) and 6 (1.2). Others still match, at medium. */
 const SPLASH_SCHEMAS: readonly unknown[] = [5, 6];
@@ -336,5 +360,5 @@ export const splashDescriptor: DescriptorV2 = {
   ],
   cadence: ({ activity, recovering }) => recovering ? SPLASH_RECOVERING_CACHE_MS : activity ? SPLASH_CADENCE_MS.active : SPLASH_CADENCE_MS.idle,
   capabilities: CAPABILITIES, identityEveryMs: 60_000,
-  create: context => new SplashAdapter(context),
+  create: createSplashAdapter,
 };

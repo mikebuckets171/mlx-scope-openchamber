@@ -132,6 +132,18 @@ test('prefill cross-field rules match 1.6', () => {
   expect(prefill({ prefillFraction: 1 })).not.toHaveProperty('prefillEtaMs');
   expect(prefill({ prefillFraction: 0.64, prefillTps: 0 })).not.toHaveProperty('prefillEtaMs');
 });
+test('the native progress observation timestamp is safe, capability-gated and retained only with current prefill progress', () => {
+  const observed = 1_790_690_700_000;
+  expect(prefill({ prefillProcessedTokens: 999, prefillTotalTokens: 1000, prefillObservedAt: observed }))
+    .toMatchObject({ prefillFraction: 0.999, prefillObservedAt: observed });
+  for (const value of [true, '1790690700000', -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER, 8.64e15 + 1])
+    expect(prefill({ prefillFraction: 0.5, prefillObservedAt: value })).not.toHaveProperty('prefillObservedAt');
+  expect(prefill({ prefillFraction: 0.5, prefillObservedAt: observed }, 'decode')).not.toHaveProperty('prefillObservedAt');
+  expect(prefill({ prefillProcessedTokens: 999, prefillTotalTokens: 0, prefillObservedAt: observed })).not.toHaveProperty('prefillObservedAt');
+  const missing = edit(body => { body.runtime.phase = 'prefill'; body.runtime.request = { prefillFraction: 0.5, prefillObservedAt: observed };
+    delete body.capabilities['request.prefillProgress']; });
+  expect(parseSnapshotV2(missing)!.runtime.request).not.toHaveProperty('prefillObservedAt');
+});
 test('per-model and per-slot speeds only while a single request makes them honest', () => {
   const runtime = parseSnapshotV2(edit(body => {
     const row = body.runtime.residency[0];

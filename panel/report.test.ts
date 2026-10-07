@@ -5,6 +5,18 @@ import { MOCK_NOW, mockBody } from './testing/mock-states.ts';
 import { measurementReport } from './report.ts';
 import { completionOf, fromV1 } from './testing/readings.ts';
 
+test('Splash Copy Stats names the whole prompt including reuse, keeping unfinished and held progress truthful', () => {
+  const snapshot = parseSnapshotV2(mockBody('splash-prefill'))!;
+  snapshot.runtime.request = { model: null, prefillFraction: 0.999, prefillProcessedTokens: 999, prefillTotalTokens: 1000, prefillObservedAt: MOCK_NOW };
+  snapshot.capabilities['request.prefillProgress'] = { scope: 'request', basis: 'reported' };
+  const read = (paused = false) => measurementReport(fromSnapshot(snapshot), null, paused, '2.1.5', MOCK_NOW);
+  expect(read()).toContain('Prefill: <1% remaining — whole prompt, including cached tokens');
+  expect(read()).toContain('Prefill tokens: 999 / 1000; 1 remaining');
+  expect(read()).not.toContain('current stage only');
+  expect(read(true)).toContain('<1% remaining (last reading)');
+  snapshot.runtime.request.prefillStale = true;
+  expect(read()).toContain('<1% remaining (last reading)');
+});
 test('clipboard report contains measurements, never raw messages, keys, model names or IDs', () => {
   const reading = fromV1({ available: true, phase: 'prefill', prefillProgress: 0.64, prefillProcessedTokens: 64, prefillTotalTokens: 100,
     modelID: 'secret-model', message: '/private/example secret-key', traceEpoch: 12345, sampledAt: 1000 });
@@ -47,10 +59,10 @@ test('Splash diagnostics reproduce recent engine speed separately and withhold h
   const snapshot = parseSnapshotV2(mockBody('splash-decode'))!, reading = fromSnapshot(snapshot);
   const report = measurementReport(reading, null, false, '2.1.4', MOCK_NOW);
   expect(report).toContain('Splash average since engine start (all requests): 47.2 tok/s');
-  expect(report).toContain('Recent engine speed (server-wide, derived, last 4 seconds): 43.8 tok/s; output tokens / native decode-command time');
-  for (const held of [true, 'refreshing'] as const) expect(measurementReport(reading, null, held, '2.1.4', MOCK_NOW)).not.toContain('Recent engine speed');
+  expect(report).toContain('Recent generation speed (server-wide, derived, last 4 seconds): 43.8 tok/s; output tokens / native decode-command time');
+  for (const held of [true, 'refreshing'] as const) expect(measurementReport(reading, null, held, '2.1.4', MOCK_NOW)).not.toContain('Recent generation speed');
   snapshot.status.state = 'recovering';
-  expect(measurementReport(reading, null, false, '2.1.4', MOCK_NOW)).not.toContain('Recent engine speed');
+  expect(measurementReport(reading, null, false, '2.1.4', MOCK_NOW)).not.toContain('Recent generation speed');
 });
 
 test('Splash Copy Stats reproduces independent prefill and generation intervals without request attribution', () => {
@@ -59,24 +71,24 @@ test('Splash Copy Stats reproduces independent prefill and generation intervals 
   snapshot.runtime.server.rates = { decodeTps: 43.8, windowMs: 4000, promptTps: 1200, promptWindowMs: 2350 };
   snapshot.runtime.server.averages!.prefillTps = 1500;
   const read = (held: boolean | 'refreshing' = false, now = MOCK_NOW) => measurementReport(fromSnapshot(snapshot), null, held, '2.1.5', now);
-  expect(read()).toContain('Recent engine speed (server-wide, derived, last 4 seconds): 43.8 tok/s; output tokens / native decode-command time');
+  expect(read()).toContain('Recent generation speed (server-wide, derived, last 4 seconds): 43.8 tok/s; output tokens / native decode-command time');
   expect(read()).toContain('Recent prefill engine speed (server-wide, derived, last 2.35 seconds): 1200 tok/s; processed input tokens / native prefill-command time');
   expect(read()).toContain('Splash prefill average since engine start (all requests): 1500 tok/s');
   expect(read()).not.toContain('Generation (request average)');
   expect(read()).not.toContain('Prefill tokens:');
   for (const held of [true, 'refreshing'] as const) {
-    expect(read(held)).not.toContain('Recent engine speed');
+    expect(read(held)).not.toContain('Recent generation speed');
     expect(read(held)).not.toContain('Recent prefill engine speed');
     expect(read(held)).toContain('average since engine start');
   }
   expect(read(false, MOCK_NOW + 30_000)).not.toContain('Recent prefill engine speed');
-  expect(read(false, MOCK_NOW + 30_000)).not.toContain('Recent engine speed');
+  expect(read(false, MOCK_NOW + 30_000)).not.toContain('Recent generation speed');
   delete snapshot.runtime.server.rates.promptWindowMs;
   expect(read()).not.toContain('Recent prefill engine speed');
-  expect(read()).toContain('Recent engine speed');
+  expect(read()).toContain('Recent generation speed');
   snapshot.runtime.phase = 'prefill'; delete snapshot.runtime.server.rates.decodeTps;
   expect(read()).toContain('Recent prefill engine speed (server-wide, derived, last 4 seconds)');
-  expect(read()).not.toContain('Recent engine speed');
+  expect(read()).not.toContain('Recent generation speed');
   snapshot.status.reason = 'status_stale';
   expect(read()).not.toContain('Recent prefill engine speed');
 });
