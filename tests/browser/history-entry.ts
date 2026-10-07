@@ -9,7 +9,8 @@ import type { LedgerState } from '../../panel/history/ledger.ts';
 import { capturesView } from '../../panel/render/views/captures.ts';
 import { historyView } from '../../panel/render/views/history.ts';
 import type { ViewHandle } from '../../panel/render/views/types.ts';
-import { MOCK_TEXT } from '../../panel/testing/history-text.ts';
+import { withheldWhy, alertCopy } from '../../panel/present/copy.ts';
+const MOCK_TEXT = { withheld: (reason: string) => `All server activity · ${withheldWhy(reason)}`, alert: (id: Parameters<typeof alertCopy>[0], params: Parameters<typeof alertCopy>[1]) => alertCopy(id, params)[0] };
 import { MOCK_MODELS, MOCK_NOW, mockAccounting, mockLedgerRows, mockSnapshot, mockTrend, mockUsage } from '../../panel/testing/mock-history.ts';
 
 const params = new URLSearchParams(location.search);

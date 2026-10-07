@@ -337,10 +337,10 @@ test('DFlash output without a reported rate reads as working, never an invented 
   await expect(frame.locator('#phase')).toHaveText('Working');
   await expect(frame.locator('#prefill-progress')).toHaveCount(0);
   await expect(frame.locator('#rate')).toHaveCount(0);
-  await expect(frame.locator('[data-stage="generation"]')).toContainText('Waiting for samples');
+  await expect(frame.locator('[data-stage="generation"]')).toContainText('Measuring…');
   await page.evaluate(() => (window as W).setPreviewState('dflash'));
   await expect(frame.locator('#phase')).toHaveText('Generating');
   await expect(frame.locator('#rate')).toHaveCount(0);
-  await expect(frame.locator('[data-stage="generation"]')).toContainText('Waiting for samples');
+  await expect(frame.locator('[data-stage="generation"]')).toContainText('Measuring…');
   await expect(frame.locator('#hero')).toContainText('doesn’t report this request’s speed');
 });

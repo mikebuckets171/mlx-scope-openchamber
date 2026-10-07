@@ -130,7 +130,7 @@ test.describe('History tab', () => {
       await expect(view.locator('.chart-top')).toHaveText(/Generation speed · from oMLX\s*30 tok\/s/);
       await expect(view.locator('.plot')).toHaveAttribute('aria-label', /6 turns, 21\.5 to 27\.6 tokens per second; not observed from 13:24 to 13:46\./);
       await expect(view.locator('.gap-band')).toHaveText('Not observed · Scope wasn’t open');
-      await expect(view.locator('.counts .chip')).toHaveText(['41 last observed', '1 gap']);
+      await expect(view.locator('.counts .chip')).toHaveText(['41 last reading', '1 gap']);
       await expect(view.locator('.led-row').first()).toContainText('Turn · 3 steps');
       await expect(view.locator('.ledger > li')).toHaveCount(6);
       await expect(view.locator('.led-row .chip[data-attr="server"]').first()).toHaveText('All server activity · several requests at once');
@@ -280,7 +280,7 @@ test.describe('History tab', () => {
     await expect(column.locator('.history-storage')).toHaveJSProperty('open', false);
     await expect(column.locator('.history-storage > summary')).toHaveText('History storageStored on this Mac');
     await expect(column.getByRole('button', { name: 'Clear…' })).toBeHidden();
-    await expect(column.locator('figcaption')).toHaveText(/−60 min\s*Turn times from OpenChamber · readings are server-wide\s*now/);
+    await expect(column.locator('figcaption')).toHaveText(/−60 min\s*Reply times from OpenChamber · all server activity\s*now/);
     expect((await column.locator('.trend .plot').boundingBox())!.height).toBe(132);
     await clean(page);
     await shot(page, 'history-page-dark-1160');
