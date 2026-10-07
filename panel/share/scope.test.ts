@@ -10,6 +10,39 @@ import { lastReply, SCOPE_HEADER, SCOPE_TEXT_MAX_CHARS, scopeItem, scopeReadme, 
 
 const AT = 1_790_690_700_000;
 
+test('Splash scope exports separate recent stage intervals and retain only labeled lifetime values while held', () => {
+  const snapshot = parseSnapshotV2(mockBody('splash-decode'))!;
+  snapshot.runtime.phase = 'processing';
+  snapshot.runtime.server.rates = { decodeTps: 43.8, windowMs: 4000, promptTps: 1200, promptWindowMs: 2350 };
+  snapshot.runtime.server.averages!.prefillTps = 1500;
+  const read = (now = AT) => scopeText({ version: '2.1.5', now, snapshot });
+  expect(read()).toContain('recent engine speed over 4 s (output/native decode time) 43.8 tok/s (derived)');
+  expect(read()).toContain('recent prefill engine speed over 2.35 s (input/native prefill time) 1200 tok/s (derived)');
+  expect(read()).toContain('prefill average since engine start 1500 tok/s (reported)');
+  expect(read()).not.toContain('Current request:');
+  for (const invalid of [true, '2350', -1, Infinity]) {
+    snapshot.runtime.server.rates.promptWindowMs = invalid as number;
+    expect(read()).not.toContain('recent prefill engine speed');
+    expect(read()).toContain('recent engine speed');
+  }
+  delete snapshot.runtime.server.rates.promptWindowMs;
+  expect(read()).not.toContain('recent prefill engine speed');
+  snapshot.runtime.server.rates.promptWindowMs = 2350;
+  snapshot.capabilities['server.rates']!.basis = 'reported';
+  expect(read()).not.toContain('recent prefill engine speed');
+  expect(read()).not.toContain('recent engine speed');
+  snapshot.capabilities['server.rates']!.basis = 'derived';
+  expect(read(AT + 30_000)).not.toContain('recent prefill engine speed');
+  expect(read(AT + 30_000)).not.toContain('recent engine speed');
+  snapshot.runtime.phase = 'prefill'; delete snapshot.runtime.server.rates.decodeTps;
+  delete snapshot.runtime.server.rates.promptWindowMs;
+  expect(read()).toContain('recent prefill engine speed over 4 s');
+  expect(read()).not.toContain('recent engine speed');
+  snapshot.runtime.server.rates = undefined;
+  expect(read()).not.toContain('recent prefill engine speed');
+  expect(read()).toContain('prefill average since engine start');
+});
+
 test('Splash scope diagnostics separate recent engine speed and lifetime rate, suppressing held recent rates', () => {
   const snapshot = parseSnapshotV2(mockBody('splash-decode'))!;
   const read = () => scopeText({ version: '2.1.4', now: AT, snapshot });

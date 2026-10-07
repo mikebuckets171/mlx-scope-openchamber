@@ -53,6 +53,34 @@ test('Splash diagnostics reproduce recent engine speed separately and withhold h
   expect(measurementReport(reading, null, false, '2.1.4', MOCK_NOW)).not.toContain('Recent engine speed');
 });
 
+test('Splash Copy Stats reproduces independent prefill and generation intervals without request attribution', () => {
+  const snapshot = parseSnapshotV2(mockBody('splash-decode'))!;
+  snapshot.runtime.phase = 'processing';
+  snapshot.runtime.server.rates = { decodeTps: 43.8, windowMs: 4000, promptTps: 1200, promptWindowMs: 2350 };
+  snapshot.runtime.server.averages!.prefillTps = 1500;
+  const read = (held: boolean | 'refreshing' = false, now = MOCK_NOW) => measurementReport(fromSnapshot(snapshot), null, held, '2.1.5', now);
+  expect(read()).toContain('Recent engine speed (server-wide, derived, last 4 seconds): 43.8 tok/s; output tokens / native decode-command time');
+  expect(read()).toContain('Recent prefill engine speed (server-wide, derived, last 2.35 seconds): 1200 tok/s; processed input tokens / native prefill-command time');
+  expect(read()).toContain('Splash prefill average since engine start (all requests): 1500 tok/s');
+  expect(read()).not.toContain('Generation (request average)');
+  expect(read()).not.toContain('Prefill tokens:');
+  for (const held of [true, 'refreshing'] as const) {
+    expect(read(held)).not.toContain('Recent engine speed');
+    expect(read(held)).not.toContain('Recent prefill engine speed');
+    expect(read(held)).toContain('average since engine start');
+  }
+  expect(read(false, MOCK_NOW + 30_000)).not.toContain('Recent prefill engine speed');
+  expect(read(false, MOCK_NOW + 30_000)).not.toContain('Recent engine speed');
+  delete snapshot.runtime.server.rates.promptWindowMs;
+  expect(read()).not.toContain('Recent prefill engine speed');
+  expect(read()).toContain('Recent engine speed');
+  snapshot.runtime.phase = 'prefill'; delete snapshot.runtime.server.rates.decodeTps;
+  expect(read()).toContain('Recent prefill engine speed (server-wide, derived, last 4 seconds)');
+  expect(read()).not.toContain('Recent engine speed');
+  snapshot.status.reason = 'status_stale';
+  expect(read()).not.toContain('Recent prefill engine speed');
+});
+
 test('Bionic report includes the last response’s exact figures', () => {
   const reading = fromV1({ available: true, runtime: 'lmstudio', phase: 'idle', modelID: 'local/qwen3.8-27b-splash-levels', sampledAt: 1000,
     activeRequests: 0, lastRequest: { model: 'local/qwen3.8-27b-splash-levels', tokensPerSecond: 38.6, ttftSeconds: 0.5,

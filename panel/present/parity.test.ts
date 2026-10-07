@@ -32,9 +32,10 @@ test('the 2a panel computes what 1.6 computed, for every fixture state', () => {
       expect(prefillEstimate(current), name).toBe(v16.prefillEstimate(current16));
       expect(cacheSplit(current?.request?.promptTokens, current?.request?.cachedTokens), name).toEqual(v16.cacheSplit(current16));
       for (const paused of [false, true, 'refreshing'] as const) {
-        // The stored Splash value is still the lifetime average; 2.1.4 names that basis explicitly.
+        // Splash's legacy decode value is lifetime; a false ready flag does not establish that loading is underway.
         const report16 = v16.measurementReport(original, original.system, paused, 'test', NOW)
-          .replace('Splash server decode (all requests):', 'Splash average since engine start (all requests):');
+          .replace('Splash server decode (all requests):', 'Splash average since engine start (all requests):')
+          .replace('Splash ready: no (loading)', 'Splash ready: no');
         expect(measurementReport(reading, reading.host, paused, 'test', NOW, completionOf(reading)), name)
           .toBe(report16);
       }

@@ -1,5 +1,6 @@
 import type { CompletionV2 } from '../src/contract/completion.ts';
 import { contextBudget } from './context.ts';
+import { freshnessDeadline } from './data/poller.ts';
 import { gib, scalar } from './present/format.ts';
 import type { HostReading, Reading } from './present/reading.ts';
 import { prefillReading } from './progress.ts';
@@ -37,10 +38,15 @@ export const measurementReport = (reading: Reading, system: HostReading | null, 
     }
     if (reading.runtime === 'splash' && reading.splash) {
       const stats = reading.splash;
-      lines.push(`Splash ready: ${stats.ready ? 'yes' : 'no (loading)'}`);
+      lines.push(`Splash ready: ${stats.ready ? 'yes' : 'no'}`);
       measured('Splash average since engine start (all requests)', stats.decodeTps, ' tok/s');
-      const recent = !paused ? liveSplashRate(reading.body) : null;
+      measured('Splash prefill average since engine start (all requests)', reading.body?.runtime.server.averages?.prefillTps, ' tok/s');
+      const fresh = !paused && now - reading.sampledAt <= freshnessDeadline(reading.body?.nextPollMs ?? 2000);
+      const recent = fresh ? liveSplashRate(reading.body) : null;
       if (recent !== null) lines.push(`${ENGINE_SPEED} (server-wide, derived, last ${scalar(reading.body!.runtime.server.rates!.windowMs / 1000)} seconds): ${scalar(recent)} tok/s; output tokens / native decode-command time`);
+      const prefill = fresh ? liveSplashRate(reading.body, 'prefill') : null;
+      const rates = reading.body?.runtime.server.rates;
+      if (prefill !== null) lines.push(`Recent prefill engine speed (server-wide, derived, last ${scalar((rates!.promptWindowMs ?? rates!.windowMs) / 1000)} seconds): ${scalar(prefill)} tok/s; processed input tokens / native prefill-command time`);
       measured('Splash completed requests since start', stats.completed);
       measured('Splash failed requests since start', stats.failed);
       measured('Splash GPU memory (Metal) · now', gib(stats.metalBytes), ' GiB');

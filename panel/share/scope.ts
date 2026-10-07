@@ -71,10 +71,11 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
   const version = connection?.version, splash = connection?.engine === 'splash', bionic = connection?.host === 'bionic';
   const runtimeBody = obj(body.runtime), status = obj(body.status);
   const phase = code(runtimeBody?.phase) ?? 'unknown', reason = code(status?.reason), state = code(status?.state) ?? 'unknown';
+  const sampledAt = nonneg(runtimeBody?.sampledAt) ?? serverNow;
   line('Runtime', [runtime === 'lmstudio' && (splash || bionic) ? `${splash ? 'Splash via ' : ''}${bionic ? 'Bionic' : 'LM Studio'}`
     : runtime ? runtimeNames[runtime] : 'unknown', typeof version === 'string' && /^[\w.+-]{1,40}$/.test(version) && `version ${version}`,
   `status ${state}${reason ? ` (${reason})` : ''}`, `phase ${phase}`,
-  `reading ${secs(Math.max(0, serverNow - (nonneg(runtimeBody?.sampledAt) ?? serverNow)))} old`]);
+  `reading ${secs(Math.max(0, serverNow - sampledAt))} old`]);
 
   // The current request, with parseSnapshotV2's cross-field rules: progress only in prefill, an estimate only while it moves.
   const request = obj(runtimeBody?.request), PROGRESS = 'request.prefillProgress', PREFILL = 'request.prefillRate';
@@ -95,16 +96,25 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
 
   const server = runtimeBody?.server, REQUESTS = 'server.requests', AVERAGES = 'server.averages', LATENCY = 'server.latency', RATES = 'server.rates';
   const active = value(server, 'active', REQUESTS), queued = value(server, 'queued', REQUESTS), window = value(server, 'rates.windowMs', RATES);
+  const promptWindow = value(server, 'rates.promptWindowMs', RATES) ?? (at(server, 'rates.decodeTps') === undefined ? window : null);
+  // A recent value always takes its own interval and guards; an unavailable interval never selects an average.
+  const speed = (prefill: boolean, recent: boolean) => {
+    const stage = prefill ? 'prefill' : 'decode', interval = prefill ? promptWindow : window;
+    return (!recent || interval !== null && (!standalone || basis(RATES) === 'derived' && interval >= 2000 && interval <= 5000 && active
+      && (phase === stage || phase === 'processing') && state === 'ready' && status?.reason === null
+      && Math.max(serverNow, now) - sampledAt <= Math.max(6000, 2 * (nonneg(body.nextPollMs) ?? 2000) + 1000)))
+      && rate(recent ? standalone ? `recent ${prefill ? stage + ' ' : ''}engine speed over ${secs(interval!)} (${prefill ? 'input' : 'output'}/native ${stage} time)`
+        : `decode over ${secs(interval!)}` : standalone ? `${prefill ? stage + ' ' : ''}average since engine start` : `average ${stage}`,
+      server, `${recent ? 'rates' : 'averages'}.${prefill && recent ? 'prompt' : stage}Tps`, recent ? RATES : AVERAGES);
+  };
   const ttft = basis(LATENCY) ? obj(at(server, 'histograms.ttftMs')) : null, p50 = nonneg(ttft?.p50), p95 = nonneg(ttft?.p95);
   // null counts are "cannot count", so they are left out rather than shown as a number.
   line('Server, all requests', [(active ?? queued) !== null && tagged([active !== null && `${active} active`, queued !== null && `${queued} queued`]
     .filter(Boolean).join(', '), REQUESTS),
-    rate(standalone ? 'average since engine start' : 'average decode', server, 'averages.decodeTps', AVERAGES), rate('average prefill', server, 'averages.prefillTps', AVERAGES),
+    speed(false, false), speed(true, false),
     p50 !== null && p95 !== null && p50 <= p95 && ttft?.window === 'native-last-4096'
       && tagged(`first token p50 ${secs(p50)} p95 ${secs(p95)} over ${nonneg(ttft.n)} requests`, LATENCY),
-    window !== null && (!standalone || basis(RATES) === 'derived' && window >= 2_000 && window <= 5_000 && active
-      && ['decode', 'processing'].includes(phase) && state === 'ready' && status?.reason === null)
-      && rate(standalone ? `recent engine speed over ${secs(window)} (output/native decode time)` : `decode over ${secs(window)}`, server, 'rates.decodeTps', RATES)]);
+    speed(false, true), standalone && speed(true, true)]);
 
   const last = lastReply(body, basis('server.completions'));
   if (last) {

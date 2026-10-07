@@ -7,6 +7,8 @@ import { parseSnapshotQuery } from '../src/contract/query.ts';
 import { ROUTES } from '../src/contract/version.ts';
 import { version } from '../package.json';
 import { isConnectionId } from '../src/contract/guards.ts';
+import { parseSnapshotV2 } from '../src/contract/snapshot.ts';
+import { mockBody } from '../panel/testing/mock-states.ts';
 import { PROVIDER, resolveScope, SCOPE_ERRORS, SCOPE_PATH, SCOPE_QUERY } from './scope.ts';
 import { baselineKey, USUAL_KEYS, usualFor } from './usual.ts';
 
@@ -49,6 +51,24 @@ const fakeHost = (response: { status: number; body: unknown } | Error, stored: R
 const ok = (body: unknown = snapshot()) => ({ status: 200, body: JSON.stringify(body) });
 
 describe('resolveScope', () => {
+  test('one background read exports both Splash stage windows without inventing request context', async () => {
+    const body = parseSnapshotV2(mockBody('splash-decode', { now: AT }))!;
+    body.runtime.phase = 'processing';
+    body.runtime.server.rates = { decodeTps: 43.8, windowMs: 4000, promptTps: 1200, promptWindowMs: 2350 };
+    body.runtime.server.averages!.prefillTps = 1500;
+    const { host, calls } = fakeHost(ok(body));
+    const item = await resolveScope(host, { command: 'scope', args: 'CANARY private text' }, () => AT);
+    expect(item!.text).toContain('recent prefill engine speed over 2.35 s (input/native prefill time) 1200 tok/s (derived)');
+    expect(item!.text).toContain('recent engine speed over 4 s (output/native decode time) 43.8 tok/s (derived)');
+    expect(item!.text).toContain('prefill average since engine start 1500 tok/s (reported)');
+    expect(item!.text).not.toContain('Current request:');
+    expect(item!.text).not.toContain('CANARY');
+    expect(calls.filter(call => call.method === 'serviceRequest')).toHaveLength(1);
+    const held = await resolveScope(fakeHost(ok(body)).host, { command: 'scope', args: '' }, () => AT + 30_000);
+    expect(held!.text).not.toContain('recent prefill engine speed');
+    expect(held!.text).not.toContain('recent engine speed');
+    expect(held!.text).toContain('average since engine start');
+  });
   test('the saved connection, one /v2/snapshot?surface=background read and two storage gets: no frame, cursor, marks or verdicts, no writes', async () => {
     const { host, calls } = fakeHost(ok());
     const item = await resolveScope(host, { command: 'scope', args: '' }, () => AT);
