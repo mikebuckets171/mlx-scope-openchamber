@@ -88,7 +88,7 @@ describe('resolveScope', () => {
   });
   test('unreadable storage keeps the chip and says so', async () => {
     const item = await resolveScope(fakeHost(ok(), new HostRequestError('HOST_REJECTED', 'no')).host, { command: 'scope', args: '' }, () => AT);
-    expect(item!.text).toContain('vs usual: reply history unavailable');
+    expect(item!.text).toContain('vs usual: history unavailable');
   });
   test('a service that cannot answer is an error the host shows, never an empty chip', async () => {
     const fails = (response: Parameters<typeof fakeHost>[0]) => resolveScope(fakeHost(response).host, { command: 'scope', args: '' }, () => AT);

@@ -65,7 +65,7 @@ test('manually saved Splash values stay numeric, aggregate-scoped, and free of m
   const saved = snapshotObservation(snapshot,false,null,2000);
   expect(saved.measurements).toMatchObject({splashDecode:47.2,splashCompleted:17,splashFailed:1,
     splashMetalCurrent:12.5 * 1e9 / 1024 ** 3,splashMetalPeak:13 * 1e9 / 1024 ** 3});
-  expect(observationReport(saved)).toContain('Splash server decode is shared across all requests');
+  expect(observationReport(saved)).toContain('Splash average since engine start is shared across all requests');
   expect(observationReport(saved)).not.toContain('not reported');
   expect(JSON.stringify(sanitizeObservation(saved))).not.toContain('private/model');
 });

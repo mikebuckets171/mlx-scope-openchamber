@@ -17,8 +17,10 @@ export const SPLASH_RECOVERING_CACHE_MS = 30_000;
 /** Reads further apart than this bracket a stretch nobody watched: counters that moved across it make no completion. */
 export const SPLASH_GAP_MS = 60_000;
 export const SPLASH_CADENCE_MS = { active: 1_000, idle: 2_000 } as const;
-/** A live rate must cover recent adjacent reads, not a resume after an unwatched stretch. */
+/** The maximum observation window and continuity gap for recent native decoding. */
 export const SPLASH_RATE_GAP_MS = 5_000;
+export const SPLASH_RATE_MIN_WINDOW_MS = 2_000;
+export const SPLASH_RATE_MIN_SAMPLES = 3;
 
 const CAPABILITIES: readonly CapabilityDescriptor[] = [
   { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' }, { key: 'server.rates', basis: 'derived' },
@@ -135,25 +137,31 @@ const generationKey = (item: Json): string =>
  * and current_decode_batch are deliberately unused: both retain earlier work while the runtime is idle.
  */
 export class SplashRates {
-  private previous: { key: string; tokens: number; ms: number; at: number } | null = null;
+  private samples: Array<{ key: string; tokens: number; ms: number; at: number }> = [];
 
   observe(body: unknown, monotonicAt: number): RuntimeV2['server']['rates'] {
     const item = splashBody(body), scheduler = obj(item?.scheduler), metrics = obj(item?.metrics);
     const decoding = (count(scheduler?.decoding) ?? 0) + (count(scheduler?.waiting_mask) ?? 0);
     const tokens = count(metrics?.decode_output_tokens), ms = nonneg(metrics?.decode_wall_ms);
-    if (!item || splashStatus(item).state !== 'ready' || field(item, 'transport.ready') === false || !decoding
+    if (!item || splashStatus(item).state !== 'ready' || field(item, 'transport.ready') === false || field(item, 'transport.stopped') === true || !decoding
       || tokens === null || ms === null || nonneg(monotonicAt) === null) { this.reset(); return undefined; }
-    const previous = this.previous;
-    this.previous = { key: generationKey(item), tokens, ms, at: monotonicAt };
-    if (!previous || previous.key !== this.previous.key) return undefined;
-    const windowMs = monotonicAt - previous.at, deltaTokens = tokens - previous.tokens, deltaMs = ms - previous.ms;
-    if (windowMs <= 0) { this.reset(); return undefined; }
-    if (windowMs > SPLASH_RATE_GAP_MS || deltaTokens <= 0 || deltaMs <= 0) return undefined;
+    const current = { key: generationKey(item), tokens, ms, at: monotonicAt }, previous = this.samples.at(-1);
+    if (previous && monotonicAt <= previous.at) { this.reset(); return undefined; }
+    if (!previous || previous.key !== current.key || monotonicAt - previous.at > SPLASH_RATE_GAP_MS
+      || tokens < previous.tokens || ms < previous.ms) { this.samples = [current]; return undefined; }
+    // Retain valid observations, including a stalled poll, but never publish retained work when the latest
+    // counters did not both advance. The displayed interval is observation time, not the rate denominator.
+    this.samples.push(current);
+    this.samples = this.samples.filter(sample => monotonicAt - sample.at <= SPLASH_RATE_GAP_MS);
+    const first = this.samples[0]!, windowMs = monotonicAt - first.at;
+    if (this.samples.length < SPLASH_RATE_MIN_SAMPLES || windowMs < SPLASH_RATE_MIN_WINDOW_MS
+      || tokens <= previous.tokens || ms <= previous.ms) return undefined;
+    const deltaTokens = tokens - first.tokens, deltaMs = ms - first.ms;
     const decodeTps = Math.round(deltaTokens * 1_000_000 / deltaMs) / 1_000;
     return Number.isFinite(decodeTps) ? { decodeTps, windowMs } : undefined;
   }
 
-  reset(): void { this.previous = null; }
+  reset(): void { this.samples = []; }
 }
 
 const emptyRuntime = (at: number): RuntimeV2 => ({ sampledAt: at, phase: 'unknown', request: null, server: { active: null, queued: null },
@@ -251,15 +259,20 @@ class SplashAdapter implements AdapterV2 {
   private held: { reading: AdapterReadingV2; until: number } | null = null;
   private readonly completions = new SplashCompletions();
   private readonly rates = new SplashRates();
+  private readSequence = 0;
   constructor(private readonly context: AdapterContextV2) {}
 
   async read(): Promise<AdapterReadingV2> {
     const held = this.hold();
     if (held) return held;
+    const sequence = ++this.readSequence;
     let body: unknown;
     try { body = await this.status(); }
-    catch (error) { this.rates.reset(); throw error; }
+    catch (error) { if (sequence === this.readSequence) this.rates.reset(); throw error; }
     const at = this.context.now(), monotonicAt = this.context.monotonic();
+    // RuntimeClient normally coalesces reads. If a read overlaps or the adapter is disposed mid-fetch, its
+    // older response must not establish a new baseline or rewind the current completion bracket.
+    if (sequence !== this.readSequence) return { ...splashReading(body, at), completions: [] };
     const reading: AdapterReadingV2 = { ...splashReading(body, at), completions: this.completions.observe(body, at, monotonicAt) };
     const rates = this.rates.observe(body, monotonicAt);
     if (rates) {
@@ -276,7 +289,7 @@ class SplashAdapter implements AdapterV2 {
     return splashBody((await this.context.get('/status')).body) !== null;
   }
 
-  dispose(): void { this.held = null; this.completions.reset(); this.rates.reset(); }
+  dispose(): void { this.readSequence += 1; this.held = null; this.completions.reset(); this.rates.reset(); }
 
   private hold(): AdapterReadingV2 | null {
     const left = this.held ? this.held.until - this.context.monotonic() : 0;

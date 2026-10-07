@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test';
-import { frameReading } from './present/reading.ts';
+import { frameReading, fromSnapshot } from './present/reading.ts';
+import { parseSnapshotV2 } from '../src/contract/snapshot.ts';
+import { MOCK_NOW, mockBody } from './testing/mock-states.ts';
 import { measurementReport } from './report.ts';
 import { completionOf, fromV1 } from './testing/readings.ts';
 
@@ -33,12 +35,22 @@ test('Splash report labels server-wide scope and lists only measured values', ()
       failedRequests: 1, metalCurrentGB: 12.5, metalPeakGB: 13 },
   });
   const report = measurementReport(reading, null, false, '1.2.0', 2000);
-  expect(report).toContain('Splash server decode (all requests): 47.2 tok/s');
+  expect(report).toContain('Splash average since engine start (all requests): 47.2 tok/s');
   expect(report).toContain('Splash completed requests since start: 17');
   expect(report).toContain('Splash GPU memory (Metal) · now: 11.64 GiB');
   expect(report).not.toContain('not reported');
   expect(report).not.toContain('private-model');
   expect(report).not.toContain('raw private path');
+});
+
+test('Splash diagnostics reproduce recent engine speed separately and withhold held rate labels', () => {
+  const snapshot = parseSnapshotV2(mockBody('splash-decode'))!, reading = fromSnapshot(snapshot);
+  const report = measurementReport(reading, null, false, '2.1.4', MOCK_NOW);
+  expect(report).toContain('Splash average since engine start (all requests): 47.2 tok/s');
+  expect(report).toContain('Recent engine speed (server-wide, derived, last 4 seconds): 43.8 tok/s; output tokens / native decode-command time');
+  for (const held of [true, 'refreshing'] as const) expect(measurementReport(reading, null, held, '2.1.4', MOCK_NOW)).not.toContain('Recent engine speed');
+  snapshot.status.state = 'recovering';
+  expect(measurementReport(reading, null, false, '2.1.4', MOCK_NOW)).not.toContain('Recent engine speed');
 });
 
 test('Bionic report includes the last response’s exact figures', () => {

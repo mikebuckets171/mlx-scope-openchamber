@@ -1,6 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { inspect } from './ui-checks.ts';
 
 // Runtime snapshots, never inference. Exercise the actual guest UI and host theme messages.
 test('Splish/Splash live rate stays server-wide and clears when the source stops reporting it', async ({ page }) => {
@@ -8,12 +9,14 @@ test('Splish/Splash live rate stays server-wide and clears when the source stops
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#rate')).toHaveText('43.8');
   await expect(frame.locator('#attribution')).toContainText('Server-wide');
-  await expect(frame.locator('.readout[data-basis="derived"]')).toContainText('Live server throughput');
+  await expect(frame.locator('.readout[data-basis="derived"]')).toContainText('Recent engine speed');
   await expect(frame.locator('.basis-line')).toContainText('Derived from Splash counters');
-  await frame.getByRole('button', { name: 'About Live server throughput', exact: true }).click();
-  await expect(frame.locator('#pop-live-basis')).toContainText('not one chat');
+  await expect(frame.locator('.basis-line')).toContainText('last 4.0 s');
+  await frame.getByRole('button', { name: 'About Recent engine speed', exact: true }).click();
+  await expect(frame.locator('#pop-live-basis')).toContainText('Client delivery speed is not measured here');
   await page.evaluate(() => (window as any).setPreviewState('splash-measuring'));
   await expect(frame.locator('.rate-unit')).toHaveCount(0);
+  await expect(frame.locator('#hero')).toContainText('Collecting samples or waiting for fresh output');
   await expect(frame.locator('#hero')).not.toContainText('43.8');
   await page.evaluate(() => (window as any).setPreviewState('splash-decode'));
   await expect(frame.locator('#rate')).toHaveText('43.8');
@@ -26,12 +29,95 @@ test('Splish/Splash live rate stays server-wide and clears when the source stops
   await expect(frame.locator('#rate')).toHaveCount(0);
 });
 
+test('a freshness deadline clears recent speed from the screen and copied statistics', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/v2?surface=page&state=splash-decode');
+  const frame = page.frameLocator('iframe');
+  await expect(frame.locator('#rate')).toHaveText('43.8');
+  await page.evaluate(() => { (window as any).previewHold = true; });
+  await page.clock.runFor(8_000);
+  await expect(frame.locator('.rate-unit')).toHaveCount(0);
+  await expect(frame.locator('#view-live > .connection-diagnosis')).toContainText('No fresh readings');
+  await frame.locator('#monitor-menu > summary').click();
+  await frame.getByRole('button', { name: 'Share', exact: true }).click();
+  await frame.getByRole('menuitem', { name: 'Copy stats', exact: true }).click();
+  await expect(frame.locator('#action-status')).toContainText('Stats copied');
+  const copied = await page.evaluate(() => (window as any).previewCopied as string);
+  expect(copied).toContain('refreshing — held observations');
+  expect(copied).not.toContain('Recent engine speed');
+  expect(copied).toContain('Splash average since engine start (all requests): 47.2 tok/s');
+});
+
+test('a short pause starts a fresh displayed window while lifetime details remain available', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/v2?surface=page&state=splash-decode');
+  const frame = page.frameLocator('iframe');
+  await expect(frame.locator('#rate')).toHaveText('43.8');
+  await frame.getByRole('button', { name: 'Pause monitoring', exact: true }).click();
+  await expect(frame.locator('#phase')).toHaveText('Paused');
+  const requests = await page.evaluate(() => (window as any).previewRequests);
+  await page.clock.runFor(500);
+  expect(await page.evaluate(() => (window as any).previewRequests)).toBe(requests);
+  await frame.getByRole('button', { name: 'Resume monitoring', exact: true }).click();
+  await expect(frame.locator('#hero')).toContainText('Collecting samples or waiting for fresh output');
+  await expect(frame.locator('.rate-unit')).toHaveCount(0);
+  await expect(frame.locator('#rate')).toHaveText('Working');
+  await page.clock.runFor(2_500);
+  await expect(frame.locator('.rate-unit')).toHaveCount(0);
+  await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+  await expect(frame.locator('#panel-server')).toContainText('Average since engine start');
+  await expect(frame.locator('#panel-server')).toContainText('47.2 tok/s');
+  await frame.getByRole('button', { name: 'Back to Live', exact: true }).click();
+  await page.clock.runFor(2_500);
+  await expect(frame.locator('#rate')).toHaveText('43.8');
+  await expect(frame.locator('.basis-line')).toContainText('last 4.0 s');
+});
+
+for (const theme of ['light', 'dark']) test(`recent engine labels and intervals fit Live, Compact and Session in ${theme}`, async ({ page }, testInfo) => {
+  const evidence = process.env.SCOPE_EVIDENCE_DIR;
+  for (const width of [320, 430, 1160]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`/v2?surface=${width === 1160 ? 'page' : 'panel'}&state=splash-decode&theme=${theme}`);
+    const frame = page.frameLocator('iframe');
+    await expect(frame.locator('#rate')).toHaveText('43.8');
+    await expect(frame.locator('#hero')).toContainText('Recent engine speed');
+    const panelFrame = page.frames().find(frame => frame !== page.mainFrame())!;
+    expect(await panelFrame.evaluate(inspect, false)).toEqual([]);
+    if (evidence && testInfo.project.name === 'chromium') {
+      await mkdir(evidence, { recursive: true });
+      await page.screenshot({ path: join(evidence, `mlx-scope-splash-live-${theme}-${width}.png`) });
+    }
+    await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+    await expect(frame.locator('#panel-server')).toContainText('Recent engine speed');
+    await expect(frame.locator('#panel-server')).toContainText('Server-wide · last 4.0 s');
+    await expect(frame.locator('#panel-server')).toContainText('Average since engine start');
+    await expect(frame.locator('#panel-server')).toContainText('47.2 tok/s');
+    await frame.getByRole('button', { name: 'Back to Live', exact: true }).click();
+    if (width === 430) {
+      await frame.locator('#monitor-menu > summary').click();
+      await frame.locator('#compact').click();
+      await expect(frame.locator('#compact-glance .ws')).toContainText('Recent engine speed');
+      await expect(frame.locator('#compact-glance .ws')).toContainText('last 4.0 s');
+      expect(await panelFrame.evaluate(inspect, false)).toEqual([]);
+    }
+  }
+  await page.goto(`/v2?surface=status&state=splash-decode&theme=${theme}`);
+  const frame = page.frameLocator('iframe');
+  await expect(frame.locator('.ws-phase')).toHaveText('Recent engine speed');
+  await expect(frame.locator('.ws-scope')).toHaveText('Server-wide · last 4.0 s');
+  const panelFrame = page.frames().find(frame => frame !== page.mainFrame())!;
+  const backdrop = await page.evaluate(() => [getComputedStyle(document.documentElement).backgroundColor, getComputedStyle(document.body).backgroundColor]);
+  expect(await panelFrame.evaluate(inspect, { openAll: false, backdrop })).toEqual([]);
+  if (evidence && testInfo.project.name === 'chromium') await page.locator('iframe').screenshot({ path: join(evidence, `mlx-scope-splash-session-${theme}.png`) });
+});
+
 test('the Session pane shows live derived tok/s and follows theme changes', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 700, height: 500 });
   await page.goto('/v2?demo=1&surface=status&state=splash-decode&theme=graphite-mint');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-rate')).toContainText('tok/s');
-  await expect(frame.locator('.ws-scope')).toHaveText('Server-wide');
+  await expect(frame.locator('.ws-scope')).toHaveText('Server-wide · last 4.0 s');
+  await expect(frame.locator('.ws-phase')).toHaveText('Recent engine speed');
   await expect(frame.locator('#ws')).toContainText('derived');
   const rate = await frame.locator('.ws-rate').innerText();
   await expect.poll(() => frame.locator('.ws-rate').innerText()).not.toBe(rate);

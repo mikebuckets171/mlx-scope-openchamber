@@ -3720,7 +3720,7 @@
       "queued": 0,
       "rates": {
        "decodeTps": 43.8,
-       "windowMs": 1000
+       "windowMs": 4000
       }
      }
     },

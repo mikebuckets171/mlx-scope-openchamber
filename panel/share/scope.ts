@@ -1,5 +1,5 @@
 import type { AttachIssueRequest } from '@openchamber/sdk';
-import { nonneg, obj, type Json } from '../../src/contract/guards.ts';
+import { arr as list, nonneg, obj, oneOf, type Json } from '../../src/contract/guards.ts';
 import { runtimeNames, runtimeKind } from '../../src/contract/runtime.ts';
 import { CONTRACT_VERSION } from '../../src/contract/version.ts';
 import type { VsUsual } from '../history/regress.ts';
@@ -24,7 +24,7 @@ const PRESSURE = ['', 'normal', 'warning', '', 'critical'];
 const THERMAL = ['nominal', 'moderate', 'heavy', 'trapping', 'sleeping'];
 const METRICS: Record<string, string> = { decodeTps: 'decode', prefillTps: 'prefill', ttftMs: 'first token' };
 
-const round = (value: number, digits = 1): string => String(Number(value.toFixed(digits)));
+const round = (value: number, digits = 1): string => String(+value.toFixed(digits));
 const secs = (ms: number): string => ms < 1_000 ? `${Math.round(ms)} ms` : `${round(ms / 1000, 2)} s`;
 const pct = (value: number): string => `${Math.round(value * 100)}%`;
 /** The ledger's size buckets (<8k, 8–32k, 32–64k, 64–128k, >128k tokens); ledger-schema.ts sizeBucket, pinned by a test. */
@@ -33,17 +33,20 @@ export const sizeBucket = (tokens: number | null): number | null => tokens === n
 const bucket = (tokens: number): string => `context ${['under 8k', '8k–32k', '32k–64k', '64k–128k', 'over 128k'][sizeBucket(tokens)!]} tokens`;
 const at = (root: unknown, path: string): unknown => path.split('.').reduce<unknown>((value, key) => obj(value)?.[key], root);
 const code = (value: unknown): string | null => typeof value === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(value) ? value : null;
-const list = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
-const basisOf = (value: unknown): string | null => BASES.includes(value as string) ? value as string : null;
+
+const basisOf = oneOf(BASES);
 
 /** Model names a body carries (class B): redacted from the text as a backstop, although nothing copies them. */
 const modelNames = (body: unknown): unknown[] => ['runtime.request.model', 'compat.modelID', 'runtime.residency', 'runtime.catalog', 'completions.items',
-  'alerts', 'alertLog'].flatMap(path => [at(body, path)].flat()).map(item => obj(item) ? obj(item)!.model ?? obj(item)!.name ?? at(item, 'params.model') : item);
+  'alerts', 'alertLog'].flatMap(path => at(body, path) ?? []).map(item => {
+    const object = obj(item);
+    return object ? object.model ?? object.name ?? at(item, 'params.model') : item;
+  });
 
 /** The newest finished reply the body reports: a positive seq, a finish time and a basis, as parseCompletionV2 requires. */
 export const lastReply = (body: unknown, reported: unknown = true): Json | null => reported
-  ? list(at(body, 'completions.items')).map(obj).filter(item => (nonneg(item?.seq) ?? 0) > 0 && nonneg(item?.finishedAt) !== null
-    && basisOf(item?.basis) && typeof item?.overlapped === 'boolean').at(-1) ?? null : null;
+  ? list(at(body, 'completions.items')).map(obj).reverse().find(item => (nonneg(item?.seq) ?? 0) > 0 && nonneg(item?.finishedAt) !== null
+    && basisOf(item?.basis) && typeof item?.overlapped === 'boolean') ?? null : null;
 
 const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, now: number): string[] => {
   const lines: string[] = [];
@@ -64,15 +67,17 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
   };
 
   const serverNow = nonneg(body.serverNow) ?? now, connection = obj(body.connection), runtime = runtimeKind(connection?.runtime);
+  const standalone = runtime === 'splash';
   const version = connection?.version, splash = connection?.engine === 'splash', bionic = connection?.host === 'bionic';
-  const phase = code(at(body, 'runtime.phase')) ?? 'unknown', reason = code(at(body, 'status.reason'));
+  const runtimeBody = obj(body.runtime), status = obj(body.status);
+  const phase = code(runtimeBody?.phase) ?? 'unknown', reason = code(status?.reason), state = code(status?.state) ?? 'unknown';
   line('Runtime', [runtime === 'lmstudio' && (splash || bionic) ? `${splash ? 'Splash via ' : ''}${bionic ? 'Bionic' : 'LM Studio'}`
-    : runtime ? runtimeNames[runtime] : 'not identified', typeof version === 'string' && /^[\w.+-]{1,40}$/.test(version) && `version ${version}`,
-  `status ${code(at(body, 'status.state')) ?? 'unknown'}${reason ? ` (${reason})` : ''}`, `phase ${phase}`,
-  `reading ${secs(Math.max(0, serverNow - (nonneg(at(body, 'runtime.sampledAt')) ?? serverNow)))} old`]);
+    : runtime ? runtimeNames[runtime] : 'unknown', typeof version === 'string' && /^[\w.+-]{1,40}$/.test(version) && `version ${version}`,
+  `status ${state}${reason ? ` (${reason})` : ''}`, `phase ${phase}`,
+  `reading ${secs(Math.max(0, serverNow - (nonneg(runtimeBody?.sampledAt) ?? serverNow)))} old`]);
 
   // The current request, with parseSnapshotV2's cross-field rules: progress only in prefill, an estimate only while it moves.
-  const request = obj(at(body, 'runtime.request')), PROGRESS = 'request.prefillProgress', PREFILL = 'request.prefillRate';
+  const request = obj(runtimeBody?.request), PROGRESS = 'request.prefillProgress', PREFILL = 'request.prefillRate';
   if (request) {
     const done = nonneg(request.prefillProcessedTokens), total = nonneg(request.prefillTotalTokens), stale = request.prefillStale === true;
     // Counts, when sent, decide progress; a fraction without valid counts is not trusted.
@@ -88,16 +93,18 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
       context !== null && bucket(context)]);
   }
 
-  const server = at(body, 'runtime.server'), REQUESTS = 'server.requests', AVERAGES = 'server.averages', LATENCY = 'server.latency', RATES = 'server.rates';
+  const server = runtimeBody?.server, REQUESTS = 'server.requests', AVERAGES = 'server.averages', LATENCY = 'server.latency', RATES = 'server.rates';
   const active = value(server, 'active', REQUESTS), queued = value(server, 'queued', REQUESTS), window = value(server, 'rates.windowMs', RATES);
   const ttft = basis(LATENCY) ? obj(at(server, 'histograms.ttftMs')) : null, p50 = nonneg(ttft?.p50), p95 = nonneg(ttft?.p95);
   // null counts are "cannot count", so they are left out rather than shown as a number.
   line('Server, all requests', [(active ?? queued) !== null && tagged([active !== null && `${active} active`, queued !== null && `${queued} queued`]
     .filter(Boolean).join(', '), REQUESTS),
-    rate('average decode', server, 'averages.decodeTps', AVERAGES), rate('average prefill', server, 'averages.prefillTps', AVERAGES),
+    rate(standalone ? 'average since engine start' : 'average decode', server, 'averages.decodeTps', AVERAGES), rate('average prefill', server, 'averages.prefillTps', AVERAGES),
     p50 !== null && p95 !== null && p50 <= p95 && ttft?.window === 'native-last-4096'
       && tagged(`first token p50 ${secs(p50)} p95 ${secs(p95)} over ${nonneg(ttft.n)} requests`, LATENCY),
-    window !== null && rate(`decode over ${secs(window)}`, server, 'rates.decodeTps', RATES)]);
+    window !== null && (!standalone || basis(RATES) === 'derived' && window >= 2_000 && window <= 5_000 && active
+      && ['decode', 'processing'].includes(phase) && state === 'ready' && status?.reason === null)
+      && rate(standalone ? `recent engine speed over ${secs(window)} (output/native decode time)` : `decode over ${secs(window)}`, server, 'rates.decodeTps', RATES)]);
 
   const last = lastReply(body, basis('server.completions'));
   if (last) {
@@ -107,9 +114,9 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
       decode !== null && `decode ${round(decode)} tok/s`, prefill !== null && `prefill ${round(prefill)} tok/s`, first !== null && `first token ${secs(first)}`,
       prompt !== null && bucket(prompt), prompt && cached !== null && cached <= prompt && `${pct(cached / prompt)} cached`,
       (last.overlapped === true || (n('aggregateOf') ?? 0) > 1) && 'may mix several requests']);
-    line('Label', [attr === 'inferred' ? 'inferred for the chat then open in Scope, maybe not this one' : attr === 'armed' ? 'armed Next reply'
+    line('Label', [attr === 'inferred' ? 'inferred for Scope’s chat at sampling time' : attr === 'armed' ? 'armed Next reply'
       : `server-wide (${attr === 'withheld' && code(verdict?.reason) || 'not labelled'})`]);
-    if (vsUsual !== undefined) line('vs usual', [vsUsual === null ? 'reply history unavailable'
+    if (vsUsual !== undefined) line('vs usual', [vsUsual === null ? 'history unavailable'
       : vsUsual.filter(item => METRICS[item.metric] && item.ratio > 0 && item.n >= 5)
         .map(item => `${METRICS[item.metric]} ${round(item.ratio, 2)}× (n=${item.n})`).join(', ') || 'no baseline yet']);
   }
@@ -128,8 +135,8 @@ export const scopeText = (input: ScopeTextInput): string => {
   // Only numbers, enum codes and the runtime version are copied, so no class A value can reach the text (canary tests).
   const usable = body?.contractVersion === CONTRACT_VERSION ? body : null;
   const lines = [`${SCOPE_HEADER}.`,
-    `MLX Scope ${input.version} /scope diagnostics: server-wide readings of the local runtime and this Mac unless a reply is labelled. No chat content, model names, paths or IDs.`, '',
-    ...usable ? scopeLines(usable, input.vsUsual, input.now) : ['No runtime reading was available.']];
+    `MLX Scope ${input.version}: local server/Mac; replies labelled separately. No chat content, model names, paths or IDs.`, '',
+    ...usable ? scopeLines(usable, input.vsUsual, input.now) : ['No runtime reading.']];
   return clamp(redact(lines.join('\n'), usable ? modelNames(usable).filter(name => typeof name === 'string') as string[] : []), SCOPE_TEXT_MAX_CHARS);
 };
 /** `version`'s README: releases link their tag, prereleases `main` (the connection-help.ts link rule). */

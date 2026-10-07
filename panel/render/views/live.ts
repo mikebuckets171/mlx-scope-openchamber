@@ -10,10 +10,7 @@ const P = 'live';
 const chartMarkup = (body: Extract<HeroBody, { kind: 'decode' }>): Raw | string => {
   const chart = body.chart;
   if (!chart) return '';
-  return html`<figure class="signal" id="signal"><div class="chart-top"><span>Last 90 seconds</span><span id="ceiling">${chart.ceiling}</span></div>
-<div class="plot" role="img" aria-label="${chart.label}"><svg viewBox="0 0 600 120" preserveAspectRatio="none" aria-hidden="true"><path class="grid" d="M4 4H596 M4 60H596 M4 116H596"/>
-<path class="trace-area" d="${chart.area}"/><path class="trace" d="${chart.line}"/>${chart.mark === null ? '' : html`<line class="mark" x1="${chart.mark}" x2="${chart.mark}" y1="4" y2="116"/>`}</svg></div>
-<figcaption><span>−90s</span><span>Live observations${chart.mark === null ? '' : ' · turn start ┊'}</span><span>now</span></figcaption></figure>`;
+  return html`<figure class="signal" id="signal"><div class="chart-top"><span>Last 90 seconds</span><span id="ceiling">${chart.ceiling}</span></div><div class="plot" role="img" aria-label="${chart.label}"><svg viewBox="0 0 600 120" preserveAspectRatio="none" aria-hidden="true"><path class="grid" d="M4 4H596 M4 60H596 M4 116H596"/><path class="trace-area" d="${chart.area}"/><path class="trace" d="${chart.line}"/>${chart.mark === null ? '' : html`<line class="mark" x1="${chart.mark}" x2="${chart.mark}" y1="4" y2="116"/>`}</svg></div><figcaption><span>−90s</span><span>${body.label === 'Recent engine speed' ? 'Recent engine observations · up to 5 s each' : 'Live observations'}${chart.mark === null ? '' : ' · turn start ┊'}</span><span>now</span></figcaption></figure>`;
 };
 const readout = (rate: string, unit: Part, kind: 'word' | 'prefill' | 'decode', basis: Basis = 'reported'): Raw => html`<div class="readout"${kind !== 'word' ? html` data-basis="${basis}"` : ''}><span class="rate${kind === 'word' ? ' is-word' : ''}" id="rate">${rate}</span>${kind === 'decode' ? html`<span class="rate-unit" aria-label="tokens per second">tok/s</span>` : ''}<span class="unit">${unit}</span></div>`;
 const heroBody = (body: HeroBody | null, open: Open): Raw | string => {
@@ -22,19 +19,13 @@ const heroBody = (body: HeroBody | null, open: Open): Raw | string => {
     case 'paused': return html`<p class="coverage-note" id="paused-note">${body.note}</p>`;
     case 'prefill': {
       const t = tipParts(P, body.tip, open);
-      return html`<section class="prefill-progress" id="prefill-progress" aria-label="Prefill progress">
-<div class="prefill-values"><strong class="prefill-remaining" id="prefill-percent" data-basis="reported">${body.percent}</strong>${body.counts ? html`<span class="prefill-completed">${body.counts}</span>` : ''}</div>
-<div class="progress-track" role="progressbar" aria-label="Prefill progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(body.fraction * 100)}"><span style="width:${pct100(body.fraction)}"></span></div>
-        ${body.eta ? html`<div class="prefill-estimate" data-basis="estimate"><span>Prefill finishes in about</span><strong>${body.eta}</strong><small class="basis">Runtime estimate · may change</small></div>` : ''}</section>
-        ${body.rate ? html`<div class="hero-row">${readout(body.rate, html`tokens / second · reading context<br><span class="basis-line">${body.source} ${t.btn}</span>`, 'prefill')}${t.pop}</div>` : ''}`;
+      return html`<section class="prefill-progress" id="prefill-progress" aria-label="Prefill progress"><div class="prefill-values"><strong class="prefill-remaining" id="prefill-percent" data-basis="reported">${body.percent}</strong>${body.counts ? html`<span class="prefill-completed">${body.counts}</span>` : ''}</div><div class="progress-track" role="progressbar" aria-label="Prefill progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(body.fraction * 100)}"><span style="width:${pct100(body.fraction)}"></span></div>${body.eta ? html`<div class="prefill-estimate" data-basis="estimate"><span>Prefill finishes in about</span><strong>${body.eta}</strong><small class="basis">Runtime estimate · may change</small></div>` : ''}</section>${body.rate ? html`<div class="hero-row">${readout(body.rate, html`tokens / second · reading context<br><span class="basis-line">${body.source} ${t.btn}</span>`, 'prefill')}${t.pop}</div>` : ''}`;
     }
     case 'decode': {
       const t = tipParts(P, body.tip, open);
-      return html`<div class="hero-row">${readout(body.rate, html`${body.label}<span class="basis-line${body.basis !== 'reported' ? ' basis' : ''}">${body.source} ${t.btn}</span>`, 'decode', body.basis)}${t.pop}
-        ${chartMarkup(body)}</div>`;
+      return html`<div class="hero-row">${readout(body.rate, html`${body.label}<span class="basis-line${body.basis !== 'reported' ? ' basis' : ''}">${body.source} ${t.btn}</span>`, 'decode', body.basis)}${t.pop}${chartMarkup(body)}</div>`;
     }
-    default: return html`<div class="hero-row">${readout(body.word, body.unit, 'word')}</div>
-      ${body.note ? html`<p class="coverage-note">${val(body.note)}</p>` : ''}`;
+    default: return html`<div class="hero-row">${readout(body.word, body.unit, 'word')}</div>${body.note ? html`<p class="coverage-note">${val(body.note)}</p>` : ''}`;
   }
 };
 const nextButton = (action: string, label: Part): Raw => html`<button class="btn quiet" type="button" data-action="${action}">${label}</button>`;
@@ -58,22 +49,13 @@ const replyStrip = (reply: ReplyView | null, open: Open, prominent: boolean, cur
   if (reply.empty) return html`<div class="reply-strip" id="reply-strip">${nextRow(reply.next, open)}</div>`;
   const t = tipParts(P, reply.tip, open), details = reply.values.filter(v => v.unit !== 'tok/s' && v.text !== 'First token');
   const primary = reply.values.filter(v => v.unit === 'tok/s' || v.text === 'First token');
-  return html`<div class="reply-strip${prominent ? ' reply-prominent' : ''}" id="reply-strip"><div class="reply-head"><span class="label">Last reply</span>${chip(reply.chip)}${t.btn}${reply.when ? html`<time>${reply.when}</time>` : ''}</div>${t.pop}
-    ${reply.model && reply.model !== currentModel ? html`<p class="reply-model" translate="no">${reply.model}</p>` : ''}
-<div class="reply-values">${primary.map(val)}${chip(reply.usual)}</div>
-    ${details.length || reply.split.length ? html`<details class="reading-details" id="reply-details"${flag('open', open.has('reply-details'))}><summary>Reply details</summary><div class="reply-values">${details.map(val)}</div>${reply.split.length ? html`<div class="split">${reply.split.map(val)}</div>` : ''}</details>` : ''}
-    ${nextRow(reply.next, open)}</div>`;
+  return html`<div class="reply-strip${prominent ? ' reply-prominent' : ''}" id="reply-strip"><div class="reply-head"><span class="label">Last reply</span>${chip(reply.chip)}${t.btn}${reply.when ? html`<time>${reply.when}</time>` : ''}</div>${t.pop}${reply.model && reply.model !== currentModel ? html`<p class="reply-model" translate="no">${reply.model}</p>` : ''}<div class="reply-values">${primary.map(val)}${chip(reply.usual)}</div>${details.length || reply.split.length ? html`<details class="reading-details" id="reply-details"${flag('open', open.has('reply-details'))}><summary>Reply details</summary><div class="reply-values">${details.map(val)}</div>${reply.split.length ? html`<div class="split">${reply.split.map(val)}</div>` : ''}</details>` : ''}${nextRow(reply.next, open)}</div>`;
 };
 const hero = (h: HeroView | null, list: readonly Tile[], open: Open): Raw | string => {
   if (!h) return '';
   const a = h.attr ? tipParts(P, h.attr.tip, open) : null, c = h.context ? tipParts(P, h.context.tip, open) : null;
   const completed = h.body?.kind === 'word' && h.body.word === 'Idle' && h.reply && !h.reply.empty;
-  return html`<section class="hero-card" id="hero" aria-label="Inference activity"><div class="hero-top"><h2 class="model-name" id="model" translate="no"><span>${h.title}</span></h2>${h.attr ? html`<span class="title-row" id="attribution">${chip(h.attr.chip)}${a!.btn}</span>` : ''}</div>${a?.pop ?? ''}
-    ${completed ? '' : heroBody(h.body, open)}
-    ${h.firstToken ? html`<div class="first-token" id="first-token">${val(h.firstToken)}</div>` : ''}
-    ${h.context ? html`<div class="context-headroom" id="context-headroom"><div class="context-line"><span class="title-row">Context used ${c!.btn}</span><span data-basis="${h.context.basis}"><strong>${h.context.used}</strong>${h.context.basis !== 'reported' ? html` <small class="basis">${BASIS_WORD[h.context.basis]}</small>` : ''}</span></div>${c!.pop}${meter(h.context.fraction)}</div>` : ''}
-    ${list.length ? html`<details class="reading-details" id="request-details"${flag('open', open.has('request-details'))}><summary>Request details</summary>${tiles(list)}</details>` : ''}
-    ${replyStrip(h.reply, open, !!completed, h.title)}</section>`;
+  return html`<section class="hero-card" id="hero" aria-label="Inference activity"><div class="hero-top"><h2 class="model-name" id="model" translate="no"><span>${h.title}</span></h2>${h.attr ? html`<span class="title-row" id="attribution">${chip(h.attr.chip)}${a!.btn}</span>` : ''}</div>${a?.pop ?? ''}${completed ? '' : heroBody(h.body, open)}${h.firstToken ? html`<div class="first-token" id="first-token">${val(h.firstToken)}</div>` : ''}${h.context ? html`<div class="context-headroom" id="context-headroom"><div class="context-line"><span class="title-row">Context used ${c!.btn}</span><span data-basis="${h.context.basis}"><strong>${h.context.used}</strong>${h.context.basis !== 'reported' ? html` <small class="basis">${BASIS_WORD[h.context.basis]}</small>` : ''}</span></div>${c!.pop}${meter(h.context.fraction)}</div>` : ''}${list.length ? html`<details class="reading-details" id="request-details"${flag('open', open.has('request-details'))}><summary>Request details</summary>${tiles(list)}</details>` : ''}${replyStrip(h.reply, open, !!completed, h.title)}</section>`;
 };
 const tiles = (list: readonly Tile[]): Raw | string => list.length ? html`<div class="metrics" id="metrics" data-count="${list.length}" aria-label="Current request">${list.map(tile =>
   html`<div><span class="metric-label">${tile.label}</span><strong data-basis="reported">${tile.value}</strong><span class="metric-detail">${tile.detail}</span>${tile.meter === null ? '' : meter(tile.meter)}</div>`)}</div>` : '';
@@ -84,16 +66,12 @@ const macRow = (row: MacRow, open: Open): Raw => {
 export const macCard = (mac: MacView | null, open: Open): Raw | string => {
   if (!mac) return '';
   const t = tipParts(P, mac.tip, open), detailsId = 'mac-details';
-  return html`<section class="machine" id="machine" aria-label="${mac.title}" data-stale="${String(mac.stale)}"><div class="title-row"><h2 class="machine-title">${mac.title}</h2>${t.btn}</div>${t.pop}
-    ${mac.line.length ? html`<div class="machine-line">${mac.line.map(item => html`<div><span class="machine-label">${item.label}</span><strong>${item.value}</strong>${item.meter === null ? '' : meter(item.meter)}</div>`)}</div>` : ''}
-    ${mac.rows.length ? html`<div class="mac-rows">${mac.rows.map(row => macRow(row, open))}</div>` : ''}
-    ${mac.details.length ? html`<details class="host-details" id="${detailsId}"${flag('open', open.has(detailsId))}><summary>Mac details</summary><div class="mac-rows">${mac.details.map(row => macRow(row, open))}</div></details>` : ''}</section>`;
+  return html`<section class="machine" id="machine" aria-label="${mac.title}" data-stale="${String(mac.stale)}"><div class="title-row"><h2 class="machine-title">${mac.title}</h2>${t.btn}</div>${t.pop}${mac.line.length ? html`<div class="machine-line">${mac.line.map(item => html`<div><span class="machine-label">${item.label}</span><strong>${item.value}</strong>${item.meter === null ? '' : meter(item.meter)}</div>`)}</div>` : ''}${mac.rows.length ? html`<div class="mac-rows">${mac.rows.map(row => macRow(row, open))}</div>` : ''}${mac.details.length ? html`<details class="host-details" id="${detailsId}"${flag('open', open.has(detailsId))}><summary>Mac details</summary><div class="mac-rows">${mac.details.map(row => macRow(row, open))}</div></details>` : ''}</section>`;
 };
 
 const machineSummary = (mac: MacView | null): Raw | string => {
   if (!mac) return '';
-  return html`<section class="machine-summary" aria-label="${mac.title}" data-stale="${String(mac.stale)}"><h2>${mac.title}</h2><div class="machine-summary-values">${mac.line.filter(item => item.label !== 'Swap').map(item => html`<span>${item.label} <strong>${item.value}</strong></span>`)}</div>
-<div class="machine-health">${mac.rows.map(row => html`<span class="level" data-level="${row.level ?? 'normal'}">${row.key === 'pressure' ? 'Memory' : 'Thermal'} ${row.value.text.toLowerCase()}</span>`)}</div></section>`;
+  return html`<section class="machine-summary" aria-label="${mac.title}" data-stale="${String(mac.stale)}"><h2>${mac.title}</h2><div class="machine-summary-values">${mac.line.filter(item => item.label !== 'Swap').map(item => html`<span>${item.label} <strong>${item.value}</strong></span>`)}</div><div class="machine-health">${mac.rows.map(row => html`<span class="level" data-level="${row.level ?? 'normal'}">${row.key === 'pressure' ? 'Memory' : 'Thermal'} ${row.value.text.toLowerCase()}</span>`)}</div></section>`;
 };
 
 export const liveMarkup = (view: LiveView, open: Open): Raw => html`${callouts(P, view.callouts, open)}${hero(view.hero, view.tiles, open)}${!view.hero ? tiles(view.tiles) : ''}${machineSummary(view.mac)}`;

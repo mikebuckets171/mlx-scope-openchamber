@@ -324,7 +324,7 @@ test('Session summary clears live speed when Splash readings become stale and re
   await expect(frame.locator('.ws-phase')).not.toHaveText('Generating');
   await page.evaluate(() => (window as any).setPreviewState('splash-decode'));
   await expect(frame.locator('.ws-rate')).toContainText('43.8');
-  await expect(frame.locator('.ws-scope')).toHaveText('Server-wide');
+  await expect(frame.locator('.ws-scope')).toHaveText('Server-wide · last 4.0 s');
 });
 
 test('completed-response first token remains explicitly last reply during a later request', async ({ page }) => {

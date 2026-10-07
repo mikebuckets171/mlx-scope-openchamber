@@ -75,7 +75,8 @@ test('standalone Splash: server-wide averages and Metal memory stay separate, an
   await frame.getByRole('menuitem', { name: 'Copy stats', exact: true }).click();
   await expect(frame.locator('#action-status')).toContainText('Stats copied');
   const shared = await page.evaluate(() => (window as W).previewCopied as string);
-  expect(shared).toContain('Splash server decode (all requests): 47.2 tok/s');
+  expect(shared).toContain('Splash average since engine start (all requests): 47.2 tok/s');
+  expect(shared).not.toMatch(/Recent engine speed[^\n]*47\.2 tok\/s/);
   expect(shared).not.toContain('Qwen3.8-27B-Splash');
 });
 

@@ -112,10 +112,14 @@ test('prefill shows supported progress with an explicitly estimated remaining ti
 
 test('Splash live speed stays explicitly derived and server-wide', () => {
   const view = presentSessionSection(inputOf('splash-decode'));
-  expect(view).toMatchObject({ phase: 'Generating', value: { text: '43.8', unit: 'tok/s', basis: 'derived' },
-    scope: { text: 'Server-wide', attr: 'server' } });
+  expect(view).toMatchObject({ phase: 'Recent engine speed', value: { text: '43.8', unit: 'tok/s', basis: 'derived' },
+    scope: { text: 'Server-wide · last 4.0 s', attr: 'server' } });
   expect(sessionMarkup(view).markup).toContain('class="basis">derived');
   expect(presentSessionSection(inputOf('splash-stale')).value).toBeNull();
+  const collecting = presentSessionSection(inputOf('splash-measuring', { attribution: { kind: 'inferred' } }));
+  expect(collecting).toMatchObject({ phase: 'Working', value: null, scope: { text: 'Server-wide', attr: 'server' },
+    note: 'Collecting samples or waiting for fresh output' });
+  expect(sessionMarkup(collecting).markup).not.toContain('tok/s');
 });
 
 test('a cloud chat shows a single neutral row without local readings or a details action', () => {

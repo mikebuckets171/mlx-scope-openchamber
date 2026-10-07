@@ -5,17 +5,7 @@ import type { Choice, Link } from './present/reading.ts';
 const STORAGE_KEY = 'connection.selection';
 /** The saved choice (1.6 shape, kept): an empty provider is Automatic, a null runtime is automatic detection. */
 export type RuntimeSelection = { provider: string; runtime: RuntimeKind | null };
-export const connectionsMarkup = `<section id="connection-setup" class="connection-setup" aria-labelledby="connection-setup-title" hidden>
-  <div class="section-heading"><h2 id="connection-setup-title">Monitor a local runtime</h2><button id="connection-close" type="button" aria-label="Close connection setup">Close</button></div>
-  <p class="insight-note">Uses existing local OpenCode connections. This only changes what MLX Scope observes.</p>
-  <div id="connection-fields">
-    <label for="connection-provider">Connection</label><select id="connection-provider"><option value="">Automatic</option></select>
-    <label for="connection-runtime">Runtime</label><select id="connection-runtime"><option value="">Automatic detection</option>${RUNTIMES.map(runtime => `<option value="${runtime}">${runtimeNames[runtime]}</option>`).join('')}</select>
-    <p id="connection-choice-note" class="insight-note">Choose a configured connection, or keep automatic detection.</p>
-    <div class="insight-actions"><button id="connection-apply" type="button">Use connection</button></div>
-  </div>
-  <p class="insight-note">Credentials stay in the local service. Configure endpoints and keys in OpenCode; MLX Scope does not edit them.</p>
-</section>`;
+export const connectionsMarkup = `<section id="connection-setup" class="connection-setup" aria-labelledby="connection-setup-title" hidden><div class="section-heading"><h2 id="connection-setup-title">Monitor a local runtime</h2><button id="connection-close" type="button" aria-label="Close connection setup">Close</button></div><p class="insight-note">Uses existing local OpenCode connections. This only changes what MLX Scope observes.</p><div id="connection-fields"><label for="connection-provider">Connection</label><select id="connection-provider"><option value="">Automatic</option></select><label for="connection-runtime">Runtime</label><select id="connection-runtime"><option value="">Automatic detection</option>${RUNTIMES.map(runtime => `<option value="${runtime}">${runtimeNames[runtime]}</option>`).join('')}</select><p id="connection-choice-note" class="insight-note">Choose a configured connection, or keep automatic detection.</p><div class="insight-actions"><button id="connection-apply" type="button">Use connection</button></div></div><p class="insight-note">Credentials stay in the local service. Configure endpoints and keys in OpenCode; MLX Scope does not edit them.</p></section>`;
 
 /** Omit the runtime suffix when the label already names it, and never tag a Bionic provider as "LM Studio". */
 export const choiceLabel = (choice: Pick<Choice, 'label' | 'runtime'>): string => {

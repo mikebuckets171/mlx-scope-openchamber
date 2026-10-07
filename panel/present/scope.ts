@@ -44,5 +44,9 @@ export const liveSplashRate = (snapshot: SnapshotV2 | null): number | null => {
     || snapshot.capabilities['server.rates']?.basis !== 'derived' || !['decode', 'processing'].includes(snapshot.runtime.phase)
     || !(snapshot.runtime.server.active! > 0)) return null;
   const rates = snapshot.runtime.server.rates, rate = rates?.decodeTps;
-  return rate !== undefined && Number.isFinite(rate) && rate > 0 && Number.isFinite(rates!.windowMs) && rates!.windowMs > 0 ? rate : null;
+  return rate !== undefined && Number.isFinite(rate) && rate > 0 && Number.isFinite(rates!.windowMs)
+    && rates!.windowMs >= 2_000 && rates!.windowMs <= 5_000 ? rate : null;
 };
+/** No observer-reason field exists on the wire, so a missing rate cannot distinguish warmup from stalled counters. */
+export const ENGINE_SPEED = 'Recent engine speed';
+export const SPLASH_WAITING = 'Collecting samples or waiting for fresh output';

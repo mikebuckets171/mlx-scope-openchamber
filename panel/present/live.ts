@@ -4,9 +4,9 @@ import type { AttributionLabel } from '../attribution/join.ts';
 import { liveChart, type ChartView } from '../render/chart.ts';
 import { connName, PRESSURE, RT, rtName, statusCopy, THERMAL, THERMAL_WARN, thermalLevel, type Level } from './copy.ts';
 import { ago, delta, dur, int, kt, mmss, pct, size, tps } from './format.ts';
-import { attrChip, attrTip, callouts, tip, weightedTps, type Callout, type Chip, type Tip, type Val } from './parts.ts';
+import { attrChip, attrTip, callouts, splashRateTip, tip, weightedTps, type Callout, type Chip, type Tip, type Val } from './parts.ts';
 export { weightedTps } from './parts.ts';
-import { heldBySource, liveSplashRate, modelOf, SERVER_WIDE, type ScopeInput } from './scope.ts';
+import { ENGINE_SPEED, heldBySource, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING, type ScopeInput } from './scope.ts';
 
 // The Live tab (plan §5.9, the G2 mock): callouts, the hero (one speed with its basis ⓘ, the attribution chip, Last
 // reply and Next reply), the request tiles and the This Mac card with the short labels (full wording in its ⓘ).
@@ -75,11 +75,11 @@ const heroBody = (kind: HeroKind, s: ScopeInput): HeroBody => {
         tip: tip('basis', source, [basis === 'reported' ? `${rt} reports this request’s average speed, without Scope smoothing or estimates.` : `${basis} from runtime readings, not a reported instantaneous rate.`]),
         chart: liveChart(s.samples, s.now, s.turnStartAt) };
     }
-    case 'server-decode': return { kind: 'decode', rate: tps(liveSplashRate(snapshot)!), basis: 'derived', label: 'Live server throughput', source: `Derived from ${rt} counters`,
-      tip: tip('basis', 'Live server throughput', ['Output / active decode time from advancing Splish and Splash counters.',
-        `All requests over ${dur(server.rates!.windowMs)}; not one chat, a lifetime average, or network arrival speed.`]),
+    case 'server-decode': return { kind: 'decode', rate: tps(liveSplashRate(snapshot)!), basis: 'derived', label: ENGINE_SPEED, source: `Derived from ${rt} counters · last ${dur(server.rates!.windowMs)}`,
+      tip: splashRateTip('basis', server.rates!.windowMs),
       chart: liveChart(s.samples, s.now, null, 'server') };
     case 'slots': case 'busy': {
+      if (snapshot.connection.runtime === 'splash') return word('Working', SPLASH_WAITING);
       const rates = server.rates;
       return word(`${active} requests`, `Per-request speed withheld: ${active} ${kind === 'slots' ? 'slots are busy' : 'requests are running'}`,
         rates?.decodeTps != null ? { text: `Server decode `, strong: `${tps(rates.decodeTps)} tok/s`, unit: `over the last ${Math.round(rates.windowMs / 1_000)} s`,
@@ -88,7 +88,7 @@ const heroBody = (kind: HeroKind, s: ScopeInput): HeroBody => {
     case 'ollama': return word(`${runtime.residency.length} loaded`, 'Ollama reports residency only · no per-request speed');
     case 'server': return word(`${active} running`, queued ? `${queued} waiting` : 'Nothing waiting');
     case 'queued': return word(`${queued} waiting`, `${active} running`);
-    case 'processing': return word('Working', snapshot.connection.runtime === 'splash' ? 'Waiting for live server readings' : `${rt} doesn’t report this request’s speed`);
+    case 'processing': return word('Working', snapshot.connection.runtime === 'splash' ? runtime.phase === 'prefill' ? 'Reading prompt · waiting for fresh output' : SPLASH_WAITING : `${rt} doesn’t report this request’s speed`);
     case 'inventory': return word('Connected', `${rt} lists its models · no live request readings`);
     default: return word('Idle', 'Model loaded · ready for the next request');
   }

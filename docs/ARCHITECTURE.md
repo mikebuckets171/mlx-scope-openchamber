@@ -103,7 +103,8 @@ submission stay blocked; runtime reads use the SDK service bridge. The backgroun
 
 ## Packaging and verification
 
-The SDK guest bundler builds the panel and background frames as browser IIFEs. Bun builds an ESM service for the host's
+The SDK guest bundler builds the panel and background frames as browser IIFEs. A final minification pass
+with pinned Bun folds linked code to keep both guest bundles within their ceilings while retaining UI explanations. Bun builds an ESM service for the host's
 Node-compatible runtime, including the JSONC parser. Bundles are tracked because repository installation does not
 compile TypeScript; Bun 1.4.2 makes them reproducible.
 

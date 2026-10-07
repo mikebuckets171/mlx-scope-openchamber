@@ -24,6 +24,7 @@ export interface MonitorParts {
 export class Monitor {
   readonly poller: Poller;
   private delay = 2_000;
+  private splashBoundaryAt: number | null = null;
   constructor(private readonly p: MonitorParts) {
     this.poller = new Poller(() => this.poll());
   }
@@ -50,12 +51,34 @@ export class Monitor {
   /** Apply one reading. A reading from another connection first discards every observation of the previous one. */
   apply(reading: Reading): void {
     const { state } = this.p;
-    if (state.isNewConnection(reading)) state.clearObservations();
+    if (state.isNewConnection(reading)) {
+      state.clearObservations();
+      this.splashBoundaryAt = reading.sampledAt;
+    }
+    reading = this.afterSplashBoundary(reading);
     const fresh = state.accept(reading);
     if (reading.available) state.signal.observe(reading, state.efficient ? 3_000 : this.delay);
     else if (reading.body) state.signal.break();
     this.p.received(reading, fresh, state.efficient ? 3_000 : this.delay);
     this.p.render();
+  }
+
+  /** Each frame starts afresh after a pause or connection switch without resetting other frames' shared samples. */
+  private afterSplashBoundary(reading: Reading): Reading {
+    const body = reading.body, boundary = this.splashBoundaryAt;
+    if (boundary === null || body?.connection.runtime !== 'splash' || !body.runtime.server.rates) return reading;
+    const rates = body.runtime.server.rates, sampledAt = body.runtime.sampledAt;
+    if (sampledAt !== undefined && Number.isFinite(sampledAt) && Number.isFinite(rates.windowMs)
+      && rates.windowMs >= 2_000 && rates.windowMs <= 5_000
+      && sampledAt - rates.windowMs >= boundary) {
+      this.splashBoundaryAt = null;
+      return reading;
+    }
+    // Only the recent observation is interrupted. Lifetime statistics, host data and completions retain their
+    // separate bases, and the service body stays untouched for other consumers.
+    const server = { ...body.runtime.server }, capabilities = { ...body.capabilities };
+    delete server.rates; delete capabilities['server.rates'];
+    return { ...reading, body: { ...body, capabilities, runtime: { ...body.runtime, server } } };
   }
 
   clearFreshness(): void { const state = this.p.state; if (state.freshnessTimer !== null) clearTimeout(state.freshnessTimer); state.freshnessTimer = null; }
@@ -72,6 +95,7 @@ export class Monitor {
     const { state } = this.p;
     state.generation += 1;
     const live = this.live;
+    if (live && state.interrupted) this.splashBoundaryAt = this.p.client.now();
     this.poller.setPaused(!live);
     this.p.live?.(live);
     if (!live) {

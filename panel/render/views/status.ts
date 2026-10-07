@@ -42,10 +42,7 @@ const alertRow = (alert: NonNullable<NonNullable<StatusSectionView['glance']>['a
 export const statusMarkup = (view: StatusSectionView, compact = false): Raw => {
   if (view.turn) {
     const t = view.turn, reasonId = t.reason ? WHY_ID : null;
-    return html`<div class="ws" id="ws" data-mode="turn-stats" style="height:${view.height}px"><div class="ts-head">${dot(t.dot)}<span class="ws-rate">${t.title}</span>${t.sub ? html`<span class="ws-muted">· ${t.sub}</span>` : ''}${chip(t.chip, reasonId)}${toggle(true)}</div>
-      ${t.reason ? html`<div class="ts-reason" id="${WHY_ID}">${t.reason}</div>` : ''}
-<dl class="ts-rows" id="ts-rows">${view.rows.map(row => html`<dt>${row.label}</dt><dd data-basis="${row.basis ?? 'reported'}">${row.value}${row.basis ? html`<small class="basis">${row.basis}</small>` : ''}</dd>`)}</dl>
-      ${t.alert ? alertRow(t.alert, false) : html`<div class="ws-line">${spark(t.spark, 'wide')}${chips(t.chips)}</div>`}</div>`;
+    return html`<div class="ws" id="ws" data-mode="turn-stats" style="height:${view.height}px"><div class="ts-head">${dot(t.dot)}<span class="ws-rate">${t.title}</span>${t.sub ? html`<span class="ws-muted">· ${t.sub}</span>` : ''}${chip(t.chip, reasonId)}${toggle(true)}</div>${t.reason ? html`<div class="ts-reason" id="${WHY_ID}">${t.reason}</div>` : ''}<dl class="ts-rows" id="ts-rows">${view.rows.map(row => html`<dt>${row.label}</dt><dd data-basis="${row.basis ?? 'reported'}">${row.value}${row.basis ? html`<small class="basis">${row.basis}</small>` : ''}</dd>`)}</dl>${t.alert ? alertRow(t.alert, false) : html`<div class="ws-line">${spark(t.spark, 'wide')}${chips(t.chips)}</div>`}</div>`;
   }
   const g = view.glance!, alert = g.alert;
   const switcher = !compact && g.line2 && 'toggle' in g.line2 && g.line2.toggle ? toggle(false) : '';

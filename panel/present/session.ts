@@ -1,8 +1,9 @@
 import type { Severity } from '../../src/contract/alerts.ts';
 import type { Basis } from '../../src/contract/capabilities.ts';
 import { SEVERITY_WORD } from './copy.ts';
+import { dur } from './format.ts';
 import { attrChip, visibleAlerts } from './parts.ts';
-import { modelOf } from './scope.ts';
+import { ENGINE_SPEED, modelOf } from './scope.ts';
 import { presentGlance, type StatusSectionInput } from './status.ts';
 
 /** The Session sidebar is a summary. Detailed measurements remain in the full Scope panel. */
@@ -26,7 +27,6 @@ export const presentSessionSection = (input: StatusSectionInput): SessionSection
   const view = presentGlance({ ...input, expanded: false, tipDismissed: true, firstRunDismissed: true });
   const glance = view.glance!, line = glance.line1, second = glance.line2;
   let phase = line.title ?? line.word ?? (line.dot === 'prefill' ? 'Reading prompt' : line.rate ? 'Generating' : 'Working');
-  if (phase === 'Live') phase = input.snapshot?.runtime.phase === 'decode' ? 'Generating' : 'Server activity';
   const value = line.rate !== null ? { text: line.rate, unit: line.unit, basis: line.rateBasis }
     : second?.kind === 'prefill' ? { text: second.percent, unit: null, basis: 'reported' as const } : null;
   let note: string | null = second?.kind === 'note' ? second.text : null;
@@ -38,9 +38,11 @@ export const presentSessionSection = (input: StatusSectionInput): SessionSection
   const currentActivity = !line.title && !value && input.snapshot
     && ['decode', 'prefill', 'processing', 'queued'].includes(input.snapshot.runtime.phase)
     && second?.kind !== 'armed' && second?.kind !== 'measuring';
-  const source = currentActivity ? attrChip(input.attribution, true) : line.chip;
+  const splash = input.snapshot?.connection.runtime === 'splash';
+  const source = currentActivity ? attrChip(splash ? { kind: 'server-wide', reason: 'all-requests' } : input.attribution, true) : line.chip;
   const scope = source?.attr ? {
-    text: source.attr === 'server' ? 'Server-wide' : source.text,
+    text: source.attr === 'server' ? phase === ENGINE_SPEED && input.snapshot?.runtime.server.rates
+      ? `Server-wide · last ${dur(input.snapshot.runtime.server.rates.windowMs)}` : 'Server-wide' : source.text,
     detail: source.attr === 'server' ? source.reason ?? (second?.kind === 'spark' ? second.reason : null) : null,
     attr: source.attr,
   } : null;

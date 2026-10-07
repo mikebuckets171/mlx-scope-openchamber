@@ -1,6 +1,6 @@
 {
   "name": "mlx-scope-openchamber",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "description": "Lightweight local model monitoring for OpenChamber.",
   "private": true,
   "license": "MIT",
@@ -85,9 +85,9 @@
   },
   "scripts": {
     "build": "bun run build:panel && bun run build:service && bun run build:background",
-    "build:panel": "openchamber-guest-bundle panel/main.ts panel/main.js",
+    "build:panel": "openchamber-guest-bundle panel/main.ts panel/main.js && bun scripts/minify-guest.ts panel/main.js",
     "build:service": "bun build service/main.ts --target=node --format=esm --minify --outfile=service/main.js",
-    "build:background": "openchamber-guest-bundle background/main.ts background/main.js",
+    "build:background": "openchamber-guest-bundle background/main.ts background/main.js && bun scripts/minify-guest.ts background/main.js",
     "type-check": "tsc --noEmit",
     "test": "bun test ./service ./src ./panel ./background ./scripts ./tests/fixtures",
     "preview": "bun run build:panel && bun run build:background && bun tests/browser/server.ts",

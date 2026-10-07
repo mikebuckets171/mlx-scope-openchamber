@@ -13,7 +13,7 @@ import { alertCopy, APPROVAL, FIRST_RUN, NON_LOCAL, PRESSURE, RESTART, SEVERITY_
 import { ago, delta, dur, int, kt, mmss, pct, tps } from './format.ts';
 import { attrChip, BASIS_WORD, visibleAlerts, type Chip } from './parts.ts';
 import type { Reading } from './reading.ts';
-import { glanceModel, liveSplashRate, modelOf, SERVER_WIDE } from './scope.ts';
+import { ENGINE_SPEED, glanceModel, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING } from './scope.ts';
 
 // Owner: ui-core. The Work Status section and the rail's Compact mode (plan §5.8, G2): a glance line at 56 px (80 with
 // an alert, 24 for a non-local chat) and the Turn stats replacement at ≤ 200 px. Rows a runtime cannot report are left out.
@@ -208,11 +208,15 @@ export const presentGlance = (input: StatusSectionInput): StatusSectionView => {
     return described(input.attribution, line, { spark, size: input.attribution.kind === 'server-wide' ? 'sm' : '', last: null, chips, toggle: true });
   }
   const serverRate = liveSplashRate(snapshot);
-  if (serverRate !== null) return described({ kind: 'server-wide', reason: 'all-requests' },
-    { dot: 'live', word: 'Live', model, rate: tps(serverRate), rateBasis: 'derived', unit: 'tok/s' },
-    { spark: null, size: 'sm', last: null, chips, toggle: true });
+  if (serverRate !== null) return glance(L1({ dot: 'live', word: ENGINE_SPEED, model, rate: tps(serverRate),
+    rateBasis: 'derived', unit: 'tok/s', chip: attrChip({ kind: 'server-wide', reason: 'all-requests' }, true), describedBy: true }),
+    { kind: 'spark', spark: null, size: 'sm', last: null, chips, toggle: true,
+      reason: `last ${dur(snapshot.runtime.server.rates!.windowMs)} · all requests` }, true);
   // Idle, queued or inventory: the last reply keeps its label; an armed Next reply waits for a message.
   const word = phase === 'queued' ? 'Queued' : phase === 'not-loaded' ? 'No model' : ['decode', 'prefill', 'processing'].includes(phase) ? 'Working' : 'Idle';
+  if (snapshot.connection.runtime === 'splash' && ['decode', 'prefill', 'processing'].includes(phase)) return glance(
+    L1({ word: phase === 'prefill' ? 'Reading prompt' : word, model, chip: attrChip(SERVER_WIDE) }),
+    { kind: 'note', text: phase === 'prefill' ? 'Waiting for fresh output' : SPLASH_WAITING });
   if (next?.kind === 'armed') return glance(L1({ word, model, chip: attrChip({ kind: 'armed' }) }), { kind: 'armed', left: mmss(Math.max(0, 120_000 - (now - next.at))) });
   if (phase === 'idle' && last?.completion.decodeTps != null) return described(last.label,
     { word: 'Last reply', model: last.completion.model ? glanceModel(last.completion.model) : model,

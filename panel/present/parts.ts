@@ -4,6 +4,8 @@ import type { CompletionV2 } from '../../src/contract/completion.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { AttributionLabel } from '../attribution/join.ts';
 import { alertCopy, rtName, sinceText, statusCopy, whyCopy, withheldWhy, type StatusCopy } from './copy.ts';
+import { ENGINE_SPEED } from './scope.ts';
+import { dur } from './format.ts';
 
 // View-model pieces every 2.0 view shares: basis-labelled values, chips, ⓘ disclosures and callouts. Pure data; the
 // markup lives in panel/render/views/parts.ts.
@@ -33,6 +35,13 @@ export const attrChip = (label: AttributionLabel, short = false, chatRuntime: st
 export interface Tip { key: string; title: string; paras: string[] }
 export const tip = (key: string, title: string, paras: ReadonlyArray<string | null | false | undefined>): Tip =>
   ({ key, title, paras: paras.filter((p): p is string => typeof p === 'string' && p.length > 0) });
+/** The same measurement explanation follows Splash rates in Live and Server details. */
+export const splashRateTip = (key: string, windowMs: number): Tip => tip(key, ENGINE_SPEED, [
+  'Output tokens / native decode-command time, server-wide; excludes draft candidates.',
+  `Last ${dur(windowMs)}; at least 3 samples across 2 s or more, rolling window up to 5 s.`,
+  'Observation time is not the active decode time divisor.',
+  'Lifetime average is separate. Client delivery speed is not measured here.',
+]);
 export const attrTip = (key: string, label: AttributionLabel, snapshot: SnapshotV2 | null, live: boolean, chatRuntime: string | null = null): Tip => {
   const [title, ...paras] = whyCopy(label.kind === 'server-wide' ? label.reason : label.kind, rtName(snapshot?.connection ?? null), live, chatRuntime);
   return tip(key, title, paras);

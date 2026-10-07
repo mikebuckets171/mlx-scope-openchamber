@@ -86,8 +86,8 @@ value travels without one.
 | oMLX process footprint | `footprint` of the process listening on the oMLX port; the process ID never leaves the service |
 | Model allocation | Reported model allocation, separate from process footprint |
 | RAM / SSD cache | Reported server cache sizes, kept separate from model allocation |
-| Splish/Splash live decode | Change in native output tokens divided by change in native decode milliseconds across two fresh active polls (derived). Updates during generation; server-wide, not one chat or streamed wall-clock speed. Missing, stale, idle, reset or unchanged counters have no live rate |
-| Splash average decode | Native lifetime aggregate since engine start, kept in Server averages; never labeled live |
+| Splish/Splash recent engine speed | 1,000 × change in native output tokens / change in native decode-command milliseconds, across a rolling observation window of up to five seconds (derived). At least three valid samples spanning two seconds are required; the actual interval is shown. Combined server throughput across all requests, excluding draft candidates |
+| Splash average since engine start | Native lifetime aggregate since engine start, shown separately in Server & Mac details and copied diagnostics |
 | Splash completed / failed | Native counters since engine start; reset on engine restart |
 | Splash Metal allocation | Current and peak Metal allocator values; not process RSS or model-only memory |
 | Splash latency | Splash's own first-token and inter-token p50/p95 with the sample count; not Scope's measurement |
@@ -144,6 +144,22 @@ model's single-request readings when that model's counters are identifiable. A c
 from several requests. Distributed rank summaries do not establish request identity.
 
 ## Trends and freshness
+
+Splish/Splash's **Recent engine speed** uses the oldest and newest eligible counter samples within five seconds of the
+latest sample. It does not average individual batch rates. The displayed “last 2–5 s” interval is the span between
+observations; the rate's divisor is accumulated native decode-command time. This engine measurement does not establish
+when tokens arrive in OpenChamber. Independently sampled monitors may report different rates when their windows cover
+different work.
+
+Only fresh, ready, active native decoding can produce a recent rate, and the newest pair must advance both output
+tokens and decode time. A missing rate reads **Collecting samples or waiting for fresh output**, never a lifetime or
+retained-rate fallback. Idle, stale/malformed data, recovery, disconnect, backwards counters/clocks, endpoint/model/engine
+changes, monitoring pause, and gaps longer than five seconds reset the window. Hidden or energy-saving monitoring with
+longer intervals cannot sustain a recent rate; resuming collects a new baseline. Prompt processing alone does not imply
+active decoding. Concurrent decode work is combined server throughput.
+
+The Splash Live chart shows these recent engine readings, each over up to five seconds. Completed-reply measurements,
+reply baselines, historical records, and the runtime's average since engine start retain their separate meanings.
 
 Live keeps a 90-second window. History charts the last 15, 30 or 60 minutes from the service's in-memory trend (2-second
 samples, 180 buckets of minimum, maximum and last). A bucket with no reading is empty, never zero, and stretches when no

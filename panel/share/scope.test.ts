@@ -9,6 +9,22 @@ import * as report from './report.ts';
 import { lastReply, SCOPE_HEADER, SCOPE_TEXT_MAX_CHARS, scopeItem, scopeReadme, scopeText, sizeBucket } from './scope.ts';
 
 const AT = 1_790_690_700_000;
+
+test('Splash scope diagnostics separate recent engine speed and lifetime rate, suppressing held recent rates', () => {
+  const snapshot = parseSnapshotV2(mockBody('splash-decode'))!;
+  const read = () => scopeText({ version: '2.1.4', now: AT, snapshot });
+  expect(read()).toContain('average since engine start 47.2 tok/s (reported)');
+  expect(read()).toContain('recent engine speed over 4 s (output/native decode time) 43.8 tok/s (derived)');
+  snapshot.capabilities['server.rates']!.basis = 'reported';
+  expect(read()).not.toContain('recent engine speed');
+  snapshot.capabilities['server.rates']!.basis = 'derived';
+  snapshot.status.state = 'recovering';
+  expect(read()).not.toContain('recent engine speed');
+  snapshot.status.state = 'ready'; snapshot.runtime.phase = 'prefill';
+  expect(read()).not.toContain('recent engine speed');
+  snapshot.runtime.phase = 'decode'; snapshot.runtime.server.rates!.windowMs = 1_000;
+  expect(read()).not.toContain('recent engine speed');
+});
 const cap = (key: string, basis = 'reported') => [key, { scope: key.slice(0, key.indexOf('.')), basis }];
 const MODEL = 'CANARY-MODEL-qwen9-1234b';
 /** A decoding oMLX-shaped body with every field /scope reads, each behind its capability. */
@@ -50,14 +66,14 @@ describe('/scope text (plan §5.8)', () => {
     expect(lines[0]).toBe(`${SCOPE_HEADER}.`);
     expect(lines[0]).toBe("Sent to this chat's model, which may be a cloud provider.");
     expect(lines.slice(1)).toEqual([
-      'MLX Scope 2.0.0 /scope diagnostics: server-wide readings of the local runtime and this Mac unless a reply is labelled. No chat content, model names, paths or IDs.',
+      'MLX Scope 2.0.0: local server/Mac; replies labelled separately. No chat content, model names, paths or IDs.',
       '',
       'Runtime: oMLX, version 0.7.0rc1, status ready, phase decode, reading 400 ms old',
       'Current request: decode 24.6 tok/s (reported), first token 812 ms (reported), context 32k–64k tokens',
       'Server, all requests: 1 active, 0 queued (reported), average decode 23.2 tok/s (reported), average prefill 184.5 tok/s (reported), '
         + 'first token p50 410 ms p95 1.21 s over 412 requests (reported), decode over 30 s 38.2 tok/s (derived)',
       'Last finished reply (42 s ago, last-observed): decode 38.6 tok/s, first token 500 ms, context 8k–32k tokens, 61% cached',
-      'Label: inferred for the chat then open in Scope, maybe not this one',
+      'Label: inferred for Scope’s chat at sampling time',
       'vs usual: decode 0.82× (n=34), first token 1.3× (n=12)',
       'This Mac: memory pressure warning, GPU 62% busy, GPU memory 30 GiB allocated (includes other apps, not model size), GPU values driver-reported, thermal pressure heavy',
       'Alerts: model-unloaded, pressure-warning',
@@ -86,7 +102,7 @@ describe('/scope text (plan §5.8)', () => {
       .split('\n').filter(line => /^(Label|vs usual)/.test(line));
     expect(label({ attr: 'withheld', reason: 'other-provider', at: AT })).toEqual(['Label: server-wide (other-provider)']);
     expect(label({ attr: 'armed', at: AT }, [])).toEqual(['Label: armed Next reply', 'vs usual: no baseline yet']);
-    expect(label(undefined, null)).toEqual(['Label: server-wide (not labelled)', 'vs usual: reply history unavailable']);
+    expect(label(undefined, null)).toEqual(['Label: server-wide (not labelled)', 'vs usual: history unavailable']);
   });
   test('a pressure or thermal level outside the macOS scale is left out, not named', () => {
     const mac = (pressure: number, thermal: number) => text(body(value => { value.host.mac.pressureLevel = pressure; value.host.thermal.level = thermal; }))
@@ -102,7 +118,7 @@ describe('/scope text (plan §5.8)', () => {
   });
   test('stays under the SDK chip limit even for a body filled to its caps', () => {
     expect(text(fullSnapshot()).length).toBeLessThan(SCOPE_TEXT_MAX_CHARS);
-    expect(text({ contractVersion: 1 })).toContain('No runtime reading was available.');
+    expect(text({ contractVersion: 1 })).toContain('No runtime reading.');
     expect(text(null).split('\n')[0]).toBe(`${SCOPE_HEADER}.`);
   });
 });

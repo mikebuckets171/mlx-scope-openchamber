@@ -17,7 +17,7 @@ value that is not reported directly by the runtime says how it was obtained.
 | **Ollama** | Which models are resident, their GPU-resident size as Ollama reports it, and when each unloads. Ollama reports residency only |
 | **vllm-mlx** | Reported request activity, queue, output and speed; prefill and reuse where the engine exposes usable data |
 | **mlx-lm** | Server availability and the available model catalogue |
-| **Splish / Splash (standalone)** | Live server-wide tok/s in the main view and Session widget, loaded model and context, idle/generating/recovering state, lifetime server averages, first-token and inter-token p50/p95 from Splash itself, completed/failed counters, vision chips, and GPU (Metal) memory now/peak |
+| **Splish / Splash (standalone)** | Recent engine speed across all requests in the main view and Session widget, with the actual 2–5-second observation window; average since engine start shown separately; loaded model and context, idle/generating/recovering state, first-token and inter-token p50/p95 from Splash itself, completed/failed counters, vision chips, and GPU (Metal) memory now/peak |
 
 On macOS, every runtime also gets host readings: CPU, memory, swap, the kernel's memory pressure level, the GPU
 wired-memory limit, GPU busy and GPU memory as the graphics driver reports them, thermal pressure, and optionally a chip
@@ -145,8 +145,8 @@ them at a time, and a sent chip stays in the chat's session record like any atta
    https://github.com/mikebuckets171/mlx-scope-openchamber
    ```
 
-Alternatively, install the named `mlx-scope-openchamber-2.1.3.zip` from
-[Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest). Use the named install package, not
+Alternatively, install the named versioned `mlx-scope-openchamber-<version>.zip` from
+[Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest), or the supplied local package. Use the named install package, not
 GitHub's generated source archives. The ZIP includes built JavaScript; installing it needs no build toolchain.
 
 MLX Scope discovers existing local OpenCode provider connections, including custom provider names. Keep **Automatic**,

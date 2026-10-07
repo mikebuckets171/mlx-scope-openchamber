@@ -11,7 +11,7 @@ export const measurementLabels = {
   prefillRemaining: ['Prefill remaining', '%'], processed: ['Prefill processed', 'tokens'],
   total: ['Prefill stage total', 'tokens'], stageEstimate: ['Reported stage estimate', 's'],
   active: ['Active requests', ''], queued: ['Queued requests', ''],
-  splashDecode: ['Splash server decode (all requests)', 'tok/s'],
+  splashDecode: ['Splash average since engine start (all requests)', 'tok/s'],
   splashCompleted: ['Splash completed requests since start', ''],
   splashFailed: ['Splash failed requests since start', ''],
   splashMetalCurrent: ['Splash GPU memory (Metal) · now', 'GiB'],
@@ -104,7 +104,7 @@ export const observationReport = (item: Observation): string => {
     `Observed: ${new Date(item.sampledAt).toISOString()} · ${item.state}${item.kind === 'snapshot' ? ` · ${item.phase}` : ''}`,
     'Server-wide observations, not selected-chat attribution or a controlled benchmark. Differences do not establish causality.'];
   if (Object.hasOwn(item.measurements, 'splashDecode') || Object.hasOwn(item.measurements, 'splashCompleted')) {
-    lines.push('Splash server decode is shared across all requests; its counters restart with Splash.');
+    lines.push('Splash average since engine start is shared across all requests; its counters restart with Splash.');
   }
   const print = (values: Measurements) => {
     for (const key of Object.keys(measurementLabels) as Metric[]) {

@@ -3,6 +3,7 @@ import { contextBudget } from './context.ts';
 import { gib, scalar } from './present/format.ts';
 import type { HostReading, Reading } from './present/reading.ts';
 import { prefillReading } from './progress.ts';
+import { ENGINE_SPEED, liveSplashRate } from './present/scope.ts';
 
 /** Copy only an allowlist of measurements. No raw messages, names, paths, keys or IDs. */
 export const measurementReport = (reading: Reading, system: HostReading | null, paused: boolean | 'refreshing', version: string,
@@ -37,7 +38,9 @@ export const measurementReport = (reading: Reading, system: HostReading | null, 
     if (reading.runtime === 'splash' && reading.splash) {
       const stats = reading.splash;
       lines.push(`Splash ready: ${stats.ready ? 'yes' : 'no (loading)'}`);
-      measured('Splash server decode (all requests)', stats.decodeTps, ' tok/s');
+      measured('Splash average since engine start (all requests)', stats.decodeTps, ' tok/s');
+      const recent = !paused ? liveSplashRate(reading.body) : null;
+      if (recent !== null) lines.push(`${ENGINE_SPEED} (server-wide, derived, last ${scalar(reading.body!.runtime.server.rates!.windowMs / 1000)} seconds): ${scalar(recent)} tok/s; output tokens / native decode-command time`);
       measured('Splash completed requests since start', stats.completed);
       measured('Splash failed requests since start', stats.failed);
       measured('Splash GPU memory (Metal) · now', gib(stats.metalBytes), ' GiB');

@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.1.4 (local)
+
+### Fixed
+
+- Splish/Splash's primary reading is **Recent engine speed**, computed across a rolling window of up to five
+  seconds with at least three samples spanning two seconds. Live, Session, Compact and Server details name the
+  server-wide scope and actual observed interval; the divisor remains native decode-command time.
+- Missing, idle, stalled, stale, recovering or interrupted decoding has no recent speed. Monitoring resumes with
+  a fresh baseline. Prompt processing alone does not count as active decoding.
+- Splash's lifetime reading is labelled **Average since engine start**, including copied diagnostics. The Live
+  chart identifies recent engine observations. Completed-reply measurements and saved historical values keep
+  their existing basis; no lifetime reading is promoted to recent speed.
+
 ## 2.1.3
 
 ### Fixed
