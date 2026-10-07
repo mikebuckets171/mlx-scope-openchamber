@@ -58,7 +58,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
       - run: bunx playwright install --with-deps chromium webkit
-      - run: bun run test:browser
+      - run: bun run test:browser --workers=2
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:

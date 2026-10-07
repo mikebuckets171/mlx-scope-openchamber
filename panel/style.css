@@ -599,6 +599,8 @@ dd { margin: 0; }
 .speed-lane[data-active="false"] .speed-value strong { color: var(--scope-muted); font-weight: 450; }
 .instrument-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .instrument-heading h2 { font-size: 17px; font-weight: 600; }
+.instrument-heading .title-row { max-width: 100%; }
+.instrument-heading .title-row .chip { flex: 0 1 auto; white-space: normal; overflow-wrap: anywhere; }
 .instrument-model { margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--scope-muted); font-size: 13px; }
 .instrument-basis { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; color: var(--scope-muted); font-size: 12px; margin-top: 18px; }
 .speed-averages { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--scope-line); }
