@@ -2787,8 +2787,8 @@
    "derived": 0
   },
   "baseline": {
-   "key": "omlx|Example-27B-4bit|32–64K",
-   "ctxBucket": "32–64K context",
+   "key": "omlx|Example-27B-4bit|32\u201364K",
+   "ctxBucket": "32\u201364K context",
    "decode": {
     "p50": 25.7,
     "p90": 27.9,
@@ -2949,11 +2949,11 @@
  },
  "states": {
   "decode": {
-   "title": "Decode · This chat · inferred",
+   "title": "Decode \u00b7 This chat \u00b7 inferred",
    "snapshot": "omlx-decode"
   },
   "withheld-chats": {
-   "title": "Withheld · 2 chats running",
+   "title": "Withheld \u00b7 2 chats running",
    "snapshot": "omlx-decode",
    "view": {
     "attr": {
@@ -2973,7 +2973,7 @@
    }
   },
   "withheld-subagent": {
-   "title": "Withheld · subagent running",
+   "title": "Withheld \u00b7 subagent running",
    "snapshot": "omlx-decode",
    "view": {
     "attr": {
@@ -2987,7 +2987,7 @@
    }
   },
   "other-provider": {
-   "title": "This chat uses Splash · Watch Splash",
+   "title": "This chat uses Splash \u00b7 Watch Splash",
    "snapshot": "omlx-decode",
    "view": {
     "attr": {
@@ -3008,7 +3008,7 @@
    }
   },
   "armed-refusal": {
-   "title": "Next reply won’t arm · chat model differs",
+   "title": "Next reply won\u2019t arm \u00b7 chat model differs",
    "snapshot": "omlx-idle",
    "view": {
     "lastAttr": {
@@ -3022,7 +3022,7 @@
    }
   },
   "first-readings": {
-   "title": "First readings · no chart yet",
+   "title": "First readings \u00b7 no chart yet",
    "snapshot": "omlx-decode",
    "patch": {
     "runtime": {
@@ -3089,7 +3089,7 @@
    }
   },
   "next-armed": {
-   "title": "Next reply · armed",
+   "title": "Next reply \u00b7 armed",
    "snapshot": "omlx-idle",
    "view": {
     "next": {
@@ -3099,7 +3099,7 @@
    }
   },
   "next-measuring": {
-   "title": "Next reply · measuring",
+   "title": "Next reply \u00b7 measuring",
    "snapshot": "omlx-decode",
    "view": {
     "attr": {
@@ -3112,7 +3112,7 @@
    }
   },
   "next-result": {
-   "title": "Next reply · result",
+   "title": "Next reply \u00b7 result",
    "snapshot": "omlx-idle",
    "view": {
     "next": {
@@ -3198,7 +3198,7 @@
    }
   },
   "offline": {
-   "title": "Offline · runtime lost",
+   "title": "Offline \u00b7 runtime lost",
    "snapshot": "omlx-offline",
    "view": {
     "attr": {
@@ -3288,7 +3288,7 @@
    }
   },
   "contract-mismatch": {
-   "title": "Version skew · restart the service",
+   "title": "Version skew \u00b7 restart the service",
    "snapshot": "omlx-idle",
    "view": {
     "frame": "contract_mismatch"
@@ -3302,7 +3302,7 @@
    }
   },
   "admin-unauthorized": {
-   "title": "oMLX admin refused · public status",
+   "title": "oMLX admin refused \u00b7 public status",
    "snapshot": "omlx-decode",
    "patch": {
     "status": {
@@ -3650,11 +3650,11 @@
    }
   },
   "bionic": {
-   "title": "Splash via Bionic · Engines",
+   "title": "Splash via Bionic \u00b7 Engines",
    "snapshot": "bionic"
   },
   "lms-unavailable": {
-   "title": "Bionic not answering · no lms",
+   "title": "Bionic not answering \u00b7 no lms",
    "snapshot": "bionic",
    "patch": {
     "status": {
@@ -3696,14 +3696,14 @@
    }
   },
   "clear-confirm": {
-   "title": "Clear history · confirmation",
+   "title": "Clear history \u00b7 confirmation",
    "snapshot": "omlx-idle",
    "view": {
     "storage": "confirm"
    }
   },
   "splash-decode": {
-   "title": "Splash live decode · server-wide",
+   "title": "Splash live decode \u00b7 server-wide",
    "snapshot": "splash-recovering",
    "patch": {
     "status": {
@@ -3720,7 +3720,7 @@
       "queued": 0,
       "rates": {
        "decodeTps": 43.8,
-       "windowMs": 1000
+       "windowMs": 4000
       }
      }
     },
@@ -3768,6 +3768,345 @@
      "reason": "not-observed"
     },
     "lastAttr": null
+   }
+  },
+  "splash-prefill": {
+   "title": "splash-prefill",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": null,
+     "params": {},
+     "sinceAt": 1790690700000
+    },
+    "runtime": {
+     "sampledAt": 1790690700000,
+     "phase": "prefill",
+     "server": {
+      "active": 1,
+      "queued": 0,
+      "rates": {
+       "promptTps": 612.4,
+       "promptWindowMs": 3200,
+       "windowMs": 3200
+      },
+      "averages": {
+       "prefillTps": 540.1
+      }
+     }
+    },
+    "alerts": [],
+    "nextPollMs": 1000,
+    "capabilities": {
+     "server.rates": {
+      "scope": "server",
+      "basis": "derived"
+     }
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "splash-mixed": {
+   "title": "splash-mixed",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": null,
+     "params": {},
+     "sinceAt": 1790690700000
+    },
+    "runtime": {
+     "sampledAt": 1790690700000,
+     "phase": "processing",
+     "server": {
+      "active": 1,
+      "queued": 0,
+      "rates": {
+       "promptTps": 612.4,
+       "promptWindowMs": 3200,
+       "decodeTps": 43.8,
+       "windowMs": 4000
+      },
+      "averages": {
+       "prefillTps": 540.1
+      }
+     }
+    },
+    "alerts": [],
+    "nextPollMs": 1000,
+    "capabilities": {
+     "server.rates": {
+      "scope": "server",
+      "basis": "derived"
+     }
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "splash-prefill-waiting": {
+   "title": "splash-prefill-waiting",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": null,
+     "params": {},
+     "sinceAt": 1790690700000
+    },
+    "runtime": {
+     "sampledAt": 1790690700000,
+     "phase": "prefill",
+     "server": {
+      "active": 1,
+      "queued": 0,
+      "rates": null,
+      "averages": {
+       "prefillTps": 540.1
+      }
+     }
+    },
+    "alerts": [],
+    "nextPollMs": 1000,
+    "capabilities": {
+     "server.rates": {
+      "scope": "server",
+      "basis": "derived"
+     }
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "splash-long-warning": {
+   "title": "splash-mixed",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": null,
+     "params": {},
+     "sinceAt": 1790690700000
+    },
+    "runtime": {
+     "sampledAt": 1790690700000,
+     "phase": "processing",
+     "server": {
+      "active": 1,
+      "queued": 0,
+      "rates": {
+       "promptTps": 612.4,
+       "promptWindowMs": 3200,
+       "decodeTps": 43.8,
+       "windowMs": 4000
+      },
+      "averages": {
+       "prefillTps": 540.1
+      }
+     },
+     "catalog": [
+      {
+       "name": "organization/A-very-long-model-name-with-many-words-27B-4bit-Splash",
+       "loaded": true
+      }
+     ]
+    },
+    "alerts": [
+     {
+      "id": "swap-growth",
+      "severity": "warning",
+      "since": 1790690699000,
+      "params": {
+       "deltaBytes": 2000000000,
+       "windowMs": 60000
+      },
+      "badge": true
+     }
+    ],
+    "nextPollMs": 1000,
+    "capabilities": {
+     "server.rates": {
+      "scope": "server",
+      "basis": "derived"
+     }
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "splash-extreme": {
+   "title": "splash-mixed",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": null,
+     "params": {},
+     "sinceAt": 1790690700000
+    },
+    "runtime": {
+     "sampledAt": 1790690700000,
+     "phase": "processing",
+     "server": {
+      "active": 1,
+      "queued": 0,
+      "rates": {
+       "promptTps": 9100000000,
+       "promptWindowMs": 3200,
+       "decodeTps": 2340000,
+       "windowMs": 4000
+      },
+      "averages": {
+       "prefillTps": 540.1
+      }
+     }
+    },
+    "alerts": [],
+    "nextPollMs": 1000,
+    "capabilities": {
+     "server.rates": {
+      "scope": "server",
+      "basis": "derived"
+     }
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
+  },
+  "splash-progress": {
+   "title": "Splash reading a prompt with reported progress",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": null,
+     "params": {},
+     "sinceAt": 1790690700000
+    },
+    "runtime": {
+     "sampledAt": 1790690700000,
+     "phase": "prefill",
+     "server": {
+      "active": 1,
+      "queued": 0,
+      "rates": {
+       "promptTps": 612.4,
+       "promptWindowMs": 3200,
+       "windowMs": 3200
+      },
+      "averages": {
+       "prefillTps": 540.1
+      }
+     },
+     "request": {
+      "model": "Example-27B",
+      "prefillProcessedTokens": 3840,
+      "prefillTotalTokens": 6000,
+      "prefillObservedAt": 1790690700000
+     }
+    },
+    "alerts": [],
+    "nextPollMs": 1000,
+    "capabilities": {
+     "request.prefillProgress": {
+      "scope": "request",
+      "basis": "reported"
+     },
+     "server.rates": {
+      "scope": "server",
+      "basis": "derived"
+     }
+    }
+   }
+  },
+  "splash-progress-held": {
+   "title": "Splash waiting for newer prompt progress",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": null,
+     "params": {},
+     "sinceAt": 1790690700000
+    },
+    "runtime": {
+     "sampledAt": 1790690700000,
+     "phase": "prefill",
+     "server": {
+      "active": 1,
+      "queued": 0,
+      "rates": {
+       "promptTps": 612.4,
+       "promptWindowMs": 3200,
+       "windowMs": 3200
+      },
+      "averages": {
+       "prefillTps": 540.1
+      }
+     },
+     "request": {
+      "model": "Example-27B",
+      "prefillProcessedTokens": 3840,
+      "prefillTotalTokens": 6000,
+      "prefillObservedAt": 1790690694000,
+      "prefillStale": true
+     }
+    },
+    "alerts": [],
+    "nextPollMs": 1000,
+    "capabilities": {
+     "request.prefillProgress": {
+      "scope": "request",
+      "basis": "reported"
+     },
+     "server.rates": {
+      "scope": "server",
+      "basis": "derived"
+     }
+    }
+   }
+  },
+  "prefill-near-complete": {
+   "title": "oMLX prompt still unfinished above99percent",
+   "snapshot": "omlx-decode",
+   "patch": {
+    "runtime": {
+     "phase": "prefill",
+     "request": {
+      "prefillProcessedTokens": 9999,
+      "prefillTotalTokens": 10000,
+      "prefillFraction": 0.9999,
+      "prefillTps": 185
+     }
+    }
    }
   }
  },

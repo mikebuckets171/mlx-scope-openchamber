@@ -1,5 +1,43 @@
 # Changelog
 
+## 2.1.5
+
+### Added
+
+- Real standalone Splash prompt progress through an optional OpenCode companion bundled with the update. The
+  percentage uses Splash's processed/total prompt counts, includes cached tokens, and clears when the reply starts
+  or a fresh single request cannot be established. Existing oMLX progress remains supported.
+
+### Changed
+
+- The Session sidebar follows OpenChamber's Turn stats layout, with simple label/value rows for prompt progress,
+  prefill speed and generation speed. The model, warnings and **Open MLX Scope** action stay compact.
+  Labels and help text across Scope use plain language. Measurement explanations remain in the full view and tooltips.
+- Standalone Splish/Splash now shows recent prefill and generation speeds separately. Each uses its own fresh
+  observations and native command time; neither falls back to an old batch speed or an average since engine start.
+- Live, compact views and copied diagnostics keep the two stages and their observation intervals separate.
+  Lifetime averages remain available in Server & Mac details. Existing oMLX progress and speed support is preserved.
+
+### Fixed
+
+- Speeds clear when monitoring pauses or readings become stale, unavailable or interrupted. Resuming waits for
+  fresh observations. Recovery and setup messages take priority over retained activity.
+
+The update preserves saved history, preferences, permissions and the existing passive monitoring cadence.
+
+## 2.1.4 (local)
+
+### Fixed
+
+- Splish/Splash's primary reading is **Recent engine speed**, computed across a rolling window of up to five
+  seconds with at least three samples spanning two seconds. Live, Session, Compact and Server details name the
+  server-wide scope and actual observed interval; the divisor remains native decode-command time.
+- Missing, idle, stalled, stale, recovering or interrupted decoding has no recent speed. Monitoring resumes with
+  a fresh baseline. Prompt processing alone does not count as active decoding.
+- Splash's lifetime reading is labelled **Average since engine start**, including copied diagnostics. The Live
+  chart identifies recent engine observations. Completed-reply measurements and saved historical values keep
+  their existing basis; no lifetime reading is promoted to recent speed.
+
 ## 2.1.3
 
 ### Fixed

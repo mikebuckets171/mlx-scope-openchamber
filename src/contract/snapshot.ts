@@ -61,7 +61,8 @@ export interface RuntimeV2 {
     histograms?: { ttftMs?: Quantiles; itlMs?: Quantiles };
     cache?: { ramBytes?: number; ssdBytes?: number; ramEntries?: number; ssdEntries?: number; lastLookup?: 'hit' | 'miss' };
     speculative?: { draftedTokens: number; acceptedTokens: number; acceptanceFraction: number; windowMs: number };
-    rates?: { promptTps?: number; decodeTps?: number; windowMs: number };
+    rates?: { promptTps?: number; decodeTps?: number; windowMs: number;
+              promptWindowMs?: number };    // independent prompt interval; windowMs is decode's when both are present
   };
   memory: { processBytes?: number; modelBytes?: number; metalBytes?: number; metalPeakBytes?: number; ceilingBytes?: number;
             guard?: MemoryGuard };           // §12.4: the oMLX process memory guard, not macOS pressure
@@ -78,6 +79,8 @@ export interface RequestV2 {
   model: string | null;
   decodeTps?: number; prefillTps?: number;
   prefillProcessedTokens?: number; prefillTotalTokens?: number; prefillFraction?: number; prefillStale?: boolean;
+  /** Native progress observation time, separate from the current /status sample time. Never a request identity. */
+  prefillObservedAt?: number;
   prefillEtaMs?: number;                     // runtime estimate; only while prefill is live and fraction < 1
   promptTokens?: number; cachedTokens?: number; outputTokens?: number;
   elapsedMs?: number; ttftMs?: number;
@@ -113,6 +116,7 @@ export const HONESTY: ReadonlyArray<readonly [string, CapabilityKey]> = [
   ['runtime.request.decodeTps', 'request.decodeRate'], ['runtime.request.prefillTps', 'request.prefillRate'],
   ['runtime.request.prefillFraction', 'request.prefillProgress'], ['runtime.request.prefillProcessedTokens', 'request.prefillProgress'],
   ['runtime.request.prefillTotalTokens', 'request.prefillProgress'], ['runtime.request.prefillStale', 'request.prefillProgress'],
+  ['runtime.request.prefillObservedAt', 'request.prefillProgress'],
   ['runtime.request.prefillEtaMs', 'request.prefillEta'], ['runtime.request.ttftMs', 'request.ttft'],
   ['runtime.request.promptTokens', 'request.tokens'], ['runtime.request.cachedTokens', 'request.tokens'],
   ['runtime.request.outputTokens', 'request.tokens'], ['runtime.request.elapsedMs', 'request.elapsed'],
@@ -171,6 +175,7 @@ const request = (value: unknown, current: Phase): RequestV2 | null => {
     model: modelLabel(item.model), decodeTps: num(item.decodeTps), prefillTps: opt(prefillTps),
     prefillProcessedTokens: prefill !== null ? opt(done) : undefined, prefillTotalTokens: prefill !== null ? opt(total) : undefined,
     prefillFraction: opt(prefill), prefillStale: stale || undefined,
+    prefillObservedAt: prefill !== null && count(item.prefillObservedAt) !== null ? opt(at(item.prefillObservedAt)) : undefined,
     prefillEtaMs: prefill !== null && prefill < 1 && !stale && (prefillTps ?? 0) > 0 ? num(item.prefillEtaMs) : undefined,
     promptTokens: int(item.promptTokens), cachedTokens: int(item.cachedTokens), outputTokens: int(item.outputTokens),
     elapsedMs: num(item.elapsedMs), ttftMs: num(item.ttftMs),
@@ -230,7 +235,8 @@ const server = (value: unknown): RuntimeV2['server'] => {
       ssdEntries: int(cache.ssdEntries), lastLookup: opt(oneOf(['hit', 'miss'] as const)(cache.lastLookup)) })) : undefined,
     speculative: drafted !== null && accepted !== null && accepted <= drafted && acceptance !== null && specWindow !== null
       ? { draftedTokens: drafted, acceptedTokens: accepted, acceptanceFraction: acceptance, windowMs: specWindow } : undefined,
-    rates: rateWindow !== null ? defined({ promptTps: num(rates!.promptTps), decodeTps: num(rates!.decodeTps), windowMs: rateWindow }) : undefined,
+    rates: rateWindow !== null ? defined({ promptTps: num(rates!.promptTps), decodeTps: num(rates!.decodeTps), windowMs: rateWindow,
+      promptWindowMs: num(rates!.promptWindowMs) }) : undefined,
   });
 };
 const memory = (value: unknown): RuntimeV2['memory'] => {

@@ -17,7 +17,22 @@ import { savedValue } from './captures.ts';
 const NOW = EPOCH + 60_000;
 const wire = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const states = hostStates();
-const shown = (item: Observation | null) => item && { report: observationReport(item),
+// Compare the frozen oracle's calculations while allowing the intentional plain-language labels.
+const plainReport = (report: string) => report
+  .replace('Scope: runtime server / whole host, not a selected chat', 'Scope: all server activity and this Mac')
+  .replace('Model context:', 'Model capacity:')
+  .replace('tokens to reported limit (not OpenCode compaction or output budget)', 'tokens remaining in the model’s capacity. OpenCode may shorten the conversation sooner')
+  .replace('Generation (request average):', 'Generation speed (request average):')
+  .replace('Prefill (reported speed):', 'Prefill speed (from server):')
+  .replace('Prefill: ', 'Prompt reading left: ')
+  .replace('Prefill stage estimate:', 'Estimated time left:')
+  .replace('(reported stage estimate, not a completion deadline)', '(server estimate for reading this prompt portion)')
+  .replace('Non-free RAM:', 'Memory allocated:')
+  .replace('(includes reclaimable pages; not memory pressure)', '(includes memory macOS can reuse)')
+  .replace('Splash GPU memory (Metal) · now:', 'Splash GPU memory now:')
+  .replace('Splash GPU memory (Metal) · peak:', 'Splash peak GPU memory:')
+  .replace('Reading context', 'Reading prompt');
+const shown = (item: Observation | null) => item && { report: plainReport(observationReport(item)),
   values: Object.fromEntries(Object.entries(item.measurements).map(([key, value]) => [key, savedValue(key, value)])) };
 
 test('the 2a panel computes what 1.6 computed, for every fixture state', () => {
@@ -32,8 +47,12 @@ test('the 2a panel computes what 1.6 computed, for every fixture state', () => {
       expect(prefillEstimate(current), name).toBe(v16.prefillEstimate(current16));
       expect(cacheSplit(current?.request?.promptTokens, current?.request?.cachedTokens), name).toEqual(v16.cacheSplit(current16));
       for (const paused of [false, true, 'refreshing'] as const) {
+        // Splash's legacy decode value is lifetime; a false ready flag does not establish that loading is underway.
+        const report16 = plainReport(v16.measurementReport(original, original.system, paused, 'test', NOW))
+          .replace('Splash server decode (all requests):', 'Splash average generation speed since model start (all requests):')
+          .replace('Splash ready: no (loading)', 'Splash ready: no');
         expect(measurementReport(reading, reading.host, paused, 'test', NOW, completionOf(reading)), name)
-          .toBe(v16.measurementReport(original, original.system, paused, 'test', NOW));
+          .toBe(report16);
       }
       for (const held of [false, true]) {
         const saved = sanitizeObservation(snapshotObservation(reading, held, held ? null : 12.345, NOW));

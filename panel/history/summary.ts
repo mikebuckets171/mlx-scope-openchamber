@@ -8,10 +8,10 @@ import { BASELINE_MIN_N, type Baseline, type BaselineMetric, type Baselines } fr
 export const SUMMARY_MAX_CHARS = 32_000;
 export const SIZE_LABELS = ['under 8K', '8–32K', '32–64K', '64–128K', 'over 128K'] as const;
 const METRIC: Readonly<Record<BaselineMetric, { name: string; input: string; value: (v: number) => string }>> = {
-  decodeTps: { name: 'decode', input: 'context', value: v => `${v.toFixed(1)} tok/s` },
-  prefillTps: { name: 'prefill', input: 'uncached input', value: v => `${Math.round(v)} tok/s` },
-  ttftMs: { name: 'TTFT', input: 'uncached input', value: v => `${(v / 1000).toFixed(2)} s` },
-  tokPerJ: { name: 'tok/J (chip estimate)', input: 'context', value: v => v.toFixed(2) },
+  decodeTps: { name: 'Generation speed', input: 'context', value: v => `${v.toFixed(1)} tok/s` },
+  prefillTps: { name: 'Prefill speed', input: 'new input', value: v => `${Math.round(v)} tok/s` },
+  ttftMs: { name: 'First token', input: 'new input', value: v => `${(v / 1000).toFixed(2)} s` },
+  tokPerJ: { name: 'Tokens per joule (estimated)', input: 'context', value: v => v.toFixed(2) },
 };
 const ORDER: readonly BaselineMetric[] = ['decodeTps', 'prefillTps', 'ttftMs', 'tokPerJ'];
 
@@ -22,8 +22,8 @@ export const modelAlias = (index: number): string => {
   return `Model ${label}`;
 };
 const values = (base: Baseline, metric: BaselineMetric): string => base.p50 === null
-  ? `not enough replies yet (n ${base.n}; p50 needs ${BASELINE_MIN_N.p50})`
-  : `p50 ${METRIC[metric].value(base.p50)}${base.p90 === null ? '' : ` · p90 ${METRIC[metric].value(base.p90)}`} · n ${base.n}`;
+  ? `not enough replies yet (${base.n} recorded; needs ${BASELINE_MIN_N.p50})`
+  : `typical ${METRIC[metric].value(base.p50)}${base.p90 === null ? '' : ` · 90% at or below ${METRIC[metric].value(base.p90)}`} · ${base.n} replies`;
 
 export const baselineSummary = (baselines: Baselines, models: readonly string[], version: string, now: number): string => {
   const parsed = [...baselines].flatMap(([key, base]) => {
@@ -36,8 +36,8 @@ export const baselineSummary = (baselines: Baselines, models: readonly string[],
     || ORDER.indexOf(a.metric) - ORDER.indexOf(b.metric) || a.size - b.size)
     .map(row => `${modelAlias(refs.indexOf(row.modelRef))} · ${runtimeNames[row.kind]} · ${SIZE_LABELS[row.size]} ${METRIC[row.metric].input} · ${METRIC[row.metric].name}: ${values(row.base, row.metric)}`);
   const head = [`MLX Scope ${version} — usual speeds (baseline summary)`, `Generated ${new Date(now).toISOString()}`,
-    'From replies Scope observed while it was open: the last 14 days, up to 50 replies per row, the current 30 min left out. p50 needs 5 replies and p90 needs 10; n is how many replies a row uses.',
-    'Server-wide readings unless a reply was labelled for a chat; not a controlled benchmark. tok/J is a chip-power estimate. Model names are replaced by aliases.', ''];
+    'From replies recorded while Scope was open: the last 14 days, up to 50 replies per row, excluding the current 30 minutes. Typical values use the middle reading and need 5 replies. The 90% cutoff needs 10 replies.',
+    'Readings cover all server activity unless matched to a chat. Energy estimates cover the whole chip. Model names are replaced by aliases.', ''];
   if (!lines.length) lines.push('No usual speeds yet: each model and size needs 5 observed replies.');
   // Whole lines only: the summary stays readable when a large ledger has more rows than fit.
   const budget = SUMMARY_MAX_CHARS - head.join('\n').length - 120;

@@ -3,7 +3,7 @@ import { SavedObservations, SAVED_LIMIT, measurementLabels, observationReport, o
 
 export const savedMarkup = `<section id="view-saved" role="tabpanel" aria-labelledby="tab-saved" tabindex="0" hidden>
   <div class="section-heading"><h2>Saved observations</h2><span id="saved-count">0 / ${SAVED_LIMIT}</span></div>
-  <p class="insight-note">Saved on this OpenChamber host. Keeps the 12 newest saves; the oldest is replaced when full. No model names or chat content.</p>
+  <p class="insight-note">Saved on this computer. Keeps the 12 newest saves; the oldest is replaced when full. No model names or chat content.</p>
   <div class="insight-actions"><button id="saved-clear" type="button" disabled>Clear saved</button></div>
   <p id="saved-state" role="status" class="insight-note">Nothing saved yet. Save a Live snapshot or a Compare capture.</p>
   <ol id="saved-list" class="saved-list"></ol>
@@ -47,7 +47,7 @@ export class SavedView {
   private render(): void {
     this.node('saved-count').textContent = `${this.store.items.length} / ${SAVED_LIMIT}`;
     (this.node('saved-clear') as HTMLButtonElement).disabled = this.busy || !this.loaded || !this.store.items.length;
-    if (this.loaded) this.node('saved-state').textContent = this.store.items.length ? 'Observations are not completion records or controlled benchmarks.' : 'Nothing saved yet. Save a Live snapshot or a Compare capture.';
+    if (this.loaded) this.node('saved-state').textContent = this.store.items.length ? 'Other apps and chats can affect these saved readings.' : 'Nothing saved yet. Save a Live snapshot or a Compare capture.';
     const list = this.node('saved-list'); list.replaceChildren();
     for (const item of this.store.items) {
       const row = document.createElement('li'); row.className = 'saved-row';
@@ -58,12 +58,12 @@ export class SavedView {
       const details = document.createElement('details');
       const summary = document.createElement('summary');
       const state = item.state === 'interrupted' ? 'Partial capture' : item.state === 'finished' ? 'Finished window'
-        : item.state === 'held' ? 'Held reading' : 'Observed snapshot';
+        : item.state === 'held' ? 'Last reading' : 'Server snapshot';
       summary.append(`Measurements · ${state.toLowerCase()}`);
       const disclosure = document.createElement('span'); disclosure.textContent = '+'; disclosure.setAttribute('aria-hidden', 'true');
       summary.append(disclosure); details.append(summary);
       const context = document.createElement('div'); context.className = 'saved-context';
-      const observed = document.createElement('p'); observed.append('Observed ');
+      const observed = document.createElement('p'); observed.append('Recorded ');
       const observedTime = document.createElement('time'); observedTime.dateTime = new Date(item.sampledAt).toISOString();
       observedTime.textContent = new Date(item.sampledAt).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit'});
       observed.append(observedTime); context.append(observed);
@@ -82,7 +82,7 @@ export class SavedView {
       const table = document.createElement('table'); table.className = 'saved-measurements';
       table.dataset.comparison = String(Boolean(item.reference)); table.setAttribute('aria-label', 'Saved measurements');
       const head = table.createTHead().insertRow();
-      for (const label of ['Reading', 'Observed', ...(item.reference ? ['Reference'] : [])]) {
+      for (const label of ['Reading', 'Recorded', ...(item.reference ? ['Reference'] : [])]) {
         const cell = document.createElement('th'); cell.scope = 'col'; cell.textContent = label; head.append(cell);
       }
       const body = table.createTBody();
@@ -102,7 +102,7 @@ export class SavedView {
       details.append(table);
       if (item.reference) {
         const note = document.createElement('p'); note.className = 'saved-reference-note';
-        note.textContent = 'Model identity is not stored. Differences do not establish causality.'; details.append(note);
+        note.textContent = 'The model name is not saved. Other apps and chats can affect the comparison.'; details.append(note);
       }
       const actions = document.createElement('div'); actions.className = 'insight-actions';
       const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy'; copy.disabled = this.busy;

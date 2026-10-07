@@ -13,12 +13,12 @@ import { alertCopy, withheldWhy } from './copy.ts';
 import { BASIS_WORD } from './parts.ts';
 
 // Owner: ui-history. Pure History tab presenter: trend, replies (each with its attr chip), turn summaries, baselines,
-// oMLX usage ("Recorded by oMLX"), storage, alert log. Header "Observed while Scope was open" with counts per basis.
+// oMLX usage ("Recorded by oMLX"), storage, alert log. Header "Recorded while Scope was open" with counts per basis.
 
 /** The English this tab borrows: withhold reasons and alert titles live in panel/present/copy.ts (one source). */
 export interface HistoryText { withheld(reason: WithholdReason | 'all-requests'): string; alert(id: AlertId, params: ReasonParams): string }
 /** The mock's chip and alert wording, from the one copy table the other views use (present/copy.ts). */
-export const HISTORY_TEXT: HistoryText = { withheld: reason => `Server-wide · ${withheldWhy(reason)}`, alert: (id, params) => alertCopy(id, params)[0] };
+export const HISTORY_TEXT: HistoryText = { withheld: reason => `All server activity · ${withheldWhy(reason)}`, alert: (id, params) => alertCopy(id, params)[0] };
 
 export interface HistoryInput {
   now: number;
@@ -84,11 +84,11 @@ export interface HistoryView {
   alertLogEmpty: string | null;
 }
 
-export const HISTORY_HEADER = 'Observed while Scope was open';
+export const HISTORY_HEADER = 'Recorded while Scope was open';
 export const HISTORY_LIST_LIMIT = 6;
 export const HISTORY_LIST_STEP = 24;
 export const RETENTION_OPTIONS = [7, 14, 30, 60, 90] as const;
-const TURN_NOTE = 'Turn times from OpenChamber · readings are server-wide';
+const TURN_NOTE = 'Reply times from OpenChamber · all server activity';
 const SEVERITY_WORD: Readonly<Record<Severity, string>> = { critical: 'Critical', warning: 'Warning', info: 'Notice' };
 const BASIS_ORDER: readonly Basis[] = ['reported', 'derived', 'observed', 'last-observed', 'estimate'];
 
@@ -121,15 +121,15 @@ const iso = (at: number): string => new Date(at).toISOString();
 // ---------- labels ----------
 const WITHHOLD = new Set<string>(WITHHOLD_REASONS);
 export const attrChip = (attr: LedgerAttr, text: HistoryText): AttrChip => {
-  if (attr === 'inferred') return { attr: 'inferred', text: 'This chat · inferred', reason: null };
-  if (attr === 'armed') return { attr: 'armed', text: 'Next reply · armed', reason: null };
+  if (attr === 'inferred') return { attr: 'inferred', text: 'Likely this chat', reason: null };
+  if (attr === 'armed') return { attr: 'armed', text: 'Next reply', reason: null };
   // A server-wide label always names its reason; an unknown stored reason reads as not observed.
   const stored = attr.startsWith('withheld:') ? attr.slice('withheld:'.length) : 'not-observed';
   const reason = (WITHHOLD.has(stored) ? stored : 'not-observed') as WithholdReason;
   return { attr: 'server', text: text.withheld(reason), reason };
 };
-const basisPhrase = (basis: Basis, rt: string): string => basis === 'reported' ? `reported by ${rt}` : basis === 'derived' ? `derived from ${rt} counters`
-  : basis === 'observed' ? 'observed by Scope' : basis === 'last-observed' ? 'last observed by Scope' : 'estimate';
+const basisPhrase = (basis: Basis, rt: string): string => basis === 'reported' ? `from ${rt}` : basis === 'derived' ? `calculated from ${rt} totals`
+  : basis === 'observed' ? 'measured by Scope' : basis === 'last-observed' ? 'last measured by Scope' : 'estimate';
 
 // ---------- replies ----------
 const tokens = (output: number | null, prompt: number | null, cached: number | null): string =>
@@ -139,7 +139,7 @@ const replyEntry = (row: ReplyRow, input: HistoryInput, text: HistoryText, named
   return { kind: 'reply', key: `r:${id}`, at: clock(at, input.now), iso: iso(at), rate: decodeTps10 === null ? null : `${tps(decodeTps10 / 10)} tok/s`,
     basis, basisLabel: basis === 'reported' ? null : BASIS_WORD[basis], output: output === null ? null : `${int(output)} out`,
     detail: decodeTps10 === null ? tokens(null, prompt, cached) : tokens(output, prompt, cached),
-    ttft: ttftMs === null || basis === 'last-observed' ? null : `TTFT ${dur(ttftMs)}`, attr: attrChip(attr, text), model: named && modelRef !== null ? input.models[modelRef] ?? null : null };
+    ttft: ttftMs === null || basis === 'last-observed' ? null : `First token ${dur(ttftMs)}`, attr: attrChip(attr, text), model: named && modelRef !== null ? input.models[modelRef] ?? null : null };
 };
 const turnEntry = (row: TurnRow, replies: readonly ReplyRow[], input: HistoryInput, text: HistoryText): HistoryEntry => {
   const [, startedS, endedS, rt, modelRef, steps, output, , wDecodeTps10, waitMs, attr] = row;
@@ -153,7 +153,7 @@ const turnEntry = (row: TurnRow, replies: readonly ReplyRow[], input: HistoryInp
     detail: `${int(output)} out${reuse}`, attr: attrChip(attr, text) };
 };
 const gapEntry = (row: GapRow, now: number): HistoryEntry =>
-  ({ kind: 'gap', key: `g:${row[1]}:${row[2]}`, text: `Not observed · Scope wasn’t open · ${clock(row[1] * 1000, now)}–${clock(row[2] * 1000, now)}` });
+  ({ kind: 'gap', key: `g:${row[1]}:${row[2]}`, text: `Not recorded · Scope wasn’t open · ${clock(row[1] * 1000, now)}–${clock(row[2] * 1000, now)}` });
 /** Newest first: a turn sits above its last step, a gap at its end. */
 const rowTime = (row: LedgerRow): number => row[0] === 'r' ? row[1] : row[2];
 const rowRank = (row: LedgerRow): number => row[0] === 't' ? 0 : row[0] === 'r' ? 1 : 2;
@@ -168,22 +168,22 @@ const presentTrend = (input: HistoryInput, rt: string): TrendCard => {
   const bucketS = Math.round(windowMs / 180 / 1000);
   return {
     windows: TREND_WINDOWS_MS.map(ms => ({ label: `${ms / 60_000} min`, windowMs: ms, pressed: ms === windowMs })),
-    title: `Decode speed · ${basisPhrase(series?.basis ?? 'reported', rt)}`, ceiling: geometry ? `${geometry.max} tok/s` : null, from: `−${minutes} min`,
-    summary: geometry ? `Decode speed over the last ${minutes} min: ${plural(turns, 'turn')}, ${tps(geometry.low)} to ${tps(geometry.high)} tokens per second; ${unseen}.`
-      : gaps.length ? `Decode speed over the last ${minutes} min: no line yet; ${unseen}.` : `Nothing observed in the last ${minutes} min.`,
-    empty: input.trendError ?? (!trend ? 'Loading the trend…' : !series ? `${rt} doesn’t report decode speed, so there’s no trend.`
-      : geometry || gaps.length ? null : `No decode readings in the last ${minutes} min. The chart starts after 2 readings.`),
+    title: `Generation speed · ${basisPhrase(series?.basis ?? 'reported', rt)}`, ceiling: geometry ? `${geometry.max} tok/s` : null, from: `−${minutes} min`,
+    summary: geometry ? `Generation speed over the last ${minutes} min: ${plural(turns, 'turn')}, ${tps(geometry.low)} to ${tps(geometry.high)} tokens per second; ${unseen}.`
+      : gaps.length ? `Generation speed over the last ${minutes} min: no line yet; ${unseen}.` : `Nothing recorded in the last ${minutes} min.`,
+    empty: input.trendError ?? (!trend ? 'Loading the trend…' : !series ? `${rt} doesn’t report generation speed, so there’s no trend.`
+      : geometry || gaps.length ? null : `No generation readings in the last ${minutes} min. The chart starts after 2 readings.`),
     note: TURN_NOTE, geometry, gaps,
-    tip: [`${rt} decode speed in ${bucketS} s buckets: last reading, with a min–max band.`,
+    tip: [`${rt} generation speed in ${bucketS} s buckets: last reading, with a min–max band.`,
       'Breaks mean idle; hatching means Scope was closed. No interpolation.'],
   };
 };
 
 // ---------- usual speed ----------
-const needs = (base: Baseline | null, of: number): string => `n ${base?.n ?? 0} of ${of}`;
+const needs = (base: Baseline | null, of: number): string => `${base?.n ?? 0} of ${of} replies`;
 const presentBaseline = (input: HistoryInput, replies: readonly ReplyRow[], rt: string): BaselineCard => {
-  const tip = ['Last 14 days, up to 50 replies, excluding the current 30 min. p50 needs 5 replies and p90 needs 10.',
-    'Overlapping and aggregate replies are left out, and so are last-observed replies for TTFT.'];
+  const tip = ['Last 14 days, up to 50 replies, excluding the current 30 minutes. Typical values need 5 replies; fast and slow cutoffs need 10.',
+    'Replies mixed with other requests are left out. First-token comparisons use timings from finished replies.'];
   const newest = [...replies].reverse().find(row => row[3] !== null && row[4] !== null);
   const model = newest ? input.models[newest[3]!] ?? input.model ?? null : input.model ?? null;
   if (!newest) return { model, bucket: null, empty: 'Needs 5 replies for this model and context size.', tiles: [], rows: [], flag: null, copy: input.baselines.size > 0, tip };
@@ -193,24 +193,24 @@ const presentBaseline = (input: HistoryInput, replies: readonly ReplyRow[], rt: 
   const ttft = unc && baselineFor(input.baselines, 'ttftMs', unc), perJ = baselineFor(input.baselines, 'tokPerJ', ctx);
   const bucket = `${SIZE_LABELS[ctx.bucket as SizeBucket]} context`;
   const rows: BaselineCard['rows'] = [];
-  if (perJ?.p50) rows.push({ label: 'tok/J, usual', value: `${perJ.p50.toFixed(2)} · n ${perJ.n}`, basis: 'estimate baseline' });
+  if (perJ?.p50) rows.push({ label: 'Typical tokens per joule', value: `${perJ.p50.toFixed(2)} · ${perJ.n} replies`, basis: 'estimated usual value' });
   const reportsTtft = replies.some(row => row[2] === ctx.rt && row[9] !== null && row[12] !== 'last-observed');
-  rows.push({ label: 'TTFT', basis: null, value: !reportsTtft ? `No baseline · ${rt} doesn’t report it`
-    : ttft?.p50 ? `p50 ${dur(ttft.p50)}${ttft.p90 ? ` · p90 ${dur(ttft.p90)}` : ''} · n ${ttft.n}` : `Needs 5 replies · ${needs(ttft, 5)}` });
+  rows.push({ label: 'First token', basis: null, value: !reportsTtft ? `No baseline · ${rt} doesn’t report it`
+    : ttft?.p50 ? `Typical ${dur(ttft.p50)}${ttft.p90 ? ` · 90% within ${dur(ttft.p90)}` : ''} · ${ttft.n} replies` : `Needs 5 replies · ${needs(ttft, 5)}` });
   const flag = input.flags.find(item => [`decodeTps|${ctx.rt}|${ctx.modelRef}|${ctx.bucket}`, unc && `prefillTps|${unc.rt}|${unc.modelRef}|${unc.bucket}`,
     unc && `ttftMs|${unc.rt}|${unc.modelRef}|${unc.bucket}`].includes(item.key));
-  const causes = flag ? [flag.cofactors & 1 && 'macOS memory pressure at warning or above', flag.cofactors & 2 && 'swap grew', flag.cofactors & 4 && 'heavy thermal pressure'].filter(Boolean) : [];
+  const causes = flag ? [flag.cofactors & 1 && 'macOS memory pressure at warning or above', flag.cofactors & 2 && 'swap grew', flag.cofactors & 4 && 'high heat'].filter(Boolean) : [];
   const unit = (value: number, metric: RegressionFlag['metric']): string => metric === 'ttftMs' ? dur(value) : `${tps(value)} tok/s`;
   return {
     model, bucket, tip, rows, copy: input.baselines.size > 0,
     empty: decode?.p50 ? null : `Needs 5 replies for this model and context size.${decode?.n ? ` Scope has ${decode.n} so far.` : ''}`,
     tiles: decode?.p50 ? [
-      { label: 'Decode p50', value: `${tps(decode.p50)} tok/s`, detail: `n ${decode.n}` },
-      { label: 'Decode p90', value: decode.p90 ? `${tps(decode.p90)} tok/s` : 'Not yet', detail: decode.p90 ? `n ${decode.n}` : needs(decode, 10) },
-      ...prefill ? [{ label: 'Prefill p50', value: prefill.p50 ? `${tps(prefill.p50)} tok/s` : 'Not yet', detail: prefill.p50 ? `n ${prefill.n}` : needs(prefill, 5) }] : [],
+      { label: 'Typical generation', value: `${tps(decode.p50)} tok/s`, detail: `${decode.n} replies` },
+      { label: 'Fast generation', value: decode.p90 ? `${tps(decode.p90)} tok/s` : 'Not yet', detail: decode.p90 ? `${decode.n} replies` : needs(decode, 10) },
+      ...prefill ? [{ label: 'Typical prefill', value: prefill.p50 ? `${tps(prefill.p50)} tok/s` : 'Not yet', detail: prefill.p50 ? `${prefill.n} replies` : needs(prefill, 5) }] : [],
     ] : [],
     flag: flag ? { chip: `${flag.metric === 'ttftMs' ? 'Slower first token' : 'Slower'} · ${delta(flag.recentMedian / flag.p50)} · last 3`, tip: [
-      `Median of the last 3 replies ${unit(flag.recentMedian, flag.metric)} against usual ${unit(flag.p50, flag.metric)} (p50, n ${flag.n}).`,
+      `Middle value of the last 3 replies ${unit(flag.recentMedian, flag.metric)} against usual ${unit(flag.p50, flag.metric)} (${flag.n} replies).`,
       ...causes.length ? [`Observed during these replies, not necessarily the cause: ${causes.join('; ')}.`] : []] } : null,
   };
 };
@@ -235,7 +235,7 @@ const presentUsage = (usage: UsageV2 | null, input: HistoryInput): HistoryView['
     aria: `${what} per day: ${list.map(entry => `${(utc ? mdUtc : md).format(entry.at)} ${kt(entry.output)}`).join(', ')}`,
     rows: [{ label: 'Requests', value: int(t.requests) }, { label: 'Prompt', value: kt(t.promptTokens), ...t.cachedTokens != null ? { detail: `${kt(t.cachedTokens)} cached` } : {} },
       { label: 'Output', value: kt(t.outputTokens) }],
-    tip: [`oMLX’s own records for every app that used it: ${what.toLowerCase()} per day. Refreshed ${ago(usage.cachedAt, input.now)}.`, 'Never merged into Scope’s history, and it has no TTFT.'],
+    tip: [`oMLX’s own records for every app that used it: ${what.toLowerCase()} per day. Refreshed ${ago(usage.cachedAt, input.now)}.`, 'Never merged into Scope’s history, and it has no First token.'],
   };
 };
 
@@ -259,7 +259,7 @@ const presentStorage = (input: HistoryInput, replies: number, oldestS: number | 
 };
 
 export const presentHistory = (input: HistoryInput): HistoryView => {
-  const text = input.text ?? HISTORY_TEXT, rt = input.runtimeName ?? 'the runtime';
+  const text = input.text ?? HISTORY_TEXT, rt = input.runtimeName ?? 'the server';
   const replies = input.rows.filter((row): row is ReplyRow => row[0] === 'r');
   const sorted = [...input.rows].sort((a, b) => rowTime(b) - rowTime(a) || rowRank(a) - rowRank(b));
   // Rows name their model only when the list mixes models; one model is named once, in Usual speed.
@@ -278,8 +278,8 @@ export const presentHistory = (input: HistoryInput): HistoryView => {
     showMore: sorted.length > limit ? `Show ${int(Math.min(HISTORY_LIST_STEP, sorted.length - limit))} more` : null,
     repliesEmpty: input.rows.length ? null : `No replies yet. Scope records a reply when it finishes while any Scope view is open.${input.legacyCaptures ? ' Your 1.6 captures are in Captures.' : ''}`,
     repliesTip: ['Replies seen finish while Scope was open, with their labels.',
-      'Turn summaries require every step attributed. No verdict means “Server-wide · not observed”.',
-      ...replies.some(row => row[12] === 'last-observed') ? ['Without runtime completions, rows hold Scope’s last request reading.'] : []],
+      'Turn summaries need every step matched to this chat. Unmatched readings cover all server activity.',
+      ...replies.some(row => row[12] === 'last-observed') ? ['When the server doesn’t report finished replies, rows use Scope’s last reading from the request.'] : []],
     trend: presentTrend(input, rt),
     baseline: presentBaseline(input, replies, rt),
     usage: presentUsage(input.usage, input),

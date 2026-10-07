@@ -13,7 +13,7 @@ import { alertCopy, APPROVAL, FIRST_RUN, NON_LOCAL, PRESSURE, RESTART, SEVERITY_
 import { ago, delta, dur, int, kt, mmss, pct, tps } from './format.ts';
 import { attrChip, BASIS_WORD, visibleAlerts, type Chip } from './parts.ts';
 import type { Reading } from './reading.ts';
-import { glanceModel, liveSplashRate, modelOf, SERVER_WIDE } from './scope.ts';
+import { ENGINE_SPEED, glanceModel, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING } from './scope.ts';
 
 // Owner: ui-core. The Work Status section and the rail's Compact mode (plan §5.8, G2): a glance line at 56 px (80 with
 // an alert, 24 for a non-local chat) and the Turn stats replacement at ≤ 200 px. Rows a runtime cannot report are left out.
@@ -33,6 +33,7 @@ export interface StatusSectionInput {
   // Additions (ui-core, Stage 8): what the glance needs beyond the frozen fields. All optional; absent = not known.
   fresh?: boolean;
   paused?: boolean;
+  efficient?: boolean;
   last?: { completion: CompletionV2; label: AttributionLabel } | null;
   next?: NextReplyState;
   window?: TurnWindow | null;                // the open chat's newest turn window
@@ -78,7 +79,7 @@ export const sparkline = (trend: TrendV2 | null): Spark | null => {
     open = true;
   });
   const values = read.map(bucket => bucket![2]);
-  return { path: path.trim(), label: `Decode speed, last ${Math.round((trend!.windowMs) / 60_000)} min: ${tps(Math.min(...values))} to ${tps(Math.max(...values))} tokens per second` };
+  return { path: path.trim(), label: `Generation speed, last ${Math.round((trend!.windowMs) / 60_000)} min: ${tps(Math.min(...values))} to ${tps(Math.max(...values))} tokens per second` };
 };
 
 /** Chips say something or are left out: pressure and thermal when not normal, GPU busy while a request runs. */
@@ -105,7 +106,7 @@ const statusRow = (label: string, value: string, basis: string | null = null): S
 const basisOf = (basis: Basis): string | null => basis === 'reported' ? null : BASIS_WORD[basis];
 const contextWindow = (snapshot: SnapshotV2 | null): number | null => snapshot?.runtime.request?.contextWindowTokens
   ?? snapshot?.runtime.residency.find(model => model.contextWindowTokens)?.contextWindowTokens ?? snapshot?.runtime.catalog.find(model => model.loaded)?.contextWindowTokens ?? null;
-const usualRow = (usual: VsUsual | null): StatusRow[] => usual ? [statusRow('vs usual', `${delta(usual.ratio - 1)} · n ${usual.n}`, 'derived')] : [];
+const usualRow = (usual: VsUsual | null): StatusRow[] => usual ? [statusRow('vs usual', `${delta(usual.ratio - 1)} · ${usual.n} replies`, 'derived')] : [];
 
 const blank = (line1: GlanceLine1, line2: GlanceLine2 | null, height: number, extra: Partial<StatusSectionView> = {}): StatusSectionView => ({
   mode: 'glance', height, rows: [],
@@ -158,7 +159,7 @@ export const presentGlance = (input: StatusSectionInput): StatusSectionView => {
   if (reason === 'needs_approval') return blank(L1({ title: APPROVAL.title }), { kind: 'note', text: APPROVAL.glance }, HEIGHTS.glance);
   if (reason === 'contract_mismatch') return blank(L1({ title: RESTART.title }), { kind: 'note', text: RESTART.glance }, HEIGHTS.glance);
   if (input.chatIsLocal === false) return { ...blank(L1({ title: NON_LOCAL, muted: true }), null, HEIGHTS.nonLocal), mode: 'non-local' };
-  if (!snapshot) return blank(L1({ dot: reading.reason ? 'warn' : 'idle', title: reading.reason ? 'MLX Scope can’t read its service' : 'Connecting to the local runtime' }),
+  if (!snapshot) return blank(L1({ dot: reading.reason ? 'warn' : 'idle', title: reading.reason ? 'MLX Scope can’t read its service' : 'Connecting to the local server' }),
     reading.message ? { kind: 'note', text: reading.message } : null, HEIGHTS.glance);
   if (input.paused) return blank(L1({ word: 'Paused', model: glanceOr(snapshot) }), { kind: 'note', text: 'Only this monitor is paused; your model keeps running' }, HEIGHTS.glance);
   const status = statusCopy(snapshot);
@@ -166,7 +167,7 @@ export const presentGlance = (input: StatusSectionInput): StatusSectionView => {
     const dot: DotTone = status.severity === 'critical' ? 'bad' : status.severity === 'warning' ? 'warn' : 'idle';
     return blank(L1({ dot, title: status.title, since: sinceText(status.since, now) || null }), { kind: 'note', text: statusGlanceNote(snapshot) }, HEIGHTS.glance);
   }
-  if (input.fresh === false) return blank(L1({ dot: 'warn', title: 'No fresh readings' }), { kind: 'note', text: 'Retained readings are not live' }, HEIGHTS.glance);
+  if (input.fresh === false) return blank(L1({ dot: 'warn', title: 'No fresh readings' }), { kind: 'note', text: 'Waiting for update' }, HEIGHTS.glance);
 
   const alert = alertLine(snapshot), spark = sparkline(input.sparkline), request = snapshot.runtime.request, phase = snapshot.runtime.phase;
   const model = glanceOr(snapshot), next = input.next, last = input.last, chips = glanceChips(snapshot, { gpu: false, skip: alert?.skip });
@@ -208,11 +209,15 @@ export const presentGlance = (input: StatusSectionInput): StatusSectionView => {
     return described(input.attribution, line, { spark, size: input.attribution.kind === 'server-wide' ? 'sm' : '', last: null, chips, toggle: true });
   }
   const serverRate = liveSplashRate(snapshot);
-  if (serverRate !== null) return described({ kind: 'server-wide', reason: 'all-requests' },
-    { dot: 'live', word: 'Live', model, rate: tps(serverRate), rateBasis: 'derived', unit: 'tok/s' },
-    { spark: null, size: 'sm', last: null, chips, toggle: true });
+  if (serverRate !== null) return glance(L1({ dot: 'live', word: ENGINE_SPEED, model, rate: tps(serverRate),
+    rateBasis: 'derived', unit: 'tok/s', chip: attrChip({ kind: 'server-wide', reason: 'all-requests' }, true), describedBy: true }),
+    { kind: 'spark', spark: null, size: 'sm', last: null, chips, toggle: true,
+      reason: `last ${dur(snapshot.runtime.server.rates!.windowMs)} · all requests` }, true);
   // Idle, queued or inventory: the last reply keeps its label; an armed Next reply waits for a message.
   const word = phase === 'queued' ? 'Queued' : phase === 'not-loaded' ? 'No model' : ['decode', 'prefill', 'processing'].includes(phase) ? 'Working' : 'Idle';
+  if (snapshot.connection.runtime === 'splash' && ['decode', 'prefill', 'processing'].includes(phase)) return glance(
+    L1({ word: phase === 'prefill' ? 'Reading prompt' : word, model, chip: attrChip(SERVER_WIDE) }),
+    { kind: 'note', text: phase === 'prefill' ? 'Waiting for fresh output' : SPLASH_WAITING });
   if (next?.kind === 'armed') return glance(L1({ word, model, chip: attrChip({ kind: 'armed' }) }), { kind: 'armed', left: mmss(Math.max(0, 120_000 - (now - next.at))) });
   if (phase === 'idle' && last?.completion.decodeTps != null) return described(last.label,
     { word: 'Last reply', model: last.completion.model ? glanceModel(last.completion.model) : model,

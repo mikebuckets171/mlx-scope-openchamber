@@ -13,7 +13,7 @@ import { nextReplyCapture } from '../present/captures-tab.ts';
 import type { Callout } from '../present/parts.ts';
 import type { ScopeInput } from '../present/scope.ts';
 import { presentServer } from '../present/server.ts';
-import { presentGlance } from '../present/status.ts';
+import { presentSessionSection } from '../present/session.ts';
 import type { Pipeline } from '../state/pipeline.ts';
 import type { ScopeState } from '../state/scope-state.ts';
 import { html, morph } from './html.ts';
@@ -23,7 +23,7 @@ import { capturesView, readLegacyCaptures } from './views/captures.ts';
 import { historyView } from './views/history.ts';
 import { mountSafely } from './views/registry.ts';
 import { serverMarkup } from './views/server.ts';
-import { compactMarkup } from './views/status.ts';
+import { sessionMarkup } from './views/session.ts';
 import { primaryTab, type Tab, type ViewHandle } from './views/types.ts';
 
 // Live and History keep the same navigation at every width. Server and Captures are secondary workspaces;
@@ -57,7 +57,7 @@ export class ScopeApp {
     const { state, pipeline, client, version } = this.p, snapshot = state.snapshot, last = state.lastRequest;
     return {
       now: client.now(), version, snapshot, fresh: snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh, frame: state.frame, stale: state.stale,
-      paused: state.userPaused, attribution: pipeline.liveLabel(snapshot), chatRuntime: pipeline.chatRuntime(),
+      paused: state.userPaused, efficient: state.efficient, attribution: pipeline.liveLabel(snapshot), chatRuntime: pipeline.chatRuntime(),
       last: last ? { completion: last, label: pipeline.label(last), ...pipeline.usualFor(last, snapshot?.connection.runtime ?? null) } : null,
       next: pipeline.nextState, samples: state.signal.points, turnStartAt: pipeline.window()?.startedAt ?? null,
     };
@@ -90,9 +90,9 @@ export class ScopeApp {
     const glance = this.node('compact-glance');
     glance.hidden = !compact;
     if (compact) {
-      morph(glance, compactMarkup(presentGlance({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution, turn: null,
+      morph(glance, sessionMarkup(presentSessionSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution, turn: null,
         vsUsual: s.last?.vsUsual ?? null, sparkline: null, chatIsLocal: null, expanded: false, tipDismissed: true, fresh: s.fresh, paused: s.paused, next: s.next,
-        last: s.last && { completion: s.last.completion, label: s.last.label } })));
+        efficient: state.efficient, last: s.last && { completion: s.last.completion, label: s.last.label } }), null, true));
       return;
     }
     if (card) return;
@@ -119,7 +119,7 @@ export class ScopeApp {
     if (active === 'live') {
       morph(this.node('view-live'), s.snapshot || s.frame ? liveMarkup(live, open) : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
     }
-    if (active === 'server') morph(this.node('panel-server'), html`<div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-live">Back to Live</button><h2 id="server-title" tabindex="-1">Server &amp; Mac details</h2></div>${serverMarkup(presentServer(s.snapshot, s.now, this.extra(s)), open)}${macCard(presentMac(s), open)}`);
+    if (active === 'server') morph(this.node('panel-server'), html`<div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-live">Back to Live</button><h2 id="server-title" tabindex="-1">Server &amp; Mac details</h2></div>${serverMarkup(presentServer(s.snapshot, s.now, this.extra(s), s.fresh && !s.paused), open)}${macCard(presentMac(s), open)}`);
     if (active === 'history') this.view('history', this.node('view-history'), s.snapshot);
   }
   /**
@@ -195,7 +195,7 @@ export class ScopeApp {
     else if (action === 'next-cancel') pipeline.cancel();
     else if (action === 'window-cancel') {
       this.views.get('captures')?.handle.cancelCapture?.();
-      this.p.status('Timed window stopped. The partial capture is available in Captures.');
+      this.p.status('Timed recording stopped. The partial recording is available in Captures.');
       const focus = state.compact && !this.wide ? this.p.shell.querySelector<HTMLElement>('#monitor-menu > summary') : this.node(`tab-${primaryTab(state.tab)}`);
       focus?.focus({ preventScroll: true });
     }

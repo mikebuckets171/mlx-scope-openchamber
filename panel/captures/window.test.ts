@@ -66,8 +66,8 @@ describe('Captures window (30/60 s, server-wide)', () => {
   test('a monitoring gap, another connection or an unreadable runtime stops it as a partial observation', () => {
     const cases: Array<[SnapshotV2, string]> = [
       [poll(1000 + WINDOW_GAP_MS + 1, 1100), 'Monitoring gap'],
-      [poll(1000, 1100, s => { s.connection.generation += 1; }), 'The connection or runtime changed'],
-      [poll(1000, 1100, s => { s.status = { state: 'failing', reason: 'runtime_unreachable', params: {} }; }), 'The runtime stopped answering'],
+      [poll(1000, 1100, s => { s.connection.generation += 1; }), 'The connection or server changed'],
+      [poll(1000, 1100, s => { s.status = { state: 'failing', reason: 'runtime_unreachable', params: {} }; }), 'The server stopped answering'],
     ];
     for (const [next, reason] of cases) {
       const capture = new WindowCapture();
@@ -77,7 +77,7 @@ describe('Captures window (30/60 s, server-wide)', () => {
       expect(capture.recording).toBe(false);
     }
   });
-  test('it will not start while another records or the runtime cannot be read; Stop keeps a partial result', () => {
+  test('it will not start while another records or the server cannot be read; Stop keeps a partial result', () => {
     const capture = new WindowCapture();
     expect(capture.start(poll(0, 1000, s => { s.status = { state: 'failing', reason: 'runtime_unreachable', params: {} }; }), 30_000)).toBe(false);
     expect(capture.start(poll(0, 1000), 30_000)).toBe(true);

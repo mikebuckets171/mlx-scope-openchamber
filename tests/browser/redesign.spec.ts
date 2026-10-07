@@ -33,9 +33,9 @@ test('next reply stays usable across navigation and page/rail resizing', async (
   const action = frame.getByRole('button', { name: 'Measure next reply', exact: true });
   await expect(action).toHaveCount(1);
   await action.click();
-  await expect(frame.locator('#reply-strip')).toContainText('Next reply · armed');
+  await expect(frame.locator('#reply-strip')).toContainText('Next reply');
   await page.setViewportSize({ width: 430, height: 1000 });
-  await expect(frame.locator('#reply-strip')).toContainText('Next reply · armed');
+  await expect(frame.locator('#reply-strip')).toContainText('Next reply');
   await frame.getByRole('tab', { name: 'History', exact: true }).click();
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
   await expect(frame.locator('[data-next="armed"]')).toBeVisible();
@@ -61,21 +61,21 @@ test('a timed capture records while Live is visible and returns with its result'
   const frame = page.frameLocator('iframe');
   await frame.getByRole('tab', { name: 'History', exact: true }).click();
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await frame.getByRole('button', { name: 'Timed window', exact: true }).click();
-  await frame.getByLabel('Window length').selectOption('30000');
+  await frame.getByRole('button', { name: 'Timed recording', exact: true }).click();
+  await frame.getByLabel('Recording length').selectOption('30000');
   await frame.getByRole('button', { name: 'Start capture', exact: true }).click();
   await expect(frame.locator('[data-window="recording"]')).toBeVisible();
   await frame.getByRole('button', { name: 'Reply', exact: true }).click();
   await expect(frame.locator('[data-window="recording"]')).toBeVisible();
   await expect(frame.locator('[data-window] button[data-action="window-stop"]')).toBeVisible();
   await frame.getByRole('tab', { name: 'Live', exact: true }).click();
-  await expect(frame.locator('#capture-activity')).toContainText('Timed window');
+  await expect(frame.locator('#capture-activity')).toContainText('Timed recording');
   await expect(frame.locator('#capture-activity').getByRole('button', { name: 'Cancel', exact: true })).toBeVisible();
   await advance(page, 31_000);
   await frame.getByRole('tab', { name: 'History', exact: true }).click();
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await expect(frame.locator('#panel-captures .capture-ready')).toContainText('Timed window: Captured · 30 s.');
-  await frame.getByRole('button', { name: 'View timed window', exact: true }).click();
+  await expect(frame.locator('#panel-captures .capture-ready')).toContainText('Timed recording: Captured · 30 s.');
+  await frame.getByRole('button', { name: 'View timed recording', exact: true }).click();
   await expect(frame.locator('[data-window="finished"]')).toBeVisible();
   await expect(frame.locator('[data-window]')).toContainText('Captured · 30 s');
   await expect(frame.locator('[data-window]')).toContainText('tok/s');
@@ -95,7 +95,7 @@ test('a timed capture can be cancelled from Live without losing its partial obse
   const frame = page.frameLocator('iframe');
   await frame.getByRole('tab', { name: 'History', exact: true }).click();
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await frame.getByRole('button', { name: 'Timed window', exact: true }).click();
+  await frame.getByRole('button', { name: 'Timed recording', exact: true }).click();
   await frame.getByRole('button', { name: 'Start capture', exact: true }).click();
   await advance(page, 5_000);
   await frame.getByRole('tab', { name: 'Live', exact: true }).click();
@@ -195,27 +195,21 @@ test('the Session widget uses native rows and keeps detail in the full panel acr
   await page.setViewportSize({ width: 700, height: 600 });
   await page.goto('/v2?demo=1&surface=status&theme=obsidian');
   const frame = page.frameLocator('iframe');
-  await expect(frame.locator('.ws-phase')).toHaveText('Last reply');
+  await expect(frame.locator('.ws-phase')).toHaveText('Idle');
   await expect(frame.locator('#ws')).toHaveAttribute('data-presentation', 'session');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.getByRole('button', { name: 'Show turn stats', exact: true })).toHaveCount(0);
-  await expect(frame.locator('.ws-model-line')).toBeVisible();
+  await expect(frame.locator('.ws-model')).toBeVisible();
   await expect(frame.locator('.ws-alert-row')).toContainText('Memory pressure');
   await expect(frame.locator('.ws-alert-value')).toHaveText(/^Warning(?:\s*\+\d+ more)?$/);
   await expect(frame.locator('.chip, .ts-rows, .ws-key-stats, .ws-spark')).toHaveCount(0);
   const rows = await frame.locator('#ws').evaluate(el => {
-    const heading = el.querySelector('.ws-heading')!, alert = el.querySelector('.ws-alert-row')!;
-    const phase = el.querySelector('.ws-phase')!, rate = el.querySelector('.ws-rate')!, value = el.querySelector('.ws-alert-value')!;
-    return { phaseLeft: phase.getBoundingClientRect().left, alertLeft: alert.getBoundingClientRect().left,
-      rateRight: rate.getBoundingClientRect().right, valueRight: value.getBoundingClientRect().right,
-      headingRight: heading.getBoundingClientRect().right, rateBorder: getComputedStyle(rate).borderWidth,
-      valueBorder: getComputedStyle(value).borderWidth, valueBackground: getComputedStyle(value).backgroundColor };
+    const lanes = Array.from(el.querySelectorAll('.speed-row:not([data-stage="progress"])'));
+    return lanes.map(lane => ({ label: lane.querySelector('dt')!.textContent,
+      size: getComputedStyle(lane.querySelector('.speed-value')!).fontSize }));
   });
-  expect(Math.abs(rows.phaseLeft - rows.alertLeft)).toBeLessThanOrEqual(1);
-  expect(Math.abs(rows.rateRight - rows.valueRight)).toBeLessThanOrEqual(1);
-  expect(Math.abs(rows.rateRight - rows.headingRight)).toBeLessThanOrEqual(1);
-  expect(rows.valueBorder).toBe('0px');
-  expect(rows.valueBackground).toBe('rgba(0, 0, 0, 0)');
+  expect(rows.map(row => row.label)).toEqual(['Prefill speed', 'Generation speed']);
+  expect(rows[0]!.size).toBe(rows[1]!.size);
   await expect(frame.locator('html')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(frame.locator('body')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   const evidence = process.env.SCOPE_EVIDENCE_DIR;
@@ -228,7 +222,7 @@ test('the Session widget uses native rows and keeps detail in the full panel acr
   await page.getByRole('combobox', { name: 'Preview theme' }).selectOption('warm-amber');
   await expect(frame.locator('html')).toHaveAttribute('data-oc-theme', 'light');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
-  await expect(frame.locator('.ws-phase')).toHaveText('Last reply');
+  await expect(frame.locator('.ws-phase')).toHaveText('Idle');
   if (evidence && testInfo.project.name === 'chromium')
     await page.locator('.preview-session').screenshot({ path: join(evidence, 'mlx-scope-session-light.png') });
 });
@@ -245,10 +239,11 @@ test('current first-token timing comes only from the current request capability'
     preview.setPreviewPatch({ runtime: body.runtime, capabilities: body.capabilities });
   });
   await expect(frame.locator('#first-token')).toContainText('0.85 s');
-  await expect(frame.locator('#first-token [data-basis="reported"]')).toBeVisible();
-  await expect(frame.locator('#context-headroom')).toBeVisible();
   await expect(frame.locator('#request-details')).toHaveJSProperty('open', false);
   await expect(frame.locator('#metrics')).toBeHidden();
+  await frame.locator('#request-details > summary').click();
+  await expect(frame.locator('#first-token [data-basis="reported"]')).toBeVisible();
+  await expect(frame.locator('#context-headroom')).toBeVisible();
   await page.evaluate(() => {
     const preview = window as any;
     const body = preview.ScopeStates.mockBody('decode', { now: Date.now() });
@@ -324,7 +319,7 @@ test('Session summary clears live speed when Splash readings become stale and re
   await expect(frame.locator('.ws-phase')).not.toHaveText('Generating');
   await page.evaluate(() => (window as any).setPreviewState('splash-decode'));
   await expect(frame.locator('.ws-rate')).toContainText('43.8');
-  await expect(frame.locator('.ws-scope')).toHaveText('Server-wide');
+  await expect(frame.locator('.ws-scope')).toHaveText('All server activity');
 });
 
 test('completed-response first token remains explicitly last reply during a later request', async ({ page }) => {
@@ -343,5 +338,5 @@ test('completed-response first token remains explicitly last reply during a late
   await expect(frame.locator('#reply-strip')).toContainText('Last reply');
   await expect(frame.locator('#reply-strip')).toContainText('0.51 s');
   await expect(frame.locator('#first-token')).toHaveCount(0);
-  await expect(frame.locator('.hero-row')).not.toContainText('0.51 s');
+  await expect(frame.locator('.speed-pair')).not.toContainText('0.51 s');
 });

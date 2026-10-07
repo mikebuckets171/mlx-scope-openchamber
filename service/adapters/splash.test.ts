@@ -85,15 +85,17 @@ const busy = (firstToken: boolean) => after(IDLE, { submitted: 1, active: 1, ttf
 describe('live native decode rates', () => {
   const running = busy(true), next = after(running, { tokens: [0, 0, 60, 500] });
 
-  test('two fresh batch counters yield recent server-wide speed, not the retained lifetime or latest-batch rate', () => {
+  test('three fresh samples span two seconds and use total command time, not mean batch or retained speed', () => {
     const rates = new SplashRates(), advanced = clone(next);
     advanced.metrics.current_decode_batch = { valid: true, tokens_per_second: 987 };
     advanced.metrics.decode_tokens_per_second = 456;
     expect(rates.observe(running, 0)).toBeUndefined();
-    expect(rates.observe(advanced, 1_000)).toEqual({ decodeTps: 120, windowMs: 1_000 });
+    expect(rates.observe(advanced, 1_000)).toBeUndefined();
+    const later = after(advanced, { tokens: [0, 0, 11, 300] });
+    expect(rates.observe(later, 2_000)).toEqual({ decodeTps: 88.75, windowMs: 2_000 });
     // Repeated status values are not another live sample, even if a retained batch remains valid.
-    expect(rates.observe(advanced, 2_000)).toBeUndefined();
-    expect(rates.observe(after(advanced, { tokens: [0, 0, 11, 300] }), 3_000)).toEqual({ decodeTps: 36.667, windowMs: 1_000 });
+    expect(rates.observe(later, 3_000)).toBeUndefined();
+    expect(rates.observe(after(later, { tokens: [0, 0, 49, 200] }), 4_000)).toEqual({ decodeTps: 120, windowMs: 4_000 });
   });
 
   test('mixed prefill/decode and waiting-mask work use real native decode activity', () => {
@@ -101,7 +103,8 @@ describe('live native decode rates', () => {
       const rates = new SplashRates(), a = clone(running), b = clone(next);
       Object.assign(a.scheduler, scheduler); Object.assign(b.scheduler, scheduler);
       expect(rates.observe(a, 0)).toBeUndefined();
-      expect(rates.observe(b, 2_000)).toEqual({ decodeTps: 120, windowMs: 2_000 });
+      expect(rates.observe(b, 1_000)).toBeUndefined();
+      expect(rates.observe(after(b, { tokens: [0, 0, 60, 500] }), 2_000)).toEqual({ decodeTps: 120, windowMs: 2_000 });
     }
   });
 
@@ -110,6 +113,7 @@ describe('live native decode rates', () => {
     ['recovering', body => { body.transport.recovering = true; }],
     ['not ready', body => { body.ready = false; }],
     ['transport closing', body => { body.transport.ready = false; }],
+    ['transport stopped', body => { body.transport.stopped = true; }],
     ['idle or HTTP streaming only', body => { body.scheduler.decoding = 0; body.scheduler.waiting_mask = 0; }],
     ['prefill only', body => { body.scheduler.decoding = 0; body.scheduler.waiting_mask = 0; body.scheduler.prefilling = 1; }],
     ['unknown scheduler', body => { delete body.scheduler; }],
@@ -126,17 +130,21 @@ describe('live native decode rates', () => {
     rates.observe(running, 0);
     expect(rates.observe(invalid, 1_000)).toBeUndefined();
     expect(rates.observe(next, 2_000)).toBeUndefined();
-    expect(rates.observe(after(next, { tokens: [0, 0, 60, 500] }), 3_000)).toEqual({ decodeTps: 120, windowMs: 1_000 });
+    const later = after(next, { tokens: [0, 0, 60, 500] });
+    expect(rates.observe(later, 3_000)).toBeUndefined();
+    expect(rates.observe(after(later, { tokens: [0, 0, 60, 500] }), 4_000)).toEqual({ decodeTps: 120, windowMs: 2_000 });
   });
 
   test('foreign bodies and explicit reset clear the live baseline', () => {
+    const later = after(next, { tokens: [0, 0, 60, 500] }), resumed = after(later, { tokens: [0, 0, 60, 500] });
     for (const body of [null, {}, { ready: 'true' }]) {
-      const rates = new SplashRates(); rates.observe(running, 0);
-      expect(rates.observe(body, 1_000)).toBeUndefined();
-      expect(rates.observe(next, 2_000)).toBeUndefined();
+      const rates = new SplashRates(); rates.observe(running, 0); rates.observe(next, 1_000);
+      expect(rates.observe(later, 2_000)).toEqual({ decodeTps: 120, windowMs: 2_000 });
+      expect(rates.observe(body, 3_000)).toBeUndefined();
+      expect(rates.observe(resumed, 4_000)).toBeUndefined();
     }
-    const rates = new SplashRates(); rates.observe(running, 0); rates.reset();
-    expect(rates.observe(next, 1_000)).toBeUndefined();
+    const rates = new SplashRates(); rates.observe(running, 0); rates.observe(next, 1_000); rates.observe(later, 2_000); rates.reset();
+    expect(rates.observe(resumed, 3_000)).toBeUndefined();
   });
 
   test('process, model, engine restart and counter reset start a new baseline', () => {
@@ -151,7 +159,9 @@ describe('live native decode rates', () => {
       const rates = new SplashRates(), changed = clone(next); mutate(changed);
       rates.observe(running, 0);
       expect(rates.observe(changed, 1_000)).toBeUndefined();
-      expect(rates.observe(after(changed, { tokens: [0, 0, 60, 500] }), 2_000)).toEqual({ decodeTps: 120, windowMs: 1_000 });
+      const later = after(changed, { tokens: [0, 0, 60, 500] });
+      expect(rates.observe(later, 2_000)).toBeUndefined();
+      expect(rates.observe(after(later, { tokens: [0, 0, 60, 500] }), 3_000)).toEqual({ decodeTps: 120, windowMs: 2_000 });
     }
   });
 
@@ -163,19 +173,72 @@ describe('live native decode rates', () => {
     }
     const rates = new SplashRates(); rates.observe(running, 0);
     expect(rates.observe(next, SPLASH_RATE_GAP_MS + 1)).toBeUndefined();
-    expect(rates.observe(after(next, { tokens: [0, 0, 60, 500] }), SPLASH_RATE_GAP_MS + 1_001))
-      .toEqual({ decodeTps: 120, windowMs: 1_000 });
+    const later = after(next, { tokens: [0, 0, 60, 500] });
+    expect(rates.observe(later, SPLASH_RATE_GAP_MS + 1_001)).toBeUndefined();
+    expect(rates.observe(after(later, { tokens: [0, 0, 60, 500] }), SPLASH_RATE_GAP_MS + 2_001))
+      .toEqual({ decodeTps: 120, windowMs: 2_000 });
   });
 
   test('both counters must advance and a nonfinite ratio is never emitted', () => {
     for (const tokens of [[0, 0, 0, 500], [0, 0, 60, 0]] as Array<[number, number, number, number]>) {
-      const rates = new SplashRates(); rates.observe(running, 0);
-      expect(rates.observe(after(running, { tokens }), 1_000)).toBeUndefined();
+      const rates = new SplashRates(); rates.observe(running, 0); rates.observe(next, 1_000);
+      expect(rates.observe(after(next, { tokens }), 2_000)).toBeUndefined();
     }
     const tiny = clone(running), overflow = clone(next), rates = new SplashRates();
     tiny.metrics.decode_wall_ms = 0; overflow.metrics.decode_wall_ms = Number.MIN_VALUE;
     rates.observe(tiny, 0);
-    expect(rates.observe(overflow, 1_000)).toBeUndefined();
+    expect(rates.observe(tiny, 1_000)).toBeUndefined();
+    expect(rates.observe(overflow, 2_000)).toBeUndefined();
+  });
+});
+
+describe('recent prefill and generation have independent windows', () => {
+  const prefill = () => {
+    const body = busy(false);
+    Object.assign(body.scheduler, { decoding: 0, waiting_mask: 0, prefilling: 1 });
+    return body;
+  };
+
+  test('prefill uses input-counter deltas and fractional command time, never retained averages or batches', () => {
+    const rates = new SplashRates(), a = prefill();
+    a.metrics.prefill_tokens_per_second = 9999;
+    a.metrics.current_prefill_batch = { valid: true, tokens_per_second: 8888 };
+    const b = after(a, { tokens: [1000, 250.5, 0, 0] }), c = after(b, { tokens: [350, 249.5, 0, 0] });
+    expect(rates.observe(a, 0)).toBeUndefined();
+    expect(rates.observe(b, 1000)).toBeUndefined();
+    expect(rates.observe(c, 2000)).toEqual({ promptTps: 2700, promptWindowMs: 2000, windowMs: 2000 });
+    expect(rates.observe(c, 3000)).toBeUndefined();
+    expect(rates.observe(after(c, { tokens: [450, 250, 0, 0] }), 4000))
+      .toEqual({ promptTps: 2400, promptWindowMs: 4000, windowMs: 4000 });
+  });
+
+  test('mixed work keeps distinct start times and one stage’s rollback does not reset the other', () => {
+    const rates = new SplashRates(), a = busy(true);
+    const b = after(a, { tokens: [100, 200, 100, 1000] }); b.scheduler.prefilling = 1;
+    const c = after(b, { tokens: [600, 500, 100, 1000] }), d = after(c, { tokens: [400, 500, 100, 1000] });
+    expect(rates.observe(a, 0)).toBeUndefined();
+    expect(rates.observe(b, 1000)).toBeUndefined();
+    expect(rates.observe(c, 2000)).toEqual({ decodeTps: 100, windowMs: 2000 });
+    expect(rates.observe(d, 3000)).toEqual({ decodeTps: 100, promptTps: 1000, promptWindowMs: 2000, windowMs: 3000 });
+    const rollback = after(d, { tokens: [1000, 500, 100, 1000] }); rollback.metrics.decode_output_tokens = 1;
+    expect(rates.observe(rollback, 4000)).toEqual({ promptTps: 1333.333, promptWindowMs: 3000, windowMs: 3000 });
+    const stoppedPrefill = after(rollback, { tokens: [0, 0, 100, 1000] }); stoppedPrefill.scheduler.prefilling = 0;
+    expect(rates.observe(stoppedPrefill, 5000)).toBeUndefined();
+    expect(rates.observe(after(stoppedPrefill, { tokens: [0, 0, 100, 1000] }), 6000))
+      .toEqual({ decodeTps: 100, windowMs: 2000 });
+  });
+
+  test('prefill-only, stopped transport and explicit resets cannot retain a generation or prefill window', () => {
+    const rates = new SplashRates(), a = prefill(), b = after(a, { tokens: [200, 1000, 0, 0] });
+    const c = after(b, { tokens: [200, 1000, 0, 0] });
+    rates.observe(a, 0); rates.observe(b, 1000);
+    expect(rates.observe(c, 2000)).toEqual({ promptTps: 200, promptWindowMs: 2000, windowMs: 2000 });
+    const stopped = clone(c); stopped.transport.stopped = true;
+    expect(rates.observe(stopped, 3000)).toBeUndefined();
+    expect(rates.observe(c, 4000)).toBeUndefined();
+    expect(rates.observe(after(c, { tokens: [200, 1000, 0, 0] }), 5000)).toBeUndefined();
+    rates.reset();
+    expect(rates.observe(after(c, { tokens: [400, 2000, 0, 0] }), 6000)).toBeUndefined();
   });
 });
 
@@ -453,14 +516,14 @@ describe('SplashCompletions: bracketing requests between idle reads', () => {
 });
 
 /** A fake connection: `/status` answers from `replies` in turn; every GET is logged. */
-const adapterWith = (replies: Array<Partial<RuntimeReply> | Error>) => {
+const adapterWith = (replies: Array<Partial<RuntimeReply> | Error | Promise<Partial<RuntimeReply>>>) => {
   const paths: string[] = [], clock = { now: AT, monotonic: 0 };
   const context = {
     connection: { id: 'splash', port: 8000 }, config: {} as never, fetchImpl: (async () => { throw new Error('no fetch'); }) as never,
     exec: async () => { throw new Error('no exec'); }, getText: async () => { throw new Error('no text GET'); },
     get: async (path: string) => {
       paths.push(path);
-      const reply = replies[Math.min(paths.length - 1, replies.length - 1)]!;
+      const reply = await replies[Math.min(paths.length - 1, replies.length - 1)]!;
       if (reply instanceof Error) throw reply;
       return { status: 200, body: null, routeMissing: false, ...reply } as RuntimeReply;
     },
@@ -472,14 +535,16 @@ const READ = { deadline: AT + 2_000, tier: 'full', detail: true } as const;
 
 describe('the adapter', () => {
   test('reports live server rates during decoding, preserves unknown request attribution and does not fabricate a completion', async () => {
-    const running = busy(true), next = after(running, { tokens: [0, 0, 60, 500] });
-    const { adapter, paths, clock } = adapterWith([{ body: running }, { body: next }, { body: IDLE }]);
+    const running = busy(true), next = after(running, { tokens: [0, 0, 60, 500] }), later = after(next, { tokens: [0, 0, 60, 500] });
+    const { adapter, paths, clock } = adapterWith([{ body: running }, { body: next }, { body: later }, { body: IDLE }]);
     const first = await adapter.read(READ);
     expect(first.runtime.server.rates).toBeUndefined();
     expect(first.capabilities['server.rates']).toBeUndefined();
     clock.now += 1_000; clock.monotonic += 1_000;
+    expect((await adapter.read(READ)).runtime.server.rates).toBeUndefined();
+    clock.now += 1_000; clock.monotonic += 1_000;
     const live = await adapter.read(READ);
-    expect(live.runtime.server.rates).toEqual({ decodeTps: 120, windowMs: 1_000 });
+    expect(live.runtime.server.rates).toEqual({ decodeTps: 120, windowMs: 2_000 });
     expect(live.capabilities['server.rates']).toEqual({ scope: 'server', basis: 'derived' });
     expect(live.runtime.request).toBeNull();
     expect(live.completions).toEqual([]);
@@ -489,21 +554,23 @@ describe('the adapter', () => {
     const idle = await adapter.read(READ);
     expect(idle.runtime.server.rates).toBeUndefined();
     expect(idle.capabilities['server.rates']).toBeUndefined();
-    expect(paths).toEqual(['/status', '/status', '/status']);
+    expect(paths).toEqual(['/status', '/status', '/status', '/status']);
   });
 
   test('a failed poll clears only the live-rate baseline before sampling resumes', async () => {
-    const running = busy(true), next = after(running, { tokens: [0, 0, 60, 500] });
+    const running = busy(true), next = after(running, { tokens: [0, 0, 60, 500] }), later = after(next, { tokens: [0, 0, 60, 500] });
     for (const failure of [new HttpFailure('runtime_unreachable', 'refused'), { status: 500 }]) {
       const { adapter, clock } = adapterWith([{ body: running }, failure, { body: next },
-        { body: after(next, { tokens: [0, 0, 60, 500] }) }]);
+        { body: later }, { body: after(later, { tokens: [0, 0, 60, 500] }) }]);
       await adapter.read(READ);
       clock.monotonic += 1_000;
       await expect(adapter.read(READ)).rejects.toBeInstanceOf(HttpFailure);
       clock.monotonic += 1_000;
       expect((await adapter.read(READ)).runtime.server.rates).toBeUndefined();
       clock.monotonic += 1_000;
-      expect((await adapter.read(READ)).runtime.server.rates).toEqual({ decodeTps: 120, windowMs: 1_000 });
+      expect((await adapter.read(READ)).runtime.server.rates).toBeUndefined();
+      clock.monotonic += 1_000;
+      expect((await adapter.read(READ)).runtime.server.rates).toEqual({ decodeTps: 120, windowMs: 2_000 });
     }
   });
 
@@ -512,6 +579,38 @@ describe('the adapter', () => {
     const { adapter, clock } = adapterWith([{ body: running }, { body: next }]);
     await adapter.read(READ); adapter.dispose(); clock.monotonic += 1_000;
     expect((await adapter.read(READ)).runtime.server.rates).toBeUndefined();
+  });
+
+  test('a late overlapping response cannot rewind the recent window', async () => {
+    const running = busy(true), next = after(running, { tokens: [0, 0, 60, 500] }), later = after(next, { tokens: [0, 0, 60, 500] });
+    let release!: (reply: Partial<RuntimeReply>) => void;
+    const gate = new Promise<Partial<RuntimeReply>>(resolve => { release = resolve; });
+    const { adapter, clock } = adapterWith([gate, { body: next }, { body: later }, { body: after(later, { tokens: [0, 0, 60, 500] }) }]);
+    const pending = adapter.read(READ);
+    clock.monotonic = 1_000;
+    expect((await adapter.read(READ)).runtime.server.rates).toBeUndefined();
+    clock.monotonic = 1_500; release({ body: running });
+    expect((await pending).runtime.server.rates).toBeUndefined();
+    clock.monotonic = 2_000;
+    expect((await adapter.read(READ)).runtime.server.rates).toBeUndefined();
+    clock.monotonic = 3_000;
+    expect((await adapter.read(READ)).runtime.server.rates).toEqual({ decodeTps: 120, windowMs: 2_000 });
+  });
+
+  test('a response fetched before disposal cannot restore the cleared baseline', async () => {
+    const running = busy(true), next = after(running, { tokens: [0, 0, 60, 500] }), later = after(next, { tokens: [0, 0, 60, 500] });
+    let release!: (reply: Partial<RuntimeReply>) => void;
+    const gate = new Promise<Partial<RuntimeReply>>(resolve => { release = resolve; });
+    const { adapter, clock } = adapterWith([gate, { body: next }, { body: later }, { body: after(later, { tokens: [0, 0, 60, 500] }) }]);
+    const pending = adapter.read(READ); adapter.dispose();
+    clock.monotonic = 1_000; release({ body: running });
+    expect((await pending).runtime.server.rates).toBeUndefined();
+    clock.monotonic = 2_000;
+    expect((await adapter.read(READ)).runtime.server.rates).toBeUndefined();
+    clock.monotonic = 3_000;
+    expect((await adapter.read(READ)).runtime.server.rates).toBeUndefined();
+    clock.monotonic = 4_000;
+    expect((await adapter.read(READ)).runtime.server.rates).toEqual({ decodeTps: 120, windowMs: 2_000 });
   });
 
   test('reads GET /status only: never /metrics or /v1/models, and runs no exec', async () => {
@@ -594,6 +693,7 @@ describe('the descriptor', () => {
     expect([true, false].map(activity => splashDescriptor.cadence({ activity, tier: 'full', recovering: false }))).toEqual([1_000, 2_000]);
     expect(splashDescriptor.identityEveryMs).toBe(60_000);
     expect(splashDescriptor.capabilities).toEqual([
+      { key: 'request.prefillProgress', basis: 'reported' },
       { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' }, { key: 'server.rates', basis: 'derived' },
       { key: 'server.latency', basis: 'reported' },
       { key: 'server.memory.metal', basis: 'reported' }, { key: 'server.catalog', basis: 'reported' }, { key: 'server.completions', basis: 'derived' }]);

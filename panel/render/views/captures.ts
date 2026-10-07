@@ -32,8 +32,8 @@ const measure = (): SVGElement => svg('svg', { viewBox: '0 0 16 16', 'aria-hidde
 const values = (list: readonly ValueView[], className: string): HTMLElement => box(className, list.map(item => val(item.text, item.basis, item.note)));
 
 const nextCard = (card: NextCard, tips: Tips): HTMLElement => {
-  const tip = tips.make('next', 'Next reply', ['Arms for 2 min to measure one reply on this chat’s model.',
-    'Cancels on chat switch, runtime loss or hidden/closed Scope. A different runtime or model prevents arming; another runtime offers Watch.']);
+  const tip = tips.make('next', 'Next reply', ['Waits up to 2 minutes to measure one reply from this chat’s model.',
+    'Cancels if you switch chats, the server stops responding, or Scope becomes hidden or closes. The server and model must match this chat; use Watch to follow another server.']);
   const actions = card.actions.map(item => button(item.action === 'arm' ? [measure(), ` ${item.label}`] : item.label, item.action,
     { className: item.primary ? 'btn primary' : 'btn', focus: `next-${item.action}` }));
   return el('section', { class: 'capture-card', 'data-next': card.state },
@@ -49,13 +49,13 @@ const nextCard = (card: NextCard, tips: Tips): HTMLElement => {
       actions) : null);
 };
 const windowCard = (card: WindowCard, recording: boolean): HTMLElement => el('section', { class: 'capture-card', 'data-window': card.status },
-  box('section-heading', el('h2', {}, 'Timed window'), span( card.state)),
-  el('p', { class: 'insight-note' }, 'Averages everything the runtime does for 30 or 60 s.'),
-  card.progress !== null ? el('div', { class: 'progress-track', role: 'progressbar', 'aria-label': 'Window', 'aria-valuemin': 0, 'aria-valuemax': 100,
+  box('section-heading', el('h2', {}, 'Timed recording'), span( card.state)),
+  el('p', { class: 'insight-note' }, 'Averages all server activity for 30 or 60 seconds.'),
+  card.progress !== null ? el('div', { class: 'progress-track', role: 'progressbar', 'aria-label': 'Recording progress', 'aria-valuemin': 0, 'aria-valuemax': 100,
     'aria-valuenow': Math.floor(card.progress), style: 'margin-top:12px' }, el('span', { style: `width:${card.progress.toFixed(1)}%` })) : null,
   card.values.length ? values(card.values, 'reply-values') : null,
   box('actions', recording ? button('Stop', 'window-stop')
-    : card.status === 'idle' ? [el('select', { class: 'btn', 'aria-label': 'Window length', 'data-action': 'window-length', 'data-focus': 'window-length' },
+    : card.status === 'idle' ? [el('select', { class: 'btn', 'aria-label': 'Recording length', 'data-action': 'window-length', 'data-focus': 'window-length' },
       WINDOW_LENGTHS_MS.map(ms => el('option', { value: ms, selected: ms === card.lengthMs }, `${ms / 1000} s`))), button('Start capture', 'window-start')]
       : [card.canSave ? button('Save to Captures', 'window-save') : null, button('Discard', 'window-discard')]),
   el('p', { class: 'notice', style: 'margin-top:12px' }, 'Monitoring keeps running while you capture.'));
@@ -105,7 +105,7 @@ class CapturesViewHandle implements ViewHandle {
     const capture = this.window.current;
     if (!capture || !this.window.recording) return null;
     const remaining = Math.ceil(Math.max(0, capture.targetMs - (this.context.now() - capture.startedAt)) / 1_000);
-    return `Timed window · ${remaining} s left`;
+    return `Timed recording · ${remaining} s left`;
   }
   cancelCapture(): void { this.window.stop(); this.render(); }
   dispose(): void {
@@ -136,7 +136,7 @@ class CapturesViewHandle implements ViewHandle {
     else if (action === 'watch') next?.watch?.();
     else if (action === 'window-length') this.windowLength = Number((target as HTMLSelectElement).value) === 30_000 ? 30_000 : 60_000;
     else if (action === 'window-start') {
-      if (!this.snapshot || !this.window.start(this.snapshot, this.windowLength)) this.status = 'Wait for a fresh reading from the runtime, then start the window.';
+      if (!this.snapshot || !this.window.start(this.snapshot, this.windowLength)) this.status = 'Wait for a fresh server reading, then start recording.';
       else this.status = '';
     } else if (action === 'window-stop') this.window.stop();
     else if (action === 'window-discard') this.window.clear();
@@ -165,7 +165,7 @@ class CapturesViewHandle implements ViewHandle {
     if (this.disposed) return;
     const s = this.snapshot, runtime = s?.connection.runtime ?? null, next = this.deps.next?.state() ?? null;
     const view = presentCaptures({
-      now: this.context.now(), runtime, runtimeName: runtime ? connectionName(runtime, { engine: s!.connection.engine ?? null, host: s!.connection.host ?? null }) : 'The runtime',
+      now: this.context.now(), runtime, runtimeName: runtime ? connectionName(runtime, { engine: s!.connection.engine ?? null, host: s!.connection.host ?? null }) : 'The server',
       completions: !!s?.capabilities['server.completions'], paused: false, next, nextSaved: next?.kind === 'result' && next.endedAt === this.nextSaved,
       window: this.window.current, windowLength: this.windowLength, saved: this.saved, legacy: this.legacy, reference: this.reference,
       ...this.deps.text ? { text: this.deps.text } : {},
@@ -174,14 +174,14 @@ class CapturesViewHandle implements ViewHandle {
     const nextActive = view.next.state === 'armed' || view.next.state === 'measuring';
     const methods = box('capture-methods', seg('Capture method', 'capture-method', [
       { label: 'Reply', arg: 'reply', pressed: this.method === 'reply' },
-      { label: 'Timed window', arg: 'window', pressed: this.method === 'window' },
+      { label: 'Timed recording', arg: 'window', pressed: this.method === 'window' },
     ]));
     const tree = group( methods,
       // Switching the method never clears a running capture or hides its cancellation control.
       this.method === 'reply' || nextActive ? nextCard(view.next, this.tips) : null,
       this.method === 'window' || this.window.recording ? windowCard(view.window, this.window.recording) : null,
       this.method !== 'reply' && view.next.state === 'result' ? el('p', { class: 'capture-ready', role: 'status' }, 'Reply measurement ready. ', button('View reply', 'capture-method', { arg: 'reply', className: 'btn quiet' })) : null,
-      this.method !== 'window' && this.window.current && !this.window.recording ? el('p', { class: 'capture-ready', role: 'status' }, `Timed window: ${view.window.state}. `, button('View timed window', 'capture-method', { arg: 'window', className: 'btn quiet' })) : null,
+      this.method !== 'window' && this.window.current && !this.window.recording ? el('p', { class: 'capture-ready', role: 'status' }, `Timed recording: ${view.window.state}. `, button('View timed recording', 'capture-method', { arg: 'window', className: 'btn quiet' })) : null,
       section('Saved', view.saved.right, [view.saved.empty ? el('p', { class: 'empty' }, view.saved.empty) : el('ol', { class: 'ledger' }, view.saved.rows.map(savedRow)),
         box('actions', button('Copy', 'copy', { disabled: !view.saved.share }),
           button('Add to chat draft', 'compose', { disabled: !view.saved.share || !this.session }),

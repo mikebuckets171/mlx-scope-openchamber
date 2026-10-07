@@ -19,7 +19,7 @@ test('toasts: critical by default, all or off by preference, never a model name,
   const lost = alert('runtime-lost', 'critical', 1, { runtime: 'omlx' }), unloaded = alert('model-unloaded', 'info', 2, { model: 'Private-Model-7B' });
   expect(toastFor(lost, 'critical')).toEqual({ kind: 'error', message: 'MLX Scope · oMLX stopped responding. Scope checks again automatically.', dismiss: true });
   expect(toastFor(unloaded, 'critical')).toBeNull();
-  expect(toastFor(unloaded, 'all')?.message).toBe('MLX Scope · A model was unloaded. Reported by the runtime · Scope never loads models.');
+  expect(toastFor(unloaded, 'all')?.message).toBe('MLX Scope · A model was unloaded. Reported by the server · Scope never loads models.');
   expect(toastFor(lost, 'off')).toBeNull();
   expect(toastFor({ ...lost, toastSeq: undefined }, 'all')).toBeNull();
   expect(JSON.stringify(toastFor(unloaded, 'all'))).not.toContain('Private-Model');
@@ -38,7 +38,7 @@ test('only the leader toasts, once per toastSeq; a handover never repeats the pr
   // A frame that leads from its first snapshot toasts only what started just now.
   const fresh = recorder();
   fresh.signals.apply(snapshot([alert('pressure-critical', 'critical', 4, { level: 4 }), alert('runtime-lost', 'critical', 5, {}, MOCK_NOW - 60_000)]), []);
-  expect(fresh.toasts.map(t => t.message)).toEqual(['MLX Scope · macOS memory pressure: critical. Reported by the macOS kernel · replies may slow sharply until memory frees up.']);
+  expect(fresh.toasts.map(t => t.message)).toEqual(['MLX Scope · macOS memory pressure: critical. Reported by macOS · replies may slow until memory frees up.']);
 });
 
 test('badge: the count of badge-eligible alerts, set by a leading page or status frame, cleared by a mounted panel', () => {

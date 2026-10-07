@@ -2,10 +2,10 @@ import type { HostClient, ServiceStatus } from '@openchamber/sdk';
 import { unavailableForHostError } from './host-errors.ts';
 
 export const serviceExplanation = (status: ServiceStatus): string => ({
-  ready: 'The extension service is running. If readings are missing, check the selected runtime and its existing local connection. Service health does not confirm runtime access.',
-  starting: 'OpenChamber is starting the extension service. Give it a moment, then refresh.',
-  stopped: 'The extension service is stopped. Open Settings → Extensions, check its approval, then reopen MLX Scope.',
-  failed: 'The extension service could not start. Check its approval in Settings → Extensions, then reload the extension.',
+  ready: 'MLX Scope is running. If readings are missing, check the selected server and its connection.',
+  starting: 'OpenChamber is starting MLX Scope. Give it a moment, then refresh.',
+  stopped: 'MLX Scope is stopped. Open Settings → Extensions, check its approval, then reopen MLX Scope.',
+  failed: 'MLX Scope could not start. Check its approval in Settings → Extensions, then reload the extension.',
 })[status];
 
 /** Checks the documented host service status only when requested by the user. */

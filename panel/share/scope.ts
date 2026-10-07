@@ -1,5 +1,5 @@
 import type { AttachIssueRequest } from '@openchamber/sdk';
-import { nonneg, obj, type Json } from '../../src/contract/guards.ts';
+import { arr as list, count, nonneg, obj, oneOf, type Json } from '../../src/contract/guards.ts';
 import { runtimeNames, runtimeKind } from '../../src/contract/runtime.ts';
 import { CONTRACT_VERSION } from '../../src/contract/version.ts';
 import type { VsUsual } from '../history/regress.ts';
@@ -22,28 +22,32 @@ export interface ScopeTextInput { version: string; now: number; snapshot: unknow
 const BASES = ['reported', 'derived', 'observed', 'last-observed', 'estimate'];
 const PRESSURE = ['', 'normal', 'warning', '', 'critical'];
 const THERMAL = ['nominal', 'moderate', 'heavy', 'trapping', 'sleeping'];
-const METRICS: Record<string, string> = { decodeTps: 'decode', prefillTps: 'prefill', ttftMs: 'first token' };
+const METRICS: Record<string, string> = { decodeTps: 'generation', prefillTps: 'prefill', ttftMs: 'first token' };
 
-const round = (value: number, digits = 1): string => String(Number(value.toFixed(digits)));
+const round = (value: number, digits = 1): string => String(+value.toFixed(digits));
 const secs = (ms: number): string => ms < 1_000 ? `${Math.round(ms)} ms` : `${round(ms / 1000, 2)} s`;
 const pct = (value: number): string => `${Math.round(value * 100)}%`;
+const progressPct = (value: number): string => value > 0.99 && value < 1 ? '>99%' : `${value === 1 ? 100 : Math.floor(value * 100 + Number.EPSILON * 100)}%`;
 /** The ledger's size buckets (<8k, 8–32k, 32–64k, 64–128k, >128k tokens); ledger-schema.ts sizeBucket, pinned by a test. */
 export const sizeBucket = (tokens: number | null): number | null => tokens === null ? null : [8_192, 32_768, 65_536, 131_072, Infinity].findIndex(top => tokens < top);
 /** Context sizes as buckets, never the exact count. */
 const bucket = (tokens: number): string => `context ${['under 8k', '8k–32k', '32k–64k', '64k–128k', 'over 128k'][sizeBucket(tokens)!]} tokens`;
 const at = (root: unknown, path: string): unknown => path.split('.').reduce<unknown>((value, key) => obj(value)?.[key], root);
 const code = (value: unknown): string | null => typeof value === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(value) ? value : null;
-const list = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
-const basisOf = (value: unknown): string | null => BASES.includes(value as string) ? value as string : null;
+
+const basisOf = oneOf(BASES);
 
 /** Model names a body carries (class B): redacted from the text as a backstop, although nothing copies them. */
 const modelNames = (body: unknown): unknown[] => ['runtime.request.model', 'compat.modelID', 'runtime.residency', 'runtime.catalog', 'completions.items',
-  'alerts', 'alertLog'].flatMap(path => [at(body, path)].flat()).map(item => obj(item) ? obj(item)!.model ?? obj(item)!.name ?? at(item, 'params.model') : item);
+  'alerts', 'alertLog'].flatMap(path => at(body, path) ?? []).map(item => {
+    const object = obj(item);
+    return object ? object.model ?? object.name ?? at(item, 'params.model') : item;
+  });
 
 /** The newest finished reply the body reports: a positive seq, a finish time and a basis, as parseCompletionV2 requires. */
 export const lastReply = (body: unknown, reported: unknown = true): Json | null => reported
-  ? list(at(body, 'completions.items')).map(obj).filter(item => (nonneg(item?.seq) ?? 0) > 0 && nonneg(item?.finishedAt) !== null
-    && basisOf(item?.basis) && typeof item?.overlapped === 'boolean').at(-1) ?? null : null;
+  ? list(at(body, 'completions.items')).map(obj).reverse().find(item => (nonneg(item?.seq) ?? 0) > 0 && nonneg(item?.finishedAt) !== null
+    && basisOf(item?.basis) && typeof item?.overlapped === 'boolean') ?? null : null;
 
 const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, now: number): string[] => {
   const lines: string[] = [];
@@ -64,17 +68,20 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
   };
 
   const serverNow = nonneg(body.serverNow) ?? now, connection = obj(body.connection), runtime = runtimeKind(connection?.runtime);
+  const standalone = runtime === 'splash';
   const version = connection?.version, splash = connection?.engine === 'splash', bionic = connection?.host === 'bionic';
-  const phase = code(at(body, 'runtime.phase')) ?? 'unknown', reason = code(at(body, 'status.reason'));
-  line('Runtime', [runtime === 'lmstudio' && (splash || bionic) ? `${splash ? 'Splash via ' : ''}${bionic ? 'Bionic' : 'LM Studio'}`
-    : runtime ? runtimeNames[runtime] : 'not identified', typeof version === 'string' && /^[\w.+-]{1,40}$/.test(version) && `version ${version}`,
-  `status ${code(at(body, 'status.state')) ?? 'unknown'}${reason ? ` (${reason})` : ''}`, `phase ${phase}`,
-  `reading ${secs(Math.max(0, serverNow - (nonneg(at(body, 'runtime.sampledAt')) ?? serverNow)))} old`]);
+  const runtimeBody = obj(body.runtime), status = obj(body.status);
+  const phase = code(runtimeBody?.phase) ?? 'unknown', reason = code(status?.reason), state = code(status?.state) ?? 'unknown';
+  const sampledAt = nonneg(runtimeBody?.sampledAt) ?? serverNow;
+  line('Server', [runtime === 'lmstudio' && (splash || bionic) ? `${splash ? 'Splash via ' : ''}${bionic ? 'Bionic' : 'LM Studio'}`
+    : runtime ? runtimeNames[runtime] : 'unknown', typeof version === 'string' && /^[\w.+-]{1,40}$/.test(version) && `version ${version}`,
+  `status ${state}${reason ? ` (${reason})` : ''}`, `phase ${phase}`,
+  `reading ${secs(Math.max(0, serverNow - sampledAt))} old`]);
 
   // The current request, with parseSnapshotV2's cross-field rules: progress only in prefill, an estimate only while it moves.
-  const request = obj(at(body, 'runtime.request')), PROGRESS = 'request.prefillProgress', PREFILL = 'request.prefillRate';
+  const request = obj(runtimeBody?.request), PROGRESS = 'request.prefillProgress', PREFILL = 'request.prefillRate';
   if (request) {
-    const done = nonneg(request.prefillProcessedTokens), total = nonneg(request.prefillTotalTokens), stale = request.prefillStale === true;
+    const done = count(request.prefillProcessedTokens), total = count(request.prefillTotalTokens), stale = request.prefillStale === true;
     // Counts, when sent, decide progress; a fraction without valid counts is not trusted.
     const counted = request.prefillProcessedTokens != null || request.prefillTotalTokens != null
       ? done !== null && total && done <= total ? done / total : null : value(request, 'prefillFraction', PROGRESS, 1);
@@ -82,36 +89,47 @@ const scopeLines = (body: Json, vsUsual: readonly VsUsual[] | null | undefined, 
     const eta = progress !== null && progress < 1 && !stale && prefill ? value(request, 'prefillEtaMs', 'request.prefillEta') : null;
     const context = value(request, 'contextUsedTokens', 'request.context') ?? value(request, 'promptTokens', 'request.tokens');
     const ttft = value(request, 'ttftMs', 'request.ttft');
-    line('Current request', [rate('decode', request, 'decodeTps', 'request.decodeRate'), !stale && rate('prefill', request, 'prefillTps', PREFILL),
-      progress !== null && tagged(`prefill ${pct(progress)} of this stage${stale ? ', held' : ''}`, PROGRESS),
-      eta !== null && `about ${secs(eta)} left (runtime estimate)`, ttft !== null && tagged(`first token ${secs(ttft)}`, 'request.ttft'),
+    line('Current request', [rate('generation', request, 'decodeTps', 'request.decodeRate'), !stale && rate('prefill', request, 'prefillTps', PREFILL),
+      progress !== null && tagged(`prefill ${progressPct(progress)} ${standalone ? 'of the whole prompt, including cached tokens' : 'of this stage'}${stale ? ', held' : ''}`, PROGRESS),
+      eta !== null && `about ${secs(eta)} left (server estimate)`, ttft !== null && tagged(`first token ${secs(ttft)}`, 'request.ttft'),
       context !== null && bucket(context)]);
   }
 
-  const server = at(body, 'runtime.server'), REQUESTS = 'server.requests', AVERAGES = 'server.averages', LATENCY = 'server.latency', RATES = 'server.rates';
+  const server = runtimeBody?.server, REQUESTS = 'server.requests', AVERAGES = 'server.averages', LATENCY = 'server.latency', RATES = 'server.rates';
   const active = value(server, 'active', REQUESTS), queued = value(server, 'queued', REQUESTS), window = value(server, 'rates.windowMs', RATES);
+  const promptWindow = value(server, 'rates.promptWindowMs', RATES) ?? (at(server, 'rates.decodeTps') === undefined ? window : null);
+  // A recent value always takes its own interval and guards; an unavailable interval never selects an average.
+  const speed = (prefill: boolean, recent: boolean) => {
+    const stage = prefill ? 'prefill' : 'decode', interval = prefill ? promptWindow : window;
+    return (!recent || interval !== null && (!standalone || basis(RATES) === 'derived' && interval >= 2000 && interval <= 5000 && active
+      && (phase === stage || phase === 'processing') && state === 'ready' && status?.reason === null
+      && Math.max(serverNow, now) - sampledAt <= Math.max(6000, 2 * (nonneg(body.nextPollMs) ?? 2000) + 1000)))
+      && rate(recent ? standalone ? `recent ${prefill ? 'prefill' : 'generation'} speed over ${secs(interval!)} (${prefill ? 'input/time reading prompts' : 'output/time generating'})`
+        : `generation over ${secs(interval!)}` : standalone ? `${prefill ? 'prefill' : 'generation'} average since model start` : `average ${prefill ? 'prefill' : 'generation'}`,
+      server, `${recent ? 'rates' : 'averages'}.${prefill && recent ? 'prompt' : stage}Tps`, recent ? RATES : AVERAGES);
+  };
   const ttft = basis(LATENCY) ? obj(at(server, 'histograms.ttftMs')) : null, p50 = nonneg(ttft?.p50), p95 = nonneg(ttft?.p95);
   // null counts are "cannot count", so they are left out rather than shown as a number.
   line('Server, all requests', [(active ?? queued) !== null && tagged([active !== null && `${active} active`, queued !== null && `${queued} queued`]
     .filter(Boolean).join(', '), REQUESTS),
-    rate('average decode', server, 'averages.decodeTps', AVERAGES), rate('average prefill', server, 'averages.prefillTps', AVERAGES),
+    speed(false, false), speed(true, false),
     p50 !== null && p95 !== null && p50 <= p95 && ttft?.window === 'native-last-4096'
-      && tagged(`first token p50 ${secs(p50)} p95 ${secs(p95)} over ${nonneg(ttft.n)} requests`, LATENCY),
-    window !== null && rate(`decode over ${secs(window)}`, server, 'rates.decodeTps', RATES)]);
+      && tagged(`first token typically ${secs(p50)}, 95% within ${secs(p95)} over ${nonneg(ttft.n)} requests`, LATENCY),
+    speed(false, true), standalone && speed(true, true)]);
 
   const last = lastReply(body, basis('server.completions'));
   if (last) {
     const n = (key: string): number | null => nonneg(last[key]), prompt = n('promptTokens'), cached = n('cachedTokens'), verdict = obj(last.verdict);
     const decode = n('decodeTps'), prefill = n('prefillTps'), first = n('ttftMs'), attr = code(verdict?.attr);
     line(`Last finished reply (${secs(Math.max(0, serverNow - n('finishedAt')!))} ago, ${last.basis})`, [
-      decode !== null && `decode ${round(decode)} tok/s`, prefill !== null && `prefill ${round(prefill)} tok/s`, first !== null && `first token ${secs(first)}`,
+      decode !== null && `generation ${round(decode)} tok/s`, prefill !== null && `prefill ${round(prefill)} tok/s`, first !== null && `first token ${secs(first)}`,
       prompt !== null && bucket(prompt), prompt && cached !== null && cached <= prompt && `${pct(cached / prompt)} cached`,
       (last.overlapped === true || (n('aggregateOf') ?? 0) > 1) && 'may mix several requests']);
-    line('Label', [attr === 'inferred' ? 'inferred for the chat then open in Scope, maybe not this one' : attr === 'armed' ? 'armed Next reply'
+    line('Label', [attr === 'inferred' ? 'likely this chat at the time recorded' : attr === 'armed' ? 'Next reply'
       : `server-wide (${attr === 'withheld' && code(verdict?.reason) || 'not labelled'})`]);
-    if (vsUsual !== undefined) line('vs usual', [vsUsual === null ? 'reply history unavailable'
+    if (vsUsual !== undefined) line('vs usual', [vsUsual === null ? 'history unavailable'
       : vsUsual.filter(item => METRICS[item.metric] && item.ratio > 0 && item.n >= 5)
-        .map(item => `${METRICS[item.metric]} ${round(item.ratio, 2)}× (n=${item.n})`).join(', ') || 'no baseline yet']);
+        .map(item => `${METRICS[item.metric]} ${round(item.ratio, 2)}× (${item.n} replies)`).join(', ') || 'no baseline yet']);
   }
 
   const host = at(body, 'host'), level = value(host, 'mac.pressureLevel', 'host.pressure', 4), thermal = value(host, 'thermal.level', 'host.thermal', 4);
@@ -128,8 +146,8 @@ export const scopeText = (input: ScopeTextInput): string => {
   // Only numbers, enum codes and the runtime version are copied, so no class A value can reach the text (canary tests).
   const usable = body?.contractVersion === CONTRACT_VERSION ? body : null;
   const lines = [`${SCOPE_HEADER}.`,
-    `MLX Scope ${input.version} /scope diagnostics: server-wide readings of the local runtime and this Mac unless a reply is labelled. No chat content, model names, paths or IDs.`, '',
-    ...usable ? scopeLines(usable, input.vsUsual, input.now) : ['No runtime reading was available.']];
+    `MLX Scope ${input.version}: local server/Mac; replies labelled separately. No chat content, model names, paths or IDs.`, '',
+    ...usable ? scopeLines(usable, input.vsUsual, input.now) : ['No server reading.']];
   return clamp(redact(lines.join('\n'), usable ? modelNames(usable).filter(name => typeof name === 'string') as string[] : []), SCOPE_TEXT_MAX_CHARS);
 };
 /** `version`'s README: releases link their tag, prereleases `main` (the connection-help.ts link rule). */

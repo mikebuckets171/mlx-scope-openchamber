@@ -17,7 +17,7 @@ export const fullSnapshot = () => ({
   capabilities: Object.fromEntries(CAPABILITY_KEYS.map(key => [key, { scope: capabilityScope(key), basis: 'last-observed' }])),
   runtime: {
     sampledAt: AT - 1, phase: 'prefill',
-    request: { model: model(0), decodeTps: 123_456.789_012, prefillTps: 123_456.789_012, prefillProcessedTokens: 9_000_000, prefillTotalTokens: 9_999_999,
+    request: { model: model(0), decodeTps: 123_456.789_012, prefillTps: 123_456.789_012, prefillProcessedTokens: 9_000_000, prefillTotalTokens: 9_999_999, prefillObservedAt: AT,
       prefillStale: false, prefillEtaMs: 123_456_789.012, promptTokens: 9_999_999, cachedTokens: 9_999_999, outputTokens: 9_999_999,
       elapsedMs: 123_456_789.012, ttftMs: 123_456.789, contextWindowTokens: 99_999_999, contextUsedTokens: 99_999_998 },
     server: { active: 999, queued: 999,

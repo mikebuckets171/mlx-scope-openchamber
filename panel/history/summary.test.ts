@@ -13,15 +13,15 @@ describe('Copy baseline summary (decision 11)', () => {
       ...Array.from({ length: 6 }, (_, i) => reply({ at: NOW - H - i * 60_000, rt: 'splash', modelRef: 1, decodeTps: 40, energyJ: 1500 }))];
     const text = baselineSummary(buildBaselines(rows, NOW), MODELS, '2.0.0', NOW);
     expect(text).toContain('MLX Scope 2.0.0 — usual speeds (baseline summary)');
-    expect(text).toContain('Model A · oMLX · 32–64K context · decode: p50 25.0 tok/s · p90 26.0 tok/s · n 12');
-    expect(text).toContain('Model A · oMLX · under 8K uncached input · TTFT: p50 0.45 s · p90 0.45 s · n 12');
-    expect(text).toContain('Model B · Splash (standalone) · 32–64K context · tok/J (chip estimate): p50 0.67 · n 6');
+    expect(text).toContain('Model A · oMLX · 32–64K context · Generation speed: typical 25.0 tok/s · 90% at or below 26.0 tok/s · 12 replies');
+    expect(text).toContain('Model A · oMLX · under 8K new input · First token: typical 0.45 s · 90% at or below 0.45 s · 12 replies');
+    expect(text).toContain('Model B · Splash (standalone) · 32–64K context · Tokens per joule (estimated): typical 0.67 · 6 replies');
     for (const name of MODELS) expect(text).not.toContain(name);
     expect(text).not.toMatch(/canary|\/Users\/|session/i);
   });
   test('a key below 5 replies says so, with its n', () => {
     const text = baselineSummary(buildBaselines([reply({ at: NOW - H, decodeTps: 20 })], NOW), MODELS, '2.0.0', NOW);
-    expect(text).toContain('decode: not enough replies yet (n 1; p50 needs 5)');
+    expect(text).toContain('Generation speed: not enough replies yet (1 recorded; needs 5)');
   });
   test('an empty ledger still copies an honest line', () => {
     expect(baselineSummary(new Map(), [], '2.0.0', NOW)).toContain('No usual speeds yet');
@@ -32,7 +32,7 @@ describe('Copy baseline summary (decision 11)', () => {
     const text = baselineSummary(baselines, MODELS, '2.0.0', NOW);
     expect(text.length).toBeLessThanOrEqual(SUMMARY_MAX_CHARS);
     expect(text).toMatch(/… \d+ more rows left out to stay under 32,000 characters\.$/);
-    expect(text.split('\n').filter(line => line.startsWith('Model ')).every(line => line.endsWith('n 50'))).toBe(true);
+    expect(text.split('\n').filter(line => line.startsWith('Model ')).every(line => line.endsWith('50 replies'))).toBe(true);
   });
   test('the sanitizer still removes a model name that reached the text', () => {
     // A model literally named like a runtime is the worst case: redaction wins over readability.

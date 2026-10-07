@@ -98,7 +98,7 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
   app.onRefreshNeeded = () => monitor!.poller.refresh();
   const help = new ConnectionHelp(shell, host, version);
   const sharing = new SharingControls(node('share-actions'), host, () => measurementReport(state.latest, state.lastHost,
-    state.userPaused ? true : state.awaitingFresh ? 'refreshing' : false, version, client.now(), state.lastRequest), actionStatus);
+    state.userPaused ? true : state.awaitingFresh || state.stale ? 'refreshing' : false, version, client.now(), state.lastRequest), actionStatus);
 
   const pause = node('pause');
   pause.addEventListener('click', () => {

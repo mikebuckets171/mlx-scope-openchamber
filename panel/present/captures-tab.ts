@@ -55,13 +55,13 @@ export interface CapturesView {
 
 const value = (text: string, basis: Basis, note?: string): ValueView => ({ text, basis, note: note ?? basisNote(basis) });
 const CANCELLED: Readonly<Record<NextReplyCancel, string>> = {
-  switched: 'Cancelled: you switched chats.', unavailable: 'Cancelled: the runtime stopped answering.', hidden: 'Cancelled: this view closed.',
+  switched: 'Cancelled: you switched chats.', unavailable: 'Cancelled: the server stopped answering.', hidden: 'Cancelled: this view closed.',
   timeout: 'Stopped: no reply finished in time.', limit: 'Stopped: the reply ran past 10 minutes.',
-  clock: 'Cancelled: the service clock moved, so the timing can’t be trusted.', user: 'Cancelled.',
+  clock: 'Cancelled: the clock changed, so the timing can’t be trusted.', user: 'Cancelled.',
 };
-const ARMED: AttrChip = { attr: 'armed', text: 'Next reply · armed', reason: null };
+const ARMED: AttrChip = { attr: 'armed', text: 'Next reply', reason: null };
 const labelChip = (label: CaptureV2['label'], text: HistoryText): AttrChip => label === 'armed' ? ARMED : { attr: 'server', text: text.withheld('all-requests'), reason: 'all-requests' };
-const nameOf = (runtime: string | null): string => { const kind = runtimeKind(runtime); return kind ? runtimeNames[kind] : 'runtime not recorded'; };
+const nameOf = (runtime: string | null): string => { const kind = runtimeKind(runtime); return kind ? runtimeNames[kind] : 'server not recorded'; };
 
 // ---------- measurements: allowlisted numbers, never a model name (capture.v2 is a share sink) ----------
 /** The keys this tab writes into `CaptureV2.measurements`; units in the name. `decodeBasis` indexes BASES. */
@@ -122,24 +122,24 @@ const presentNext = (input: CapturesInput): NextCard => {
   const base = { chip: null, time: null, result: null };
   switch (state!.kind) {
     case 'idle': return { ...base, state: 'idle', note, actions: [arm] };
-    case 'offer-watch': return { ...base, state: 'offer-watch', note: 'Next reply needs this chat’s runtime.', actions: [{ action: 'watch', label: `Watch ${state!.runtime}` }] };
+    case 'offer-watch': return { ...base, state: 'offer-watch', note: 'Choose this chat’s server to measure its next reply.', actions: [{ action: 'watch', label: `Watch ${state!.runtime}` }] };
     case 'armed': return { ...base, state: 'armed', chip: ARMED, note, time: { value: mmss(Math.max(0, REPLY_WAIT_MS - (input.now - state!.at))), suffix: ' left' },
       actions: [{ action: 'cancel', label: 'Cancel' }] };
     case 'measuring': return { ...base, state: 'measuring', note: 'Measuring next reply', time: { value: dur(Math.max(0, input.now - state!.startedAt)), suffix: '' },
       actions: [{ action: 'cancel', label: 'Cancel' }] };
     case 'cancelled': return { ...base, state: 'cancelled', note: CANCELLED[state!.reason], actions: [arm] };
     // Won't arm: the chat's model differs or is unknown, or the runtime can't count requests.
-    case 'refused': return { ...base, state: 'unavailable', note: `Next reply can’t measure this chat: ${(input.text ?? HISTORY_TEXT).withheld(state!.reason).replace(/^Server-wide · /, '')}.`, actions: [] };
+    case 'refused': return { ...base, state: 'unavailable', note: `Next reply can’t measure this chat: ${(input.text ?? HISTORY_TEXT).withheld(state!.reason).replace(/^All server activity · /, '')}.`, actions: [] };
     case 'result': {
       const capture = nextReplyCapture(state!, input.runtime, input.now), m = capture.measurements, rate = captureRate(capture);
       const values = [rate ? value(`${tps(rate.tps)} tok/s`, rate.basis) : null, m.outputTokens !== undefined ? value(`${int(m.outputTokens)} out`, 'reported') : null,
-        m.ttftMs !== undefined ? value(`TTFT ${dur(m.ttftMs)}`, 'reported') : null].filter((item): item is ValueView => item !== null);
+        m.ttftMs !== undefined ? value(`First token ${dur(m.ttftMs)}`, 'reported') : null].filter((item): item is ValueView => item !== null);
       const split = [value(`Turn ${dur(m.wholeMs!)}`, 'observed'), m.modelMs !== undefined && m.toolMs !== undefined ? value(`Model · tool ${dur(m.modelMs)} · ${dur(m.toolMs)}`, 'observed') : null]
         .filter((item): item is ValueView => item !== null);
       // A failed step keeps its own reason, so the chip says why the reply stayed server-wide.
       const reason = state!.steps.find(step => step.verdict?.attr === 'withheld')?.verdict?.reason ?? 'not-observed';
       const chip: AttrChip = state!.attributed ? ARMED : { attr: 'server', text: (input.text ?? HISTORY_TEXT).withheld(reason), reason };
-      return { ...base, state: 'result', note: state!.attributed ? 'Measured because you armed Next reply.' : 'A step couldn’t be tied to this chat, so this reply is server-wide.',
+      return { ...base, state: 'result', note: state!.attributed ? 'Recorded with Measure next reply.' : 'A step couldn’t be matched to this chat. Readings cover all server activity.',
         result: { chip, ago: ago(state!.endedAt, input.now), values, split },
         actions: [...input.nextSaved ? [] : [{ action: 'save-next' as const, label: 'Save to Captures' }], { ...arm, label: 'Measure again', primary: false }] };
     }
@@ -147,12 +147,12 @@ const presentNext = (input: CapturesInput): NextCard => {
 };
 const presentWindow = (input: CapturesInput): WindowCard => {
   const w = input.window, rate = windowRate(w);
-  if (!w) return { status: 'idle', lengthMs: input.windowLength, state: 'Server-wide', progress: null, values: [], canSave: false };
+  if (!w) return { status: 'idle', lengthMs: input.windowLength, state: 'All server activity', progress: null, values: [], canSave: false };
   const elapsed = w.endedAt - w.startedAt, values = [
-    rate !== null ? value(`${tps(rate)} tok/s`, 'observed', 'observed output') : value('No output speed', 'observed', 'needs one request decoding'),
+    rate !== null ? value(`${tps(rate)} tok/s`, 'observed', 'measured output') : value('No output speed', 'observed', 'needs one request generating'),
     value(`${int(w.decodeTokens)} out`, 'observed'), value(`${int(w.completions)} ${w.completions === 1 ? 'reply' : 'replies'} finished`, 'observed'),
-    ...w.cpuMean !== null ? [value(`CPU ${pct(w.cpuMean)} mean`, 'observed', 'sampled')] : [],
-    ...w.memPeakBytes !== null ? [value(`RAM ${gibText(w.memPeakBytes)} peak`, 'observed', 'sampled')] : [],
+    ...w.cpuMean !== null ? [value(`CPU ${pct(w.cpuMean)} average`, 'observed', 'recorded')] : [],
+    ...w.memPeakBytes !== null ? [value(`RAM ${gibText(w.memPeakBytes)} peak`, 'observed', 'recorded')] : [],
   ];
   return { status: w.status, lengthMs: w.targetMs, values, canSave: w.status !== 'recording' && w.samples > 0,
     progress: w.status === 'recording' ? Math.min(100, elapsed / w.targetMs * 100) : null,
@@ -187,14 +187,14 @@ export const presentCaptures = (input: CapturesInput): CapturesView => {
 export const capturesReport = (captures: readonly CaptureV2[], version: string, forbidden: readonly string[]): string => {
   const line = (capture: CaptureV2): string => {
     const m = capture.measurements, rate = captureRate(capture);
-    return [`${new Date(capture.savedAt).toISOString()} · ${title(capture)} · ${capture.label === 'armed' ? 'Next reply · armed' : 'server-wide'}:`,
+    return [`${new Date(capture.savedAt).toISOString()} · ${title(capture)} · ${capture.label === 'armed' ? 'Next reply' : 'all server activity'}:`,
       rate ? `${tps(rate.tps)} tok/s${rate.basis === 'reported' ? '' : ` (${basisNote(rate.basis)})`}` : 'no output speed',
       m.outputTokens !== undefined ? `${int(m.outputTokens)} output tokens` : null, m.wholeMs !== undefined ? `turn ${dur(m.wholeMs)}` : null,
-      m.completions !== undefined ? `${int(m.completions)} replies finished` : null, m.cpuMeanFraction !== undefined ? `CPU mean ${pct(m.cpuMeanFraction)}` : null,
+      m.completions !== undefined ? `${int(m.completions)} replies finished` : null, m.cpuMeanFraction !== undefined ? `CPU average ${pct(m.cpuMeanFraction)}` : null,
       m.memPeakBytes !== undefined ? `RAM peak ${gibText(m.memPeakBytes)}` : null].filter(Boolean).join(' ');
   };
   const text = [`MLX Scope ${version} — saved captures`,
-    'Server-wide readings unless marked “Next reply · armed”. Not a controlled benchmark; differences don’t establish causality. No model names.',
+    'Readings cover all server activity unless marked “Next reply”. Other apps and chats can affect comparisons. No model names.',
     ...captures.map(line)].join('\n');
   return clamp(redact(text, forbidden), SCOPE_TEXT_MAX_CHARS);
 };

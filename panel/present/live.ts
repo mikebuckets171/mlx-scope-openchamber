@@ -1,12 +1,14 @@
+import { presentSpeeds, type SpeedsView } from './speeds.ts';
 import type { Basis } from '../../src/contract/capabilities.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { AttributionLabel } from '../attribution/join.ts';
 import { liveChart, type ChartView } from '../render/chart.ts';
 import { connName, PRESSURE, RT, rtName, statusCopy, THERMAL, THERMAL_WARN, thermalLevel, type Level } from './copy.ts';
 import { ago, delta, dur, int, kt, mmss, pct, size, tps } from './format.ts';
-import { attrChip, attrTip, callouts, tip, weightedTps, type Callout, type Chip, type Tip, type Val } from './parts.ts';
+import { attrChip, attrTip, callouts, splashRateTip, tip, weightedTps, type Callout, type Chip, type Tip, type Val } from './parts.ts';
 export { weightedTps } from './parts.ts';
-import { heldBySource, liveSplashRate, modelOf, SERVER_WIDE, type ScopeInput } from './scope.ts';
+import { ENGINE_SPEED, heldBySource, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING, type ScopeInput } from './scope.ts';
+import { promptPercent } from '../progress.ts';
 
 // The Live tab (plan §5.9, the G2 mock): callouts, the hero (one speed with its basis ⓘ, the attribution chip, Last
 // reply and Next reply), the request tiles and the This Mac card with the short labels (full wording in its ⓘ).
@@ -24,7 +26,7 @@ export interface ReplyView {
   chip: Chip | null; tip: Tip | null; when: string | null; empty: string | null;
   values: Val[]; split: Val[]; usual: Chip | null; next: NextView | null; model?: string;
 }
-export interface HeroView { title: string; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
+export interface HeroView { speeds: SpeedsView; title: string; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
 export interface Tile { label: string; value: string; detail: string; meter: number | null }
 export interface MacRow { key: string; label: string; value: Val; level: Level | null; meter: number | null; tip: Tip | null }
 export interface MacView { title: string; tip: Tip; stale: boolean; line: Array<{ label: string; value: string; meter: number | null }>; rows: MacRow[]; details: MacRow[] }
@@ -63,32 +65,32 @@ const heroBody = (kind: HeroKind, s: ScopeInput): HeroBody => {
     case 'prefill': {
       const fraction = request!.prefillFraction!, stale = request!.prefillStale === true;
       const done = request!.prefillProcessedTokens, total = request!.prefillTotalTokens;
-      return { kind: 'prefill', percent: pct(fraction), fraction, counts: done != null && total != null ? `${int(done)} of ${int(total)} new tokens read` : null,
+      return { kind: 'prefill', percent: `${promptPercent(fraction)}${stale ? ' (last seen)' : ''}`, fraction, counts: done != null && total != null ? `${int(done)} of ${int(total)} ${snapshot.connection.runtime === 'splash' ? 'prompt tokens processed' : 'new tokens read'}` : null,
         eta: !stale && request!.prefillEtaMs != null ? dur(request!.prefillEtaMs) : null, rate: request!.prefillTps != null ? tps(request!.prefillTps) : null,
-        source: `Reported by ${rt}`, tip: tip('basis', `Reported by ${rt}`, [`${rt} reports this request’s prefill progress and speed.`,
-          request!.prefillEtaMs != null && `${rt} estimates the finish time; it changes during prefill.`, stale && 'No progress since the last reading.']) };
+        source: `From ${rt}`, tip: tip('basis', `From ${rt}`, [`${rt} reports how much of this prompt has been read.`,
+          request!.prefillEtaMs != null && `${rt} estimates the finish time; it changes during prefill.`, stale && 'Progress has not updated yet.']) };
     }
     case 'decode': {
       const basis = snapshot.capabilities['request.decodeRate']?.basis ?? 'reported';
-      const source = basis === 'reported' ? `Reported by ${rt}` : `${basis === 'observed' ? 'Observed' : basis === 'derived' ? 'Derived' : basis === 'estimate' ? 'Estimate' : 'Last observed'} from ${rt} readings`;
-      return { kind: 'decode', rate: tps(request!.decodeTps!), basis, label: basis === 'observed' ? 'Observed output' : 'Request average', source,
-        tip: tip('basis', source, [basis === 'reported' ? `${rt} reports this request’s average speed, without Scope smoothing or estimates.` : `${basis} from runtime readings, not a reported instantaneous rate.`]),
+      const source = basis === 'reported' ? `From ${rt}` : `${basis === 'observed' ? 'Measured' : basis === 'derived' ? 'Calculated' : basis === 'estimate' ? 'Estimated' : 'Last reading'} from ${rt}`;
+      return { kind: 'decode', rate: tps(request!.decodeTps!), basis, label: basis === 'observed' ? 'Measured generation speed' : 'Average for this request', source,
+        tip: tip('basis', source, [basis === 'reported' ? `${rt} reports this request’s average speed, without Scope smoothing or estimates.` : 'Calculated from server readings. This is an average for the request.']),
         chart: liveChart(s.samples, s.now, s.turnStartAt) };
     }
-    case 'server-decode': return { kind: 'decode', rate: tps(liveSplashRate(snapshot)!), basis: 'derived', label: 'Live server throughput', source: `Derived from ${rt} counters`,
-      tip: tip('basis', 'Live server throughput', ['Output / active decode time from advancing Splish and Splash counters.',
-        `All requests over ${dur(server.rates!.windowMs)}; not one chat, a lifetime average, or network arrival speed.`]),
+    case 'server-decode': return { kind: 'decode', rate: tps(liveSplashRate(snapshot)!), basis: 'derived', label: ENGINE_SPEED, source: `Calculated from ${rt} · last ${dur(server.rates!.windowMs)}`,
+      tip: splashRateTip('basis', server.rates!.windowMs),
       chart: liveChart(s.samples, s.now, null, 'server') };
     case 'slots': case 'busy': {
+      if (snapshot.connection.runtime === 'splash') return word('Working', SPLASH_WAITING);
       const rates = server.rates;
-      return word(`${active} requests`, `Per-request speed withheld: ${active} ${kind === 'slots' ? 'slots are busy' : 'requests are running'}`,
-        rates?.decodeTps != null ? { text: `Server decode `, strong: `${tps(rates.decodeTps)} tok/s`, unit: `over the last ${Math.round(rates.windowMs / 1_000)} s`,
-          basis: 'derived', note: `derived from ${rt} counters` } : null);
+      return word(`${active} requests`, `Speed unavailable for one request: ${active} ${kind === 'slots' ? 'slots are busy' : 'requests are running'}`,
+        rates?.decodeTps != null ? { text: `Generation `, strong: `${tps(rates.decodeTps)} tok/s`, unit: `over the last ${Math.round(rates.windowMs / 1_000)} s`,
+          basis: 'derived', note: `Calculated from ${rt}` } : null);
     }
-    case 'ollama': return word(`${runtime.residency.length} loaded`, 'Ollama reports residency only · no per-request speed');
+    case 'ollama': return word(`${runtime.residency.length} loaded`, 'Ollama lists loaded models but does not provide request speeds');
     case 'server': return word(`${active} running`, queued ? `${queued} waiting` : 'Nothing waiting');
     case 'queued': return word(`${queued} waiting`, `${active} running`);
-    case 'processing': return word('Working', snapshot.connection.runtime === 'splash' ? 'Waiting for live server readings' : `${rt} doesn’t report this request’s speed`);
+    case 'processing': return word('Working', snapshot.connection.runtime === 'splash' ? runtime.phase === 'prefill' ? 'Reading prompt · waiting for update' : SPLASH_WAITING : `${rt} doesn’t report this request’s speed`);
     case 'inventory': return word('Connected', `${rt} lists its models · no live request readings`);
     default: return word('Idle', 'Model loaded · ready for the next request');
   }
@@ -98,7 +100,7 @@ const contextBlock = (s: ScopeInput): HeroView['context'] => {
   const request = s.snapshot?.runtime.request;
   if (!s.snapshot || !ACTIVE.has(s.snapshot.runtime.phase) || !request?.contextWindowTokens || request.contextUsedTokens == null) return null;
   return { used: `${kt(request.contextUsedTokens)} of ${kt(request.contextWindowTokens)} tokens`, basis: s.snapshot.capabilities['request.context']?.basis ?? 'reported', fraction: Math.min(1, request.contextUsedTokens / request.contextWindowTokens),
-    tip: tip('ctx', 'Context used', ['Reported prompt plus output against the model’s context limit.', 'Not OpenCode’s compaction threshold.']) };
+    tip: tip('ctx', 'Context used', ['Prompt and output tokens compared with the model’s context limit.', 'OpenCode may shorten the chat before this limit.']) };
 };
 
 const nextView = (s: ScopeInput): NextView | null => {
@@ -107,7 +109,7 @@ const nextView = (s: ScopeInput): NextView | null => {
   switch (next.kind) {
     case 'offer-watch': return { kind: 'watch', runtime: next.runtime };
     case 'armed': return { kind: 'armed', left: mmss(Math.max(0, 120_000 - (s.now - next.at))),
-      tip: tip('armed', 'Next reply · armed', ['Waiting for your next message in this chat. Measures one reply, then stops.', 'Cancels if you switch chats, the runtime goes away, or Scope closes or becomes hidden.']) };
+      tip: tip('armed', 'Next reply', ['Waiting for your next message in this chat. Measures one reply, then stops.', 'Cancels if you switch chats, the server stops responding, or Scope closes or becomes hidden.']) };
     case 'measuring': return { kind: 'measuring', elapsed: dur(Math.max(0, s.now - next.startedAt)) };
     case 'result': return { kind: 'result' };
     default: return { kind: 'offer' };
@@ -129,23 +131,23 @@ const replyView = (s: ScopeInput): ReplyView | null => {
       : { kind: 'server-wide', reason: steps.find(step => step.verdict?.attr === 'withheld')?.verdict?.reason ?? 'not-observed' };
     return { chip: attrChip(label), when: ago(next.endedAt, s.now), empty: null, usual: null, next: nextRow,
       tip: next.attributed
-        ? tip('reply', 'Last reply · Next reply', ['Armed by you. Turn times come from OpenChamber; speed comes from runtime readings for each step.'])
-        : tip('reply', 'Last reply · Server-wide', ['A step couldn’t be tied to this chat: no turn summary.', ...attrTip('reply', label, snapshot, false, s.chatRuntime).paras]),
+        ? tip('reply', 'Last reply · Next reply', ['Measured at your request. Turn times come from OpenChamber; speed comes from server readings for each step.'])
+        : tip('reply', 'Last reply · All server activity', ['A step couldn’t be tied to this chat: no turn summary.', ...attrTip('reply', label, snapshot, false, s.chatRuntime).paras]),
       values: [...rate !== null ? [{ text: '', strong: tps(rate), unit: 'tok/s', basis: steps.length > 1 ? 'derived' : steps[0]!.basis } satisfies Val] : [],
         { text: '', strong: int(output), unit: 'out', basis: 'reported' },
         ...steps[0]?.ttftMs != null && steps[0].basis !== 'last-observed' ? [{ text: 'First token', strong: dur(steps[0].ttftMs), basis: steps[0].basis } satisfies Val] : []],
       split: next.attributed ? [{ text: 'Turn', strong: dur(whole), basis: 'observed' }, ...model > 0 ? [{ text: 'Model · tool', strong: `${dur(model)} · ${dur(Math.max(0, whole - model))}`, basis: 'observed' } satisfies Val] : []] : [] };
   }
   const last = s.last;
-  if (!last) return { chip: null, tip: null, when: null, empty: 'None observed yet · replies appear while Scope is open', values: [], split: [], usual: null, next: nextRow };
+  if (!last) return { chip: null, tip: null, when: null, empty: 'No replies yet · replies appear while Scope is open', values: [], split: [], usual: null, next: nextRow };
   const c = last.completion, flag = last.flag, usual = last.vsUsual;
   return {
     chip: attrChip(last.label), model: c.model ?? undefined, when: ago(c.finishedAt, s.now), empty: null, next: nextRow, split: [], usual: usualChip(s),
     tip: tip('reply', 'Last reply', [
-      flag ? `Median of the last 3 replies ${tps(flag.recentMedian)} tok/s against usual ${tps(flag.p50)} (p50, n ${flag.n}).`
-        : usual ? `${delta(usual.ratio - 1)} against the usual speed for this model and context size (n ${usual.n}).` : null,
-      c.basis === 'last-observed' && `${rt} has no completions or TTFT; this is Scope’s last request reading.`,
-      !!c.aggregateOf && `Counters advanced for ${c.aggregateOf} requests together; this is their average.`,
+      flag ? `Middle speed of the last 3 replies: ${tps(flag.recentMedian)} tok/s. Usual middle speed: ${tps(flag.p50)}, from ${flag.n} replies.`
+        : usual ? `${delta(usual.ratio - 1)} against the usual speed for this model and context size, from ${usual.n} replies.` : null,
+      c.basis === 'last-observed' && `${rt} does not provide finished replies or first-token timing; this is Scope’s last request reading.`,
+      !!c.aggregateOf && `${c.aggregateOf} requests were measured together; this is their average.`,
       last.label.kind === 'server-wide' && attrTip('x', last.label, snapshot, false, s.chatRuntime).paras.join(' ')]),
     values: [...c.decodeTps != null ? [{ text: '', strong: tps(c.decodeTps), unit: 'tok/s', basis: c.basis } satisfies Val] : [],
       ...c.outputTokens != null ? [{ text: '', strong: int(c.outputTokens), unit: 'out', basis: 'reported' } satisfies Val] : [],
@@ -157,12 +159,12 @@ const presentHero = (s: ScopeInput): HeroView | null => {
   const snapshot = s.snapshot;
   if (!snapshot) return null;
   const kind = heroKind(s), title = modelOf(snapshot) ?? connName(snapshot.connection);
-  if (s.paused) return { title, attr: null, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, firstToken: null, context: null, reply: null };
+  if (s.paused) return { speeds: presentSpeeds(s), title, attr: null, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, firstToken: null, context: null, reply: null };
   const reply = replyView(s);
-  if (!kind && (!reply || reply.empty)) return null;
+
   const live = kind === 'decode' || kind === 'prefill', label = kind ? liveLabel(kind, s) : SERVER_WIDE;
   return {
-    title, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
+    speeds: presentSpeeds(s), title, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
     body: kind ? heroBody(kind, s) : null,
     firstToken: kind && ACTIVE.has(snapshot.runtime.phase) && snapshot.runtime.request?.ttftMs != null && snapshot.capabilities['request.ttft']
       ? { text: 'First token', strong: dur(snapshot.runtime.request.ttftMs), basis: snapshot.capabilities['request.ttft'].basis } : null,
@@ -185,18 +187,18 @@ const presentTiles = (s: ScopeInput): Tile[] => {
   return tiles;
 };
 
-const SHORT = { gpuMem: 'GPU memory · driver-reported', power: 'Chip power · estimate' } as const;
+const SHORT = { gpuMem: 'GPU memory', power: 'Chip power' } as const;
 export const presentMac = (s: ScopeInput): MacView | null => {
   const snapshot = s.snapshot, host = snapshot?.host;
   if (!snapshot || !host || s.paused) return null;
   const mac = host.mac, memory = snapshot.runtime.memory, rt = rtName(snapshot.connection), request = snapshot.runtime.request;
-  const model = memory.modelBytes ?? memory.metalBytes, kind = memory.modelBytes != null ? 'model memory' : 'Metal memory';
+  const model = memory.modelBytes ?? memory.metalBytes, kind = memory.modelBytes != null ? 'model memory' : 'GPU allocations';
   const perJ = request?.decodeTps && snapshot.runtime.server.active === 1 && host.power && host.power.coverageFraction >= .8 && host.power.chipW > 0
     ? request.decodeTps / host.power.chipW : null;
   const macOS = host.platform === undefined || host.platform === 'macOS';
   const line: MacView['line'] = [
     ...host.cpuFraction != null ? [{ label: 'CPU', value: pct(host.cpuFraction), meter: host.cpuFraction }] : [],
-    ...host.memUsedBytes != null && host.memTotalBytes ? [{ label: 'RAM', value: `${(host.memUsedBytes / 1024 ** 3).toFixed(1)} / ${Math.round(host.memTotalBytes / 1024 ** 3)} GiB`,
+    ...host.memUsedBytes != null && host.memTotalBytes ? [{ label: 'Memory allocated', value: `${(host.memUsedBytes / 1024 ** 3).toFixed(1)} / ${Math.round(host.memTotalBytes / 1024 ** 3)} GiB`,
       meter: host.memUsedBytes / host.memTotalBytes }] : [],
     ...mac?.swapUsedBytes != null ? [{ label: 'Swap', value: size(mac.swapUsedBytes), meter: null }] : [],
   ];
@@ -205,29 +207,29 @@ export const presentMac = (s: ScopeInput): MacView | null => {
   const rows: MacRow[] = [];
   if (mac?.pressureLevel) {
     const [word, level] = PRESSURE[mac.pressureLevel];
-    rows.push(row('pressure', 'macOS memory pressure (kernel)', { text: word, basis: 'reported' }, { level }));
+    rows.push(row('pressure', 'Memory pressure', { text: word, basis: 'reported' }, { level }));
   }
   if (host.thermal) {
     const level = host.thermal.level;
-    rows.push(row('thermal', 'Thermal pressure (macOS)', { text: THERMAL[level]![0], basis: 'reported' }, { level: thermalLevel(level),
-      tip: tip('thermal', 'Thermal pressure (macOS)', [`macOS reports thermal pressure level ${level} of 4 (“${THERMAL[level]![1]}”), read with notifyutil.`,
+    rows.push(row('thermal', 'Heat status', { text: THERMAL[level]![0], basis: 'reported' }, { level: thermalLevel(level),
+      tip: tip('thermal', 'Heat status', [`macOS reports heat level ${level} of 4 (“${THERMAL[level]![1]}”).`,
         `Scope warns from ${THERMAL[THERMAL_WARN]![0]} (level ${THERMAL_WARN}) up.`]) }));
   }
   const details: MacRow[] = [];
-  if (host.gpu?.busyFraction != null) details.push(row('gpu-busy', 'GPU busy (driver-reported)', { text: pct(host.gpu.busyFraction), basis: 'reported' }, { meter: host.gpu.busyFraction }));
+  if (host.gpu?.busyFraction != null) details.push(row('gpu-busy', 'GPU busy', { text: pct(host.gpu.busyFraction), basis: 'reported' }, { meter: host.gpu.busyFraction }));
   if (host.gpu?.allocBytes != null) details.push(row('gpu-mem', SHORT.gpuMem, { text: size(host.gpu.allocBytes), basis: 'reported' }));
-  if (model != null && mac?.wiredLimitBytes) details.push(row('wired', `${rt} ${kind} vs macOS GPU wired limit`,
+  if (model != null && mac?.wiredLimitBytes) details.push(row('wired', `${rt} ${kind} / GPU memory limit`,
     { text: `${pct(model / mac.wiredLimitBytes)} of ${size(mac.wiredLimitBytes)}`, basis: heldBySource(snapshot) ? 'last-observed' : 'reported' }, { meter: Math.min(1, model / mac.wiredLimitBytes) }));
-  if (host.runtimeProcess) details.push(row('footprint', `${RT[host.runtimeProcess.runtime]} process listening on :${host.runtimeProcess.port}`,
-    { text: size(host.runtimeProcess.footprintBytes), basis: 'observed', note: 'macOS footprint' }));
+  if (host.runtimeProcess) details.push(row('footprint', `${RT[host.runtimeProcess.runtime]} process memory (:${host.runtimeProcess.port})`,
+    { text: size(host.runtimeProcess.footprintBytes), basis: 'observed', note: 'macOS measurement' }));
   if (host.power) details.push(row('power', SHORT.power, { text: `${host.power.chipW.toFixed(1)} W`, basis: 'estimate' }));
-  if (perJ !== null) details.push(row('tokj', 'tok/J · this request', { text: perJ.toFixed(2), basis: 'estimate' }));
+  if (perJ !== null) details.push(row('tokj', 'Tokens per joule · this request', { text: perJ.toFixed(2), basis: 'estimate' }));
   return {
     title: macOS ? 'This Mac' : 'This computer', stale: !s.fresh, line, rows, details,
-    tip: tip('mac', macOS ? 'This Mac' : 'This computer', ['Whole machine. RAM = physical − free, including reclaimable pages; not Activity Monitor’s Memory Used.',
-      (host.gpu?.busyFraction != null || host.gpu?.allocBytes != null) && 'Driver GPU readings never alert. GPU memory includes reserves and other apps, not just the model.',
-      model != null && !!mac?.wiredLimitBytes && `The wired-limit meter uses ${rt}’s reported ${kind}; it never alerts.`,
-      host.power ? 'macmon estimates CPU+GPU+ANE power across all apps, not wall power. tok/J = tok/s per watt, only during one decoding request.'
+    tip: tip('mac', macOS ? 'This Mac' : 'This computer', ['Whole machine. Memory allocated is physical memory minus free memory. Includes memory macOS can reuse; differs from Activity Monitor’s Memory Used.',
+      (host.gpu?.busyFraction != null || host.gpu?.allocBytes != null) && 'GPU readings come from macOS and do not trigger warnings. GPU memory includes reserves and other apps, not just the model.',
+      model != null && !!mac?.wiredLimitBytes && `The GPU memory limit comparison uses ${rt}’s ${kind}; it does not trigger warnings.`,
+      host.power ? 'macmon estimates power used by all parts of the chip across all apps, not power at the wall. Tokens per joule is generation speed divided by chip watts, shown only while one request is generating.'
         : macOS && 'Chip power needs macmon; Scope never installs it.',
       !s.fresh && 'Last reading · not live.']),
   };

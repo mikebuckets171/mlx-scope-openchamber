@@ -7,24 +7,24 @@ import type { Reading } from './present/reading.ts';
 export const SAVED_LIMIT = 12;
 export const SAVED_KEY = 'observation.v1.';
 export const measurementLabels = {
-  generation: ['Reported generation', 'tok/s'], recentOutput: ['Recent observed output', 'tok/s'],
-  prefillRemaining: ['Prefill remaining', '%'], processed: ['Prefill processed', 'tokens'],
-  total: ['Prefill stage total', 'tokens'], stageEstimate: ['Reported stage estimate', 's'],
+  generation: ['Generation speed', 'tok/s'], recentOutput: ['Recent generation speed', 'tok/s'],
+  prefillRemaining: ['Prompt reading left', '%'], processed: ['Prompt tokens read', 'tokens'],
+  total: ['Prompt tokens being read', 'tokens'], stageEstimate: ['Estimated time left', 's'],
   active: ['Active requests', ''], queued: ['Queued requests', ''],
-  splashDecode: ['Splash server decode (all requests)', 'tok/s'],
-  splashCompleted: ['Splash completed requests since start', ''],
-  splashFailed: ['Splash failed requests since start', ''],
-  splashMetalCurrent: ['Splash GPU memory (Metal) · now', 'GiB'],
-  splashMetalPeak: ['Splash GPU memory (Metal) · peak', 'GiB'],
-  cpu: ['Host CPU', '%'], memory: ['Non-free host RAM', 'GiB'],
-  footprint: ['Runtime process footprint', 'GiB'], swap: ['Swap used', 'GiB'],
-  observedGeneration: ['Observed generation', 'tok/s'], generationSeconds: ['Generation observed', 's'],
-  tokenIncrements: ['Observed output increments', 'tokens'], duration: ['Window observed', 's'],
-  meanCPU: ['Mean sampled host CPU', '%'], meanMemory: ['Mean sampled non-free RAM', 'GiB'],
-  peakMemory: ['Peak sampled non-free RAM', 'GiB'], cpuSamples: ['CPU samples', ''],
-  memorySamples: ['RAM samples', ''], processSamples: ['Footprint samples', ''], requestCountChange: ['Reported completed-request change', ''],
-  samples: ['Samples', ''], peakCPU: ['Peak sampled host CPU', '%'],
-  peakFootprint: ['Peak sampled runtime footprint', 'GiB'],
+  splashDecode: ['Splash average generation speed since model start', 'tok/s'],
+  splashCompleted: ['Splash finished requests since model start', ''],
+  splashFailed: ['Splash failed requests since model start', ''],
+  splashMetalCurrent: ['Splash GPU memory now', 'GiB'],
+  splashMetalPeak: ['Splash peak GPU memory', 'GiB'],
+  cpu: ['Mac CPU use', '%'], memory: ['Memory allocated', 'GiB'],
+  footprint: ['Server memory in use', 'GiB'], swap: ['Swap in use', 'GiB'],
+  observedGeneration: ['Measured generation speed', 'tok/s'], generationSeconds: ['Time spent generating', 's'],
+  tokenIncrements: ['New output tokens', 'tokens'], duration: ['Recorded time', 's'],
+  meanCPU: ['Average CPU use', '%'], meanMemory: ['Average memory allocated', 'GiB'],
+  peakMemory: ['Peak memory allocated', 'GiB'], cpuSamples: ['CPU readings', ''],
+  memorySamples: ['Memory readings', ''], processSamples: ['Server memory readings', ''], requestCountChange: ['New finished requests', ''],
+  samples: ['Readings', ''], peakCPU: ['Peak CPU use', '%'],
+  peakFootprint: ['Peak server memory in use', 'GiB'],
 } as const;
 type Metric = keyof typeof measurementLabels;
 type Measurements = Partial<Record<Metric, number | null>>;
@@ -98,13 +98,13 @@ export const captureObservation = (capture: Capture, reference: Capture | null, 
     referenceState:reference.status === 'finished' ? 'finished' as const : 'interrupted' as const } : {}),
 });
 
-export const observationTitle = (item: Observation): string => item.kind === 'snapshot' ? 'Runtime snapshot' : item.kind === 'comparison' ? 'Capture with reference' : 'Observation capture';
+export const observationTitle = (item: Observation): string => item.kind === 'snapshot' ? 'Server snapshot' : item.kind === 'comparison' ? 'Capture with reference' : 'Recorded activity';
 export const observationReport = (item: Observation): string => {
   const lines = [`MLX Scope — ${observationTitle(item).toLowerCase()}`, `Saved: ${new Date(item.savedAt).toISOString()}`,
     `Observed: ${new Date(item.sampledAt).toISOString()} · ${item.state}${item.kind === 'snapshot' ? ` · ${item.phase}` : ''}`,
-    'Server-wide observations, not selected-chat attribution or a controlled benchmark. Differences do not establish causality.'];
+    'These readings cover all server activity. Other apps and chats can affect the results.'];
   if (Object.hasOwn(item.measurements, 'splashDecode') || Object.hasOwn(item.measurements, 'splashCompleted')) {
-    lines.push('Splash server decode is shared across all requests; its counters restart with Splash.');
+    lines.push('Splash averages include all requests since this model started.');
   }
   const print = (values: Measurements) => {
     for (const key of Object.keys(measurementLabels) as Metric[]) {
@@ -119,7 +119,7 @@ export const observationReport = (item: Observation): string => {
   print(item.measurements);
   if (item.reference) {
     lines.push(`Pinned reference: ${item.referenceSampledAt ? new Date(item.referenceSampledAt).toISOString() : 'time not recorded'} · ${item.referenceState ?? 'status not recorded'}`,
-      'Reference model identity is not stored.'); print(item.reference);
+      'The reference model name is not saved.'); print(item.reference);
   }
   return lines.join('\n');
 };

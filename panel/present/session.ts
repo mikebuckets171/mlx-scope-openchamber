@@ -1,63 +1,60 @@
 import type { Severity } from '../../src/contract/alerts.ts';
 import type { Basis } from '../../src/contract/capabilities.ts';
-import { SEVERITY_WORD } from './copy.ts';
+import { alertCopy, APPROVAL, NON_LOCAL, RESTART, SEVERITY_WORD, statusGlanceNote } from './copy.ts';
+import { dur, mmss } from './format.ts';
 import { attrChip, visibleAlerts } from './parts.ts';
-import { modelOf } from './scope.ts';
-import { presentGlance, type StatusSectionInput } from './status.ts';
+import { glanceModel } from './scope.ts';
+import { prefillReading } from '../progress.ts';
+import { presentSpeeds, type SpeedsView } from './speeds.ts';
+import type { StatusSectionInput } from './status.ts';
 
-/** The Session sidebar is a summary. Detailed measurements remain in the full Scope panel. */
+/** The host owns the Scope section heading. This instrument stays focused on current inference. */
 export interface SessionSectionView {
-  mode: 'summary' | 'non-local';
-  height: number;
-  phase: string;
-  tone: 'normal' | 'warning' | 'critical';
+  mode: 'summary' | 'non-local'; height: number; phase: string; tone: 'normal' | 'warning' | 'critical';
+  speeds: SpeedsView;
+  progress: { text: string; detail: string; basis: Basis };
   value: { text: string; unit: string | null; basis: Basis } | null;
-  model: string | null;
-  modelTitle: string | null;
+  model: string | null; modelTitle: string | null;
   scope: { text: string; detail: string | null; attr: 'inferred' | 'armed' | 'server' } | null;
-  age: string | null;
-  note: string | null;
+  age: string | null; note: string | null;
   alert: { label: string; value: string; severity: Severity; more: number } | null;
   cancelMeasurement: boolean;
 }
-
 export const presentSessionSection = (input: StatusSectionInput): SessionSectionView => {
-  // A saved Turn stats preference must not replace current activity with an empty or older reply.
-  const view = presentGlance({ ...input, expanded: false, tipDismissed: true, firstRunDismissed: true });
-  const glance = view.glance!, line = glance.line1, second = glance.line2;
-  let phase = line.title ?? line.word ?? (line.dot === 'prefill' ? 'Reading prompt' : line.rate ? 'Generating' : 'Working');
-  if (phase === 'Live') phase = input.snapshot?.runtime.phase === 'decode' ? 'Generating' : 'Server activity';
-  const value = line.rate !== null ? { text: line.rate, unit: line.unit, basis: line.rateBasis }
-    : second?.kind === 'prefill' ? { text: second.percent, unit: null, basis: 'reported' as const } : null;
-  let note: string | null = second?.kind === 'note' ? second.text : null;
-  if (second?.kind === 'prefill' && second.eta) note = `About ${second.eta} left · estimate`;
-  if (second?.kind === 'armed') note = `Waiting for your next reply · ${second.left} left`;
-  if (second?.kind === 'measuring') note = `Measuring next reply · ${second.elapsed}`;
-  // Without a current rate the older glance can carry the last reply's source. Current activity
-  // must use the current attribution, even when only the runtime's phase is available.
-  const currentActivity = !line.title && !value && input.snapshot
-    && ['decode', 'prefill', 'processing', 'queued'].includes(input.snapshot.runtime.phase)
-    && second?.kind !== 'armed' && second?.kind !== 'measuring';
-  const source = currentActivity ? attrChip(input.attribution, true) : line.chip;
-  const scope = source?.attr ? {
-    text: source.attr === 'server' ? 'Server-wide' : source.text,
-    detail: source.attr === 'server' ? source.reason ?? (second?.kind === 'spark' ? second.reason : null) : null,
-    attr: source.attr,
-  } : null;
-  const age = phase === 'Last reply' && value ? line.since : null;
-  const modelTitle = line.model ? (phase === 'Last reply' ? input.last?.completion.model : null)
-    ?? (input.snapshot ? modelOf(input.snapshot) : null) ?? line.model : null;
-  const alert = glance.alert ? {
-    label: glance.alert.text.startsWith('macOS memory pressure:') ? 'Memory pressure' : glance.alert.text,
-    value: SEVERITY_WORD[glance.alert.severity], severity: glance.alert.severity,
-    more: Math.max(0, (input.snapshot ? visibleAlerts(input.snapshot).length : 1) - 1),
-  } : null;
-  const nonLocal = view.mode === 'non-local';
-  // Each row has a fixed rhythm, with up to two lines for a connection/status explanation.
-  const height = nonLocal ? 24 : 8 + 24 + (line.model ? 24 : 0) + (scope || age ? 20 : 0)
-    + (note ? 36 : 0) + (alert ? 24 : 0) + 28;
-  return { mode: nonLocal ? 'non-local' : 'summary', height, phase,
-    tone: line.dot === 'bad' ? 'critical' : line.dot === 'warn' ? 'warning' : 'normal',
-    value, model: line.model, modelTitle, scope, age, note, alert,
-    cancelMeasurement: second?.kind === 'armed' || second?.kind === 'measuring' };
+  const speeds = presentSpeeds(input), snapshot = input.snapshot, next = input.next;
+  const measuring = next?.kind === 'armed' || next?.kind === 'measuring';
+  const source = attrChip(snapshot?.connection.runtime === 'splash' ? { kind: 'server-wide', reason: 'all-requests' }
+    : measuring ? { kind: 'armed' } : input.attribution, true);
+  const alerts = snapshot ? visibleAlerts(snapshot) : [], top = alerts[0];
+  const text = top ? alertCopy(top.id, top.params)[0] : '';
+  const alert = top ? { label: text.startsWith('macOS memory pressure:') ? 'Memory pressure' : text,
+    value: SEVERITY_WORD[top.severity], severity: top.severity, more: alerts.length - 1 } : null;
+  const frame = input.reading.body === null ? input.reading.reason : null;
+  const plainNote = snapshot?.status.reason === 'status_stale' ? 'Checking again automatically'
+    : snapshot?.status.reason === 'admin_unauthorized' ? 'Check access in MLX Scope'
+      : snapshot?.status.reason === 'metrics_required' ? 'Open MLX Scope for setup' : null;
+  const note = frame === 'needs_approval' ? APPROVAL.glance : frame === 'contract_mismatch' ? RESTART.glance
+    : speeds.speeds.some(speed => speed.detail.startsWith('Turn off Energy')) ? 'Turn off Energy saving to see speeds' : next?.kind === 'armed' ? `Waiting for your next reply · ${mmss(Math.max(0, 120_000 - (input.now - next.at)))} left`
+      : next?.kind === 'measuring' ? `Measuring next reply · ${dur(input.now - next.startedAt)}` : frame ? input.reading.message
+        : snapshot && (snapshot.status.reason !== null || snapshot.status.state !== 'ready') ? plainNote ?? statusGlanceNote(snapshot) : null;
+  const nonLocal = input.chatIsLocal === false;
+  const primary = speeds.speeds.find(speed => speed.value !== null);
+  const current = snapshot && input.fresh !== false && !input.paused && snapshot.status.state === 'ready' && snapshot.status.reason === null;
+  const progress = current && snapshot.capabilities['request.prefillProgress'] ? prefillReading(input.reading) : null;
+  const percent = progress?.percent != null ? progress.completed.replace(' complete', '') : null;
+  const progressView = { text: percent !== null ? `${percent}${progress!.stale ? ' (last seen)' : ''}`
+    : input.paused ? 'Paused' : input.fresh === false ? 'Updating…' : current && (snapshot.runtime.phase === 'prefill' || speeds.speeds[0]!.value !== null) ? 'Unavailable' : '—',
+    detail: percent !== null ? `Prompt read${progress!.stale ? ' · last seen' : ''}${progress!.counts ? ` · ${progress!.counts.done} of ${progress!.counts.total} tokens` : ''}`
+      : 'The server has not provided current prompt progress', basis: snapshot?.capabilities['request.prefillProgress']?.basis ?? 'reported' as Basis };
+  const model = speeds.model ? glanceModel(speeds.model) : null;
+  const phase = speeds.phase === 'Status stale' ? 'Waiting for update' : speeds.phase === 'Not admitting' ? 'Not accepting requests'
+    : snapshot?.status.reason === 'admin_unauthorized' ? 'Limited access' : speeds.phase;
+  const sourceText = source.attr === 'server' ? 'All server activity' : source.attr === 'inferred' ? 'Likely this chat' : 'Next reply';
+  return { mode: nonLocal ? 'non-local' : 'summary', height: nonLocal ? 24 : 142 + (note ? 30 : 0) + (alert ? 24 : 0),
+    phase: nonLocal ? NON_LOCAL : input.paused ? 'Paused' : frame === 'needs_approval' ? 'Needs approval' : frame === 'contract_mismatch' ? 'Needs restart' : frame ? 'Reconnecting' : phase,
+    tone: nonLocal ? 'normal' : alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
+    speeds, progress: progressView, value: nonLocal || !primary ? null : { text: primary.value!, unit: 'tok/s', basis: primary.basis },
+    model: nonLocal ? null : model, modelTitle: nonLocal ? null : speeds.model,
+    scope: nonLocal ? null : { text: sourceText, detail: source.reason ?? null, attr: source.attr! },
+    age: null, note: nonLocal ? null : note, alert: nonLocal ? null : alert, cancelMeasurement: !nonLocal && measuring };
 };

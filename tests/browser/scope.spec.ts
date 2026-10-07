@@ -29,8 +29,8 @@ for (const transport of ['direct', 'relay']) {
     expect(item).toMatchObject({ providerId: 'mlx-scope', id: 'mlx-scope-diagnostics', title: 'MLX Scope diagnostics', kind: 'issue' });
     expect(item.url).toMatch(/^https:\/\/github\.com\/mikebuckets171\/mlx-scope-openchamber\/blob\/(main|v\d+\.\d+\.\d+)\/README\.md#scope-diagnostics$/);
     expect(item.text!.split('\n')[0]).toBe("Sent to this chat's model, which may be a cloud provider.");
-    expect(item.text).toContain('Runtime: oMLX, status ready, phase decode');
-    expect(item.text).toMatch(/Current request: decode \d+(\.\d)? tok\/s \(reported\)/);
+    expect(item.text).toContain('Server: oMLX, status ready, phase decode');
+    expect(item.text).toMatch(/Current request: generation \d+(\.\d)? tok\/s \(reported\)/);
     for (const canary of ['CANARY', '/Users/', 'sk-CANARY', 'Qwen3.8', 'Local coding session', 'synthetic-chat']) expect(JSON.stringify(item)).not.toContain(canary);
   });
 }

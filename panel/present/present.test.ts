@@ -47,8 +47,8 @@ test('decode: one hero speed with its basis ⓘ, context used, the request tiles
   const view = presentLive(inputOf('decode')), hero = view.hero!;
   expect(heroKind(inputOf('decode'))).toBe('decode');
   expect(hero.title).toBe('Example-27B-4bit');
-  expect(hero.body).toMatchObject({ kind: 'decode', rate: '26.4', source: 'Reported by oMLX', chart: null });
-  expect(hero.attr?.chip).toEqual({ text: 'This chat · inferred', attr: 'inferred' });
+  expect(hero.body).toMatchObject({ kind: 'decode', rate: '26.4', source: 'From oMLX', chart: null });
+  expect(hero.attr?.chip).toEqual({ text: 'Likely this chat', attr: 'inferred' });
   expect(hero.attr?.tip.paras.join(' ')).toContain('Alternating requests from another chat can’t be ruled out.');
   expect(hero.context?.used).toBe('52.7K of 131K tokens');
   expect(hero.reply?.values.map(v => [v.strong, v.unit, v.basis])).toEqual([['24.9', 'tok/s', 'last-observed'], ['1,104', 'out', 'reported']]);
@@ -57,14 +57,14 @@ test('decode: one hero speed with its basis ⓘ, context used, the request tiles
     ['Input reused', '83%', '43.0K cached'], ['Requests', '1', 'Queue clear']]);
   const mac = view.mac!;
   expect(mac.title).toBe('This Mac');
-  expect(mac.line.map(item => `${item.label} ${item.value}`)).toEqual(['CPU 31%', 'RAM 36.1 / 48 GiB', 'Swap 1.1 GiB']);
-  expect(mac.rows.map(row => `${row.label}: ${row.value.text} (${row.level})`)).toEqual(['macOS memory pressure (kernel): Normal (normal)', 'Thermal pressure (macOS): Normal (normal)']);
-  expect(mac.details.map(row => row.label)).toEqual(['GPU busy (driver-reported)', 'GPU memory · driver-reported', 'oMLX model memory vs macOS GPU wired limit',
-    'oMLX process listening on :8000', 'Chip power · estimate', 'tok/J · this request']);
+  expect(mac.line.map(item => `${item.label} ${item.value}`)).toEqual(['CPU 31%', 'Memory allocated 36.1 / 48 GiB', 'Swap 1.1 GiB']);
+  expect(mac.rows.map(row => `${row.label}: ${row.value.text} (${row.level})`)).toEqual(['Memory pressure: Normal (normal)', 'Heat status: Normal (normal)']);
+  expect(mac.details.map(row => row.label)).toEqual(['GPU busy', 'GPU memory', 'oMLX model memory / GPU memory limit',
+    'oMLX process memory (:8000)', 'Chip power', 'Tokens per joule · this request']);
   expect(mac.details.find(row => row.key === 'power')?.value).toEqual({ text: '38.4 W', basis: 'estimate' });
   // The concise ⓘ still names the driver, shared memory, and whole-chip power scope.
-  expect(mac.tip.paras.join(' ')).toContain('Driver GPU readings never alert. GPU memory includes reserves and other apps, not just the model.');
-  expect(mac.tip.paras.join(' ')).toContain('macmon estimates CPU+GPU+ANE power across all apps, not wall power.');
+  expect(mac.tip.paras.join(' ')).toContain('GPU readings come from macOS and do not trigger warnings. GPU memory includes reserves and other apps, not just the model.');
+  expect(mac.tip.paras.join(' ')).toContain('macmon estimates power used by all parts of the chip across all apps, not power at the wall.');
   expect(view.callouts).toEqual([]);
 });
 
@@ -75,22 +75,22 @@ test('the live chart appears only after 2 readings and never draws across a gap'
   expect(chart.ceiling).toBe('30 tok/s');
   expect(chart.line.match(/M/g)).toHaveLength(2);
   expect(chart.mark).not.toBeNull();
-  expect(chart.label).toMatch(/^Decode · request average, last 20 s: 25\.0 to 26\.4 tokens per second, now 26\.2$/);
+  expect(chart.label).toMatch(/^Generation speed · average for this request, last 20 s: 25\.0 to 26\.4 tokens per second, now 26\.2$/);
 });
 
 test('attribution chips: inferred and armed say so; server-wide always names its reason', () => {
   const chip = (attribution: AttributionLabel) => presentLive(inputOf('decode', { attribution })).hero!.attr!.chip;
-  expect(chip({ kind: 'armed' })).toEqual({ text: 'Next reply · armed', attr: 'armed', outline: true });
-  expect(chip({ kind: 'server-wide', reason: 'model-differs' }).text).toBe('Server-wide · chat model differs');
+  expect(chip({ kind: 'armed' })).toEqual({ text: 'Next reply', attr: 'armed', outline: true });
+  expect(chip({ kind: 'server-wide', reason: 'model-differs' }).text).toBe('All server activity · different chat model');
   expect(presentLive(inputOf('decode', { attribution: { kind: 'server-wide', reason: 'other-provider' }, chatRuntime: 'Splash' })).hero!.attr!.chip.text)
-    .toBe('Server-wide · this chat uses Splash');
+    .toBe('All server activity · this chat uses Splash');
   // Readings server-wide by nature carry their own reason, whatever the join says.
-  expect(presentLive(inputOf('llama')).hero!.attr!.chip.text).toBe('Server-wide · overlapping requests');
-  expect(presentLive(inputOf('ollama')).hero!.attr!.chip.text).toBe('Server-wide · runtime can’t count requests');
-  expect(presentLive(inputOf('admin-unauthorized')).hero!.attr!.chip.text).toBe('Server-wide · all requests');
+  expect(presentLive(inputOf('llama')).hero!.attr!.chip.text).toBe('All server activity · several requests at once');
+  expect(presentLive(inputOf('ollama')).hero!.attr!.chip.text).toBe('All server activity · request count unavailable');
+  expect(presentLive(inputOf('admin-unauthorized')).hero!.attr!.chip.text).toBe('All server activity · all requests');
 });
 
-test('prefill: progress, counts and the runtime\'s own estimate lead; three tiles while nothing is output', () => {
+test('prefill: progress, counts and the server\'s own estimate lead; three tiles while nothing is output', () => {
   const view = presentLive(inputOf('prefill'));
   expect(view.hero!.body).toMatchObject({ kind: 'prefill', percent: '64%', counts: '5,824 of 9,100 new tokens read', eta: '18 s', rate: '185' });
   expect(view.tiles.map(tile => tile.label)).toEqual(['Elapsed', 'Input reused', 'Requests']);
@@ -111,9 +111,9 @@ test('status messages own the view: one callout, the rest behind "N more", runti
   expect(presentLive(inputOf('pressure-critical')).callouts[0]).toMatchObject({ severity: 'critical', title: 'macOS memory pressure: critical' });
   expect(presentLive(inputOf('runtime-changed')).callouts[0]).toMatchObject({ title: 'Looks like Splash now', action: { kind: 'switch', label: 'Switch to Splash' } });
   expect(presentLive(inputOf('splash-recovering')).callouts[0]).toMatchObject({ severity: 'warning', title: 'Splash is recovering' });
-  expect(presentLive(inputOf('thermal')).callouts[0]?.title).toBe('Thermal pressure: heavy');
+  expect(presentLive(inputOf('thermal')).callouts[0]?.title).toBe('Heat: heavy');
   expect(presentLive(inputOf('model-unloaded')).callouts[0]?.title).toBe('Example-27B-4bit was unloaded');
-  expect(presentLive(inputOf('memory-guard')).callouts[0]?.detail).toContain('not macOS memory pressure');
+  expect(presentLive(inputOf('memory-guard')).callouts[0]?.detail).toContain('Reported by oMLX · new requests wait until enough memory is available');
 });
 
 test('paused, stale and frame states never show a live rate', () => {
@@ -151,20 +151,20 @@ test('header: phase words and the accent state per status', () => {
   expect(header('llama-sleeping').phase).toBe('Asleep');
 });
 
-test('Server: the runtime card with its detection basis, then only the cards the runtime fills', () => {
+test('Server: the server card with its detection basis, then only the cards the server fills', () => {
   const cards = (state: string) => presentServer(snapshotOf(state), MOCK_NOW).cards;
   const omlx = cards('decode');
-  expect(omlx.map(card => card.title)).toEqual(['Runtime', 'Runtime memory', 'Cache & input', 'Loaded models', 'Server session']);
+  expect(omlx.map(card => card.title)).toEqual(['Server', 'Model memory', 'Cache & input', 'Loaded models', 'Overall average']);
   expect(everything(omlx[0])).toContain('/health answered · high confidence');
-  expect(everything(omlx[0])).toContain('Last observed by Scope');
-  expect(everything(omlx[1])).toContain('Engine-pool ceiling');
-  expect(cards('llama').map(card => card.title)).toEqual(['Runtime', 'Slots', 'Server throughput', 'Speculative decoding', 'Model inventory']);
+  expect(everything(omlx[0])).toContain('Last reading');
+  expect(everything(omlx[1])).toContain('Model memory limit');
+  expect(cards('llama').map(card => card.title)).toEqual(['Server', 'Slots', 'All server speeds', 'Draft token reuse', 'Model inventory']);
   expect(everything(cards('llama'))).toContain('derived');
-  expect(everything(cards('ollama'))).toContain('GPU-resident (Ollama-reported)');
+  expect(everything(cards('ollama'))).toContain('GPU memory (from Ollama)');
   const bionic = cards('bionic').map(card => card.title);
-  expect(bionic).toContain('Engines');
+  expect(bionic).toContain('Model software');
   expect(bionic).toContain('Loaded instances');
-  expect(everything(cards('splash-recovering'))).toContain('Splash native · last observed');
+  expect(everything(cards('splash-recovering'))).toContain('Splash · last reading');
 });
 
 const statusOf = (state: string, extra: Partial<StatusSectionInput> = {}) => {
@@ -177,13 +177,13 @@ const trend = (values: Array<number | null>): TrendV2 => ({ contractVersion: 2, 
   series: { decodeTps: { basis: 'reported', buckets: values.map(v => v === null ? null : [v, v, v]) } }, gaps: [], marks: [] });
 
 test('Work Status glance: 56 px, 80 with an alert, 24 for a non-local chat, 96 with the one-time tip', () => {
-  expect(statusOf('decode')).toMatchObject({ mode: 'glance', height: HEIGHTS.glance, glance: { line1: { model: 'Example-27B', rate: '26.4', chip: { text: 'This chat · inferred' } } } });
+  expect(statusOf('decode')).toMatchObject({ mode: 'glance', height: HEIGHTS.glance, glance: { line1: { model: 'Example-27B', rate: '26.4', chip: { text: 'Likely this chat' } } } });
   expect(statusOf('pressure')).toMatchObject({ height: HEIGHTS.alert, glance: { alert: { severity: 'warning', text: 'macOS memory pressure: warning', more: 1 } } });
   expect(statusOf('decode', { chatIsLocal: false })).toMatchObject({ mode: 'non-local', height: 24 });
   expect(statusOf('decode', { tipDismissed: false })).toMatchObject({ height: 96, glance: { line2: null, notice: { text: TIP, dismiss: 'tip' } } });
   // A server-wide chip is short and needs its reason line, so the reason stays beside the tip.
   expect(statusOf('decode', { tipDismissed: false, attribution: { kind: 'server-wide', reason: 'not-observed' } }))
-    .toMatchObject({ height: 120, glance: { line1: { chip: { text: 'Server-wide' }, describedBy: true }, line2: { reason: 'not observed' }, notice: { dismiss: 'tip' } } });
+    .toMatchObject({ height: 120, glance: { line1: { chip: { text: 'All server activity' }, describedBy: true }, line2: { reason: 'not recorded' }, notice: { dismiss: 'tip' } } });
   expect(TIP).toBe('Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place');
   expect(statusOf('idle', { firstRun: true })).toMatchObject({ height: 80, glance: { notice: { text: 'Recording reply history locally', action: 'Open Scope to manage' } } });
   expect(statusOf('prefill').glance!.line2).toEqual({ kind: 'prefill', percent: '64%', eta: '18 s', toggle: true });
@@ -193,8 +193,8 @@ test('Work Status glance: 56 px, 80 with an alert, 24 for a non-local chat, 96 w
   expect(approval).toMatchObject({ height: 56, glance: { line1: { title: 'MLX Scope 2.0 needs one approval' } } });
   // A withheld live reading: a short chip whose reason is line 2.
   const withheld = statusOf('decode', { attribution: { kind: 'server-wide', reason: 'model-differs' } });
-  expect(withheld.glance!.line1).toMatchObject({ chip: { text: 'Server-wide' }, describedBy: true });
-  expect(withheld.glance!.line2).toMatchObject({ kind: 'spark', reason: 'chat model differs' });
+  expect(withheld.glance!.line1).toMatchObject({ chip: { text: 'All server activity' }, describedBy: true });
+  expect(withheld.glance!.line2).toMatchObject({ kind: 'spark', reason: 'different chat model' });
   // The glance reserves its limited space for reply measurements and warnings; GPU remains in details.
   expect(statusOf('decode').glance!.line2).toMatchObject({ chips: [] });
   expect(statusOf('pressure-critical').glance!.alert).toMatchObject({ severity: 'critical' });
@@ -206,7 +206,7 @@ test('the sparkline needs 2 readings and breaks where the trend has no reading',
   expect(statusOf('decode', { sparkline: trend([null, 26, null]) }).glance!.line2).toMatchObject({ spark: null });
   const line = statusOf('decode', { sparkline: trend([25, 26, null, 24, 25]) }).glance!.line2 as { spark: { path: string; label: string } };
   expect(line.spark.path.match(/M/g)).toHaveLength(2);
-  expect(line.spark.label).toBe('Decode speed, last 15 min: 24.0 to 26.0 tokens per second');
+  expect(line.spark.label).toBe('Generation speed, last 15 min: 24.0 to 26.0 tokens per second');
 });
 
 test('Turn stats replacement: the host\'s rows, basis only on non-reported rows, unreportable rows left out, ≤ 200 px', () => {
@@ -217,9 +217,9 @@ test('Turn stats replacement: the host\'s rows, basis only on non-reported rows,
   const bionic = statusOf('bionic', fullTurn);
   expect(bionic.mode).toBe('turn-stats');
   expect(bionic.rows.map(row => row.label)).toEqual(['Response', 'Turn time', 'Model · tool time', 'First token', 'Tokens in · out', 'Cache %', 'Context used', 'vs usual']);
-  expect(bionic.rows.map(row => row.basis)).toEqual(['derived', 'observed', 'observed', null, null, null, 'derived', 'derived']);
+  expect(bionic.rows.map(row => row.basis)).toEqual(['derived', 'observed', 'observed', null, null, null, 'calculated', 'derived']);
   expect(bionic.height).toBe(192);
-  expect(bionic.turn).toMatchObject({ title: 'Last turn', sub: '3 steps', chip: { text: 'This chat · inferred' } });
+  expect(bionic.turn).toMatchObject({ title: 'Last turn', sub: '3 steps', chip: { text: 'Likely this chat' } });
   const pressure = snapshotOf('pressure'), warning = { ...snapshotOf('bionic'), alerts: pressure.alerts, host: pressure.host };
   const largest = statusOf('bionic', { ...fullTurn, snapshot: warning });
   expect(largest.rows).toEqual(bionic.rows);
@@ -228,13 +228,13 @@ test('Turn stats replacement: the host\'s rows, basis only on non-reported rows,
   // oMLX reports no TTFT: the row is left out, and token counts are Scope's last readings.
   const omlx = statusOf('idle', { expanded: true, turn: { ...summary, firstTtftMs: null }, last: { completion: snapshotOf('idle').completions.items.at(-1)!, label: { kind: 'inferred' } } });
   expect(omlx.rows.map(row => row.label)).not.toContain('First token');
-  expect(omlx.rows.find(row => row.label === 'Tokens in · out')?.basis).toBe('last observed');
-  expect(omlx.rows.find(row => row.label === 'Context used')?.basis).toBe('last observed');
+  expect(omlx.rows.find(row => row.label === 'Tokens in · out')?.basis).toBe('last reading');
+  expect(omlx.rows.find(row => row.label === 'Context used')?.basis).toBe('last reading');
   // A withheld turn: no summary; the last reply, server-wide, with its reason.
   const withheld = statusOf('bionic', { expanded: true, last: { completion: snapshotOf('bionic').completions.items.at(-1)!, label: { kind: 'server-wide', reason: 'overlap' } } });
-  expect(withheld.turn).toMatchObject({ title: 'Last reply', reason: 'overlapping requests · no turn summary', chip: { text: 'Server-wide' } });
+  expect(withheld.turn).toMatchObject({ title: 'Last reply', reason: 'several requests at once · no turn summary', chip: { text: 'All server activity' } });
   expect(withheld.rows.map(row => row.label)).toEqual(['Response', 'First token', 'Tokens in · out', 'Cache %', 'Context used']);
-  expect(withheld.rows.find(row => row.label === 'Context used')?.basis).toBe('derived');
+  expect(withheld.rows.find(row => row.label === 'Context used')?.basis).toBe('calculated');
   for (const view of [bionic, omlx, withheld]) expect(view.height).toBeLessThanOrEqual(200);
 });
 
@@ -251,9 +251,9 @@ test('captures, recent generations and saved values format bytes through the one
     peakProcessBytes: 34.5e9, processSamples: 3, meanCPU: 28.44, peakCPU: 35.1, cpuSamples: 6, meanMemoryBytes: Math.round(36.1 * 1024 ** 3),
     peakMemoryBytes: 48 * 1024 ** 3, memorySamples: 6, requestCountChange: 2, startSwapBytes: null, lastSwapBytes: null, status: 'finished' as const, note: 'n' };
   expect(presentCapture(capture, null, false, null)).toMatchObject({ state: 'Captured', speed: '25.0 tok/s', memory: '32.1 GiB', cpu: '28.4 / 35.1 %',
-    hostMemory: '36.1 / 48.0 GiB', requests: '2', duration: '12.3s', change: 'Different observation' });
+    hostMemory: '36.1 / 48.0 GiB', requests: '2', duration: '12.3s', change: 'Different recording' });
   expect(presentGeneration({ sequence: 1, model: 'org/model', epoch: 1, firstSeenAt: 0, lastSeenAt: 0, outputTokens: 1_234, averageTPS: 24,
     elapsedMs: 1_000, promptTokens: null, cachedTokens: null, peakProcessBytes: 34.5e9, coverage: 'monitoring-gap' }))
-    .toMatchObject({ name: 'model', speed: '24 tok/s', tokens: '1,234 tokens last seen', note: 'Monitoring gap · 32.1 GiB peak observed footprint' });
+    .toMatchObject({ name: 'model', speed: '24 tok/s', tokens: '1,234 tokens last seen', note: 'Monitoring gap · 32.1 GiB peak server memory' });
   expect([savedValue('prefillRemaining', 0.4), savedValue('memory', 36.10000000037253), savedValue('cpu', null)]).toEqual(['<1', '36.1', '—']);
 });

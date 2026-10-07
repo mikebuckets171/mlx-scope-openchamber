@@ -14,8 +14,8 @@ export const SCOPE_PATH = '/v2/snapshot';
 export const SCOPE_QUERY = { surface: 'background', tier: 'glance' } as const;
 export const PROVIDER = /^[^\0-\x1f\x7f]{1,120}$/;
 export const SCOPE_ERRORS = {
-  approval: 'Approve MLX Scope in Settings → Extensions and retry /scope.',
-  unreachable: 'MLX Scope’s service did not answer. Open MLX Scope and retry /scope.',
+  approval: 'Allow MLX Scope in Settings → Extensions; retry /scope.',
+  unreachable: 'Open MLX Scope; retry /scope. Service unavailable.',
   mismatch: 'MLX Scope’s service is out of date. Pause and resume MLX Scope in Settings → Extensions.',
 } as const;
 
@@ -31,7 +31,6 @@ const hostFailure = (error: unknown): never =>
  */
 export const resolveScope = async (host: Pick<HostClient, 'serviceRequest' | 'storage'>, request: ResolveRequest,
   now: () => number = Date.now): Promise<AttachIssueRequest | null> => {
-  void request;
   // The connection the panel and Work Status watch (`connection.selection`, validated as the service does); Automatic
   // when unset or unreadable.
   // The provider rule is guards.ts `isConnectionId`, restated for the bundle size; a test pins it.
@@ -39,8 +38,7 @@ export const resolveScope = async (host: Pick<HostClient, 'serviceRequest' | 'st
   const provider = saved?.provider, runtime = runtimeKind(saved?.runtime);
   const query = { ...SCOPE_QUERY, ...typeof provider == 'string' && PROVIDER.test(provider) && { provider }, ...runtime && { runtime } };
   const reading = host.serviceRequest({ method: 'GET', path: SCOPE_PATH, query }).then(response => {
-    if (response.status === 404) fail(SCOPE_ERRORS.mismatch);
-    if (response.status !== 200) fail(SCOPE_ERRORS.unreachable);
+    if (response.status !== 200) fail(response.status === 404 ? SCOPE_ERRORS.mismatch : SCOPE_ERRORS.unreachable);
     let body: unknown;
     // serviceRequest answers with the body as a string (SPIKES S1).
     try { body = JSON.parse(response.body as string); } catch { fail(SCOPE_ERRORS.unreachable); }
@@ -51,4 +49,3 @@ export const resolveScope = async (host: Pick<HostClient, 'serviceRequest' | 'st
   const snapshot = await reading;
   return scopeItem(scopeText({ version, now: now(), snapshot, vsUsual: await usual }), scopeReadme(version));
 };
-

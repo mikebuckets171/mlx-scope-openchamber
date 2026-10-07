@@ -66,6 +66,24 @@ test.each(LEAKS)('rejects a body carrying %s', (_, leak) => {
   expect(parseSnapshotV2(body)).toBeNull();
 });
 
+test('server rates preserve an independent prompt window without changing existing shared-window bodies', () => {
+  const rates = (value: Body, capability = true) => parseSnapshotV2(edit(body => {
+    body.runtime.server.rates = value;
+    if (capability) body.capabilities['server.rates'] = { scope: 'server', basis: 'derived' };
+    else delete body.capabilities['server.rates'];
+  }))!.runtime.server.rates;
+  expect(rates({ decodeTps: 50, promptTps: 1000, windowMs: 4000, promptWindowMs: 2350.5 }))
+    .toEqual({ decodeTps: 50, promptTps: 1000, windowMs: 4000, promptWindowMs: 2350.5 });
+  expect(rates({ promptTps: 1000, windowMs: 2500, promptWindowMs: 2500 }))
+    .toEqual({ promptTps: 1000, windowMs: 2500, promptWindowMs: 2500 });
+  expect(rates({ decodeTps: 50, promptTps: 1000, windowMs: 60000 }))
+    .toEqual({ decodeTps: 50, promptTps: 1000, windowMs: 60000 });
+  for (const promptWindowMs of [true, '2500', -1, NaN, Infinity]) {
+    expect(rates({ decodeTps: 50, windowMs: 4000, promptWindowMs })).toEqual({ decodeTps: 50, windowMs: 4000 });
+  }
+  expect(rates({ promptTps: 1000, windowMs: 2500, promptWindowMs: 2500 }, false)).toBeUndefined();
+});
+
 test('values are rebuilt from allowlists: unknown or malformed fields are dropped, lists capped', () => {
   const parsed = parseSnapshotV2(edit(body => {
     body.extra = 'dropped';
@@ -113,6 +131,18 @@ test('prefill cross-field rules match 1.6', () => {
   expect(prefill({ prefillFraction: 0.64, prefillStale: true })).not.toHaveProperty('prefillEtaMs');
   expect(prefill({ prefillFraction: 1 })).not.toHaveProperty('prefillEtaMs');
   expect(prefill({ prefillFraction: 0.64, prefillTps: 0 })).not.toHaveProperty('prefillEtaMs');
+});
+test('the native progress observation timestamp is safe, capability-gated and retained only with current prefill progress', () => {
+  const observed = 1_790_690_700_000;
+  expect(prefill({ prefillProcessedTokens: 999, prefillTotalTokens: 1000, prefillObservedAt: observed }))
+    .toMatchObject({ prefillFraction: 0.999, prefillObservedAt: observed });
+  for (const value of [true, '1790690700000', -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER, 8.64e15 + 1])
+    expect(prefill({ prefillFraction: 0.5, prefillObservedAt: value })).not.toHaveProperty('prefillObservedAt');
+  expect(prefill({ prefillFraction: 0.5, prefillObservedAt: observed }, 'decode')).not.toHaveProperty('prefillObservedAt');
+  expect(prefill({ prefillProcessedTokens: 999, prefillTotalTokens: 0, prefillObservedAt: observed })).not.toHaveProperty('prefillObservedAt');
+  const missing = edit(body => { body.runtime.phase = 'prefill'; body.runtime.request = { prefillFraction: 0.5, prefillObservedAt: observed };
+    delete body.capabilities['request.prefillProgress']; });
+  expect(parseSnapshotV2(missing)!.runtime.request).not.toHaveProperty('prefillObservedAt');
 });
 test('per-model and per-slot speeds only while a single request makes them honest', () => {
   const runtime = parseSnapshotV2(edit(body => {

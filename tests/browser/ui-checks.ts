@@ -68,10 +68,10 @@ export const inspect = (options: boolean | { openAll: boolean; backdrop: string[
   for (const chip of Array.from(document.querySelectorAll<HTMLElement>('.chip[data-attr]'))) {
     if (!visible(chip)) continue;
     const t = chip.textContent!.trim(), desc = chip.getAttribute('aria-describedby'), target = desc ? document.getElementById(desc) : null;
-    const describedOk = t === 'Server-wide' && target && target.textContent!.includes(chip.dataset.reason ?? '\u0000') && visible(target);
-    if (!/^(This chat · inferred|Next reply · armed|Server-wide · .+)$/.test(t) && !describedOk) problems.push(`attribution chip "${t}" (server-wide needs its reason)`);
+    const describedOk = t === 'All server activity' && target && target.textContent!.includes(chip.dataset.reason ?? '\u0000') && visible(target);
+    if (!/^(Likely this chat|Next reply|All server activity · .+)$/.test(t) && !describedOk) problems.push(`attribution chip "${t}" (server-wide needs its reason)`);
   }
-  if (/This chat(?! · inferred| uses|’s| runs| was| has|, then)/.test(text)) problems.push('"This chat" without "inferred"');
+  if (/This chat(?! · inferred| uses| is not using a local model|’s| runs| was| has|, then)/.test(text)) problems.push('"This chat" without "inferred"');
   for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-basis]:not([data-basis="reported"])'))) {
     if (!visible(el) || el.classList.contains('chip')) continue;
     const label = el.querySelector('.basis') ?? (el.nextElementSibling?.classList.contains('basis') ? el.nextElementSibling : null);
@@ -93,7 +93,7 @@ export const inspect = (options: boolean | { openAll: boolean; backdrop: string[
   for (const el of Array.from(document.querySelectorAll<HTMLElement>('[title]'))) {
     // Session model names may ellipsize and provenance explains its source in a title. Their visible labels still
     // identify the model and scope; neither is a tooltip-only control or an omitted measurement.
-    if (el.closest('#ws[data-presentation="session"]') && el.matches('.ws-phase, .ws-model, .ws-scope, .ws-note, .ws-label')) continue;
+    if (el.closest('#ws[data-presentation="session"]') && el.matches('.ws-phase, .ws-model, .ws-scope, .ws-note, .ws-label, .speed-row dd')) continue;
     if (el.closest('#scope')) problems.push(`tooltip-only text on <${el.tagName.toLowerCase()}>: "${el.title.slice(0, 30)}"`);
   }
   for (const c of Array.from(document.querySelectorAll('.plot, .ws-spark'))) if (c.getAttribute('role') !== 'img' || !c.getAttribute('aria-label')) problems.push(`chart without role="img" and a summary: ${c.className}`);
@@ -116,6 +116,6 @@ export const inspect = (options: boolean | { openAll: boolean; backdrop: string[
     for (const dd of Array.from(ws.querySelectorAll('.ts-rows dd'))) if (dd.scrollWidth > dd.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: row value truncated ("${dd.textContent}")`);
   }
   const compact = document.querySelector<HTMLElement>('.scope[data-compact="true"]');
-  if (compact && compact.scrollHeight > 160) problems.push(`compact rail ${compact.scrollHeight} px tall (limit 160)`);
+  if (compact && compact.scrollHeight > 200) problems.push(`compact rail ${compact.scrollHeight} px tall (limit 200)`);
   return problems;
 };

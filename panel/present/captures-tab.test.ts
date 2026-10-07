@@ -21,14 +21,14 @@ describe('Captures tab presenter (plan §5.9, G2 mock)', () => {
     expect(presentCaptures(input()).next).toEqual(expect.objectContaining({ state: 'idle', note: 'Measures your next reply in this chat, then stops.',
       actions: [{ action: 'arm', label: 'Measure next reply', primary: true }] }));
     const armed = presentCaptures(input({ next: { kind: 'armed', at: NOW - 12_000 } })).next;
-    expect(armed).toEqual(expect.objectContaining({ state: 'armed', chip: { attr: 'armed', text: 'Next reply · armed', reason: null }, time: { value: '1:48', suffix: ' left' },
+    expect(armed).toEqual(expect.objectContaining({ state: 'armed', chip: { attr: 'armed', text: 'Next reply', reason: null }, time: { value: '1:48', suffix: ' left' },
       actions: [{ action: 'cancel', label: 'Cancel' }] }));
     expect(presentCaptures(input({ next: { kind: 'measuring', startedAt: NOW - 38_200, steps: [] } })).next)
       .toEqual(expect.objectContaining({ state: 'measuring', note: 'Measuring next reply', time: { value: '38 s', suffix: '' } }));
   });
   test('it won’t arm for another runtime, a runtime without replies, a paused monitor or a frame without chat activity', () => {
     expect(presentCaptures(input({ next: { kind: 'offer-watch', runtime: 'Splash' } })).next)
-      .toEqual(expect.objectContaining({ state: 'offer-watch', note: 'Next reply needs this chat’s runtime.', actions: [{ action: 'watch', label: 'Watch Splash' }] }));
+      .toEqual(expect.objectContaining({ state: 'offer-watch', note: 'Choose this chat’s server to measure its next reply.', actions: [{ action: 'watch', label: 'Watch Splash' }] }));
     expect(presentCaptures(input({ completions: false, runtimeName: 'Ollama' })).next).toEqual(expect.objectContaining({ state: 'unavailable',
       note: 'Ollama doesn’t report replies, so Next reply can’t measure one.', actions: [] }));
     expect(presentCaptures(input({ paused: true })).next.note).toBe('Resume monitoring to measure a reply.');
@@ -39,9 +39,9 @@ describe('Captures tab presenter (plan §5.9, G2 mock)', () => {
     const steps = [step(1, { outputTokens: 600, decodeTps: 30, ttftMs: 520, promptTokens: 50_000, cachedTokens: 40_000 }),
       step(2, { outputTokens: 604, decodeTps: 20, promptTokens: 3400, cachedTokens: 4800 })];
     const view = presentCaptures(input({ next: result(steps) })).next;
-    expect(view.result).toEqual({ chip: { attr: 'armed', text: 'Next reply · armed', reason: null }, ago: '9 s ago',
-      values: [{ text: '24.0 tok/s', basis: 'derived', note: 'derived' }, { text: '1,204 out', basis: 'reported', note: null }, { text: 'TTFT 0.52 s', basis: 'reported', note: null }],
-      split: [{ text: 'Turn 29 s', basis: 'observed', note: 'observed' }] });
+    expect(view.result).toEqual({ chip: { attr: 'armed', text: 'Next reply', reason: null }, ago: '9 s ago',
+      values: [{ text: '24.0 tok/s', basis: 'derived', note: 'calculated' }, { text: '1,204 out', basis: 'reported', note: null }, { text: 'First token 0.52 s', basis: 'reported', note: null }],
+      split: [{ text: 'Turn 29 s', basis: 'observed', note: 'measured' }] });
     expect(view.actions.map(a => a.label)).toEqual(['Save to Captures', 'Measure again']);
     expect(presentCaptures(input({ next: result(steps), nextSaved: true })).next.actions.map(a => a.label)).toEqual(['Measure again']);
   });
@@ -49,7 +49,7 @@ describe('Captures tab presenter (plan §5.9, G2 mock)', () => {
     const steps = [step(1, { outputTokens: 100, decodeTps: 20, verdict: { attr: 'armed', at: NOW } }), step(2, { outputTokens: 100, decodeTps: 20, verdict: { attr: 'withheld', reason: 'overlap', at: NOW } })];
     const view = presentCaptures(input({ next: result(steps, false) })).next;
     expect(view.result!.chip).toEqual({ attr: 'server', text: 'Server-wide · overlapping requests', reason: 'overlap' });
-    expect(view.note).toBe('A step couldn’t be tied to this chat, so this reply is server-wide.');
+    expect(view.note).toBe('A step couldn’t be matched to this chat. Readings cover all server activity.');
     expect(nextReplyCapture(result(steps, false) as never, 'omlx', NOW).label).toBe('server-wide');
   });
   test('a saved Next reply is numbers and a runtime kind; one step keeps its own basis, and a last-observed TTFT is left out', () => {
@@ -65,9 +65,9 @@ describe('Captures tab presenter (plan §5.9, G2 mock)', () => {
     const view = presentCaptures(input({ saved, reference: `v2:${NOW - 3_600_000}` })).saved;
     expect(view.right).toBe('3 of 12 · oldest replaced when full');
     expect(view.rows.map(r => [r.at, r.rate?.text, r.rate?.note, r.title, r.chip.text, r.comparing, r.delta?.text])).toEqual([
-      ['14:04', '25.1 tok/s', null, 'Next reply · oMLX', 'Next reply · armed', false, '+2% vs reference'],
-      ['13:05', '24.6 tok/s', 'observed', 'Window 60 s · oMLX', 'Server-wide · all requests', true, undefined],
-      ['Sep 28', '61.3 tok/s', 'observed', 'Window 30 s · Splash (standalone) · partial', 'Server-wide · all requests', false, '+149% vs reference']]);
+      ['14:04', '25.1 tok/s', null, 'Next reply · oMLX', 'Next reply', false, '+2% vs reference'],
+      ['13:05', '24.6 tok/s', 'measured', 'Window 60 s · oMLX', 'Server-wide · all requests', true, undefined],
+      ['Sep 28', '61.3 tok/s', 'measured', 'Window 30 s · Splash (standalone) · partial', 'Server-wide · all requests', false, '+149% vs reference']]);
     const many = presentCaptures(input({ saved: Array.from({ length: 15 }, (_, i) => capture(NOW - i * 1000)) })).saved;
     expect(many.rows).toHaveLength(12);
     expect(presentCaptures(input()).saved).toEqual(expect.objectContaining({ empty: 'Nothing saved yet. Save a Next reply or a window to compare it later.', share: false }));
@@ -76,7 +76,7 @@ describe('Captures tab presenter (plan §5.9, G2 mock)', () => {
     const legacy = [capture(NOW - 86_400_000, { kind: 'snapshot', runtime: null, measurements: { generation: 23.4 } })];
     const view = presentCaptures(input({ saved: [legacy[0]!, capture(NOW - 1000)], legacy }));
     expect(view.saved.rows).toHaveLength(1);
-    expect(view.legacy).toEqual({ right: 'Read-only · kept until MLX Scope 2.1', rows: [expect.objectContaining({ key: `v1:${NOW - 86_400_000}`, title: 'Snapshot · runtime not recorded',
+    expect(view.legacy).toEqual({ right: 'Read-only · kept until MLX Scope 2.1', rows: [expect.objectContaining({ key: `v1:${NOW - 86_400_000}`, title: 'Snapshot · server not recorded',
       rate: { text: '23.4 tok/s', basis: 'reported', note: null } })] });
     expect(captureRate(capture(0, { measurements: { observedGeneration: 22 } }))).toEqual({ tps: 22, basis: 'observed' });
     // 1.x windows are migrated with their observed rate renamed to observedDecodeTps.
@@ -86,7 +86,7 @@ describe('Captures tab presenter (plan §5.9, G2 mock)', () => {
   test('Copy and Add to chat draft never carry a model name, even one the frame knows from the snapshot', () => {
     const report = capturesReport([capture(NOW, { measurements: { decodeTps: 24.6, decodeBasis: 2, outputTokens: 1480, completions: 3, memPeakBytes: 38_654_705_664 } })], '2.0.0', ['oMLX']);
     expect(report).toContain('MLX Scope 2.0.0 — saved captures');
-    expect(report).toContain('24.6 tok/s (observed) 1,480 output tokens 3 replies finished RAM peak 36 GiB');
+    expect(report).toContain('24.6 tok/s (measured) 1,480 output tokens 3 replies finished RAM peak 36 GiB');
     expect(report).not.toContain('oMLX');
     expect(report).not.toMatch(/canary|Example/);
   });
