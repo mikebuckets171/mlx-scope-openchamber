@@ -141,7 +141,7 @@ test.describe('History tab', () => {
       await clean(page);
       await shot(page, `history-${theme}-${width}`);
       await view.getByRole('button', { name: 'Show 24 more' }).click();
-      await expect(view.locator('.led-row[data-kind="gap"]')).toHaveText('Not observed · Scope wasn’t open · 13:24–13:46');
+      await expect(view.locator('.led-row[data-kind="gap"]')).toHaveText('Not recorded · Scope wasn’t open · 13:24–13:46');
       expect(errors).toEqual([]);
     });
   }
