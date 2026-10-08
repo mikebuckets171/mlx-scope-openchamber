@@ -21,6 +21,7 @@ window.setPreviewState = value => { state = value; };
 window.previewRequests = 0; window.previewQueries = []; window.previewToasts = []; window.previewBadges = []; window.previewHeights = [];
 window.previewWrites = 0; window.previewCopied = ''; window.previewComposed = null; window.previewUnexpectedSends = 0; window.previewHold = false;
 window.previewOpenedSurfaces = [];
+window.previewDelay = false; window.previewDeferred = [];
 window.previewError = params.get('error');
 window.setPreviewError = value => { window.previewError = value; };
 window.previewLease = { leader: params.get('leader') !== '0', epoch: 1, ttlMs: 12000, leaderSurface: params.get('leader') === '0' ? 'page' : surface };
@@ -155,7 +156,9 @@ window.addEventListener('message', event => {
     ...(window.previewNextPollMs === null ? {} : { nextPollMs: window.previewNextPollMs }) };
   const body = mismatch ? {error:'not_found'} : demo ? ScopeStates.demoBody(state, options, Date.now() - demoStartedAt) : ScopeStates.mockBody(state, options);
   if (!mismatch) Object.assign(body, window.previewPatch);
-  result(m.id, {status: mismatch ? 404 : 200, body: JSON.stringify(body)});
+  const payload = {status: mismatch ? 404 : 200, body: JSON.stringify(body)};
+  const reply = () => result(m.id, payload);
+  if (window.previewDelay) window.previewDeferred.push(reply); else reply();
 });
 frame.src = '/panel/index.html';
 </script></body></html>

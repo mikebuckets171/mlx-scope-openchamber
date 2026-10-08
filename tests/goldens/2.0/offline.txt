@@ -17,19 +17,20 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 4% RAM 18.3 / 48 GiB | Memory normal Thermal normal
+#view-live: CPU 4% Memory allocated 18.3 / 48 GiB
 [callout-live] {data-severity="critical"}: Critical: | oMLX stopped responding | since 14:02 | Start oMLX on :8000. Scope retries automatically. | Connection…
-#hero {aria-label="Inference activity"}
+#hero {aria-label="Model activity"}: Scope checks again automatically
+h2: Offline
 #model: Local oMLX
-#reply-strip: Last reply i 5 min ago | Example-27B-4bit
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-#reply-details: Reply details
+#engine-readings: Engine readings
+#reply-strip
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 live [callout-live]: Critical: oMLX stopped respondingsince 14:02Start oMLX on :8000. Scope retries automatically.Connection…
 
@@ -50,24 +51,25 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 4% RAM 18.3 / 48 GiB | Memory normal Thermal normal
+#view-live: CPU 4% Memory allocated 18.3 / 48 GiB
 [callout-live] {data-severity="critical"}: Critical: | oMLX stopped responding | since 14:02 | Start oMLX on :8000. Scope retries automatically. | Connection…
-#hero {aria-label="Inference activity"}
+#hero {aria-label="Model activity"}: Scope checks again automatically
+h2: Offline
 #model: Local oMLX
-#reply-strip: Last reply i 5 min ago | Example-27B-4bit
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-#reply-details: Reply details
+#engine-readings: Engine readings
+#reply-strip
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 live [callout-live]: Critical: oMLX stopped respondingsince 14:02Start oMLX on :8000. Scope retries automatically.Connection…
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-paused="false" data-phase="offline" data-stale="true" data-surface="page"}: OpenChamber | MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-paused="false" data-phase="offline" data-stale="true" data-surface="page"}: OpenChamber MLX Scope
 #scope-title: MLX Scope
 #status-pill
 #phase: Offline
@@ -83,18 +85,19 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 4% RAM 18.3 / 48 GiB | Memory normal Thermal normal
+#view-live: CPU 4% Memory allocated 18.3 / 48 GiB
 [callout-live] {data-severity="critical"}: Critical: | oMLX stopped responding | since 14:02 | Start oMLX on :8000. Scope retries automatically. | Connection…
-#hero {aria-label="Inference activity"}
+#hero {aria-label="Model activity"}: Scope checks again automatically
+h2: Offline
 #model: Local oMLX
-#reply-strip: Last reply i 5 min ago | Example-27B-4bit
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-#reply-details: Reply details
+#engine-readings: Engine readings
+#reply-strip
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 live [callout-live]: Critical: oMLX stopped respondingsince 14:02Start oMLX on :8000. Scope retries automatically.Connection…

@@ -10,8 +10,8 @@ The service reads the configuration and credential sources listed in [Configurat
 referenced credential files and environment variables. It never reads OpenChamber's own settings file. Credentials and
 raw API responses stay service-side. The views receive allowlisted measurements, bounded model labels, and connection
 choices. They do not receive prompts, completions, credentials, request identifiers or process IDs. Absolute model
-paths are reduced to names before display. Neither component rewrites configuration files or reads conversation
-content.
+paths are reduced to names before display. Monitoring does not rewrite configuration. The optional companion setup
+changes OpenCode configuration only after an explicit Enable or Disable action, preserving other plugins and comments.
 
 **Bionic and LM Studio server log.** For LM Studio, the service follows LM Studio's server log with
 `lms log stream -s server --json --port <port>` while a Scope view is open. It parses only request lifecycle lines
@@ -22,15 +22,16 @@ but are dropped without being stored or sent to a view. The parser is tested aga
 settings on, whose canary text must never leave the service.
 
 **Kept in memory only.** The service holds up to 60 minutes of trend readings, recent completions and the last 20
-alerts. It writes no files, and all of this is lost when the service stops. The oMLX usage card reads oMLX's own usage
+alerts. This runtime history is lost when the service stops. The optional chat companion uses the separate, expiring
+files described below. The oMLX usage card reads oMLX's own usage
 records through its admin login; they are cached in memory for 5 minutes, never stored and never merged into the reply
 history.
 
-## Optional Splash prompt progress companion
+## Optional OpenCode companion
 
 The companion is installed separately in OpenCode. It parses the existing streaming request body in memory to add
 Splash's `return_progress` option and observes the response as OpenCode reads it. It does not submit a prompt or change
-the selected model. Scope's service still writes no files.
+the selected model. Prompt progress remains a separate measurement from chat delivery speed.
 
 The companion stores brief numeric progress records under `~/.cache/mlx-scope/prompt-progress/`, using private
 owner-only directories and files. Records contain prompt counts, timestamps, provider names, random response IDs and
@@ -41,6 +42,25 @@ files are removed when streams finish or the companion unloads. A crash may leav
 The service reads a bounded set of matching records and sends only numeric progress and its freshness timestamp to the
 views. Matching keys and response IDs never reach Scope history or shared diagnostics. See the
 [companion data contract](bridge/opencode/README.md) for limits and validation.
+
+For chat delivery estimates, the companion subscribes to OpenCode 2.0.25's supported plugin events only while a
+visible Scope view requests them. Text and observable reasoning deltas are counted transiently in memory; their
+content is never written, logged, or sent to Scope. Tool payloads, title generation, compaction, and ambiguous usage
+accounting are excluded. Calibration keeps at most ten comparable character/token totals in memory, never content.
+
+Private `~/.cache/mlx-scope/chat-telemetry/` files contain bounded counters, timing, freshness, protocol versions and
+SHA-256 matching identifiers. Session, provider, model and endpoint matching hashes are deterministic and can correlate
+known inputs; they are not anonymization. Scope writes a demand file while watched. It expires after 15 seconds; the
+companion stops event sampling and telemetry writes when demand expires. Live measurements expire within five seconds.
+A startup heartbeat proves the plugin was loaded, not that it is currently active. An expired crash file conveys no
+current reading. Only allowlisted measurement fields reach the view; matching hashes do not.
+
+Guided setup installs bundled companion files into `~/.config/opencode/addons/mlx-scope-prompt-progress` and edits
+OpenCode's plugin entry. It never restarts OpenCode or an active inference session. Disable removes the managed entry
+and unchanged owned files; altered files are preserved. Manual installations stay under your control.
+
+Chat delivery estimates are transient: they are not added to engine charts, reply baselines, history or captures.
+Existing records retain their original measurement basis. See [Measurements](docs/METRICS.md).
 
 ## Reply history stored on this computer
 
@@ -88,7 +108,7 @@ captures you save yourself. Captures hold a timestamp and numeric measurements a
 request identifiers, credentials and private paths. **Delete** and **Clear saved** remove them. A storage failure is
 reported without claiming the write succeeded and does not stop monitoring.
 
-**1.6 saved observations** stay untouched through every 2.0.x release. 2.0 copies them into its own captures and leaves
+**1.6 saved observations** stay untouched through 3.0. 2.0 copies them into its own captures and leaves
 the originals, so rolling back to 1.6 still shows them. See the
 [rollback runbook](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/2.0/ROLLBACK.md).
 
@@ -135,7 +155,7 @@ Toasts and the rail badge appear only inside OpenChamber, and only while a Scope
 
 ## Mac readings and commands
 
-The commands MLX Scope may run, and why, are listed in the README under "What 2.0 asks you to approve and why". For
+The commands MLX Scope may run, and why, are listed in the README under "What Scope asks you to approve and why". For
 privacy:
 - Scope runs no `sudo`, `osascript`, `powermetrics` or `pmset`.
 - `ioreg` output includes the process ID of the latest GPU client, and `lsof` and `footprint` handle the oMLX process

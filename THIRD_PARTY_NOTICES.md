@@ -2,7 +2,7 @@
 
 ## OpenChamber SDK
 
-The bundled panel uses `@openchamber/sdk` 1.24.2, licensed under the MIT
+The bundled panel uses `@openchamber/sdk` 2.0.4, licensed under the MIT
 License.
 
 Copyright (c) 2025 Bohdan Triapitsyn
@@ -38,3 +38,10 @@ The full MIT license text for these dependencies is reproduced below:
 > LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 > SOFTWARE.
+
+## Design references
+
+Selective sampling and restrained presentation were informed by [SiliconScope](https://github.com/kennss/SiliconScope),
+and chat-aware presentation by [OpenChamber's extensions](https://openchamber.dev/extensions/). No source code or assets
+from these reference applications are included in this release. The companion uses the documented
+[OpenCode plugin events](https://opencode.ai/v2/docs/build/plugins/#events).

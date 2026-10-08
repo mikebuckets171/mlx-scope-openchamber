@@ -159,7 +159,8 @@ export class Attribution {
   chatIsLocal(): boolean | null {
     const provider = this.feed.state().chat?.provider, connection = this.body?.connection;
     if (!provider || !connection || connection.id === 'auto') return null;
-    return provider === connection.id || connection.choices.some(choice => choice.id === provider);
+    // An unavailable selection can echo the requested provider ID. Only discovered choices prove local origin.
+    return connection.choices.some(choice => choice.id === provider);
   }
 
   arm(): NextReplyState {

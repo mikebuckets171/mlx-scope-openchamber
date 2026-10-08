@@ -17,12 +17,18 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 4% RAM 18.3 / 48 GiB | Memory normal Thermal normal
-[callout-live] {data-severity="info"}: Notice: | Looking for a runtime | Checking :8000 for a supported runtime.
+#view-live: CPU 4% Memory allocated 18.3 / 48 GiB
+[callout-live] {data-severity="info"}: Notice: | Looking for a local server | Checking :8000 for a supported server.
+#hero {aria-label="Model activity"}: Checking the usual local ports
+h2: Detecting
+#model: Automatic
+#engine-readings: Engine readings
+#reply-strip
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Automatic
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
-live [callout-live]: Notice: Looking for a runtimeChecking :8000 for a supported runtime.
+live [callout-live]: Notice: Looking for a local serverChecking :8000 for a supported server.

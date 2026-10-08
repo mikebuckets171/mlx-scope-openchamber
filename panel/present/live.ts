@@ -9,6 +9,8 @@ import { attrChip, attrTip, callouts, splashRateTip, tip, weightedTps, type Call
 export { weightedTps } from './parts.ts';
 import { ENGINE_SPEED, heldBySource, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING, type ScopeInput } from './scope.ts';
 import { promptPercent } from '../progress.ts';
+import { presentSessionSection, type SessionSectionView } from './session.ts';
+import { fromSnapshot } from './reading.ts';
 
 // The Live tab (plan §5.9, the G2 mock): callouts, the hero (one speed with its basis ⓘ, the attribution chip, Last
 // reply and Next reply), the request tiles and the This Mac card with the short labels (full wording in its ⓘ).
@@ -26,7 +28,7 @@ export interface ReplyView {
   chip: Chip | null; tip: Tip | null; when: string | null; empty: string | null;
   values: Val[]; split: Val[]; usual: Chip | null; next: NextView | null; model?: string;
 }
-export interface HeroView { speeds: SpeedsView; title: string; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
+export interface HeroView { instrument: SessionSectionView; speeds: SpeedsView; title: string; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
 export interface Tile { label: string; value: string; detail: string; meter: number | null }
 export interface MacRow { key: string; label: string; value: Val; level: Level | null; meter: number | null; tip: Tip | null }
 export interface MacView { title: string; tip: Tip; stale: boolean; line: Array<{ label: string; value: string; meter: number | null }>; rows: MacRow[]; details: MacRow[] }
@@ -158,13 +160,15 @@ const replyView = (s: ScopeInput): ReplyView | null => {
 const presentHero = (s: ScopeInput): HeroView | null => {
   const snapshot = s.snapshot;
   if (!snapshot) return null;
+  const instrument = presentSessionSection({ ...s, reading: fromSnapshot(snapshot), chatIsLocal: s.chatIsLocal ?? null,
+    turn: null, vsUsual: s.last?.vsUsual ?? null, sparkline: null, expanded: false, tipDismissed: true });
   const kind = heroKind(s), title = modelOf(snapshot) ?? connName(snapshot.connection);
-  if (s.paused) return { speeds: presentSpeeds(s), title, attr: null, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, firstToken: null, context: null, reply: null };
+  if (s.paused) return { instrument, speeds: presentSpeeds(s), title, attr: null, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, firstToken: null, context: null, reply: null };
   const reply = replyView(s);
 
   const live = kind === 'decode' || kind === 'prefill', label = kind ? liveLabel(kind, s) : SERVER_WIDE;
   return {
-    speeds: presentSpeeds(s), title, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
+    instrument, speeds: presentSpeeds(s), title, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
     body: kind ? heroBody(kind, s) : null,
     firstToken: kind && ACTIVE.has(snapshot.runtime.phase) && snapshot.runtime.request?.ttftMs != null && snapshot.capabilities['request.ttft']
       ? { text: 'First token', strong: dur(snapshot.runtime.request.ttftMs), basis: snapshot.capabilities['request.ttft'].basis } : null,

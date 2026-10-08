@@ -3,7 +3,9 @@ import http from 'node:http';
 import { version as packageVersion } from '../package.json';
 import { assertBodyLimit } from '../src/contract/guards.ts';
 import type { HostV2 } from '../src/contract/host.ts';
-import { isBadQuery, parseSnapshotQuery, parseTrendQuery, parseUsageQuery, type TrendQuery, type UsageQuery } from '../src/contract/query.ts';
+import { isBadQuery, parseSnapshotQuery, parseTrendQuery, parseUsageQuery, type SnapshotQuery, type TrendQuery, type UsageQuery } from '../src/contract/query.ts';
+import type { ChatMeasurement } from '../src/contract/chat.ts';
+import type { CompanionSetupStatus } from './companion-setup.ts';
 import type { TrendV2 } from '../src/contract/trend.ts';
 import type { UsageV2 } from '../src/contract/usage.ts';
 import { healthBody, NOT_FOUND_BODY, RETIRED_BODY, RETIRED_STATUS, ROUTES } from '../src/contract/version.ts';
@@ -17,6 +19,8 @@ import type { HistoryReading, SnapshotHistory, RecordContext } from './history/h
 import { busy, type ReadRequest, type ReadSelection, type RuntimeReading } from './runtime-client.ts';
 
 export type Sources = {
+  chat?: (query: SnapshotQuery, reading: RuntimeReading) => Promise<ChatMeasurement | null>;
+  companionSetup?: { status(): Promise<CompanionSetupStatus>; enable(): Promise<CompanionSetupStatus>; disable(): Promise<CompanionSetupStatus> };
   read: (selection?: ReadSelection, request?: ReadRequest) => Promise<RuntimeReading>;
   /** Host readings for this request's tier (svc-host's HostSampler.sample). */
   host?: (context: HostContext) => Promise<HostV2 | null>;
@@ -72,7 +76,7 @@ export const hostContextOf = (tier: HostContext['tier'], { status, runtime, meta
   omlxPort: meta.connection.runtime === 'omlx' && (status.state === 'ready' || status.state === 'degraded') ? meta.port ?? null : null,
 });
 
-/** Exact read-only route allowlist (contract §2). Host and inference failures are independent. */
+/** Exact route allowlist. Only the explicit companion setup POST can change local configuration. */
 export const createScopeServer = (token: string, sources: Sources, options: ServerOptions = {}): http.Server => {
   if (!token) throw new Error('A service token is required.');
   // Equal-length digests make the comparison constant-time whatever the header holds.
@@ -85,6 +89,18 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       const url = new URL(request.url ?? '/', 'http://127.0.0.1');
       const header = request.headers.authorization;
       if (typeof header !== 'string' || !timingSafeEqual(digest(header), expected)) { json(response, 401, { error: 'unauthorized' }); return; }
+      if (url.pathname === '/v2/companion/setup' && sources.companionSetup) {
+        if (request.method === 'GET') { json(response, 200, await sources.companionSetup.status()); return; }
+        if (request.method !== 'POST') { json(response, 405, { error: 'method_not_allowed' }); return; }
+        if (request.headers['content-type']?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') { json(response, 415, { error: 'unsupported_media_type' }); return; }
+        let body = '', oversized = false;
+        for await (const chunk of request) { if (body.length + chunk.length > 1_024) { oversized = true; break; } body += chunk; }
+        if (oversized) { json(response, 413, { error: 'body_too_large' }); return; }
+        let input: unknown; try { input = JSON.parse(body); } catch { json(response, 400, { error: 'bad_request' }); return; }
+        const action = input && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).length === 1 ? (input as { action?: unknown }).action : null;
+        if (action !== 'enable' && action !== 'disable') { json(response, 400, { error: 'bad_request' }); return; }
+        json(response, 200, await sources.companionSetup[action]()); return;
+      }
       if (request.method !== 'GET') { json(response, 405, { error: 'method_not_allowed' }); return; }
       if (url.pathname === ROUTES.health) { json(response, 200, healthBody(service.version)); return; }
       if (url.pathname === ROUTES.retired) { json(response, RETIRED_STATUS, RETIRED_BODY); return; }
@@ -115,8 +131,10 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
         oneShot: query.surface === 'background' }))
         .catch(() => unread(serverNow));
       const context = hostContextOf(query.tier, reading);
-      const host = await Promise.resolve().then(() => sources.host?.(context) ?? null).catch(() => null);
-      const pollMs = snapshotPollMs({ reading, host, lease: view, query });
+      const nonLocal = !!query.provider && !reading.meta.connection.choices.some(choice => choice.id === query.provider);
+      const host = nonLocal ? null : await Promise.resolve().then(() => sources.host?.(context) ?? null).catch(() => null);
+      const chat = await Promise.resolve().then(() => sources.chat?.(query, reading) ?? null).catch(() => null);
+      const pollMs = snapshotPollMs({ reading, host, lease: view, query, chat });
       let parts: SnapshotHistory = { completions: { instance: service.instance, cursor: 0, reset: query.since !== undefined && query.since > 0, items: [] },
         alerts: [], alertLog: [] };
       if (sources.history) {
@@ -130,7 +148,9 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       }
       json(response, 200, composeSnapshot({
         reading, host, completions: parts.completions, alerts: { alerts: parts.alerts, alertLog: parts.alertLog },
-        service, serverNow, lease: view, marksHead: marks.head, query, nextPollMs: pollMs,
+        // Sources may observe a newer writer while runtime/host IO is pending. Stamp the response after those reads,
+        // so a valid fresh chat observation is never rejected as future-dated against request-start time.
+        service, serverNow: now(), lease: view, marksHead: marks.head, query, nextPollMs: nonLocal ? Math.max(pollMs, 10_000) : pollMs, chat,
       }));
     };
     void handle().catch(() => { if (!response.headersSent) json(response, 503, { error: 'service_unavailable' }); else response.end(); });

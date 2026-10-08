@@ -17,26 +17,22 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal heavy
-[callout-live] {data-severity="warning"}: Warning: | Thermal pressure: heavy | since 14:02 | Reported by macOS · the chip may run slower
-#hero {aria-label="Inference activity"}: tok/s Request average Reported by oMLX i
+#view-live: CPU 31% Memory allocated 36.1 / 48 GiB Heat heavy
+[callout-live] {data-severity="warning"}: Warning: | Heat: heavy | since 14:02 | Reported by macOS · the chip may run slower
+#hero {aria-label="Model activity"}: tok/s Engine i 26.4 tokens per second. All engine requests · From server · average for this request
+h2: Generating
 #model: Example-27B-4bit
-#attribution: i
-span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Server-wide · not observed
 #rate: 26.4
-#signal: Last 90 seconds | −90s Live observations now
-#ceiling: 30 tok/s
-div.plot[role=img] {aria-label="Decode · request average, last 8 s: 26.4 to 26.4 tokens per second, now 26.4"}
-#context-headroom: Context used i 52.7K of 131K tokens
+#engine-trend: Engine trend
+#engine-readings: Engine readings
 #request-details: Request details
-#reply-strip: Last reply i 1 min ago | Measure next reply
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-#reply-details: Reply details
+#reply-strip: Measure next reply
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
-live [callout-live]: Warning: Thermal pressure: heavysince 14:02Reported by macOS · the chip may run slower
+live [callout-live]: Warning: Heat: heavysince 14:02Reported by macOS · the chip may run slower

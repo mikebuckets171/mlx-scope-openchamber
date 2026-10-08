@@ -17,19 +17,20 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 7% RAM 33.9 / 48 GiB | Memory normal Thermal normal
-#hero {aria-label="Inference activity"}
+#view-live: CPU 7% Memory allocated 33.9 / 48 GiB
+#hero {aria-label="Model activity"}: tok/s Last chat · matched · avg. i 38.6 tokens per second. Completed request average · 48 s ago
+h2: Idle
 #model: example-27b-splash
-#reply-strip: Last reply i 48 s ago | Measure next reply
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="reported"}: 38.6 tok/s
-span.val {data-basis="reported"}: First token 0.51 s
-#reply-details: Reply details
+#rate: 38.6
+#engine-readings: Engine readings
+#reply-strip: Measure next reply
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash via Bionic
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## server · 320 dark panel
@@ -50,34 +51,35 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-live {aria-labelledby="tab-live"}
 #panel-server {aria-labelledby="server-title"}: Back to Live
 #server-title: Server & Mac details
-[server-residency]: i lms ps · refreshed on load/unload example-27b-splash | 17.4 GiB loaded
+[server-residency]: i lms ps · refreshed on load/unload example-27b-splash 17.4 GiB loaded
 h2: Loaded instances
 span.chip: Idle
-[server-engines]: i lms runtime ls · cached 10 min splash 0.0.5 | mlx-llm 0.28.1 | llama.cpp 1.52.0
-h2: Engines
+[server-engines]: i LM Studio · checked every 10 min splash 0.0.5 mlx-llm 0.28.1 llama.cpp 1.52.0
+h2: Model software
 span.chip {data-tone="accent"}: In use
 span.chip: Installed
 span.chip: Installed
-[server-catalog]: 1 loaded · 3 listed example-27b-splash | Loaded 262K context example-35b-a3b-splash | Available 262K context example-embed-v1.5 | Available 2,048 context
+[server-catalog]: 1 loaded · 3 listed example-27b-splash Loaded 262K context example-35b-a3b-splash Available 262K context example-embed-v1.5 Available 2,048 context
 h2: Model inventory
 span.chip {data-tone="accent"}: splash
 span.chip {data-tone="accent"}: splash
 span.chip: gguf
-[server-session]: i Since the log stream started Decode average Cache efficiency Completed
-h2: Server session
+[server-session]: i Since the log stream started Generation speed Cache efficiency Completed
+h2: Overall average
 span.val {data-basis="reported"}: 37.9 tok/s
 span.val {data-basis="reported"}: 61%
 span.val {data-basis="reported"}: 23
-#server-runtime-details: Runtime details Ready
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 7% RAM 33.9 / 48 GiB Swap 1.1 GiB
+#server-runtime-details: Server details Ready
+#machine {aria-label="This Mac" data-stale="false"}: i CPU 7% Memory allocated 33.9 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status i Normal
 #mac-details: Mac details
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash via Bionic
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## live · 320 light panel
@@ -97,17 +99,18 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 7% RAM 33.9 / 48 GiB | Memory normal Thermal normal
-#hero {aria-label="Inference activity"}
+#view-live: CPU 7% Memory allocated 33.9 / 48 GiB
+#hero {aria-label="Model activity"}: tok/s Last chat · matched · avg. i 38.6 tokens per second. Completed request average · 48 s ago
+h2: Idle
 #model: example-27b-splash
-#reply-strip: Last reply i 48 s ago | Measure next reply
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="reported"}: 38.6 tok/s
-span.val {data-basis="reported"}: First token 0.51 s
-#reply-details: Reply details
+#rate: 38.6
+#engine-readings: Engine readings
+#reply-strip: Measure next reply
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash via Bionic
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 

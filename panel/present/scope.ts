@@ -27,6 +27,10 @@ export interface ScopeInput {
   next: NextReplyState;
   samples: readonly SignalPoint[];           // the panel's own 90 s ring
   turnStartAt: number | null;                // this chat's turn start, when observed live
+  measurementScope?: 'chat' | 'engine';
+  sessionModel?: string | null;
+  chatActivity?: 'idle' | 'busy' | null;
+  chatIsLocal?: boolean | null;
 }
 export const SERVER_WIDE: AttributionLabel = { kind: 'server-wide', reason: 'not-observed' };
 

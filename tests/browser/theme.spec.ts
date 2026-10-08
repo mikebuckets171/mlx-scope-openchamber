@@ -54,6 +54,7 @@ const expectPalette = async (frame: Frame, palette: HostTheme, transparent = fal
 test('a mounted panel repaints for same-mode custom themes and light/dark changes without losing its controls', async ({ page }) => {
   const frame = await load(page);
   // A constant fixture rate draws a horizontal SVG path with a zero-height bounding box.
+  await frame.locator('#engine-trend > summary').click();
   await expect(frame.locator('#signal')).toBeVisible({ timeout: 12_000 });
   await expect(frame.locator('#signal .trace')).toBeAttached();
   const mounted = await frame.locator('#scope').elementHandle();
@@ -84,6 +85,7 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
 
 test('legacy palette updates clear old text tokens and use the current host primary fallback', async ({ page }) => {
   const frame = await load(page);
+  await frame.locator('#engine-trend > summary').click();
   await expect(frame.locator('#signal')).toBeVisible({ timeout: 12_000 });
   await expect(frame.locator('#signal .trace')).toBeAttached();
   await setTheme(page, VIOLET);
@@ -118,14 +120,14 @@ test('the host primary remains the identity color during prefill while warnings 
 
 test('the mounted Session summary and warning value follow custom host themes', async ({ page }) => {
   const frame = await load(page, 'surface=status&state=pressure-critical', 320);
-  await expect(frame.locator('.ws-alert-value')).toBeVisible();
+  await expect(frame.locator('.ws-warning')).toBeVisible();
   const mounted = await frame.locator('#scope').elementHandle();
   for (const palette of [VIOLET, COPPER, PAPER]) {
     await setTheme(page, palette);
     await expectPalette(frame, palette, true);
     await expect(frame.locator('.ws-phase')).toHaveCSS('color', rgb(palette.tokens.foreground));
-    await expect(frame.locator('.ws-alert-row .ws-label')).toHaveCSS('color', rgb(palette.tokens.muted));
-    await expect(frame.locator('.ws-alert-value')).toHaveCSS('color', rgb(palette.tokens.errorText));
+    await expect(frame.locator('.ws-measurement .ws-label')).toHaveCSS('color', rgb(palette.tokens.muted));
+    await expect(frame.locator('.ws-warning')).toHaveCSS('color', rgb(palette.tokens.errorText));
     await expect(frame.locator('.ws-dot')).toHaveCount(0);
     expect(await mounted!.evaluate(el => el === document.querySelector('#scope'))).toBe(true);
     const backdrop = await page.locator('iframe').evaluate(el => {

@@ -4,9 +4,9 @@ Lightweight local model monitoring for OpenChamber.
 
 MLX Scope keeps honest runtime readings beside your conversation. It observes oMLX, Splash in Bionic, LM Studio,
 llama.cpp `llama-server`, Ollama, vllm-mlx, mlx-lm and standalone Splash through their supported passive APIs, plus the
-Mac they run on. It never sends inference, loads or unloads a model, or starts a runtime. Each view shows only what that
-server actually reports: a reading a runtime doesn't provide is left out rather than shown as a dash or a zero, and every
-value that is not reported directly by the runtime says how it was obtained.
+Mac they run on. It never sends inference, loads or unloads a model, or starts a runtime. The Session sidebar follows your chat and presents one relevant reading. Optional, clearly labeled chat delivery
+estimates supplement native engine measurements; missing measurements leave no empty rows. Every value identifies
+its source and scope. Live estimates, native throughput and completed-reply averages remain separate.
 
 | Runtime | Readings |
 | --- | --- |
@@ -31,20 +31,22 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
 
 ## Where MLX Scope shows up
 
-- **Work Status section.** A compact summary in the Session pane, following Turn stats' simple label/value rows.
-  Prompt progress appears when the runtime reports it; prefill and generation speeds stay separate. Measurement
-  details are available in tooltips and the full view. Completed reply measurements keep their age; idle and unavailable states stay
-  concise. Memory warnings remain visible in one row. **Open MLX Scope** opens the full view for turn statistics,
-  charts and controls. Cloud chats show a neutral, single-line state. Typography, alignment and the transparent
-  background follow the surrounding OpenChamber rows. The section runs only while the Work Status panel is open
-  and the section is expanded, and it uses a lighter set of Mac probes than the panel.
-- **Rail panel and full page.** Two tabs, **Live** and **History**, at every width. Live shows performance, **Measure
-  next reply**, and a compact Mac summary; **Server & Mac details** opens diagnostics with **Back to Live**. History
-  shows recent replies and the trend, with insights, alerts and storage in named disclosures. Storage opens
-  automatically when it needs attention. **Captures** opens from History with **Back to History**, a **Reply / Timed
-  window** selector, and saved captures. Active measurement progress and cancellation remain reachable as you navigate.
-  Resizing preserves your selected destination. Open the rail or **Open MLX Scope** from a chat's session menu;
-  open the full page from **Extension pages**. Compact mode uses the Work Status glance view.
+- **Session sidebar.** Two or three quiet rows: model and activity, one relevant reading, and **Open MLX Scope**.
+  Prompt progress appears while reading; speed appears while generating or reasoning. Tool use and waiting are explicit,
+  and a completed measurement says **Last**. Unsupported measurements leave no empty rows. One priority warning can add a row.
+  The small scope menu remembers **This chat** (default) or **Whole engine**. This chat follows the open chat's local
+  provider and model. It prefers a matching runtime measurement, then a labeled **Chat · est.** delivery estimate from
+  the optional companion, then an explicitly labeled **Engine** fallback. **Chat · matched** is inferred from runtime
+  activity, not a server-provided chat identifier. Whole engine watches the selected connection independently.
+  Cloud chats have a neutral single-line state in This chat mode. Theme-native rows remain readable at increased text size.
+  The section samples only while visible and uses lighter Mac probes than the full panel.
+- **Rail panel and full page.** **Live** and **History** remain available at every width. Live leads with the same reading
+  and scope menu as the sidebar. **Engine readings**, **Engine trend**, request details, and the last reply expand when
+  needed; engine charts never mix in chat estimates. **Server & Mac details** opens diagnostics with **Back to Live**.
+  History retains recent replies, trends, insights, alerts, and storage. **Captures** opens from History with
+  **Back to History**, a **Reply / Timed window** selector, and saved captures. Active recordings remain cancellable
+  while you navigate. Resizing preserves your selected destination. Open the rail from the Session action or the full
+  page from **Extension pages**. Compact mode uses the same quiet sidebar presentation.
 - **`/scope`.** A slash command that attaches a sanitized diagnostics chip to your message; see
   [`/scope` diagnostics](#scope-diagnostics).
 
@@ -54,6 +56,14 @@ colors use the host's semantic palette; the Session widget lets the surrounding 
 A view that is hidden (a rail tab behind another tab, a collapsed section, a closed page, a hidden window) makes no
 requests. With several views open, one visible view at a time records history and raises toasts.
 
+The Session sidebar in a dark theme ([light theme](docs/3.0/assets/session-light.png)). These screenshots use synthetic readings.
+
+<img src="docs/3.0/assets/session-dark.png" alt="MLX Scope 3.0 in the Session sidebar, showing one labeled Engine reading and the This chat scope menu" width="350">
+
+The full Live view keeps engine readings and request details one click away.
+
+![MLX Scope 3.0 full Live view with a labeled speed and collapsed engine and request details](docs/3.0/assets/live-light.png)
+
 ## Prompt progress for standalone Splash
 
 Splash's normal status readings provide speed but do not provide the current prompt's total size. The optional
@@ -61,10 +71,12 @@ Splash's normal status readings provide speed but do not provide the current pro
 With it installed, **Prompt progress** shows the portion read, including tokens reused from cache. Both the Session
 section and the full view show the percentage. It clears when the response starts, stops, or becomes uncertain.
 
-The companion is included in the installation ZIP and does not activate automatically. Add `bridge/opencode` to
-OpenCode's existing plugin list using the companion's setup instructions. OpenCode 2.0.22 is verified with the
-OpenAI-compatible provider used by Splash; older OpenCode versions may not expose the needed response hooks. New
-replies acquire progress after activation; an already running reply cannot acquire it retroactively.
+The companion is bundled and does not activate automatically. Open **More → Chat estimates…** for detected
+compatibility and a deliberate **Enable** action, or follow the [manual setup](bridge/opencode/README.md). Setup preserves
+existing plugins and JSONC comments and provides **Disable / Remove**. It never restarts an active inference session.
+Chat delivery estimates initially qualify OpenCode **2.0.25** only; other versions retain ordinary runtime monitoring.
+The existing Splash HTTP observer remains separate. New replies acquire observations after activation; an already
+running reply cannot acquire them retroactively.
 
 oMLX keeps its existing progress support and does not need the companion. A missing or ambiguous Splash progress
 record produces no percentage; Scope does not estimate one from elapsed time or speed.
@@ -161,7 +173,7 @@ them at a time, and a sent chip stays in the chat's session record like any atta
    https://github.com/mikebuckets171/mlx-scope-openchamber
    ```
 
-Alternatively, install the named versioned `mlx-scope-openchamber-2.1.6.zip` from
+Alternatively, install the named versioned `mlx-scope-openchamber-3.0.0.zip` from
 [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest), or the supplied local package. Use the named install package, not
 GitHub's generated source archives. The ZIP includes built JavaScript; installing it needs no build toolchain.
 
@@ -184,7 +196,7 @@ still the previous version, pause MLX Scope and resume it in Settings → Extens
 [rollback runbook](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/2.0/ROLLBACK.md): fixes ship as
 2.0.x updates, and the severe case is the legacy pin above.
 
-### What 2.0 asks you to approve and why
+### What Scope asks you to approve and why
 
 | Entry | What Scope runs | Why |
 |---|---|---|

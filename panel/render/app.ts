@@ -23,7 +23,7 @@ import { capturesView, readLegacyCaptures } from './views/captures.ts';
 import { historyView } from './views/history.ts';
 import { mountSafely } from './views/registry.ts';
 import { serverMarkup } from './views/server.ts';
-import { sessionMarkup } from './views/session.ts';
+import { sessionMarkup, scopeMenuMarkup } from './views/session.ts';
 import { primaryTab, type Tab, type ViewHandle } from './views/types.ts';
 
 // Live and History keep the same navigation at every width. Server and Captures are secondary workspaces;
@@ -41,6 +41,7 @@ export class ScopeApp {
   constructor(private readonly p: AppParts) {
     const shell = p.shell;
     shell.addEventListener('click', this.onClick);
+    shell.addEventListener('change', this.onChange);
     shell.addEventListener('keydown', this.onKey);
     shell.addEventListener('toggle', this.onToggle, true);
     this.media?.addEventListener('change', this.onLayout);
@@ -60,6 +61,8 @@ export class ScopeApp {
       paused: state.userPaused, efficient: state.efficient, attribution: pipeline.liveLabel(snapshot), chatRuntime: pipeline.chatRuntime(),
       last: last ? { completion: last, label: pipeline.label(last), ...pipeline.usualFor(last, snapshot?.connection.runtime ?? null) } : null,
       next: pipeline.nextState, samples: state.signal.points, turnStartAt: pipeline.window()?.startedAt ?? null,
+      measurementScope: this.p.prefs.value.measurementScope ?? 'chat', sessionModel: pipeline.frame().chat?.model ?? null,
+      chatActivity: pipeline.frame().chat ? pipeline.frame().chat!.busy ? 'busy' : 'idle' : null, chatIsLocal: pipeline.chatIsLocal(),
     };
   }
   /** Frame-side callouts: a poll without a body, or no fresh reading before the deadline. */
@@ -75,6 +78,8 @@ export class ScopeApp {
     const s = this.input(), card = frameCard(s), open = state.open, compact = state.compact && !this.wide && !card;
     state.serverDetailsVisible = state.tab === 'server' && !compact && !card;
     renderHeader(this.p.shell, presentHeader(s));
+    const scopeControl = this.p.shell.querySelector<HTMLElement>('#measurement-choice');
+    if (scopeControl) morph(scopeControl, scopeMenuMarkup(this.p.prefs.value.measurementScope ?? 'chat'));
     this.p.shell.dataset.compact = String(compact);
     const cardHost = this.node('frame-card');
     morph(cardHost, card ? frameCardMarkup(card) : '');
@@ -92,7 +97,8 @@ export class ScopeApp {
     if (compact) {
       morph(glance, sessionMarkup(presentSessionSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution, turn: null,
         vsUsual: s.last?.vsUsual ?? null, sparkline: null, chatIsLocal: null, expanded: false, tipDismissed: true, fresh: s.fresh, paused: s.paused, next: s.next,
-        efficient: state.efficient, last: s.last && { completion: s.last.completion, label: s.last.label } }), null, true));
+        efficient: state.efficient, measurementScope: s.measurementScope, sessionModel: s.sessionModel, chatActivity: s.chatActivity,
+        last: s.last && { completion: s.last.completion, label: s.last.label } }), null, true));
       return;
     }
     if (card) return;
@@ -165,6 +171,14 @@ export class ScopeApp {
     if (tab === 'server') void this.onRefreshNeeded();
   }
   onRefreshNeeded: () => Promise<void> = async () => {};
+  onMeasurementScope: (scope: 'chat' | 'engine') => void = () => {};
+  private readonly onChange = (event: Event): void => {
+    const target = event.target as HTMLSelectElement;
+    if (target.dataset.action === 'measurement-scope' && (target.value === 'chat' || target.value === 'engine')) {
+      this.onMeasurementScope(target.value);
+      this.render();
+    }
+  };
 
   private disclose(button: HTMLElement): void {
     const id = button.getAttribute('aria-controls')!, open = this.p.state.open, next = !open.has(id);
@@ -236,6 +250,7 @@ export class ScopeApp {
   };
   /** Views other tracks mounted are told the frame is going away. */
   dispose(): void {
+    this.p.shell.removeEventListener('change', this.onChange);
     this.media?.removeEventListener('change', this.onLayout);
     for (const { handle } of this.views.values()) try { handle.dispose(); } catch { /* see view() */ }
     this.views.clear();

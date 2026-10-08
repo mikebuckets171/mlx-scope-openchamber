@@ -31,6 +31,7 @@ export class Preferences {
  * change) with this frame's choices applied at once, so a click re-renders before the write lands.
  */
 export interface PrefV2 {
+  measurementScope?: 'chat' | 'engine';
   statusExpanded?: boolean;                  // Work Status shows Turn stats instead of the glance
   tipDismissed?: boolean;                    // "Replace Turn stats" tip
   firstRunDismissed?: boolean;               // "Recording reply history locally" (stored as noticeDismissed)
@@ -46,7 +47,7 @@ export class PrefsV2 {
   get value(): PrefV2 {
     const v = { ...this.store.value, ...this.overlay };
     return { statusExpanded: v.statusExpanded, tipDismissed: v.tipDismissed, firstRunDismissed: v.noticeDismissed, toasts: v.toasts,
-      autoLabel: v.autoLabel, retentionDays: v.retentionDays, history: v.history };
+      autoLabel: v.autoLabel, retentionDays: v.retentionDays, history: v.history, measurementScope: v.measurementScope };
   }
   async load(): Promise<PrefV2> { await this.store.load(); return this.value; }
   set(patch: PrefV2): Promise<void> {

@@ -7,6 +7,13 @@ import { frameId, readResponse, snapshotQuery, SnapshotClient } from './client.t
 
 const body = v2Body({ available: true, runtime: 'omlx', phase: 'decode', modelID: 'fixture/model', liveDecodeTPS: 24.6, activeRequests: 1, queuedRequests: 0, sampledAt: 1_000 });
 
+test('a busy hint travels only with the selected chat hashes and round-trips through the service grammar', () => {
+  const query = snapshotQuery({ frame: 'c0ffee42', surface: 'status', provider: 'local', chat: 'a'.repeat(64), chatModel: 'b'.repeat(64), chatBusy: '1' });
+  expect(query.chatBusy).toBe('1');
+  expect(parseSnapshotQuery(new URLSearchParams(query))).toMatchObject({ chatBusy: true });
+  expect(snapshotQuery({ frame: 'c0ffee42', surface: 'status', chatBusy: '1' }).chatBusy).toBeUndefined();
+});
+
 test('the query carries the selection, this frame, its surface, the full tier and the cursor, and the service accepts it', () => {
   const frame = frameId();
   expect(frame).toMatch(/^[0-9a-f]{8}$/);

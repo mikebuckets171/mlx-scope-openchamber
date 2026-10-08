@@ -17,20 +17,21 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal normal
-[callout-live] {data-severity="info"}: Notice: | oMLX admin login refused | Public status only: server-wide totals, without request speed, reply history or usage records. | Connection…
-#hero {aria-label="Inference activity"}: Nothing waiting
+#view-live: CPU 31% Memory allocated 36.1 / 48 GiB
+[callout-live] {data-severity="info"}: Notice: | oMLX admin login refused | Only server totals are available. Individual speeds, reply history and usage are unavailable. | Connection…
+#hero {aria-label="Model activity"}: Check access in MLX Scope Nothing waiting
+h2: Limited access
 #model: Example-27B-4bit
-#attribution: i
-span.chip {data-attr="server" data-outline="" data-reason="all requests"}: Server-wide · all requests
-#rate: 1 running
+#engine-readings: Engine readings
+#reply-strip
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
-live [callout-live]: Notice: oMLX admin login refusedPublic status only: server-wide totals, without request speed, reply history or usage records.Connection…
+live [callout-live]: Notice: oMLX admin login refusedOnly server totals are available. Individual speeds, reply history and usage are unavailable.Connection…
 
 ## server · 320 dark panel
 main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: MLX Scope
@@ -50,29 +51,30 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-live {aria-labelledby="tab-live"}
 #panel-server {aria-labelledby="server-title"}: Back to Live
 #server-title: Server & Mac details
-[callout-server] {data-severity="info"}: Notice: | oMLX admin login refused | Public status only: server-wide totals, without request speed, reply history or usage records. | Connection…
-[server-memory]: i oMLX · reported Model memory Engine-pool ceiling
-h2: Runtime memory
+[callout-server] {data-severity="info"}: Notice: | oMLX admin login refused | Only server totals are available. Individual speeds, reply history and usage are unavailable. | Connection…
+[server-memory]: i oMLX · from server Model memory Model memory limit
+h2: Model memory
 span.val {data-basis="reported"}: 17.1 GiB
 span.val {data-basis="reported"}: 38.0 GiB
 [server-residency]: i 1 loaded Example-27B-4bit
 h2: Loaded models
 span.chip {data-tone="accent"}: Generating
-[server-session]: i 14 h 17 m · since start Decode average Prefill average Cache efficiency Completed
-h2: Server session
+[server-session]: i 14 h 17 m · since start Generation speed Prefill speed Cache efficiency Completed
+h2: Overall average
 span.val {data-basis="reported"}: 23.2 tok/s
 span.val {data-basis="reported"}: 598 tok/s
 span.val {data-basis="reported"}: 82%
 span.val {data-basis="reported"}: 381
-#server-runtime-details: Runtime details Limited
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 31% RAM 36.1 / 48 GiB Swap 1.1 GiB
+#server-runtime-details: Server details Limited
+#machine {aria-label="This Mac" data-stale="false"}: i CPU 31% Memory allocated 36.1 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status i Normal
 #mac-details: Mac details
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
-live [callout-server]: Notice: oMLX admin login refusedPublic status only: server-wide totals, without request speed, reply history or usage records.Connection…
+live [callout-server]: Notice: oMLX admin login refusedOnly server totals are available. Individual speeds, reply history and usage are unavailable.Connection…

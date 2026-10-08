@@ -640,3 +640,42 @@ dd { margin: 0; }
 .scope[data-compact="true"] .masthead { min-height: 32px; }
 .compact-glance .ws-note { height: 15px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .compact-glance .ws-alert-row { height: 18px; }
+
+/* 3.0: one current reading, one context row, one route to detail. */
+.ws.ws-session { padding: 0; font-size: max(12px, .75rem); line-height: 1.5; }
+.ws.ws-session .ws-line { height: auto; min-height: max(24px, 1.5rem); gap: .75rem; }
+.ws.ws-session .ws-context { align-items: baseline; margin: 0; }
+.ws.ws-session .ws-context .ws-phase { flex: 0 1 auto; font-size: inherit; font-weight: 400; }
+.ws.ws-session .ws-context .ws-model { flex: 1 1 0; font-size: inherit; color: var(--scope-muted); }
+.ws.ws-session .ws-measurement { align-items: baseline; }
+.ws-session .ws-measurement .ws-label { color: var(--scope-muted); overflow: visible; white-space: normal; font-size: inherit; }
+.ws-session .ws-reading { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ws-session .ws-reading strong { font-weight: 600; }
+.ws-session .ws-reading > span { color: var(--scope-muted); }
+.ws-session .ws-measurement[data-live="false"] .ws-reading { color: var(--scope-muted); }
+.ws.ws-session .ws-note, .ws.ws-session .ws-warning { display: block; -webkit-line-clamp: unset; height: auto; min-height: 1.5rem; white-space: normal; overflow-wrap: anywhere; font-size: inherit; line-height: 1.5; color: var(--scope-muted); }
+.ws.ws-session .ws-warning { color: var(--scope-warn); }
+.ws.ws-session .ws-warning[data-severity="critical"] { color: var(--scope-bad); }
+.ws.ws-session .ws-actions { height: auto; min-height: max(28px, 1.75rem); gap: .25rem .5rem; flex-wrap: wrap; }
+.ws.ws-session .ws-details { flex: 0 0 auto; font-size: inherit; min-height: max(24px, 1.5rem); color: var(--scope-muted); white-space: nowrap; }
+.ws.ws-session .ws-details:hover { color: var(--scope-fg); }
+.scope-choice { min-width: 0; max-width: 100%; height: max(24px, 1.5rem); min-height: 24px; border: 0; border-radius: 3px; padding: 0 2px; background: transparent; color: var(--scope-muted); font: inherit; font-size: max(12px, .75rem); cursor: pointer; }
+.scope-choice:hover, .scope-choice:focus-visible { color: var(--scope-fg); }
+.scope-choice option { background: var(--scope-bg); color: var(--scope-fg); }
+.ws-session .scope-choice { flex: 0 0 auto; margin: 0 -2px 0 auto; max-width: 100%; }
+.ws.ws-session .ws-action-error { min-height: 1.5rem; line-height: 1.5; font-size: inherit; overflow-wrap: anywhere; }
+.ws.ws-session .ws-nonlocal { font-size: inherit; white-space: normal; }
+.instrument-primary { margin: 24px 0 16px; }
+.instrument-primary .speed-value { margin: 0; }
+.instrument-primary .speed-value strong { font-size: clamp(40px, 9vw, 64px); }
+.instrument-primary[data-live="false"] .speed-value { color: var(--scope-muted); }
+.instrument-source { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--scope-muted); font-size: 12px; }
+.instrument-primary .progress-track { margin-top: 16px; max-width: 520px; }
+.instrument-heading .scope-choice { margin-left: auto; }
+.instrument-details { margin-top: 16px; }
+.instrument-details > summary { display: flex; align-items: center; justify-content: space-between; min-height: 32px; color: var(--scope-muted); font-size: 12px; }
+.instrument-details > summary::after { content: '+'; font-size: 16px; }
+.instrument-details[open] > summary::after { content: '−'; }
+.instrument-details .speed-pair { margin-top: 12px; }
+.instrument-details .speed-value strong { font-size: 28px; }
+.instrument-details .signal { margin-top: 12px; }

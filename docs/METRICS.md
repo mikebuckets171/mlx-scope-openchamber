@@ -1,9 +1,46 @@
 # Metric reference
 
-MLX Scope shows only what a runtime or the Mac reports. A reading the runtime can't provide is **left out**: no dash,
-no zero, no "not reported" cell. Unknown is not zero, and idle time is a gap in a chart, never a zero. Runtime readings
-describe the selected server, not a selected chat, unless a reply is labelled "This chat · inferred" or "Next reply ·
-armed".
+MLX Scope distinguishes runtime measurements, chat delivery estimates, and completed-step averages. Missing current
+measurements leave no empty sidebar rows. Unknown is not zero, and idle time is a gap in a chart, never a zero.
+
+## The main reading
+
+**This chat** is the default saved scope. It follows the selected chat's local provider and model, and chooses the
+first available reading in this order:
+
+1. A fresh runtime request in the current phase, matched to this chat and labeled **Chat · matched**. This is an inferred association: another
+   request with the same model cannot be ruled out. The existing one-active-request and whole-turn coverage rules still apply.
+2. A fresh **Chat · est.** delivery rate from the optional OpenCode companion. It measures observable text and reasoning
+   arriving through OpenCode, with a token estimate, rather than the engine's native decode time.
+3. A fresh runtime reading labeled **Engine**. This fallback covers activity on the selected engine and never silently
+   becomes a chat measurement.
+
+When a chat output event arrives before the runtime's next poll, a previous prompt-reading rate cannot appear as
+generation or reasoning speed. Scope uses a valid chat estimate or waits for a compatible engine reading.
+
+**Whole engine** ignores companion chat rates and keeps the explicit connection selection. During prompt processing,
+reported progress takes precedence over speed. The sidebar suppresses empty measurements, shows explicit reasoning,
+tool, waiting, and stopped states when observed, and clears live rates on stale data or cancellation. A completed
+measurement is labeled **Last … · avg.**; it is never reused as a live speed. Engine results based only on the last
+observed request remain available in detailed reply history, without being promoted to a final sidebar average.
+
+The full Live view uses the same precedence. **Engine readings** and **Engine trend** keep runtime measurements
+separate from the headline's chat estimate. Existing history, captures, and baselines retain their runtime timing
+meaning; chat delivery windows and completed-step averages are not merged into those series.
+
+## Chat estimates and completion timing
+
+The companion uses a rolling window of at most five seconds and requires at least two seconds of valid observation.
+It initially divides Unicode character counts by four to estimate tokens. After three eligible completed steps, it
+calibrates from character and reported-token totals across the latest ten comparable steps. Both forms always retain
+**est.** in the displayed label. Observable reasoning counts toward delivery; tool payloads, title generation,
+compaction, and ambiguous output-token accounting do not.
+
+A **Last chat · avg.** uses reported output tokens divided by observed completed-step duration. That duration includes
+waiting before delivery, so the result is neither a live delivery-window rate nor native engine throughput. Very short
+or ambiguous replies can finish without a rate. Tool use, cancellation, stream gaps, and identity changes reset live
+estimates. Expired, future, paused, and stale observations cannot appear live. The snapshot extension records scope,
+basis, timing basis, observation interval, and freshness independently of the runtime measurement fields.
 
 ## Units
 
@@ -27,7 +64,7 @@ an ⓘ), in reports and in `/scope`.
 | derived | Computed from reported counters, for example tokens divided by the runtime's own seconds counter |
 | observed | Measured by Scope from successive samples, for example a llama-server slot's decoded tokens over time |
 | last observed | The last value Scope saw before a request disappeared (oMLX, vllm-mlx); a completed request's final figures may differ |
-| estimate | A model of a quantity, not a measurement: a runtime's prefill stage estimate, macmon chip power, tokens per joule |
+| estimate | An inferred quantity: chat delivery tokens from characters, a runtime's prefill stage estimate, macmon chip power, tokens per joule |
 
 How a finished reply is detected, per runtime:
 
@@ -43,8 +80,8 @@ figures are not assigned to any of them. Ollama and mlx-lm report no completions
 
 ## Capabilities
 
-Each connection declares what it can report. A value appears only with its capability, and a test enforces that no
-value travels without one.
+Each connection declares what its runtime can report. Runtime values appear only with the matching capability.
+Optional chat measurements use their own validated scope, basis, timing, and freshness contract.
 
 | Capability | Readings |
 | --- | --- |

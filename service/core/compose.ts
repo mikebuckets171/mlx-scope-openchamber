@@ -1,4 +1,5 @@
 import type { AlertLogEntryV2, AlertV2 } from '../../src/contract/alerts.ts';
+import type { ChatMeasurement } from '../../src/contract/chat.ts';
 import { capabilityScope, type Capabilities } from '../../src/contract/capabilities.ts';
 import type { CompletionsV2 } from '../../src/contract/completion.ts';
 import { hostCapabilities as hostParts, type HostV2 } from '../../src/contract/host.ts';
@@ -19,13 +20,14 @@ export interface ComposeInput {
   serverNow: number;
   lease: LeaseView;
   marksHead: number;
-  query: Pick<SnapshotQuery, 'surface'>;
+  query: Pick<SnapshotQuery, 'surface' | 'chatBusy'>;
   nextPollMs?: number;                       // computed once per request by the server (snapshotPollMs); else here
+  chat?: ChatMeasurement | null;
 }
 
 /** The frame's next poll delay for this reading: the service's one backoff and cadence table (scheduler.ts). */
-export const snapshotPollMs = ({ reading, host, lease, query }: Pick<ComposeInput, 'reading' | 'host' | 'lease' | 'query'>): number =>
-  nextPollMs({ surface: query.surface, active: busy(reading.runtime), idleMs: reading.meta.idleMs, failures: reading.meta.failures,
+export const snapshotPollMs = ({ reading, host, lease, query, chat }: Pick<ComposeInput, 'reading' | 'host' | 'lease' | 'query' | 'chat'>): number =>
+  nextPollMs({ surface: query.surface, active: busy(reading.runtime) || query.chatBusy === true || !!chat && chat.freshness === 'live' && chat.phase !== 'cancelled', idleMs: reading.meta.idleMs, failures: reading.meta.failures,
     hostLive: host !== null, yielded: lease.yielded });
 
 /** The host capabilities as a map: exactly the parts the reading filled (svc-host's `hostCapabilities`, P3). */
@@ -51,6 +53,7 @@ export const composeSnapshot = (input: ComposeInput): SnapshotV2 => {
     runtime: { ...reading.runtime, sampledAt: reading.at }, host, completions: { ...completions, instance: service.instance }, marksHead,
     alerts: alerts.alerts, alertLog: alerts.alertLog, lease: wireLease satisfies LeaseV2,
     nextPollMs: input.nextPollMs ?? snapshotPollMs(input),
+    ...(input.chat ? { chat: input.chat } : {}),
   };
   const snapshot = parseSnapshotV2(JSON.parse(JSON.stringify(body)));
   if (!snapshot) throw new TypeError('The reading could not form a v2 snapshot.');

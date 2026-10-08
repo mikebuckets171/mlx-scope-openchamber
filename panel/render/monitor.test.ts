@@ -12,10 +12,10 @@ afterEach(() => {
   for (const monitor of cleanup.splice(0)) { monitor.poller.stop(); monitor.clearFreshness(); }
 });
 const harness = () => {
-  const clock = { at: MOCK_NOW, visible: true }, state = new ScopeState(clock.at), received: Reading[] = [];
+  const clock = { at: MOCK_NOW, visible: true, renders: 0 }, state = new ScopeState(clock.at), received: Reading[] = [];
   const client = new SnapshotClient({ serviceRequest: async () => { throw new Error('test does not poll'); } }, () => clock.at);
   const monitor = new Monitor({ state, client, frame: 'a1b2c3d4', visibility: () => ({ visible: clock.visible } as Visibility),
-    tier: 'full', floorMs: 3_000, query: () => ({}), received: reading => received.push(reading), hidden() {}, render() {}, refreshed() {} });
+    tier: 'full', floorMs: 3_000, query: () => ({}), received: reading => received.push(reading), hidden() {}, render() { clock.renders++; }, refreshed() {} });
   cleanup.push(monitor);
   return { monitor, clock, state, received };
 };
@@ -61,6 +61,22 @@ test.each(['pause', 'hide'])('a short %s clears this frame’s recent window whi
   monitor.apply(splash(clock.at, 2_500));
   expect(state.snapshot!.runtime.server.rates).toEqual({ decodeTps: 43.8, windowMs: 2_500 });
   expect(state.signal.points).toHaveLength(2);
+});
+
+test('chat expiry repaints before the engine watchdog and hiding clears its deadline', async () => {
+  const { monitor, clock, state } = harness();
+  const body = splash(clock.at).body!;
+  body.chat = { scope: 'chat', basis: 'estimated-characters', timingBasis: 'delivery-window',
+    phase: 'generating', tokensPerSecond: 40, observedAtMs: clock.at, expiresAtMs: clock.at + 20,
+    observation: { startedAtMs: clock.at - 2_000, endedAtMs: clock.at }, freshness: 'live' };
+  monitor.apply(fromSnapshot(body)); monitor.armFreshness();
+  const before = clock.renders; clock.at += 21;
+  await new Promise(resolve => setTimeout(resolve, 40));
+  expect(clock.renders).toBe(before + 1); expect(state.stale).toBe(false);
+  body.chat.expiresAtMs = clock.at + 20; monitor.armFreshness();
+  clock.visible = false; monitor.sync(); const hidden = clock.renders;
+  await new Promise(resolve => setTimeout(resolve, 40));
+  expect(clock.renders).toBe(hidden);
 });
 
 test('A → B → A requires each returned connection’s whole window to follow the switch', () => {

@@ -39,6 +39,9 @@ export interface StatusSectionInput {
   window?: TurnWindow | null;                // the open chat's newest turn window
   firstRun?: boolean;                        // the ledger's first write: "Recording reply history locally"
   firstRunDismissed?: boolean;
+  measurementScope?: 'chat' | 'engine';
+  sessionModel?: string | null;
+  chatActivity?: 'idle' | 'busy' | null;
 }
 export interface StatusRow { label: string; value: string; basis: string | null }
 export type DotTone = 'live' | 'prefill' | 'warn' | 'bad' | 'idle';

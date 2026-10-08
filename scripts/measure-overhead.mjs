@@ -52,6 +52,8 @@ const plans = [...flags.macmon === 'only' ? [] : runtimes.map(kind => ({ kind, m
 assert(plans.length, '--macmon only needs --runtime all or omlx.');
 assert(['darwin', 'linux'].includes(platform()), 'This measurement uses macOS/Linux ps.');
 const serviceFile = resolve(flags.service ?? positionals[1] ?? join(here, '../service/main.js'));
+const serviceDigest = () => createHash('sha256').update(readFileSync(serviceFile)).digest('hex');
+const measuredDigest = serviceDigest();
 const preload = pathToFileURL(join(here, 'lib/spawn-log-preload.mjs')).href;
 const macmonPreload = pathToFileURL(join(here, 'lib/fake-macmon-preload.mjs')).href, fakeMacmon = join(here, 'lib/fake-macmon.mjs');
 const timeWrapper = platform() === 'darwin' && existsSync('/usr/bin/time');
@@ -104,6 +106,7 @@ const rusage = text => {
 };
 
 async function measure({ kind, macmon }) {
+  assert.equal(serviceDigest(), measuredDigest, 'Service bundle changed between measurement runs. Freeze the build and repeat.');
   const sandbox = await mkdtemp(join(tmpdir(), 'mlx-scope-overhead-home-'));
   const scratch = await mkdtemp(join(tmpdir(), 'mlx-scope-overhead-log-'));
   const log = join(scratch, 'service.jsonl'), lmsLog = join(scratch, 'lms.log');
@@ -413,12 +416,13 @@ function summarize(kind, run) {
 const packageFile = join(dirname(serviceFile), '../package.json');
 const runs = [];
 for (const plan of plans) runs.push(await measure(plan));
+assert.equal(serviceDigest(), measuredDigest, 'Service bundle changed during measurement. Freeze the build and repeat.');
 const receipt = {
   measurement: 'MLX Scope service overhead: service process plus all descendants, synthetic loopback runtimes',
   recordedAt: new Date().toISOString(),
   service: {
     version: existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, 'utf8')).version ?? null : null,
-    bundleSha256: createHash('sha256').update(readFileSync(serviceFile)).digest('hex'),
+    bundleSha256: measuredDigest,
   },
   node: process.version,
   host: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model ?? null, logicalCores: cpus().length, memGiB: Math.round(totalmem() / 2 ** 30) },

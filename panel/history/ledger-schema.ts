@@ -143,10 +143,11 @@ export interface PrefV2 {
   tipDismissed: boolean;                     // "Replace Turn stats…" one-time tip (decision 13)
   noticeDismissed: boolean;                  // "Recording reply history locally · Open Scope to manage"
   statusExpanded: boolean;                   // Work Status shows the Turn stats rows instead of the glance
+  measurementScope: 'chat' | 'engine';
 }
 export const RETENTION_LIMITS = { min: 1, default: 30, max: 90 } as const;
 export const DEFAULT_PREF: Readonly<PrefV2> = Object.freeze({ v: LEDGER_SCHEMA, history: true, retentionDays: RETENTION_LIMITS.default,
-  toasts: 'critical', autoLabel: true, tipDismissed: false, noticeDismissed: false, statusExpanded: false });
+  toasts: 'critical', autoLabel: true, tipDismissed: false, noticeDismissed: false, statusExpanded: false, measurementScope: 'chat' });
 export const retentionDays = (value: unknown): number | null => {
   const n = finite(value);
   return n === null ? null : Math.min(RETENTION_LIMITS.max, Math.max(RETENTION_LIMITS.min, Math.round(n)));
@@ -157,7 +158,7 @@ export const parsePref = (value: unknown): PrefV2 => {
   return { v: LEDGER_SCHEMA, history: bool(item.history) ?? DEFAULT_PREF.history, retentionDays: retentionDays(item.retentionDays) ?? DEFAULT_PREF.retentionDays,
     toasts: toasts ?? DEFAULT_PREF.toasts, autoLabel: bool(item.autoLabel) ?? DEFAULT_PREF.autoLabel,
     tipDismissed: bool(item.tipDismissed) ?? false, noticeDismissed: bool(item.noticeDismissed) ?? false,
-    statusExpanded: bool(item.statusExpanded) ?? false };
+    statusExpanded: bool(item.statusExpanded) ?? false, measurementScope: item.measurementScope === 'engine' ? 'engine' : 'chat' };
 };
 
 const x10 = (value: number | undefined): N => value == null ? null : Math.min(Number.MAX_SAFE_INTEGER, Math.round(value * 10));

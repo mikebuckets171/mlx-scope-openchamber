@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Browser, type Frame, type Page } from '@playwright/test';
 
-// 2.0 goldens (tests/goldens/2.0, see tests/goldens/README.md): the 2.0 panel on the 2.0 fixture host, which answers
+// 3.0 presentation goldens (legacy path tests/goldens/2.0): the current panel on the 2.0.4 fixture host, which answers
 // /v2/snapshot from the approved G2 mock's v2 states (docs/design/2.0-mock-fixtures.json, panel/testing/mock-states.ts).
 // Time is a paused fake clock advanced in 500 ms steps; after every step a postMessage barrier (panel → host → panel,
 // FIFO) waits until each request the panel sent has been answered and handled. Text goldens run everywhere; pixel
@@ -179,7 +179,7 @@ class Harness {
 test.describe.configure({ timeout: 180_000 });
 
 for (const item of CASES) {
-  test(`2.0 golden · ${item.name}`, async ({ browser, baseURL }) => {
+  test(`3.0 golden · ${item.name}`, async ({ browser, baseURL }) => {
     const shots = new Set(item.shots), query = `state=${item.state}`;
     const open = async (variant: Variant) => { const harness = await Harness.open(browser, baseURL!, query, variant); await harness.advance(STEPS); return harness; };
     const sections: string[] = [`# ${item.name} · /v2?${query}\n`];
@@ -217,7 +217,7 @@ for (const item of CASES) {
   });
 }
 
-test('2.0 golden · Work Status section at 280 px', async ({ browser, baseURL }) => {
+test('3.0 golden · Work Status section at 280 px', async ({ browser, baseURL }) => {
   const sections: string[] = ['# Work Status section · 280 px\n'];
   for (const item of STATUS) {
     const pref = /pref=(tip|turn)/.exec(item.query)?.[1] ?? null;

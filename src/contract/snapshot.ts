@@ -1,3 +1,4 @@
+import { parseChatMeasurement, type ChatMeasurement } from './chat.ts';
 import { parseAlertLog, parseAlerts, type AlertLogEntryV2, type AlertV2 } from './alerts.ts';
 import { parseCapabilities, type Capabilities, type CapabilityKey } from './capabilities.ts';
 import { parseCompletionsV2, type CompletionsV2 } from './completion.ts';
@@ -31,6 +32,7 @@ export interface SnapshotV2 {
   alertLog: AlertLogEntryV2[];               // ≤ 20, newest first, service memory only
   lease: LeaseV2;
   nextPollMs: number;
+  chat?: ChatMeasurement | null;              // 3.0 optional selected-chat delivery observation
 }
 export interface StatusV2 { state: StatusState; reason: StatusReason | null; params: ReasonParams; sinceAt?: number }
 
@@ -310,6 +312,7 @@ export const parseSnapshotV2 = (value: unknown): SnapshotV2 | null => {
     contractVersion: CONTRACT_VERSION, serverNow, service: { version, instance }, connection: parsedConnection, status: parsedStatus,
     capabilities: parseCapabilities(item.capabilities), runtime: parsedRuntime, host, completions, marksHead,
     alerts: parseAlerts(item.alerts), alertLog: parseAlertLog(item.alertLog), lease: parsedLease, nextPollMs,
+    chat: item.chat === undefined ? undefined : parseChatMeasurement(item.chat, serverNow),
   });
   withhold(snapshot);
   return snapshot;

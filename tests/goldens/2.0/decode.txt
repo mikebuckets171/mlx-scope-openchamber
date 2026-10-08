@@ -17,26 +17,22 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal normal
-#hero {aria-label="Inference activity"}: tok/s Request average Reported by oMLX i
+#view-live: CPU 31% Memory allocated 36.1 / 48 GiB
+#hero {aria-label="Model activity"}: tok/s Engine i 26.4 tokens per second. All engine requests · From server · average for this request
+h2: Generating
 #model: Example-27B-4bit
-#attribution: i
-span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Server-wide · not observed
 #rate: 26.4
-#signal: Last 90 seconds | −90s Live observations now
-#ceiling: 30 tok/s
-div.plot[role=img] {aria-label="Decode · request average, last 8 s: 26.4 to 26.4 tokens per second, now 26.4"}
-#context-headroom: Context used i 52.7K of 131K tokens
+#engine-trend: Engine trend
+#engine-readings: Engine readings
 #request-details: Request details
-#reply-strip: Last reply i 1 min ago | Measure next reply
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-#reply-details: Reply details
+#reply-strip: Measure next reply
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## server · 320 dark panel
@@ -57,8 +53,8 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-live {aria-labelledby="tab-live"}
 #panel-server {aria-labelledby="server-title"}: Back to Live
 #server-title: Server & Mac details
-[server-memory]: i oMLX · reported Model memory Engine-pool ceiling
-h2: Runtime memory
+[server-memory]: i oMLX · from server Model memory Model memory limit
+h2: Model memory
 span.val {data-basis="reported"}: 17.1 GiB
 span.val {data-basis="reported"}: 38.0 GiB
 [server-cache]: i Current request Reused tokens Not reused RAM cache 7 entries SSD cache 188 entries
@@ -70,22 +66,23 @@ span.val {data-basis="reported"}: 22.4 GiB
 [server-residency]: i 1 loaded Example-27B-4bit
 h2: Loaded models
 span.chip {data-tone="accent"}: Generating
-[server-session]: i 14 h 17 m · since start Decode average Prefill average Cache efficiency Completed
-h2: Server session
+[server-session]: i 14 h 17 m · since start Generation speed Prefill speed Cache efficiency Completed
+h2: Overall average
 span.val {data-basis="reported"}: 23.2 tok/s
 span.val {data-basis="reported"}: 598 tok/s
 span.val {data-basis="reported"}: 82%
 span.val {data-basis="reported"}: 381
-#server-runtime-details: Runtime details Ready
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 31% RAM 36.1 / 48 GiB Swap 1.1 GiB
+#server-runtime-details: Server details Ready
+#machine {aria-label="This Mac" data-stale="false"}: i CPU 31% Memory allocated 36.1 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status i Normal
 #mac-details: Mac details
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## compact · 320 dark panel
@@ -95,11 +92,11 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="tr
 #monitor-menu
 #frame-card
 #compact-glance {aria-label="MLX Scope glance"}
-#ws {data-mode="glance" data-presentation="compact" data-variant="glance" style="height:80px"}: Generating 26.4 tok/s Example-27B Expand
-span.chip {aria-describedby="ws-why" data-attr="server" data-outline="" data-reason="not observed"}: Server-wide
-#ws-why: not observed
+#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Generating Example-27B Engine tok/s 26.4 tokens per second. All engine requests · From server · average for this request Expand
+#rate: 26.4
 live #connection (hidden): Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## live · 320 light panel
@@ -119,30 +116,26 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal normal
-#hero {aria-label="Inference activity"}: tok/s Request average Reported by oMLX i
+#view-live: CPU 31% Memory allocated 36.1 / 48 GiB
+#hero {aria-label="Model activity"}: tok/s Engine i 26.4 tokens per second. All engine requests · From server · average for this request
+h2: Generating
 #model: Example-27B-4bit
-#attribution: i
-span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Server-wide · not observed
 #rate: 26.4
-#signal: Last 90 seconds | −90s Live observations now
-#ceiling: 30 tok/s
-div.plot[role=img] {aria-label="Decode · request average, last 8 s: 26.4 to 26.4 tokens per second, now 26.4"}
-#context-headroom: Context used i 52.7K of 131K tokens
+#engine-trend: Engine trend
+#engine-readings: Engine readings
 #request-details: Request details
-#reply-strip: Last reply i 1 min ago | Measure next reply
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-#reply-details: Reply details
+#reply-strip: Measure next reply
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: OpenChamber | MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: OpenChamber MLX Scope
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -158,24 +151,20 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal normal
-#hero {aria-label="Inference activity"}: tok/s Request average Reported by oMLX i
+#view-live: CPU 31% Memory allocated 36.1 / 48 GiB
+#hero {aria-label="Model activity"}: tok/s Engine i 26.4 tokens per second. All engine requests · From server · average for this request
+h2: Generating
 #model: Example-27B-4bit
-#attribution: i
-span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Server-wide · not observed
 #rate: 26.4
-#signal: Last 90 seconds | −90s Live observations now
-#ceiling: 30 tok/s
-div.plot[role=img] {aria-label="Decode · request average, last 8 s: 26.4 to 26.4 tokens per second, now 26.4"}
-#context-headroom: Context used i 52.7K of 131K tokens
+#engine-trend: Engine trend
+#engine-readings: Engine readings
 #request-details: Request details
-#reply-strip: Last reply i 1 min ago | Measure next reply
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-#reply-details: Reply details
+#reply-strip: Measure next reply
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 

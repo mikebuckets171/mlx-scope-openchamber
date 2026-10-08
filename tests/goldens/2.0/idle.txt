@@ -17,18 +17,19 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 6% RAM 35.2 / 48 GiB | Memory normal Thermal normal
-#hero {aria-label="Inference activity"}
+#view-live: CPU 6% Memory allocated 35.2 / 48 GiB
+#hero {aria-label="Model activity"}: Model loaded · ready for the next request
+h2: Idle
 #model: Example-27B-4bit
-#reply-strip: Last reply i 1 min ago | Measure next reply
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="last-observed"}: 24.9 | tok/s | last observed
-#reply-details: Reply details
+#engine-readings: Engine readings
+#reply-strip: Measure next reply
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## server · 320 dark panel
@@ -49,8 +50,8 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-live {aria-labelledby="tab-live"}
 #panel-server {aria-labelledby="server-title"}: Back to Live
 #server-title: Server & Mac details
-[server-memory]: i oMLX · reported Model memory Engine-pool ceiling
-h2: Runtime memory
+[server-memory]: i oMLX · from server Model memory Model memory limit
+h2: Model memory
 span.val {data-basis="reported"}: 17.1 GiB
 span.val {data-basis="reported"}: 38.0 GiB
 [server-cache]: i Server cache RAM cache 7 entries SSD cache 188 entries
@@ -60,20 +61,21 @@ span.val {data-basis="reported"}: 22.4 GiB
 [server-residency]: i 1 loaded Example-27B-4bit
 h2: Loaded models
 span.chip: Idle
-[server-session]: i 14 h 17 m · since start Decode average Prefill average Cache efficiency Completed
-h2: Server session
+[server-session]: i 14 h 17 m · since start Generation speed Prefill speed Cache efficiency Completed
+h2: Overall average
 span.val {data-basis="reported"}: 23.2 tok/s
 span.val {data-basis="reported"}: 598 tok/s
 span.val {data-basis="reported"}: 82%
 span.val {data-basis="reported"}: 381
-#server-runtime-details: Runtime details Ready
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 6% RAM 35.2 / 48 GiB Swap 1.1 GiB
+#server-runtime-details: Server details Ready
+#machine {aria-label="This Mac" data-stale="false"}: i CPU 6% Memory allocated 35.2 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status i Normal
 #mac-details: Mac details
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 

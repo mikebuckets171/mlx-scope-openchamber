@@ -125,6 +125,7 @@ test('secondary views return to their parent and server-only reads stop outside 
 
 test('ⓘ is a disclosure: one open at a time, in flow, Esc closes it and returns focus; it survives polls', async ({ page }) => {
   const frame = await load(page, 'state=decode');
+  await frame.locator('#engine-readings > summary').click();
   const attr = frame.locator('#attribution .info'), basis = frame.locator('.instrument-basis .info');
   await attr.click();
   await expect(attr).toHaveAttribute('aria-expanded', 'true');
@@ -175,7 +176,7 @@ test('needs approval (NO_SERVICE) and version skew replace the tabs with their S
   await expect(frame.locator('#phase')).toHaveText('Needs restart');
 });
 
-test('Compact shows both speeds, at most 200 px, and Expand returns to the tabs', async ({ page }) => {
+test('Compact shows one relevant reading, at most 200 px, and Expand returns to the tabs', async ({ page }) => {
   const frame = await load(page, 'state=pressure');
   await frame.locator('#monitor-menu > summary').click();
   await frame.locator('#compact').click();
@@ -185,7 +186,7 @@ test('Compact shows both speeds, at most 200 px, and Expand returns to the tabs'
     height: node.getBoundingClientRect().height, scroll: node.scrollHeight, padding: getComputedStyle(node).padding, margin: getComputedStyle(node).margin,
   }])));
   expect(compactSize.scope!.scroll, JSON.stringify(compactSize)).toBeLessThanOrEqual(200);
-  await expect(frame.locator('#compact-glance .ws-alert-row')).toContainText('Memory pressure');
+  await expect(frame.locator('#compact-glance .ws-warning')).toContainText('Memory pressure');
   expect(await problems(page)).toEqual([]);
   await frame.getByRole('button', { name: 'Expand' }).click();
   await expect(frame.locator('#workspace-nav')).toBeVisible();
@@ -207,8 +208,8 @@ test('Session summary leads with reply speed, keeps warnings visible, and fits i
   await expect(frame.locator('#ws')).toHaveAttribute('data-presentation', 'session');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
-  await expect(frame.locator('.ws-rate')).toContainText('26.4');
-  await expect(frame.locator('.ws-scope')).toHaveText('All server activity');
+  await expect(frame.locator('.ws-reading')).toContainText('26.4');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
   await expect(frame.locator('.chip, .ws-spark, .ws-key-stats, .ts-rows')).toHaveCount(0);
   await expect(frame.getByRole('button', { name: 'Show turn stats' })).toHaveCount(0);
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
@@ -216,10 +217,10 @@ test('Session summary leads with reply speed, keeps warnings visible, and fits i
   expect(await problems(page)).toEqual([]);
 
   frame = await status(page, 'state=pressure');
-  await expect(frame.locator('.ws-alert-row')).toContainText('Memory pressure');
-  await expect(frame.locator('.ws-alert-value')).toHaveText(/^Warning(?:\s*\+\d+ more)?$/);
-  await expect(frame.locator('.ws-alert-value')).toHaveAttribute('data-severity', 'warning');
-  await expect(frame.locator('.ws-alert-row .dot, .ws-alert-row .chip')).toHaveCount(0);
+  await expect(frame.locator('.ws-warning')).toContainText('Memory pressure');
+  await expect(frame.locator('.ws-warning')).toHaveText('Memory pressure · warning');
+  await expect(frame.locator('.ws-warning')).toHaveAttribute('data-severity', 'warning');
+  await expect(frame.locator('.ws-warning .dot, .ws-warning .chip')).toHaveCount(0);
   expect(await problems(page)).toEqual([]);
 
   frame = await status(page, 'state=decode&chat=cloud');
@@ -265,8 +266,8 @@ test('Session summary ignores a remembered stats expansion and opens the full pa
   await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ statusExpanded: true, tipDismissed: true, noticeDismissed: true })));
   let frame = await status(page, 'state=bionic&chat=local');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
-  await expect(frame.locator('.ws-phase')).toHaveText('Idle');
-  await expect(frame.locator('.speed-rows:not(.progress-row)')).not.toContainText('tok/s');
+  await expect(frame.locator('.ws-phase')).toHaveText('Waiting');
+  await expect(frame.locator('.ws-measurement')).toHaveCount(0);
   await expect(frame.locator('.ws-age')).toHaveCount(0);
   await expect(frame.locator('.ts-rows, .ts-head')).toHaveCount(0);
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();

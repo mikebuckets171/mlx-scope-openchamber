@@ -1,5 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { ChatTelemetry } from './chat-telemetry.ts';
+import { createCompanionSetup } from './companion-setup.ts';
 import { RuntimeClient } from './runtime-client.ts';
 import { HostSampler } from './host/sampler.ts';
 import { historySources, ServiceHistory } from './history/history.ts';
@@ -18,10 +22,19 @@ const home = homedir();
 const exec = createExec(home);
 const client = new RuntimeClient({ exec });
 const host = new HostSampler({ exec, now: Date.now, home });
+const chat = new ChatTelemetry(home);
+const companionSetup = createCompanionSetup({ home, bundleDirectory: resolve(dirname(fileURLToPath(import.meta.url)), '../bridge/opencode'), probe: () => chat.probe() });
 // Everything the service remembers lives in memory and is filled only by view-driven reads (P5).
 const history = new ServiceHistory(instance, { energy: (from, to) => host.energy(from, to) });
 const server = createScopeServer(token, {
   read: (selection, request) => client.read(selection, request), host: context => host.sample(context), history,
+  companionSetup,
+  chat: async (query, reading) => {
+    if (!query.frame || query.surface === 'background') return null;
+    const target = query.chat && query.chatModel && query.provider && reading.meta.connection.id === query.provider
+      ? await client.companionTarget(query.provider) : null;
+    return chat.observe(query.frame, target ? { ...target, sessionKey: query.chat!, modelKey: query.chatModel! } : null);
+  },
   ...historySources(history, { now: Date.now, readUsage: query => client.usage(query) }),
 }, { instance });
 server.on('error', (error: NodeJS.ErrnoException) => {
@@ -34,6 +47,7 @@ const stop = (): void => {
   stopping = true;
   client.dispose();
   host.dispose();
+  void chat.dispose();
   server.close(() => process.exit(0));
   setTimeout(() => { server.closeAllConnections(); process.exit(0); }, 2_000).unref();
 };

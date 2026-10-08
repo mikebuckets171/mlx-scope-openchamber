@@ -4,7 +4,7 @@
 main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="prefill" data-stale="false" data-surface="panel"}: MLX Scope
 #scope-title: MLX Scope
 #status-pill
-#phase: Reading context
+#phase: Reading prompt
 #status-sep {aria-hidden="true"}: ·
 #connection: Local oMLX
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
@@ -17,33 +17,30 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal normal
-#hero {aria-label="Inference activity"}: tokens / second · reading context Reported by oMLX i
+#view-live: CPU 31% Memory allocated 36.1 / 48 GiB
+#hero {aria-label="Model activity"}
+h2: Reading prompt
 #model: Example-27B-4bit
-#attribution: i
-span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Server-wide · not observed
-#prefill-progress {aria-label="Prefill progress"}: 5,824 of 9,100 new tokens read | Prefill finishes in about 18 s Runtime estimate · may change
-#prefill-percent {data-basis="reported"}: 64%
-div.progress-track[role=progressbar] {aria-label="Prefill progress" aria-valuemax="100" aria-valuemin="0" aria-valuenow="64"}
-#rate: 185
-#context-headroom: Context used i 52.1K of 131K tokens
+#prefill-progress {data-basis="reported" data-live="true"}: Engine · prompt i Prompt read · 5824 of 9100 tokens 5,824 of 9,100 new tokens read About 18 s left · Server estimate
+#prefill-percent: 64%
+div.progress-track[role=progressbar] {aria-label="Prompt progress" aria-valuemax="100" aria-valuemin="0" aria-valuenow="64"}
+#engine-readings: Engine readings
 #request-details: Request details
-#reply-strip: Last reply i 1 min ago | Measure next reply
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-#reply-details: Reply details
+#reply-strip: Measure next reply
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## server · 320 dark panel
 main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="prefill" data-stale="false" data-surface="panel"}: MLX Scope
 #scope-title: MLX Scope
 #status-pill
-#phase: Reading context
+#phase: Reading prompt
 #status-sep {aria-hidden="true"}: ·
 #connection: Local oMLX
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
@@ -57,8 +54,8 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-live {aria-labelledby="tab-live"}
 #panel-server {aria-labelledby="server-title"}: Back to Live
 #server-title: Server & Mac details
-[server-memory]: i oMLX · reported Model memory Engine-pool ceiling
-h2: Runtime memory
+[server-memory]: i oMLX · from server Model memory Model memory limit
+h2: Model memory
 span.val {data-basis="reported"}: 17.1 GiB
 span.val {data-basis="reported"}: 38.0 GiB
 [server-cache]: i Current request Reused tokens Not reused RAM cache 7 entries SSD cache 188 entries
@@ -69,30 +66,31 @@ span.val {data-basis="reported"}: 3.2 GiB
 span.val {data-basis="reported"}: 22.4 GiB
 [server-residency]: i 1 loaded Example-27B-4bit
 h2: Loaded models
-span.chip {data-tone="accent"}: Reading context
-[server-session]: i 14 h 17 m · since start Decode average Prefill average Cache efficiency Completed
-h2: Server session
+span.chip {data-tone="accent"}: Reading prompt
+[server-session]: i 14 h 17 m · since start Generation speed Prefill speed Cache efficiency Completed
+h2: Overall average
 span.val {data-basis="reported"}: 23.2 tok/s
 span.val {data-basis="reported"}: 598 tok/s
 span.val {data-basis="reported"}: 82%
 span.val {data-basis="reported"}: 381
-#server-runtime-details: Runtime details Ready
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 31% RAM 36.1 / 48 GiB Swap 1.1 GiB
+#server-runtime-details: Server details Ready
+#machine {aria-label="This Mac" data-stale="false"}: i CPU 31% Memory allocated 36.1 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status i Normal
 #mac-details: Mac details
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## live · 320 light panel
 main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="prefill" data-stale="false" data-surface="panel"}: MLX Scope
 #scope-title: MLX Scope
 #status-pill
-#phase: Reading context
+#phase: Reading prompt
 #status-sep {aria-hidden="true"}: ·
 #connection: Local oMLX
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
@@ -105,24 +103,21 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 31% RAM 36.1 / 48 GiB | Memory normal Thermal normal
-#hero {aria-label="Inference activity"}: tokens / second · reading context Reported by oMLX i
+#view-live: CPU 31% Memory allocated 36.1 / 48 GiB
+#hero {aria-label="Model activity"}
+h2: Reading prompt
 #model: Example-27B-4bit
-#attribution: i
-span.chip {data-attr="server" data-outline="" data-reason="not observed"}: Server-wide · not observed
-#prefill-progress {aria-label="Prefill progress"}: 5,824 of 9,100 new tokens read | Prefill finishes in about 18 s Runtime estimate · may change
-#prefill-percent {data-basis="reported"}: 64%
-div.progress-track[role=progressbar] {aria-label="Prefill progress" aria-valuemax="100" aria-valuemin="0" aria-valuenow="64"}
-#rate: 185
-#context-headroom: Context used i 52.1K of 131K tokens
+#prefill-progress {data-basis="reported" data-live="true"}: Engine · prompt i Prompt read · 5824 of 9100 tokens 5,824 of 9,100 new tokens read About 18 s left · Server estimate
+#prefill-percent: 64%
+div.progress-track[role=progressbar] {aria-label="Prompt progress" aria-valuemax="100" aria-valuemin="0" aria-valuenow="64"}
+#engine-readings: Engine readings
 #request-details: Request details
-#reply-strip: Last reply i 1 min ago | Measure next reply
-span.chip {data-attr="inferred"}: This chat · inferred
-span.val {data-basis="last-observed"}: 24.9 tok/slast observed
-#reply-details: Reply details
+#reply-strip: Measure next reply
+#last-reply: Last reply
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 

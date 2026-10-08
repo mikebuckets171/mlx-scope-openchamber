@@ -12,6 +12,7 @@ import { failuresOf, stepSlot } from './core/slot.ts';
 import { HttpFailure, type FetchImplementation } from './http.ts';
 import type { Exec } from './lib/argv.ts';
 import { requestReply, requestText } from './lib/http-text.ts';
+import { chatKey } from '../src/contract/chat-key.ts';
 
 /** What a frame asked for: an explicit runtime is never switched away from, and an empty provider is Automatic (1.6). */
 export interface ReadSelection { provider?: string; runtime?: RuntimeKind | null }
@@ -115,6 +116,14 @@ export class RuntimeClient {
     if (!runtime) return connections[0];
     return connections.find(item => item.runtime === runtime)
       ?? connections.find(item => this.scheduler.peek(`${item.id}\0auto`)?.context.runtime === runtime) ?? connections[0];
+  }
+
+  /** Match companion data to the configured loopback endpoint, not merely a reused provider name. */
+  async companionTarget(provider: string): Promise<{ providerKey: string; endpointKey: string } | null> {
+    const choice = (await this.config()).connections.find(item => item.id === provider), url = choice?.config.baseURL;
+    if (!url || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) return null;
+    const origin = new URL(url.origin); if (origin.hostname === 'localhost') origin.hostname = '127.0.0.1';
+    return { providerKey: chatKey('provider', provider), endpointKey: chatKey('endpoint', origin.origin) };
   }
 
   async read(selection?: ReadSelection, request: ReadRequest = { tier: 'full', detail: false }): Promise<RuntimeReading> {

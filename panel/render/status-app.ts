@@ -12,22 +12,26 @@ import { sessionMarkup } from './views/session.ts';
 
 export interface StatusParts { root: HTMLElement; host: HostClient; state: ScopeState; client: SnapshotClient; pipeline: Pipeline; prefs: PrefsV2; visible: () => boolean }
 
-/** A chat is local when its provider is the monitored connection or another local connection the service lists. */
+/** Only the configured local choices prove locality; an error response may echo an unknown provider id. */
 export const chatIsLocal = (session: SessionSnapshot | null, connection: { id: string; choices: ReadonlyArray<{ id: string }> } | null): boolean | null => {
   const provider = session?.model?.split('/')[0];
   if (!provider || !connection) return null;
-  return provider === connection.id || connection.choices.some(choice => choice.id === provider);
+  return connection.choices.some(choice => choice.id === provider);
 };
 
 export class StatusApp {
   private height = 0;
   private session: SessionSnapshot | null = null;
   private actionError: string | null = null;
+  private readonly resize: ResizeObserver | null;
   private readonly unsubscribe: () => void;
   constructor(private readonly p: StatusParts, session: SessionSnapshot | null) {
     this.session = session;
     this.unsubscribe = p.host.onSession(next => { this.session = next; this.render(); });
     p.root.addEventListener('click', this.onClick);
+    p.root.addEventListener('change', this.onChange);
+    this.resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => this.fitHeight());
+    this.resize?.observe(p.root);
   }
   render(): void {
     const { state, pipeline, prefs, client } = this.p, snapshot = state.snapshot, pref = prefs.value, last = state.lastRequest;
@@ -39,12 +43,33 @@ export class StatusApp {
       tipDismissed: pref.tipDismissed === true, fresh: snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh, paused: state.userPaused, efficient: state.efficient,
       last: last ? { completion: last, label: pipeline.label(last) } : null, next: pipeline.nextState, window: pipeline.window(),
       firstRun: pipeline.firstRun, firstRunDismissed: pref.firstRunDismissed === true,
+      measurementScope: pref.measurementScope ?? 'chat', sessionModel: this.session?.model ?? null, chatActivity: this.session ? this.session.busy ? 'busy' : 'idle' : null,
     });
     const actionError = view.mode === 'summary' ? this.actionError : null;
-    const height = view.height + (actionError ? 30 - (view.note ? 30 : 0) : 0);
+    const height = view.height + (actionError ? 30 - (view.note ? 24 : 0) : 0);
     morph(this.p.root, sessionMarkup({ ...view, height, note: actionError ? null : view.note }, actionError));
-    if (height !== this.height) { this.height = height; void this.p.host.setHeight(height).catch(() => {}); }
+    const select = this.p.root.querySelector<HTMLSelectElement>('[data-action="measurement-scope"]');
+    if (select && select.value !== view.measurementScope) select.value = view.measurementScope;
+    this.fitHeight();
   }
+  /** Measure content so increased text size never clips the host's fixed-height iframe. */
+  private fitHeight(): void {
+    const height = Math.ceil(this.p.root.getBoundingClientRect().height);
+    if (height > 0 && height !== this.height) { this.height = height; void this.p.host.setHeight(height).catch(() => {}); }
+  }
+  onMeasurementScope: (scope: 'chat' | 'engine') => void = () => {};
+  reportPreferenceFailure(): void {
+    this.actionError = 'Changed here, but this host could not save the preference.';
+    this.render();
+  }
+  private readonly onChange = (event: Event): void => {
+    const target = event.target;
+    if (!(target instanceof HTMLSelectElement) || target.dataset.action !== 'measurement-scope') return;
+    const scope = target.value === 'engine' ? 'engine' : 'chat';
+    this.actionError = null;
+    this.onMeasurementScope(scope);
+    this.render();
+  };
   private readonly onClick = (event: MouseEvent): void => {
     const action = (event.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action, prefs = this.p.prefs;
     if (!action) return;
@@ -61,5 +86,5 @@ export class StatusApp {
     this.render();
     this.p.root.querySelector<HTMLElement>(`[data-action="${action}"]`)?.focus({ preventScroll: true });
   };
-  dispose(): void { this.unsubscribe(); this.p.root.removeEventListener('click', this.onClick); }
+  dispose(): void { this.unsubscribe(); this.resize?.disconnect(); this.p.root.removeEventListener('click', this.onClick); this.p.root.removeEventListener('change', this.onChange); }
 }

@@ -5,9 +5,9 @@ JavaScript. There is no separate daemon or runtime SDK to install.
 
 | Part | Source | Bundle | What it is |
 |---|---|---|---|
-| Views | `panel/` | `panel/main.js` (≤ 264 KB) | One bundle for the rail panel, the full page and the Work Status section; `ctx.surface` picks the renderer |
+| Views | `panel/` | `panel/main.js` (≤ 272 KB) | One bundle for the rail panel, the full page and the Work Status section; `ctx.surface` picks the renderer |
 | `/scope` | `background/` | `background/main.js` (≤ 25 KB) | The background entry: answers the slash command, nothing else |
-| Service | `service/` | `service/main.js` (≤ 170 KB) | Node service the host starts on demand; reads runtimes and the Mac |
+| Service | `service/` | `service/main.js` (≤ 210 KB) | Node service the host starts on demand; reads runtimes and the Mac |
 | Contract | `src/contract/` | (in each bundle) | Wire contract v2 (`docs/design/2.0-contract.md`): types, allowlist parsers, reason codes |
 
 ## Pipeline
@@ -55,6 +55,27 @@ lease, holds Next reply and toasts, and makes zero requests (a browser test asse
 `/v2/snapshot?surface=background&tier=glance` read and two storage reads (baselines and the model list), and returns a
 chip built by `panel/share/scope.ts`. It never polls, never subscribes to session events, is never a lease candidate,
 and writes nothing.
+
+## Chat measurements and guided setup
+
+`This chat` resolves the open chat's provider and model from the public host session event. Switching either clears
+observations and invalidates in-flight replies. `Whole engine` retains explicit connection selection. The existing
+contract and runtime routes remain compatible; `snapshot.chat` is an optional allowlisted measurement with scope,
+basis, timing basis, observation interval, expiry and freshness. It is never merged into engine trends or baselines.
+
+Visible frames send hashed session/model matching keys with the selected provider. The service validates a discovered
+loopback origin and writes a bounded union of watched targets into a private demand file (15-second expiry). One
+companion subscription per OpenCode process counts qualified delivery events while demanded and writes bounded
+expiring metadata. The service accepts exactly one matching writer; absent, stale, unsafe, unsupported or ambiguous
+records contribute no chat value. A one-shot view timer removes expired chat readings even if the next poll stalls.
+There is no autonomous service polling loop. Hidden views send no requests; companion event work stops after demand
+expires. The demand watcher itself checks only the private file once per second.
+
+The optional setup route reads compatibility on GET and changes managed local files only on explicit authenticated
+POST Enable/Disable. JSONC edits preserve comments and unrelated plugins; writes are atomic with rollback. It never
+restarts the host or inference. Existing runtime permissions and command paths are unchanged. Bundle ceilings increase
+by 8 KB for the panel and 30 KB for the service to cover guided setup, safe local transport and identifier hashing;
+the CPU/RSS and hidden-view budgets are unchanged.
 
 ## Probe tiers and cadence
 

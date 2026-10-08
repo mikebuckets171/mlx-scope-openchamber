@@ -28,12 +28,14 @@ export function createStore({ directory = DIRECTORY, now = Date.now, warn = () =
     pending = pending.catch(() => {}).then(async () => {
       prune();
       if (closed || !entries.size) { await unlink(file).catch(error => { if (error.code !== 'ENOENT') throw error; }); return; }
-      await mkdir(directory, { recursive: true, mode: 0o700 });
-      // Do not follow a symlink into an unrelated cache destination.
-      for (let parent = directory; parent !== dirname(parent); parent = dirname(parent)) {
-        const parentInfo = await lstat(parent);
-        if (parentInfo.isSymbolicLink() || !parentInfo.isDirectory()) throw new Error('Unsafe cache directory');
+      // Check existing ancestors before creation so a symlink cannot redirect mkdir.
+      const parents = [];
+      for (let parent = directory; parent !== dirname(parent); parent = dirname(parent)) parents.push(parent);
+      for (const parent of parents.reverse()) {
+        const parentInfo = await lstat(parent).catch(error => error.code === 'ENOENT' ? null : Promise.reject(error));
+        if (parentInfo && (parentInfo.isSymbolicLink() || !parentInfo.isDirectory())) throw new Error('Unsafe cache directory');
       }
+      await mkdir(directory, { recursive: true, mode: 0o700 });
       const info = await lstat(directory);
       if (info.uid !== process.getuid?.()) throw new Error('Unsafe cache owner');
       await chmod(directory, 0o700);

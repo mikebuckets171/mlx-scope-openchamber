@@ -71,7 +71,10 @@ export const inspect = (options: boolean | { openAll: boolean; backdrop: string[
     const describedOk = t === 'All server activity' && target && target.textContent!.includes(chip.dataset.reason ?? '\u0000') && visible(target);
     if (!/^(Likely this chat|Next reply|All server activity · .+)$/.test(t) && !describedOk) problems.push(`attribution chip "${t}" (server-wide needs its reason)`);
   }
-  if (/This chat(?! · inferred| uses| is not using a local model|’s| runs| was| has|, then)/.test(text)) problems.push('"This chat" without "inferred"');
+  // The scope selector names a preference, not an attribution claim. Actual chat measurements name their basis.
+  for (const label of Array.from(document.querySelectorAll('.ws-measurement .ws-label, .instrument-source'))) {
+    if (visible(label) && /^Chat/.test(label.textContent!.trim()) && !/matched|est\./.test(label.textContent!)) problems.push('chat reading without a matching or estimate label');
+  }
   for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-basis]:not([data-basis="reported"])'))) {
     if (!visible(el) || el.classList.contains('chip')) continue;
     const label = el.querySelector('.basis') ?? (el.nextElementSibling?.classList.contains('basis') ? el.nextElementSibling : null);
@@ -93,7 +96,7 @@ export const inspect = (options: boolean | { openAll: boolean; backdrop: string[
   for (const el of Array.from(document.querySelectorAll<HTMLElement>('[title]'))) {
     // Session model names may ellipsize and provenance explains its source in a title. Their visible labels still
     // identify the model and scope; neither is a tooltip-only control or an omitted measurement.
-    if (el.closest('#ws[data-presentation="session"]') && el.matches('.ws-phase, .ws-model, .ws-scope, .ws-note, .ws-label, .speed-row dd')) continue;
+    if (el.closest('#ws[data-presentation="session"]') && el.matches('.ws-phase, .ws-model, .ws-scope, .ws-note, .ws-label, .ws-warning, .ws-measurement, .speed-row dd')) continue;
     if (el.closest('#scope')) problems.push(`tooltip-only text on <${el.tagName.toLowerCase()}>: "${el.title.slice(0, 30)}"`);
   }
   for (const c of Array.from(document.querySelectorAll('.plot, .ws-spark'))) if (c.getAttribute('role') !== 'img' || !c.getAttribute('aria-label')) problems.push(`chart without role="img" and a summary: ${c.className}`);
@@ -104,9 +107,10 @@ export const inspect = (options: boolean | { openAll: boolean; backdrop: string[
     if (tab.tabIndex !== (tab.getAttribute('aria-selected') === 'true' ? 0 : -1)) problems.push(`tab ${tab.id} breaks roving tabindex`);
   }
   for (const ws of Array.from(document.querySelectorAll<HTMLElement>('.ws'))) {
-    const want = Number(ws.style.height.replace('px', ''));
-    if (ws.clientHeight !== want) problems.push(`status ${ws.dataset.mode}: height ${ws.clientHeight} ≠ ${want}`);
+    const adaptive = ws.dataset.presentation === 'session', want = Number((adaptive ? ws.style.minHeight : ws.style.height).replace('px', ''));
+    if (adaptive ? ws.clientHeight < want : ws.clientHeight !== want) problems.push(`status ${ws.dataset.mode}: height ${ws.clientHeight} does not satisfy ${want}`);
     if (ws.scrollHeight > ws.clientHeight) problems.push(`status ${ws.dataset.mode}: content ${ws.scrollHeight} px overflows ${ws.clientHeight} px`);
+    if (adaptive && document.querySelector('.scope[data-surface="status"]') && ws.getBoundingClientRect().bottom > innerHeight + 1) problems.push(`status ${ws.dataset.mode}: content clipped by the host iframe`);
     if (want > 200) problems.push(`status ${ws.dataset.mode}: taller than 200 px`);
     for (const line of Array.from(ws.querySelectorAll('.ws-line, .ts-head, .ws-heading, .ws-model-line, .ws-alert-row'))) if (line.scrollWidth > line.clientWidth + 1) problems.push(`status ${ws.dataset.mode}: a line overflows (${line.scrollWidth} > ${line.clientWidth})`);
     // Font-metric fit, like the pixel baselines, is judged on macOS (the only host this extension runs on); Linux

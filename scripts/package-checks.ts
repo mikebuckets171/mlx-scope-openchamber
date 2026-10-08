@@ -7,8 +7,10 @@ export const EXEC_G1 = [
 ] as const;
 /** Bytes, 1 KB = 1,000 (the stricter reading of plan §6). */
 // The theme-native layout and Session widget allow 2 KB above the original 2.0 view budget; probes stay unchanged.
-// The bounded private prompt-progress consumer adds 10 KB to the service allowance; guest ceilings stay unchanged.
-export const BUNDLE_CEILINGS = { 'panel/main.js': 264_000, 'service/main.js': 180_000, 'background/main.js': 25_000 } as const;
+// 3.0 adds selected-chat matching/setup UI, bounded companion transport and reversible JSONC setup;
+// no new dependencies or executables. Allow 8 KB more guest code and 30 KB more service code.
+// Bundle size is a packaging ceiling, distinct from the unchanged CPU/RSS acceptance budgets.
+export const BUNDLE_CEILINGS = { 'panel/main.js': 272_000, 'service/main.js': 210_000, 'background/main.js': 25_000 } as const;
 export const GUEST_BUNDLES = ['panel/main.js', 'background/main.js'] as const;
 export const COMMAND = { name: 'scope', description: 'Attach a private MLX Scope diagnostics summary' } as const;
 export const STATUS_SECTION = { entry: 'panel/index.html', title: 'MLX Scope', height: 72 } as const;

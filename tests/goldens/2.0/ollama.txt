@@ -17,17 +17,18 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 5% RAM 24.4 / 48 GiB | Memory normal Thermal normal
-#hero {aria-label="Inference activity"}: Ollama reports residency only · no per-request speed
+#view-live: CPU 5% Memory allocated 24.4 / 48 GiB
+#hero {aria-label="Model activity"}: Ollama lists loaded models but does not provide request speeds
+h2: Connected
 #model: example:14b
-#attribution: i
-span.chip {data-attr="server" data-outline="" data-reason="runtime can’t count requests"}: Server-wide · runtime can’t count requests
-#rate: 2 loaded
+#engine-readings: Engine readings
+#reply-strip
 h2: This Mac
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Ollama
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## server · 320 dark panel
@@ -48,18 +49,19 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-live {aria-labelledby="tab-live"}
 #panel-server {aria-labelledby="server-title"}: Back to Live
 #server-title: Server & Mac details
-[server-residency]: i 2 loaded example:14b | 11.2 GiB loaded GPU-resident (Ollama-reported) 10.1 GiB · 90% example-embed:latest | 0.6 GiB loaded GPU-resident (Ollama-reported) 0.6 GiB · 100%
+[server-residency]: i 2 loaded example:14b 11.2 GiB loaded GPU memory (from Ollama) 10.1 GiB · 90% example-embed:latest 0.6 GiB loaded GPU memory (from Ollama) 0.6 GiB · 100%
 h2: Loaded models
 span.chip: unloads in 3 m 32 s
 span.chip: unloads in 38 s
-#server-runtime-details: Runtime details Ready
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 5% RAM 24.4 / 48 GiB Swap 1.1 GiB
+#server-runtime-details: Server details Ready
+#machine {aria-label="This Mac" data-stale="false"}: i CPU 5% Memory allocated 24.4 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status i Normal
 #mac-details: Mac details
 #scope-version: <version>
 #freshness: Updated just now
 live #connection: Ollama
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
