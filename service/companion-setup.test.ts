@@ -231,7 +231,7 @@ describe('explicit companion setup', () => {
     await f.setup.enable();
     let probe = receipt(at);
     const setup = createCompanionSetup({ ...f.options, now: () => at + 100, probe: async () => probe });
-    expect(await setup.status()).toMatchObject({ state: 'ready', live: false, runtimeVersion: '2.0.25' });
+    expect(await setup.status()).toMatchObject({ state: 'ready', live: false, runtimeVersion: '2.0.25', message: 'Chat tracking is ready for your next local reply.' });
     probe = receipt(at, { updatedAtMs: at, expiresAtMs: at + 15_000 });
     expect((await setup.status()).live).toBe(true);
     probe = receipt(at, { companionVersion: '3.0.0', updatedAtMs: at, expiresAtMs: at + 15_000 });

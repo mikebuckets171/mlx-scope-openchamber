@@ -14,9 +14,9 @@ The 3.1.0 candidate adds automatic source discovery, one Connections screen, opt
 
 ## Design and motion
 
-The installed Session sidebar was inspected in light and dark themes with a real existing video job. The ring showed the backend's latest sampling percentage, elapsed time, ownership, and the report's age. A stale percentage remained still and visibly historical. Connections detected local runtime configuration, loaded chat tracking, and the existing video queue. Rail and full-page navigation were inspected without restarting the host or submitting a generation.
+The installed Session sidebar was inspected in light and dark themes with a real existing video job. The ring showed the backend's latest sampling percentage, elapsed time, ownership, and the report's age. A stale percentage remained still and visibly historical. Connections detected local runtime configuration, loaded chat tracking, and the existing video queue. Rail and full-page navigation were inspected without restarting the host or submitting a generation. After the local-only update, the installed Session showed the cloud explanation alongside media progress, and the full page and Connections rendered with local-only setup copy.
 
-Focused Chromium/WebKit verification passed 58 circle/layout cases and 70 setup/metadata cases. These cover Session, rail and full-page fixtures, narrow layouts down to 260 px, enlarged text, keyboard interaction, phase resets, hidden views, and Reduce Motion. Enlarged-text and reduced-motion claims come from browser fixtures rather than native operating-system preference changes. Public screenshots use synthetic jobs and contain no conversations.
+Focused Chromium/WebKit verification passed 58 circle/layout cases and 70 setup/metadata cases. The final local-only pass covered 154 cases for cloud inactivity, media, local completion behavior, setup and core navigation; corrected local completion fixtures passed all 16 focused rechecks. These cover Session, rail and full-page fixtures, narrow layouts down to 260 px, enlarged text, keyboard interaction, phase resets, hidden views, and Reduce Motion. Enlarged-text and reduced-motion claims come from browser fixtures rather than native operating-system preference changes. Public screenshots use synthetic jobs and contain no conversations.
 
 Only changed live digits roll for approximately 160 ms. Valid circular progress eases directly between received values in the same phase. Neither motion invents intermediate readings. Completion, cancellation, stale observations, hidden views and Reduce Motion stop animation.
 
@@ -51,9 +51,9 @@ The helper and producer staging checks passed 40 new fixtures. The existing Qwen
 
 ## Candidate archive
 
-`mlx-scope-openchamber-3.1.0.zip` is 481,814 bytes. Its SHA-256 is `d3b5503fdc08030faa6791fd211ca0924f85c9b10d47c65509de1c23c23ea3b5`.
+`mlx-scope-openchamber-3.1.0.zip` is 481,805 bytes. Its SHA-256 is `c3bbaecfdd113d9fc889a8b0f7130a712da533b75b487884db488a31415bb6e7`.
 
-Current packaged service: `dbbc1c07ac74d0886ce325bfb30bb9e4a9124278ff5f5f6b96ee43e9fd9bb241`.
+Current packaged service: `9cf1c0e5e561ec09f59b1d527a42745a04900c5aba1297ef3ea309d31531c71d`.
 
 Installed panel: `33006e34d7a47d028fd56a992da3ca0222f81783eae592e895061ac1a0d0226e`.
 
