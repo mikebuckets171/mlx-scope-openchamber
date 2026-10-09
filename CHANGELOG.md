@@ -4,6 +4,7 @@
 
 - Unified Connections explains detected sources and provides managed chat/media tracking setup with explicit readiness.
 - Optional Media monitoring shows current-chat jobs first, phase-local measured progress, waiting states, freshness and exact supported cancellation.
+- Circular media indicators show measured phase percentages, retain a clearly labelled last report when telemetry ages, and stop motion on stale or hidden views.
 - ComfyUI supports basic lifecycle monitoring and an optional passive progress helper; local-video, Qwen image and private telemetry feeds have separate adapters.
 - Primary live numbers use short changed-digit transitions with stable layout, fresh-data gating and Reduce Motion support.
 - Existing LLM measurements, history and captures remain compatible.

@@ -160,3 +160,49 @@ for (const width of [260, 280, 320]) test(`combined Session and media remain usa
   expect(await frame.locator('.media-glance').evaluate(element => { const r = element.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight + 1; })).toBe(true);
   expect(await frame.locator('#scope').evaluate(element => { const style = getComputedStyle(element); return element.scrollHeight <= element.clientHeight || style.overflowY === 'auto'; })).toBe(true);
 });
+
+test('Compact number motion never animates the retained hidden Live view', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/v2?surface=panel&state=decode&chat=local');
+  const frame = page.frameLocator('iframe');
+  await expect(frame.locator('#view-live #rate')).toHaveText('26.4');
+  await frame.locator('#monitor-menu > summary').click(); await frame.locator('#compact').click();
+  await expect(frame.locator('#compact-glance #rate')).toHaveText('26.4');
+  await frame.locator('#scope').evaluate(() => {
+    const original = Element.prototype.animate;
+    (window as any).motionVisibility = [];
+    Element.prototype.animate = function (...args) { (window as any).motionVisibility.push(this.checkVisibility()); return original.apply(this, args); };
+  });
+  await page.evaluate(() => { const w = window as any, body = w.ScopeStates.mockBody('decode', { now: Date.now() }); body.runtime.request.decodeTps = 27.9; w.setPreviewPatch({ runtime: body.runtime }); });
+  await frame.locator('#monitor-menu > summary').click(); await frame.locator('#refresh').click();
+  await expect(frame.locator('#compact-glance #rate')).toHaveText('27.9');
+  const visible = await frame.locator('#scope').evaluate(() => (window as any).motionVisibility as boolean[]);
+  expect(visible.length).toBeGreaterThan(0); expect(visible.every(Boolean)).toBe(true);
+});
+
+test('Connections discovers local servers from a cloud chat without choosing one or losing them on later chat polls', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/v2?surface=page&state=decode&chat=cloud');
+  await page.evaluate(() => { const w = window as any, body = w.ScopeStates.mockBody('decode', { now: Date.now() }); w.setPreviewPatch({ connection: { ...body.connection, choices: [] } }); });
+  const frame = page.frameLocator('iframe');
+  await frame.getByRole('button', { name: 'Connections', exact: true }).click();
+  await expect.poll(() => auxiliary(page, '/v2/connections')).toBeGreaterThan(0);
+  await expect(frame.locator('#connection-choice-note')).toContainText('3 local connections found');
+  await frame.locator('#runtime-connection-details > summary').click();
+  await expect(frame.locator('#connection-provider option[value="omlx"]')).toHaveText('Local oMLX');
+  await page.clock.runFor(6_000);
+  await expect(frame.locator('#connection-choice-note')).toContainText('3 local connections found');
+  await expect(frame.locator('#connection-provider option[value="omlx"]')).toHaveCount(1);
+  expect(await page.evaluate(() => (window as any).previewQueries.every((query: any) => query.provider === 'cloud-provider'))).toBe(true);
+  expect(await page.evaluate(() => sessionStorage.getItem('connection.selection'))).toBeNull();
+});
+
+test('Connections reports ready video and unavailable image telemetry as different capabilities', async ({ page }) => {
+  await page.goto('/v2?surface=page&state=decode&chat=cloud&setup=all-sources');
+  const frame = page.frameLocator('iframe');
+  await frame.getByRole('button', { name: 'Connections', exact: true }).click();
+  await expect(frame.locator('[data-key="local-video"]')).toContainText('Ready');
+  await expect(frame.locator('[data-key="qwen-image"]')).toContainText('Tracking unavailable');
+  await expect(frame.locator('#media-setup')).not.toContainText('No supported local media tool found');
+  await expect(frame.locator('[data-key="qwen-image"]')).not.toContainText('Basic monitoring only');
+});

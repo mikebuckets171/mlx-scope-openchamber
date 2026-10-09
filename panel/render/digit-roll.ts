@@ -25,7 +25,7 @@ export class DigitRoll {
     this.animations.clear(); this.root.querySelectorAll('.digit-before').forEach(node => node.remove());
     const next = new Map<string, { value: string; context: string }>();
     for (const node of Array.from(this.root.querySelectorAll<HTMLElement>('[data-roll-value]'))) {
-      if (!node.closest('[data-live="true"]')) continue;
+      if (!node.checkVisibility() || !node.closest('[data-live="true"]')) continue;
       const value = node.dataset.rollValue!, local = `${context}\0${node.dataset.rollContext ?? ''}`;
       const key = node.id, old = this.previous.get(key);
       next.set(key, { value, context: local });

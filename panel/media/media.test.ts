@@ -21,20 +21,39 @@ test('current chat leads active jobs without claiming unassigned or project-only
 test('phase-local progress is labeled and preserves tile/block units', () => {
   const tile = job({ phase: 'encoding-references', kind: 'video', progress: { value: 80, total: 100, unit: 'tiles', basis: 'phase' } });
   const markup = mediaMarkup(model([tile]), null, 20_000).markup;
-  expect(markup).toContain('80%'); expect(markup).toContain('of phase'); expect(markup).toContain('80 / 100 tiles');
+  expect(markup).toContain('80%'); expect(markup).toContain('phase progress'); expect(markup).toContain('80 / 100 tiles');
   expect(markup).toContain('Encoding references only'); expect(markup).not.toContain('diffusion steps'); expect(markup).not.toContain('ETA');
 });
-test('stale and cancelling media remove progress and cancellation capabilities immediately', () => {
+test('stale media retains only labeled phase counters; cancellation removes every percentage', () => {
   for (const v of [mediaJobView(job(), 20_000, true), mediaJobView(job({ freshness: 'stale' }), 20_000, false), mediaJobView(job(), 20_000, false, true)]) {
-    expect(v.progress).toBeNull(); expect(v.fraction).toBeNull(); expect(v.canCancel).toBe(false);
+    expect(v.progress).toBeNull(); expect(v.canCancel).toBe(false);
   }
+  const last = job({ freshness: 'stale', progress: null, lastProgress: { value: 4, total: 10, unit: 'tiles', basis: 'phase' }, lastProgressAtMs: 18_000 });
+  expect(mediaJobView(last, 20_000, false)).toMatchObject({ percent: '40%', lastReported: true, moving: false });
+  expect(mediaMarkup(model([last]), null, 20_000).markup).toContain('Last reported · ');
+  expect(mediaMarkup(model([last]), null, 20_000).markup).toContain('data-mode="stale"');
+  expect(mediaJobView(last, 20_000, false, true).fraction).toBeNull();
+  expect(mediaJobView(job(), 20_000, false, true).fraction).toBeNull();
   expect(mediaJobView(job(), 90_000, false).elapsed).toBe('10 s'); // elapsed freezes at observation, never invented during disconnect
 });
-test('indeterminate bars have no percentage; completed states never claim live progress', () => {
+test('only fresh running work has an indeterminate ring; completed states never claim live progress', () => {
   const unknown = mediaMarkup(model([job({ progress: null })]), null, 20_000).markup;
   expect(unknown).toContain('progress unavailable'); expect(unknown).not.toContain('aria-valuenow');
+  expect(unknown).toContain('data-mode="indeterminate"');
+  for (const state of ['queued', 'waiting', 'cancelling'] as const) expect(mediaMarkup(model([job({ state, progress: null })]), null, 20_000).markup).toContain('data-mode="static"');
   const completed = mediaMarkup(model([job({ state: 'completed', phase: 'completed', freshness: 'last', finishedAtMs: 20_000 })]), null, 20_000).markup;
   expect(completed).not.toContain('role="progressbar"'); expect(completed).not.toContain('Cancel job');
+});
+test('percent-only counters appear once visually and stale glance retains job type, time, and update age', () => {
+  const percent = job({ progress: { value: 40, total: 100, unit: 'percent', basis: 'phase' } });
+  const markup = mediaMarkup(model([percent]), null, 20_000).markup;
+  expect(markup).not.toContain('class="media-counters"');
+  const last = job({ freshness: 'stale', progress: null, lastProgress: percent.progress, lastProgressAtMs: 18_000 });
+  const glance = mediaGlanceMarkup(model([last]), null, 20_000, true);
+  const text = typeof glance === 'string' ? glance : glance.markup;
+  expect(text).toContain('Image · Sampling · last reported'); expect(text).toContain('Updated just now'); expect(text).toContain('10 s elapsed');
+  expect(text).not.toContain('40% · Updated');
+  expect(mediaJobView(last, 20_000, false).detail).toBeNull();
 });
 test('Session media is absent when idle and bounded to one active job plus other count', () => {
   expect(mediaGlanceMarkup(model([]), null, 20_000, true)).toBe('');

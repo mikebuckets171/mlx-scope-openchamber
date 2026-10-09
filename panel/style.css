@@ -389,19 +389,28 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .media-job:first-child { padding-top: 0; }
 .media-job h3 { font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
 .media-job-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
-.media-meta, .media-status, .media-job-foot, .media-state { color: var(--scope-muted); font-size: 11px; }
+.media-meta, .media-status, .media-state { color: var(--scope-muted); font-size: 11px; }
 .media-meta { margin-top: 2px; }
 .media-status { flex: none; max-width: 45%; text-align: right; }
 .media-job[data-state="failed"] .media-status { color: var(--scope-bad); }
 .media-job[data-state="completed"] .media-status { color: var(--scope-good); }
-.media-phase { display: flex; justify-content: space-between; gap: 12px; margin-top: 16px; font-size: 12px; }
-.media-phase small { font-size: inherit; color: var(--scope-muted); }
-.media-progress { position: relative; height: 3px; overflow: hidden; border-radius: 2px; background: var(--scope-line); margin: 8px 0; }
-.media-progress > span { display: block; height: 100%; background: var(--scope-accent); transition: width 160ms ease-out; }
-.media-progress:not([aria-valuenow]) > span { width: 24%; margin-left: 38%; opacity: .45; }
-.media-progress[data-fresh="false"] > span { background: var(--scope-muted); }
-.media-job-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; }
-.media-job-foot .btn { padding: 3px 0; font-size: 11px; }
+.media-job-progress { display: flex; align-items: center; gap: 14px; margin: 16px 0 8px; }
+.media-progress-copy { min-width: 0; flex: 1; }
+.media-phase { font-size: 12px; font-weight: 550; overflow-wrap: anywhere; }
+.media-phase small { display: block; font-size: 10px; font-weight: 400; color: var(--scope-muted); }
+.media-counters, .media-timing { margin-top: 3px; font-size: 11px; color: var(--scope-muted); font-variant-numeric: tabular-nums; }
+.media-job-progress > .btn { padding: 4px 0; font-size: 11px; }
+.media-ring { position: relative; display: grid; place-items: center; flex: none; width: max(52px, 3.25rem); height: max(52px, 3.25rem); color: var(--scope-accent); }
+.media-ring-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: rotate(-90deg); }
+.media-ring-track, .media-ring-fill { fill: none; stroke-width: 3; }
+.media-ring-track { stroke: var(--scope-line); }
+.media-ring-fill { stroke: currentColor; stroke-linecap: round; }
+.media-ring-value { font-size: max(12px, .75rem); font-weight: 550; color: var(--scope-fg); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.media-ring:is([data-mode="stale"], [data-mode="static"]) { color: var(--scope-muted); }
+.media-ring:is([data-mode="stale"], [data-mode="static"], [data-mode="indeterminate"]) .media-ring-value { color: var(--scope-muted); }
+.scope[data-media-motion="true"] .media-ring[data-mode="measured"] .media-ring-fill { transition: stroke-dashoffset 160ms cubic-bezier(.2,.7,.2,1); }
+.scope[data-media-motion="true"] .media-ring[data-mode="indeterminate"] .media-ring-svg { animation: media-orbit 3.6s linear infinite; }
+@keyframes media-orbit { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
 .media-empty { padding: 24px 0; min-height: 130px; }
 .media-empty h3 { font-size: 14px; font-weight: 500; }
 .media-empty p { max-width: 48ch; margin-top: 7px; color: var(--scope-muted); font-size: 12px; }
@@ -410,9 +419,20 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .media-confirm .insight-actions { margin-top: 8px; }
 .media-recent .media-jobs { padding-top: 14px; }
 .media-glance { padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--scope-line); font-size: 11px; }
+.media-glance-body { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.media-glance .media-ring { width: max(44px, 2.75rem); height: max(44px, 2.75rem); }
+.media-glance .media-ring-value { font-size: max(11px, .6875rem); }
+.media-glance-copy { flex: 1; min-width: 0; }
 .media-glance-head, .media-glance-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; }
 .media-glance-head strong { font-weight: 550; }
 .media-glance-head > span, .media-glance-foot { color: var(--scope-muted); }
+.media-glance-phase, .media-glance-timing { color: var(--scope-muted); font-size: inherit; line-height: 1.45; overflow-wrap: anywhere; }
+.media-glance-phase { margin-top: 2px; }
+.media-glance-timing { font-variant-numeric: tabular-nums; }
+.media-glance-timing > span { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+.media-glance-timing > span + span::before { content: " · "; white-space: pre; }
+.media-glance-foot { margin-top: 5px; }
+.media-glance-foot .btn:last-child { margin-left: auto; }
 .media-glance-foot .btn { padding: 2px 0; font-size: inherit; }
 .media-setup-source { display: grid; gap: 6px; padding: 12px 0; }
 .media-setup-source + .media-setup-source { border-top: 1px solid var(--scope-line); }
@@ -431,10 +451,12 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
   .masthead .monitor-controls { margin-left: auto; }
   .status-pill { order: 3; flex-basis: 100%; }
   .media-job-head { gap: 8px; }
-  .media-job-foot { flex-wrap: wrap; }
+  .media-job-progress { flex-wrap: wrap; gap: 10px; }
   .workspace-nav { flex-wrap: wrap; gap: 4px 12px; }
 }
-@media (prefers-reduced-motion: reduce) { .media-progress > span { transition: none; } }
-.media-progress:is([data-fresh="false"], :not([aria-valuenow])) > span { transition: none; }
+/* A retained, hidden workspace must never keep a decorative animation running. */
+[hidden] .media-ring-svg, [hidden] .media-ring-fill { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .media-ring-svg, .media-ring-fill { animation: none !important; transition: none !important; } }
+@media (forced-colors: active) { .media-ring { color: Highlight; } .media-ring-track { stroke: GrayText; } }
 .media-enabled { display: flex; align-items: center; gap: 8px; min-height: 32px; color: var(--scope-fg) !important; font-size: 12px !important; }
 .media-enabled input { accent-color: var(--scope-accent); width: 14px; height: 14px; }

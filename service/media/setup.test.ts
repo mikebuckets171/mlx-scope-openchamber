@@ -116,3 +116,10 @@ test('failure to clean an inert backup after commit preserves the new helper and
     expect(JSON.parse(await readFile(mediaConfigPath(f.home),'utf8')).sources[0].helperTokenPath).toBe(join(f.directory,'scope-token'));
   } finally {if(backup)await chmod(backup,0o700).catch(()=>{});}
 });
+test('Connections reports every detected media kind from the shared snapshot without separate network reads',async()=>{
+  const f=await fixture();let snapshots=0,network=0;
+  const configurations=[{id:'video',kind:'local-video' as const,label:'Local video',directory:'/private/video'},{id:'qwen',kind:'qwen-image' as const,label:'Qwen image',origin:'http://127.0.0.1:9000'},{id:'feed',kind:'feed' as const,label:'Studio',directory:'/private/feed'}];
+  const setup=createMediaSetup({...f.options,sources:async()=>configurations,fetchImpl:async()=>{network++;throw new Error('No separate reads');},snapshot:async()=>{snapshots++;return{schemaVersion:1,sampledAtMs:1000,nextPollMs:2000,jobs:[],sources:configurations.map(source=>({id:source.id,kind:source.kind,label:source.label,state:source.id==='qwen'?'unsupported' as const:'ready' as const,capabilities:{progress:false,cancel:false},...(source.id==='qwen'?{message:'This image workflow does not publish media progress yet.'}:{})}))};}});
+  const status=await setup.status();expect(status.sources.map(source=>[source.kind,source.state])).toEqual([['local-video','ready'],['qwen-image','unsupported'],['feed','ready']]);
+  expect(status.sources.every(source=>!source.canEnable&&!source.canDisable)).toBe(true);expect(status.sources[1]?.message).toContain('does not publish');expect(parseMediaSetup(status)).toEqual(status);expect([snapshots,network]).toEqual([1,0]);
+});

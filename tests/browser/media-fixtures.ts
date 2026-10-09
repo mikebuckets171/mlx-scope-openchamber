@@ -9,20 +9,30 @@ window.previewMediaCancelled = false;
 window.previewMediaHold = false;
 window.previewMediaEnabled = true;
 const job = (state: string): MediaJobV1 => {
-  const now = Date.now(), terminal = ['completed', 'failed', 'cancelled'].includes(state);
+  const now = Date.now(), terminal = ['completed', 'failed', 'cancelled'].includes(state), stale = ['stale', 'last-reported'].includes(state);
   return { id: 'fixture-video', sourceId: 'comfyui', kind: 'video', name: 'Landscape study', state: terminal ? state as 'completed' | 'failed' | 'cancelled' : state === 'waiting' ? 'waiting' : state === 'queued' ? 'queued' : 'running',
     phase: terminal ? state as 'completed' | 'failed' | 'cancelled' : state === 'waiting' ? 'waiting' : state === 'queued' ? 'queued' : 'sampling',
-    sampledAtMs: now, observedAtMs: now - (state === 'stale' ? 60_000 : 0), startedAtMs: now - 72_000,
-    ...terminal ? { finishedAtMs: now - 1_000 } : {}, freshness: terminal ? 'last' : state === 'stale' ? 'stale' : 'live',
-    progress: terminal || ['basic', 'waiting', 'queued', 'stale'].includes(state) ? null : { value: 8, total: 20, unit: 'steps', basis: 'phase' },
+    sampledAtMs: now, observedAtMs: now - (stale ? 60_000 : 0), startedAtMs: now - 72_000,
+    ...terminal ? { finishedAtMs: now - 1_000 } : {}, freshness: terminal ? 'last' : stale ? 'stale' : 'live',
+    progress: terminal || stale || ['basic', 'waiting', 'queued'].includes(state) ? null : { value: 8, total: 20, unit: 'steps', basis: 'phase' },
+    ...state === 'last-reported' ? { lastProgress: { value: 8, total: 20, unit: 'steps' as const, basis: 'phase' as const }, lastProgressAtMs: now - 60_000 } : {},
     ownership: state === 'other' ? {} : { sessionKey: chatKey('session', 'fixture-chat') },
-    cancel: { supported: !terminal && state !== 'stale' }, ...state === 'waiting' ? { message: 'Waiting for the local chat to release the GPU.' } : {} };
+    cancel: { supported: !terminal && !stale }, ...state === 'waiting' ? { message: 'Waiting for the local chat to release the GPU.' } : {} };
 };
 window.ScopeMediaFixtures = { respond(message) {
   const path = message.payload.path;
-  if (!['/v2/media', '/v2/media/cancel', '/v2/media/setup', '/v2/companion/setup'].includes(path)) return null;
+  if (!['/v2/connections', '/v2/media', '/v2/media/cancel', '/v2/media/setup', '/v2/companion/setup'].includes(path)) return null;
   window.previewAuxiliaryRequests.push({ path, method: message.payload.method ?? 'GET' });
   const response = (body: unknown) => ({ status: 200, body: JSON.stringify(body) });
+  if (path === '/v2/connections') {
+    const choices = params.has('connections') ? [
+      { id: 'omlx', label: 'Local oMLX', runtime: 'omlx' }, { id: 'studio', label: 'LM Studio local', runtime: 'lmstudio' },
+      { id: 'mlx', label: 'mlx-lm local', runtime: 'mlx-lm' }, { id: 'vllm', label: 'vllm-mlx local', runtime: 'vllm-mlx' },
+      { id: 'splash', label: 'Inco AI Splash', runtime: 'splash' }, { id: 'bionic', label: 'Splash (Bionic)', runtime: 'lmstudio' },
+      { id: 'custom', label: 'Custom local', runtime: null },
+    ] : window.ScopeStates?.mockBody('decode', { now: Date.now() }).connection.choices ?? [{ id: 'omlx', label: 'Local oMLX', runtime: 'omlx' }];
+    return response({ schemaVersion: 1, state: 'ready', choices: params.get('setup') === 'missing' ? [] : choices });
+  }
   if (path === '/v2/companion/setup') return response({ state: params.get('tracking') === 'ready' ? 'ready' : 'disabled', message: 'Enable delivery-speed estimates for local and cloud chats.',
     configured: false, managed: false, canEnable: true, canDisable: false, runtimeVersion: '2.0.25', companionVersion: null, protocol: null, live: false });
   if (path === '/v2/media/setup') {
@@ -31,6 +41,10 @@ window.ScopeMediaFixtures = { respond(message) {
       if (input.action === 'set-enabled' && !input.sourceId) window.previewMediaEnabled = input.enabled;
       else window.previewMediaSetup = { schemaVersion: 1, sources: [{ id: 'comfyui', label: 'ComfyUI', state: input.action === 'disable' ? 'available' : 'pending', message: 'Installed · activates next time ComfyUI starts. Basic monitoring continues.', canEnable: true, canDisable: input.action !== 'disable', managed: input.action !== 'disable', helperVersion: '1.0.0', runtimeVersion: '0.38.0', locations: [{ id: 'fixture', label: 'ComfyUI · 0.38.0' }] }] };
     }
+    if (params.get('setup') === 'all-sources') return response({ schemaVersion: 1, enabled: true, sources: [
+      { id: 'local-video', kind: 'local-video', label: 'Local video', state: 'ready', message: 'Queue monitoring is ready.', canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: null, locations: [] },
+      { id: 'qwen-image', kind: 'qwen-image', label: 'Qwen image', state: 'unsupported', message: 'This integration does not publish progress telemetry yet.', canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: null, locations: [] },
+    ] });
     return response({ ...(window.previewMediaSetup ?? { schemaVersion: 1, sources: params.has('media') ? [{ id: 'comfyui', label: 'ComfyUI', state: 'available', message: 'Enable detailed progress to see measured work within each generation phase.', canEnable: true, canDisable: false, managed: false, helperVersion: null, runtimeVersion: '0.38.0', locations: [{ id: 'fixture', label: 'ComfyUI · 0.38.0' }] }] : [] }), enabled: window.previewMediaEnabled });
   }
   if (path === '/v2/media/cancel') {

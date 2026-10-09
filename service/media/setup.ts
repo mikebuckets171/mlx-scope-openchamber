@@ -7,7 +7,7 @@ import { parseMediaSetupAction } from '../../src/contract/media-setup.ts';
 import { requestText } from '../lib/http-text.ts';
 import type { FetchImplementation } from '../http.ts';
 import { localOrigin, mediaConfigPath, type MediaSourceConfig } from './discovery.ts';
-import { mediaId } from '../../src/contract/media.ts';
+import { mediaId, type MediaSnapshotV1, type MediaSourceV1 } from '../../src/contract/media.ts';
 import { label as safeLabel } from '../../src/contract/guards.ts';
 
 export const MEDIA_HELPER_FILES = ['__init__.py', 'snapshot.py'] as const;
@@ -20,6 +20,7 @@ export class MediaSetupError extends Error {}
 const fail = (message: string): never => { throw new MediaSetupError(message); };
 export interface MediaSetupOptions {
   home: string; bundleDirectory: string; sources(): Promise<MediaSourceConfig[]>; invalidate(enabled?: boolean): void;
+  snapshot?: () => Promise<MediaSnapshotV1>;
   fetchImpl?: FetchImplementation; beforeCommit?: () => Promise<void>;
 }
 type Installation = { root: string; directory: string; id: string; version: string | null; managed: boolean; files: Map<string, string>; exists: boolean };
@@ -86,8 +87,8 @@ export function createMediaSetup(options: MediaSetupOptions) {
     for (const root of [...new Set(roots)].slice(0, 8)) { const value = await installation(resolve(root)); if (value) found.push(value); }
     return found;
   };
-  const inspect = async (source: MediaSourceConfig): Promise<MediaSetupSource> => {
-    const base: MediaSetupSource = { id: source.id, label: source.label, state: 'available', message: '', canEnable: false,
+  const inspect = async (source: MediaSourceConfig, observed?: MediaSourceV1): Promise<MediaSetupSource> => {
+    const base: MediaSetupSource = { id: source.id, kind: source.kind, label: source.label, state: 'available', message: '', canEnable: false,
       canDisable: false, managed: false, helperVersion: null, runtimeVersion: source.version ?? null, locations: [] };
     try {
       const found = await locations(source), chosen = found.length === 1 ? found[0]! : null;
@@ -98,10 +99,12 @@ export function createMediaSetup(options: MediaSetupOptions) {
       if (found.length > 1) return { ...base, state: 'ambiguous', canEnable: found.some(item => item.version === '0.38.0'), message: 'Choose the ComfyUI installation you use for this connection.' };
       if (chosen!.version !== '0.38.0') return { ...base, state: 'unsupported', message: 'Basic monitoring is available. Detailed progress is qualified for ComfyUI 0.38.0.' };
       base.canEnable = true;
+      if (observed && observed.state !== 'ready') return { ...base, state: 'offline', message: 'ComfyUI is not answering. Start it normally to resume monitoring.' };
       if (!chosen!.managed) return { ...base, message: 'Enable detailed progress to see measured work within each generation phase.' };
       base.helperVersion = MEDIA_HELPER_VERSION;
+      if (observed?.capabilities.progress) return { ...base, state: 'ready', canEnable: false, message: 'Detailed media progress is ready.' };
       const token = chosen!.files.get('scope-token')?.trim(), origin = localOrigin(source.origin);
-      if (token && origin) {
+      if (!options.snapshot && token && origin) {
         try {
           const reply = await requestText({ url: new URL('/mlx-scope/v1/progress', origin), fetchImpl, timeoutMs: 1_500, maxBytes: 32_000,
             init: { headers: { Authorization: 'Bearer ' + token } } });
@@ -116,11 +119,22 @@ export function createMediaSetup(options: MediaSetupOptions) {
   const status = async (): Promise<MediaSetupStatus> => {
     const text = await file(mediaConfigPath(options.home)), saved = text ? json(text) : null, enabled = saved?.enabled !== false;
     if (!enabled) return { schemaVersion: 1, enabled: false, sources: [] };
-    const sources = await Promise.all((await options.sources()).filter(source => source.kind === 'comfyui').slice(0, 8).map(inspect));
+    const configurations = (await options.sources()).slice(0, 8);
+    const observation = await options.snapshot?.();
+    const sources = await Promise.all(configurations.map(async source => {
+      const observed = observation?.sources.find(item => item.id === source.id);
+      if (source.kind === 'comfyui') return inspect(source, observed);
+      const ready = observed?.state === 'ready';
+      return { id: source.id, kind: source.kind, label: source.label, enabled: true,
+        state: ready ? 'ready' as const : observed?.state === 'unsupported' ? 'unsupported' as const : 'offline' as const,
+        message: ready ? source.kind === 'local-video' ? 'Connected to your existing video queue.' : source.kind === 'feed' ? 'Connected to the private media feed.' : 'Connected to your image workflow.'
+          : observed?.message ?? 'Source unavailable. Open its application or check its connection.',
+        canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: null, locations: [] };
+    }));
     for (const raw of Array.isArray(saved?.sources) ? saved.sources.slice(0, 8) : []) {
       const source = object(raw), id = mediaId(source?.id);
       if (!source || !id || source.enabled !== false || sources.some(item => item.id === id) || sources.length >= 8) continue;
-      sources.push({ id, label: safeLabel(source.label, 80) ?? 'Media connection', enabled: false, state: 'offline',
+      sources.push({ id, ...['comfyui','local-video','qwen-image','feed'].includes(String(source.kind)) ? {kind:source.kind as MediaSourceV1['kind']} : {}, label: safeLabel(source.label, 80) ?? 'Media connection', enabled: false, state: 'offline',
         message: 'Monitoring is paused for this connection.', canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: null, locations: [] });
     }
     return { schemaVersion: 1, enabled: true, sources };

@@ -140,7 +140,7 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
   const companion = mountCompanionSetup(node('companion-setup'), host, () => { if (state.mounted) render(); });
   const mediaSetup = mountMediaSetup(node('media-setup'), node('media-advanced'), host, status => { mediaJobs.setEnabled(status.enabled !== false); void mediaJobs.refresh(); if (state.mounted) render(); });
   let setupRead = false;
-  const checkSetup = (): void => { if (!visibility.visible) return; setupRead = true; void companion.refresh(); void mediaSetup.refresh(); };
+  const checkSetup = (): void => { if (!visibility.visible) return; setupRead = true; void connections.refresh(host); void companion.refresh(); void mediaSetup.refresh(); };
   connections.onOpen = checkSetup;
   connections.onVisibility = open => { companion.setVisible(open && visibility.visible); mediaSetup.setVisible(open && visibility.visible); if (state.mounted) render(); };
   const renderApp = render;
@@ -194,7 +194,7 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
   menu.addEventListener('keydown', event => { if (event.key === 'Escape' && menu.open) { menu.open = false; summary.focus(); } });
   const outside = (event: PointerEvent): void => { if (menu.open && !menu.contains(event.target as Node)) menu.open = false; };
   document.addEventListener('pointerdown', outside, true);
-  disposeSurface = () => { app.dispose(); pipeline.dispose(); sharing.dispose(); help.dispose(); companion.dispose(); mediaSetup.dispose(); mediaJobs.dispose(); document.removeEventListener('pointerdown', outside, true); };
+  disposeSurface = () => { app.dispose(); pipeline.dispose(); sharing.dispose(); help.dispose(); connections.dispose(); companion.dispose(); mediaSetup.dispose(); mediaJobs.dispose(); document.removeEventListener('pointerdown', outside, true); };
 
   await Promise.all([preferences.load(applyPreference), prefs.load().then(showToasts), connections.load()]);
   if (state.disposed) return;

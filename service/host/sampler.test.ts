@@ -47,10 +47,11 @@ const byFile = (calls: Array<{ argv: Argv }>) => calls.reduce<Record<string, num
   ({ ...all, [argv.file.split('/').at(-1)!]: (all[argv.file.split('/').at(-1)!] ?? 0) + 1 }), {});
 
 test('the cadence table and budgets are the §4.4 / contract §8 numbers', () => {
-  expect(PROBE_CADENCE).toEqual({ memory: [10_000, 10_000, 10_000], gpu: [15_000, 5_000, 15_000], thermal: [60_000, 60_000, 60_000],
+  expect(PROBE_CADENCE).toEqual({ memory: [10_000, 10_000, 10_000], gpu: [15_000, 5_000, null], thermal: [60_000, 60_000, 60_000],
     listener: [120_000, 120_000, null], footprint: [30_000, 10_000, null] });
   expect(SPAWN_BUDGET_PER_MIN).toEqual({ idle: 24, active: 36, glance: 18 });
   expect(probeCadence('gpu', { tier: 'full', active: true })).toBe(5_000);
+  expect(probeCadence('gpu', { tier: 'glance', active: true })).toBeNull();
   expect(probeCadence('footprint', { tier: 'glance', active: true })).toBeNull();
   expect([spawnBudget({ tier: 'glance', active: true }), spawnBudget({ tier: 'full', active: false }), spawnBudget({ tier: 'full', active: true })])
     .toEqual([18, 24, 36]);
@@ -93,14 +94,28 @@ test('capabilities are exactly the parts present, macmon power is the only estim
   expect(hostCapabilities({ sampledAt: EPOCH })).toEqual([]);
 });
 
-test('glance tier: memory, GPU and thermal only, never lsof, footprint or macmon, ≤ 18 spawns in any minute', async () => {
+test('glance tier collects memory and thermal warnings, never GPU diagnostics, lsof, footprint or macmon', async () => {
   const r = rig();
   const last = await poll(r, 1_000, 600_000, context({ tier: 'glance', active: true }));
-  expect(Object.keys(byFile(r.calls)).sort()).toEqual(['ioreg', 'notifyutil', 'sysctl', 'vm_stat']);
+  expect(Object.keys(byFile(r.calls)).sort()).toEqual(['notifyutil', 'sysctl', 'vm_stat']);
   expect(peakPerMinute(r.calls)).toBeLessThanOrEqual(18);
-  expect(byFile(r.calls)).toEqual({ vm_stat: 60, sysctl: 60, ioreg: 40, notifyutil: 10 });
+  expect(byFile(r.calls)).toEqual({ vm_stat: 60, sysctl: 60, notifyutil: 10 });
   expect(last!.runtimeProcess).toBeUndefined();
-  expect(last!.gpu!.busyFraction).toBe(0.87);
+  expect(last!.gpu).toBeUndefined();
+  expect(last!.mac!.pressureLevel).toBe(2);
+  expect(last!.thermal!.level).toBe(2);
+});
+
+test('glance may reuse full-view GPU data but never refreshes it; returning to full resumes collection', async () => {
+  const r = rig();
+  await r.sampler.sample(context());
+  r.clock.t = 15_000;
+  expect((await r.sampler.sample(context({ tier: 'glance' })))!.gpu?.sampledAt).toBe(EPOCH);
+  r.clock.t = 46_000;
+  expect((await r.sampler.sample(context({ tier: 'glance' })))!.gpu).toBeUndefined();
+  expect(byFile(r.calls).ioreg).toBe(1);
+  expect((await r.sampler.sample(context()))!.gpu?.sampledAt).toBe(EPOCH + 46_000);
+  expect(byFile(r.calls).ioreg).toBe(2);
 });
 
 test('full tier idle (2 s) stays ≤ 24 spawns a minute; active (500 ms) ≤ 36, with GPU at 5 s and footprint at 10 s', async () => {
@@ -127,7 +142,8 @@ test('the budget holds over any minute, whatever mix of tiers and frames reads',
   // Right after the switch, the last minute of full-tier spawns leaves no room: glance reuses the fresh parts.
   expect(spawnsIn(r.calls.slice(mixed).filter(call => call.at < switchedAt + 10_000))).toBe(0);
   const host = (await r.sampler.sample(context({ tier: 'glance', active: true })))!;
-  expect(host.mac && host.gpu && host.thermal).toBeTruthy();
+  expect(host.mac && host.thermal).toBeTruthy();
+  expect(host.gpu).toBeUndefined();
 });
 
 test('concurrent reads share one flight per probe', async () => {

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, mkdir, writeFile, rm, symlink, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, symlink, chmod, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { chatKey } from '../../src/contract/chat-key.ts';
@@ -100,6 +100,7 @@ test('source endpoint changes discard cached readings immediately',async()=>{
   let origin='http://127.0.0.1:8188';
   const service=new MediaService({home:await temp(),now:()=>NOW,configurations:async()=>[{...COMFY,origin}],fetchImpl:async input=>json({jobs:[{id:String(input).includes(':8188')?'old-job':'new-job',status:'in_progress'}]})});
   expect((await service.snapshot()).jobs[0]?.id).toBe('old-job');origin='http://127.0.0.1:8189';
+  service.invalidate();
   expect((await service.snapshot()).jobs[0]?.id).toBe('new-job');
 });
 test('OpenCode discovery reads JSONC v2 metadata without probing tools, exposing credentials or discovering unrelated MCP servers',async()=>{
@@ -142,4 +143,38 @@ test('native phase percentages remain measured when unit counters are absent and
   await writeFile(path,JSON.stringify(record));const config:MediaSourceConfig={id:'video',kind:'local-video',label:'Video',directory};
   expect((await localVideo(config,options(fetch))).jobs[0]?.progress).toEqual({value:30.5,total:100,unit:'percent',basis:'phase'});
   record.progress.observed_at=NOW-16000;await writeFile(path,JSON.stringify(record));expect((await localVideo(config,options(fetch))).jobs[0]?.progress).toBeNull();
+});
+test('whole snapshots share concurrent composition and briefly cached responses while explicit changes invalidate them',async()=>{
+  let now=NOW,configs=0;
+  const service=new MediaService({home:await temp(),now:()=>now,configurations:async()=>{configs++;return[COMFY];},fetchImpl:async()=>json({jobs:[{id:'job',status:'in_progress'}]})});
+  const a=await Promise.all([service.snapshot(),service.snapshot(),service.snapshot(),service.snapshot()]);expect(configs).toBe(1);expect(a[0]).toBe(a[3]);
+  now+=100;expect(await service.snapshot()).toBe(a[0]);expect(configs).toBe(1);
+  service.invalidate();expect(await service.snapshot()).not.toBe(a[0]);expect(configs).toBe(2);
+  now+=2000;await service.snapshot();expect(configs).toBe(3);
+});
+test('stale video counters survive only as a static last report and clear on phase and lifecycle changes',async()=>{
+  let now=NOW;const directory=await temp();await mkdir(join(directory,'running'));const path=join(directory,'running','job.json');
+  const record={id:'job',progress:{phase:'sampling',percent:40,observed_at:NOW-14900}};
+  await writeFile(path,JSON.stringify(record));const service=new MediaService({home:directory,now:()=>now,configurations:async()=>[{id:'video',kind:'local-video',label:'Video',directory}]});
+  expect((await service.snapshot()).jobs[0]?.progress?.value).toBe(40);now+=200;
+  let job=(await service.snapshot()).jobs[0];expect(job?.progress).toBeNull();expect(job?.lastProgress?.value).toBe(40);expect(job?.lastProgressAtMs).toBe(NOW-14900);expect(job?.freshness).toBe('stale');expect(job?.cancel.supported).toBe(false);
+  now+=2000;await writeFile(path,JSON.stringify({id:'job',progress:{phase:'decoding',observed_at:now}}));job=(await service.snapshot()).jobs[0];expect(job?.phase).toBe('decoding');expect(job?.lastProgress).toBeUndefined();
+  now+=2000;await writeFile(path,JSON.stringify({id:'job',waiting_reason:'chat handoff',progress:{phase:'sampling',percent:40,observed_at:NOW-60000}}));job=(await service.snapshot()).jobs[0];expect(job?.state).toBe('waiting');expect(job?.lastProgress).toBeUndefined();
+});
+test('disconnected sources preserve their exact last node report without making it live',async()=>{
+  let now=NOW,offline=false;const directory=await temp(),tokenPath=join(directory,'token');await writeFile(tokenPath,'a'.repeat(32),{mode:0o600});
+  const service=new MediaService({home:directory,now:()=>now,configurations:async()=>[{...COMFY,helperTokenPath:tokenPath}],fetchImpl:async input=>{if(offline)throw new Error('offline');return String(input).includes('/api/jobs')?json({jobs:[{id:'job',status:'in_progress'}]}):json({schemaVersion:1,helperVersion:'1.0.0',comfyVersion:'0.38.0',supported:true,observedAtMs:now,jobs:[{promptId:'job',nodeId:'1',phase:'sampling',progress:{value:4,total:10,unit:'steps'}}]});}});
+  const live=(await service.snapshot()).jobs[0];offline=true;now+=2000;const stale=(await service.snapshot()).jobs[0];
+  expect(stale?.progress).toBeNull();expect(stale?.lastProgress).toEqual(live?.progress);expect(stale?.phaseKey).toBe(live?.phaseKey);expect(stale?.lastProgressAtMs).toBe(NOW);expect(stale?.freshness).toBe('unavailable');
+});
+test('video history is revalidated slowly while new completions and active progress appear immediately',async()=>{
+  let now=NOW;const directory=await temp();for(const bucket of ['running','done','pending','failed','cancelled'])await mkdir(join(directory,bucket));
+  const old=join(directory,'done','old.json'),active=join(directory,'running','active.json');
+  await writeFile(old,JSON.stringify({id:'old',finished_at:NOW-10000}));await writeFile(active,JSON.stringify({id:'active',progress:{phase:'sampling',percent:10,observed_at:NOW}}));
+  const service=new MediaService({home:directory,now:()=>now,configurations:async()=>[{id:'video',kind:'local-video',label:'Video',directory}]});
+  expect((await service.snapshot()).jobs.find(job=>job.id==='old')?.finishedAtMs).toBe(NOW-10000);
+  now+=2000;await writeFile(old,JSON.stringify({id:'old',finished_at:NOW-5000}));await writeFile(active,JSON.stringify({id:'active',progress:{phase:'sampling',percent:20,observed_at:now}}));
+  let snapshot=await service.snapshot();expect(snapshot.jobs.find(job=>job.id==='active')?.progress?.value).toBe(20);expect(snapshot.jobs.find(job=>job.id==='old')?.finishedAtMs).toBe(NOW-10000);
+  now+=2000;await rename(active,join(directory,'done','active.json'));snapshot=await service.snapshot();expect(snapshot.jobs.find(job=>job.id==='active')?.state).toBe('completed');expect(snapshot.jobs.find(job=>job.id==='active')?.lastProgress).toBeUndefined();expect(snapshot.jobs.find(job=>job.id==='old')?.finishedAtMs).toBe(NOW-5000);
+  await writeFile(old,JSON.stringify({id:'old',finished_at:NOW-1000}));now+=31000;snapshot=await service.snapshot();expect(snapshot.jobs.find(job=>job.id==='old')?.finishedAtMs).toBe(NOW-1000);
 });

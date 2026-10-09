@@ -45,6 +45,7 @@ export class StatusApp {
   render(): void {
     const { state, pipeline, prefs, client } = this.p, snapshot = state.snapshot, pref = prefs.value, last = state.lastRequest, window = pipeline.window();
     if (state.disposed || !state.mounted) return;
+    this.p.root.dataset.mediaMotion = String(this.p.visible() && !state.userPaused);
     const view = presentSessionSection({
       now: client.now(), reading: state.latest, snapshot, attribution: pipeline.liveLabel(snapshot),
       chatIsLocal: chatIsLocal(this.session, snapshot?.connection ?? null),

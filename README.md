@@ -176,7 +176,7 @@ OpenChamber 2.0.4 or newer is required. The extension uses the 2.0.4 SDK and is 
 
 Scope discovers supported existing connections. Native readings start immediately when available. **Connections** shows what is connected and gives one action for additional tracking: **Enable chat speed** or **Enable detailed media progress**. Installation and readiness are separate; a helper waiting for its owning application to start is labelled accordingly. Scope never restarts an application or generates test work.
 
-**Live** shows chat and engine readings. **History** retains existing observations and captures. **Media** shows active and recent local image/video jobs. In the compact Session section, this chat’s media job comes first, with a count of other jobs. [Media support and setup](docs/MEDIA.md) explains supported sources and progress units.
+**Live** shows chat and engine readings. **History** retains existing observations and captures. **Media** shows active and recent local image/video jobs. In the compact Session section, this chat’s media job comes first, with a count of other jobs. A circular indicator shows the measured percentage for the named phase; an older reading says **Last reported** and stays still. [Media support and setup](docs/MEDIA.md) explains supported sources and progress units.
 
 Use Connections → Advanced only when automatic discovery cannot identify a custom installation. Existing provider credentials stay in their owning configuration. Enterprise deployments may require the administrator to allowlist this repository.
 

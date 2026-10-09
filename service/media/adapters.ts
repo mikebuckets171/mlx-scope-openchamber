@@ -1,13 +1,14 @@
 import { join } from 'node:path';
 import { chatKey } from '../../src/contract/chat-key.ts';
 import { at, obj, label, oneOf, defined } from '../../src/contract/guards.ts';
-import { MEDIA_PHASES, mediaId, mediaTerminal, parseMediaJob, parseMediaProgress, type MediaJobV1, type MediaPhase, type MediaSourceV1, type MediaState } from '../../src/contract/media.ts';
+import { MEDIA_PHASES, mediaId, mediaTerminal, parseMediaJob, parseMediaProgress, withdrawMediaProgress, type MediaJobV1, type MediaPhase, type MediaSourceV1, type MediaState } from '../../src/contract/media.ts';
 import { requestJSON, type FetchImplementation } from '../http.ts';
 import type { MediaSourceConfig } from './discovery.ts';
-import { directoryExists, jsonFiles, readBounded } from './files.ts';
+import { directoryExists, directoryStamp, jsonFiles, readBounded } from './files.ts';
 
 export interface MediaCollection { source: MediaSourceV1; jobs: MediaJobV1[]; correlations?: Map<string, string> }
-export interface MediaAdapterOptions { now: () => number; fetchImpl: FetchImplementation; cancelLocalVideo?: (id: string) => Promise<boolean>; localVideoDirectory?: string }
+export interface VideoHistory { stamp: string; until: number; jobs: MediaJobV1[]; active: Set<string> }
+export interface MediaAdapterOptions { now: () => number; fetchImpl: FetchImplementation; cancelLocalVideo?: (id: string) => Promise<boolean>; localVideoDirectory?: string; videoHistory?: Map<string, VideoHistory> }
 const STALE_MS = 15_000;
 const RETENTION_MS = 86_400_000;
 export const timestamp = (raw: unknown): number | undefined => {
@@ -29,7 +30,9 @@ const progressFrom = (raw: unknown): MediaJobV1['progress'] => {
 };
 const freshJob = (job: MediaJobV1, now: number): MediaJobV1 => {
   const terminal = mediaTerminal(job.state), fresh = now - job.observedAtMs <= STALE_MS;
-  return { ...job, freshness: terminal ? 'last' : fresh ? 'live' : 'stale', progress: !terminal && fresh ? job.progress : null,
+  if (!terminal && !fresh) return withdrawMediaProgress(job, 'stale');
+  return { ...job, freshness: terminal ? 'last' : 'live', progress: job.state === 'running' ? job.progress : null,
+    lastProgress: undefined, lastProgressAtMs: undefined,
     cancel: { supported: !terminal && fresh && job.cancel.supported } };
 };
 const safePhase = (state: MediaState, phase: unknown): MediaPhase => mediaTerminal(state) ? state as 'completed' | 'failed' | 'cancelled' : state === 'queued' ? 'queued' : state === 'waiting' ? 'waiting' : phaseOf(phase);
@@ -38,7 +41,15 @@ export const localVideo = async (config: MediaSourceConfig, options: MediaAdapte
   const now = options.now(), source = sourceOf(config), jobs: MediaJobV1[] = [];
   if (!await directoryExists(config.directory!)) throw new Error('Queue unavailable');
   source.capabilities.cancel = !!options.cancelLocalVideo && options.localVideoDirectory === config.directory;
+  const historyKey = `${config.id}\0${config.directory}`, previous = options.videoHistory?.get(historyKey);
+  const stamp = (await Promise.all(['done','failed','cancelled'].map(bucket => directoryStamp(join(config.directory!, bucket))))).join('|');
+  let useHistory = !!previous && previous.stamp === stamp && now < previous.until;
   for (const bucket of ['running', 'pending', 'done', 'failed', 'cancelled']) {
+    if (bucket === 'done' && previous?.active.size) {
+      const active = new Set(jobs.map(job => job.id));
+      if ([...previous.active].some(id => !active.has(id))) useHistory = false;
+    }
+    if (useHistory && ['done','failed','cancelled'].includes(bucket)) continue;
     const files = await jsonFiles(join(config.directory!, bucket), 128);
     for (const name of files.sort().reverse().slice(0, 32)) {
       const file = await readBounded(join(config.directory!, bucket, name), 256_000);
@@ -60,6 +71,10 @@ export const localVideo = async (config: MediaSourceConfig, options: MediaAdapte
       jobs.push(job);
     }
   }
+  const active = new Set(jobs.filter(job => !mediaTerminal(job.state)).map(job => job.id));
+  if (useHistory) jobs.push(...previous!.jobs.filter(job => now - (job.finishedAtMs ?? job.observedAtMs) <= RETENTION_MS));
+  options.videoHistory?.set(historyKey, { stamp, until: useHistory ? previous!.until : now + 30_000,
+    jobs: jobs.filter(job => mediaTerminal(job.state)).slice(0, 96), active });
   return { source, jobs };
 };
 
@@ -160,7 +175,9 @@ export const localFeed = async (config: MediaSourceConfig, options: MediaAdapter
     if (!body || body.schemaVersion !== 1 || !Array.isArray(body.jobs) || observed === undefined || expiry === undefined || expiry <= now || expiry > observed + 60_000) continue;
     for (const raw of body.jobs.slice(0, 32)) {
       const item = obj(raw); if (!item) continue;
+      const stale = !mediaTerminal(item.state as MediaState) && now - observed > STALE_MS;
       const job = parseMediaJob({ ...item, sourceId: config.id, name: item.kind === 'video' ? 'Video generation' : item.kind === 'image' ? 'Image generation' : 'Media generation', sampledAtMs: now,
+        ...stale && item.state === 'running' ? {lastProgress:parseMediaProgress(item.progress) ?? item.lastProgress,lastProgressAtMs:time(item.progressAtMs,observed) ?? observed} : {},
         observedAtMs: observed, freshness: mediaTerminal(item.state as MediaState) ? 'last' : now - observed <= STALE_MS ? 'live' : 'stale', cancel: { supported: false } });
       if (job) { source.capabilities.progress ||= !!job.progress; jobs.push(job); }
     }

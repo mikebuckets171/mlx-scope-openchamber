@@ -14,7 +14,7 @@ import { parseNotifyutil } from './thermal.ts';
 
 /** Probe cadences in ms (contract §8): [full idle, full active, glance]; null = not on that tier. */
 export const PROBE_CADENCE = {
-  memory: [10_000, 10_000, 10_000], gpu: [15_000, 5_000, 15_000], thermal: [60_000, 60_000, 60_000],
+  memory: [10_000, 10_000, 10_000], gpu: [15_000, 5_000, null], thermal: [60_000, 60_000, 60_000],
   listener: [120_000, 120_000, null], footprint: [30_000, 10_000, null],
 } as const;
 export const SPAWN_BUDGET_PER_MIN = { idle: 24, active: 36, glance: 18 } as const;

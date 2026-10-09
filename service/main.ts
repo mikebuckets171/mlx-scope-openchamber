@@ -32,7 +32,7 @@ const media = new MediaService({ home, env: process.env, cancelLocalVideo: async
   const text = await exec(argv); if (!text) return false;
   try { const result = JSON.parse(text); return result?.ok === true && result?.id === id && ['cancelling', 'cancelled'].includes(result?.state); } catch { return false; }
 }, localVideoDirectory: join(home, '.config/opencode/state/video-queue') });
-const mediaSetup = createMediaSetup({ home, bundleDirectory: resolve(dirname(fileURLToPath(import.meta.url)), '../bridge/comfyui'), sources: () => media.configurations(), invalidate: enabled => media.invalidate(enabled) });
+const mediaSetup = createMediaSetup({ home, bundleDirectory: resolve(dirname(fileURLToPath(import.meta.url)), '../bridge/comfyui'), sources: () => media.configurations(), snapshot: () => media.snapshot(), invalidate: enabled => media.invalidate(enabled) });
 // Everything the service remembers lives in memory and is filled only by view-driven reads (P5).
 const history = new ServiceHistory(instance, { energy: (from, to) => host.energy(from, to) });
 const server = createScopeServer(token, {
@@ -40,6 +40,7 @@ const server = createScopeServer(token, {
   companionSetup,
   media,
   mediaSetup,
+  connections: () => client.connections(),
   chatDestination: createChatDestination(client),
   chat: createChatSource(chat, client),
   ...historySources(history, { now: Date.now, readUsage: query => client.usage(query) }),

@@ -5,6 +5,7 @@ import { assertBodyLimit } from '../src/contract/guards.ts';
 import type { HostV2 } from '../src/contract/host.ts';
 import { isBadQuery, parseSnapshotQuery, parseTrendQuery, parseUsageQuery, type SnapshotQuery, type TrendQuery, type UsageQuery } from '../src/contract/query.ts';
 import type { ChatMeasurement } from '../src/contract/chat.ts';
+import type { ConnectionV2 } from '../src/contract/snapshot.ts';
 import { mediaId, type MediaCancelResultV1, type MediaSnapshotV1 } from '../src/contract/media.ts';
 import { parseMediaSetupAction, type MediaSetupStatus } from '../src/contract/media-setup.ts';
 import type { CompanionSetupStatus } from './companion-setup.ts';
@@ -22,6 +23,7 @@ import type { HistoryReading, SnapshotHistory, RecordContext } from './history/h
 import { busy, type ReadRequest, type ReadSelection, type RuntimeReading } from './runtime-client.ts';
 
 export type Sources = {
+  connections?: () => Promise<{schemaVersion:1;state:'ready'|'unavailable';choices:ConnectionV2['choices']}>;
   /** Resolve selected-chat locality from configuration only, before any runtime/host collection. */
   chatDestination?: (query: SnapshotQuery) => Promise<'local' | 'remote'>;
   chat?: (query: SnapshotQuery, reading: RuntimeReading) => Promise<ChatMeasurement | null>;
@@ -49,7 +51,9 @@ export type ServerOptions = { version?: string; instance?: string; now?: () => n
 /** Every body is checked against the SDK response limit before a header is written. */
 export const encode = (body: unknown): string => assertBodyLimit(body);
 const json = (response: http.ServerResponse, status: number, body: unknown): void => {
-  const text = encode(body);
+  jsonText(response, status, encode(body));
+};
+const jsonText = (response: http.ServerResponse, status: number, text: string): void => {
   response.writeHead(status, { 'Cache-Control': 'no-store', 'Content-Type': 'application/json; charset=utf-8', 'X-Content-Type-Options': 'nosniff' });
   response.end(text);
 };
@@ -99,18 +103,30 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
   const service = { version: options.version ?? packageVersion, instance: options.instance ?? randomBytes(4).toString('hex') };
   const now = options.now ?? Date.now, monotonic = options.monotonic ?? (() => performance.now());
   const lease = new Lease(), marks = new Marks(), verdicts = new Verdicts();
+  // Media snapshots are immutable shared collection results. Freshness/configuration changes yield a new object.
+  // Weak keys keep this wire cache bounded by the snapshots still held by the collection or active requests.
+  const mediaBodies = new WeakMap<MediaSnapshotV1, string>();
   const withMedia = <T extends object>(body: T): T & { mediaEnabled?: boolean } => sources.media?.enabled === undefined ? body : { ...body, mediaEnabled: sources.media.enabled };
   return http.createServer((request, response) => {
     const handle = async (): Promise<void> => {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1');
       const header = request.headers.authorization;
       if (typeof header !== 'string' || !timingSafeEqual(digest(header), expected)) { json(response, 401, { error: 'unauthorized' }); return; }
+      if (url.pathname === '/v2/connections') {
+        if (request.method !== 'GET') { json(response, 405, { error: 'method_not_allowed' }); return; }
+        if (url.search) { json(response, 400, { error: 'bad_request' }); return; }
+        if (!sources.connections) { json(response, 501, NOT_IMPLEMENTED); return; }
+        json(response, 200, await sources.connections()); return;
+      }
       if (url.pathname === '/v2/media' || url.pathname === '/v2/media/cancel' || url.pathname === '/v2/media/setup') {
         if (url.search) { json(response, 400, { error: 'bad_request' }); return; }
         if (url.pathname === '/v2/media') {
           if (request.method !== 'GET') { json(response, 405, { error: 'method_not_allowed' }); return; }
           if (!sources.media) { json(response, 501, NOT_IMPLEMENTED); return; }
-          json(response, 200, await sources.media.snapshot()); return;
+          const snapshot = await sources.media.snapshot();
+          let text = mediaBodies.get(snapshot);
+          if (text === undefined) { text = encode(snapshot); mediaBodies.set(snapshot, text); }
+          jsonText(response, 200, text); return;
         }
         if (url.pathname === '/v2/media/setup' && request.method === 'GET') {
           if (!sources.mediaSetup) { json(response, 501, NOT_IMPLEMENTED); return; }

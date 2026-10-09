@@ -108,6 +108,15 @@ export class RuntimeClient {
     return this.configFlight;
   }
 
+  /** Configuration metadata only: safe to open Connections while the selected chat uses a cloud provider. */
+  async connections(): Promise<{ schemaVersion: 1; state: 'ready' | 'unavailable'; choices: ConnectionV2['choices'] }> {
+    try {
+      const configuration = await this.config();
+      return { schemaVersion: 1, state: ['unreadable_config', 'malformed_config'].includes(configuration.issue) ? 'unavailable' : 'ready',
+        choices: configuration.connections.slice(0, 8).map(item => ({id:item.id,label:item.label,runtime:item.runtime})) };
+    } catch { return { schemaVersion: 1, state: 'unavailable', choices: [] }; }
+  }
+
   /**
    * Automatic + an explicit runtime keeps its 1.6 meaning: the first connection whose hint names that runtime, else one
    * whose automatic slot detected it, else the first connection (1.6 read that one as the chosen runtime).

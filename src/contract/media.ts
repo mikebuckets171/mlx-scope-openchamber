@@ -18,6 +18,9 @@ export interface MediaJobV1 {
   phaseKey?: string;
   /** Measured phase-local counters only. Null means indeterminate. */
   progress: MediaProgressV1 | null;
+  /** An explicitly historical report for this same phase/node. Never a live reading. */
+  lastProgress?: MediaProgressV1 | null;
+  lastProgressAtMs?: number;
   /** Reading a file does not refresh its producer observation. */
   sampledAtMs: number;
   observedAtMs: number;
@@ -59,6 +62,12 @@ export const MEDIA_SOURCE_LIMIT = 8;
 export const mediaId = (value: unknown): string | null => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/.test(value) ? value : null;
 const hash = (value: unknown): string | undefined => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value) ? value : undefined;
 export const mediaTerminal = (state: MediaState): boolean => state === 'completed' || state === 'failed' || state === 'cancelled';
+export const withdrawMediaProgress = (job: MediaJobV1, freshness: 'stale' | 'unavailable'): MediaJobV1 => {
+  const progress = job.state === 'running' ? job.progress ?? job.lastProgress : null;
+  const observed = job.progress ? job.progressAtMs ?? job.observedAtMs : job.lastProgressAtMs;
+  return { ...job, freshness, progress: null, cancel: { supported: false },
+    lastProgress: progress ?? undefined, lastProgressAtMs: progress ? observed ?? job.observedAtMs : undefined };
+};
 export const parseMediaProgress = (raw: unknown): MediaProgressV1 | null => {
   const item = obj(raw), unit = oneOf(MEDIA_UNITS)(item?.unit), value = unit === 'percent' ? nonneg(item?.value) : count(item?.value), total = count(item?.total);
   return item?.basis === 'phase' && value !== null && total !== null && total > 0 && total <= 1_000_000 && value <= total && unit && (unit !== 'percent' || total === 100)
@@ -75,8 +84,12 @@ export const parseMediaJob = (raw: unknown): MediaJobV1 | null => {
     || typeof cancel?.supported !== 'boolean' || (mediaTerminal(state) && freshness !== 'last') || (!mediaTerminal(state) && freshness === 'last')) return null;
   const optionalTime = (key: string): number | undefined => { const value = at(item[key]); return value !== null && value <= sampledAtMs ? value : undefined; };
   const progress = parseMediaProgress(item.progress);
+  const lastAt = optionalTime('lastProgressAtMs');
+  const lastProgress = state === 'running' && (freshness === 'stale' || freshness === 'unavailable') && lastAt !== undefined && lastAt <= observedAtMs
+    ? parseMediaProgress(item.lastProgress) : null;
   return defined({ id, sourceId, kind, name, state, phase, phaseKey: hash(item.phaseKey), sampledAtMs, observedAtMs, freshness,
-    progress: freshness === 'live' ? progress : null,
+    progress: freshness === 'live' && state === 'running' ? progress : null,
+    lastProgress: lastProgress ?? undefined, lastProgressAtMs: lastProgress ? lastAt : undefined,
     progressAtMs: optionalTime('progressAtMs'), queuedAtMs: optionalTime('queuedAtMs'), startedAtMs: optionalTime('startedAtMs'), finishedAtMs: optionalTime('finishedAtMs'),
     ownership: defined({ sessionKey: hash(ownership?.sessionKey), projectKey: hash(ownership?.projectKey) }),
     cancel: { supported: cancel.supported && !mediaTerminal(state) && freshness === 'live' }, message: label(item.message, 120) ?? undefined });

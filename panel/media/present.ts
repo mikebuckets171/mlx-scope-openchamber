@@ -1,7 +1,7 @@
 import type { MediaJobV1, MediaSnapshotV1 } from '../../src/contract/media.ts';
 import { mediaTerminal } from '../../src/contract/media.ts';
 import { chatKey } from '../../src/contract/chat-key.ts';
-import { dur } from '../present/format.ts';
+import { ago, dur } from '../present/format.ts';
 
 export const PHASE_LABEL = { queued: 'Queued', waiting: 'Waiting', preparing: 'Preparing', rewriting: 'Rewriting', 'encoding-references': 'Encoding references', sampling: 'Sampling', decoding: 'Decoding', finishing: 'Finishing', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled', unknown: 'Working' } as const;
 export const mediaJobKey = (job: Pick<MediaJobV1, 'sourceId' | 'id'>): string => `${job.sourceId}/${job.id}`;
@@ -14,14 +14,21 @@ export const orderedMediaJobs = (snapshot: MediaSnapshotV1 | null, sessionId: st
 });
 /** A producer timestamp can be old during a long phase: only the service's freshness verdict, or a lost Scope response, invalidates it. */
 export const mediaJobView = (job: MediaJobV1, now: number, lost: boolean, cancelling = false) => {
-  const terminal = mediaTerminal(job.state), fresh = !lost && job.freshness === 'live', progress = fresh && !cancelling && job.state !== 'cancelling' ? job.progress : null;
+  const terminal = mediaTerminal(job.state), fresh = !lost && job.freshness === 'live', stopping = cancelling || job.state === 'cancelling';
+  const progress = fresh && !terminal && !stopping ? job.progress : null;
+  const retained = !fresh && !terminal && !stopping ? job.lastProgress ?? (lost ? job.progress : null) : null;
+  const displayed = progress ?? retained, lastReported = retained != null;
   const phase = PHASE_LABEL[job.phase], status = cancelling || job.state === 'cancelling' ? 'Cancelling' : !terminal && !fresh ? job.freshness === 'unavailable' ? 'Telemetry unavailable' : 'Waiting for update' : PHASE_LABEL[job.state === 'running' ? job.phase : job.state];
   const start = job.startedAtMs ?? job.queuedAtMs, end = job.finishedAtMs ?? Math.min(now, job.sampledAtMs);
-  const fraction = progress ? progress.value / progress.total : null;
+  const fraction = displayed ? displayed.value / displayed.total : null;
   const percent = fraction === null ? null : `${Math.floor(fraction * 100)}%`;
-  const counters = progress ? progress.unit === 'percent' ? percent! : `${progress.value} / ${progress.total} ${progress.unit}` : null;
-  return { phase, status, fresh, terminal, progress, fraction, percent, counters,
+  const counters = displayed ? displayed.unit === 'percent' ? percent! : `${displayed.value} / ${displayed.total} ${displayed.unit}` : null;
+  return { phase, status, fresh, terminal, progress, fraction, percent, counters, lastReported,
+    counterLabel: displayed?.unit === 'percent' ? null : counters,
+    reportedAge: lastReported ? ago(job.lastProgressAtMs ?? job.progressAtMs ?? job.observedAtMs, now) : null,
+    counterKey: displayed ? `${displayed.unit}/${displayed.total}` : 'unknown',
+    moving: fresh && !stopping && job.state === 'running',
     elapsed: start != null && end >= start ? dur(end - start) : null,
     canCancel: fresh && job.cancel.supported && !terminal && !cancelling && job.state !== 'cancelling',
-    detail: !fresh && !terminal ? 'Last observation retained; no live progress is available.' : job.message ?? null };
+    detail: !fresh && !terminal && !lastReported ? 'No progress report is available.' : job.message ?? null };
 };

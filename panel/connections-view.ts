@@ -1,6 +1,20 @@
 import type { HostClient } from '@openchamber/sdk';
 import { RUNTIMES, runtimeKind as runtimeValue, runtimeNames, type RuntimeKind } from '../src/contract/runtime.ts';
+import { isConnectionId, label, obj } from '../src/contract/guards.ts';
+import { unavailableForHostError } from './host-errors.ts';
 import type { Choice, Link } from './present/reading.ts';
+
+export const parseConnections = (value: unknown): { state: 'ready' | 'unavailable'; choices: Choice[] } | null => {
+  const raw = obj(value);
+  if (raw?.schemaVersion !== 1 || !['ready', 'unavailable'].includes(String(raw.state)) || !Array.isArray(raw.choices) || raw.choices.length > 8) return null;
+  const choices: Choice[] = [];
+  for (const value of raw.choices) {
+    const choice = obj(value), name = label(choice?.label, 120), runtime = runtimeValue(choice?.runtime);
+    if (!choice || !isConnectionId(choice.id) || !name || choice.runtime !== null && !runtime) return null;
+    choices.push({ id: choice.id, label: name, runtime });
+  }
+  return { state: raw.state as 'ready' | 'unavailable', choices };
+};
 
 const STORAGE_KEY = 'connection.selection';
 /** The saved choice (1.6 shape, kept): an empty provider is Automatic, a null runtime is automatic detection. */
@@ -44,6 +58,9 @@ export const readSelection = async (storage: HostClient['storage']): Promise<Rec
 export class ConnectionsView {
   selection: RuntimeSelection = {provider:'', runtime:null};
   private choices: Choice[] = [];
+  private metadata: 'ready' | 'unavailable' | null = null;
+  private inspecting: Promise<void> | null = null;
+  private disposed = false;
   private revision = 0;
   private pending: Promise<void> = Promise.resolve();
   private readonly provider: HTMLSelectElement;
@@ -115,14 +132,36 @@ export class ConnectionsView {
   }
   update(info: Pick<Link, 'choices'> | null): void {
     if (!info) return;
-    if (JSON.stringify(info.choices) !== JSON.stringify(this.choices)) {
-      this.choices = info.choices;
-      this.paintChoices();
+    // A chat-only response intentionally omits local choices; it cannot erase discovered configuration.
+    if ((info.choices.length || this.metadata === null) && JSON.stringify(info.choices) !== JSON.stringify(this.choices)) {
+      this.choices = info.choices; this.paintChoices();
     }
-    this.node('connection-choice-note').textContent = info.choices.length
-      ? `${info.choices.length} local ${info.choices.length === 1 ? 'connection' : 'connections'} found. This chat chooses its matching server automatically.`
-      : 'No local model server is configured in OpenCode. Cloud chat speed and connected media tools work independently.';
+    this.describe();
   }
+  private describe(): void {
+    this.node('connection-choice-note').textContent = this.metadata === 'unavailable'
+      ? 'Local connection discovery is unavailable. Check Scope’s service under Advanced, then reopen Connections.'
+      : this.choices.length ? `${this.choices.length} local ${this.choices.length === 1 ? 'connection' : 'connections'} found. This chat chooses its matching server automatically.`
+      : this.metadata === 'ready' ? 'No local model server was found in your OpenCode configuration. Cloud chat speed and media tools work independently.'
+      : 'Scope follows this chat. Checking which local servers are configured…';
+  }
+  refresh(host: Pick<HostClient, 'serviceRequest'>): Promise<void> {
+    if (this.inspecting) return this.inspecting;
+    this.inspecting = (async () => {
+      try {
+        const response = await host.serviceRequest({ method: 'GET', path: '/v2/connections' });
+        if (this.disposed) return;
+        const value = response.status === 200 ? parseConnections(JSON.parse(response.body)) : null;
+        if (!value) { this.metadata = 'unavailable'; this.describe(); return; }
+        this.metadata = value.state;
+        if (value.state === 'ready') { this.choices = value.choices; this.paintChoices(); }
+        this.describe();
+      } catch (error) { if (!this.disposed) { this.metadata = 'unavailable'; this.node('connection-choice-note').textContent = unavailableForHostError(error).message; } }
+      finally { this.inspecting = null; }
+    })();
+    return this.inspecting;
+  }
+  dispose(): void { this.disposed = true; }
   private paintChoices(): void {
     const selected = this.setup.hidden ? this.selection.provider : this.provider.value;
     const entries = [{id:'',label:'Automatic',runtime:null}, ...this.choices];

@@ -1,6 +1,7 @@
 /** Managed setup is separate from observations: an installed helper is not necessarily loaded. */
 export type MediaSetupState = 'ready' | 'available' | 'pending' | 'unsupported' | 'ambiguous' | 'offline' | 'error';
 export interface MediaSetupSource {
+  kind?: 'comfyui' | 'local-video' | 'qwen-image' | 'feed';
   enabled?: boolean;
   id: string; label: string; state: MediaSetupState; message: string;
   canEnable: boolean; canDisable: boolean; managed: boolean;
@@ -33,6 +34,7 @@ export function parseMediaSetup(value: unknown): MediaSetupStatus | null {
       locations.push({ id: location.id, label: location.label });
     }
     sources.push({ id: item.id, label: item.label, state: item.state as MediaSetupState, message: item.message, ...typeof item.enabled === 'boolean' ? { enabled: item.enabled } : {},
+      ...['comfyui','local-video','qwen-image','feed'].includes(String(item.kind)) ? {kind:item.kind as MediaSetupSource['kind']} : {},
       canEnable: item.canEnable as boolean, canDisable: item.canDisable as boolean, managed: item.managed as boolean,
       helperVersion: item.helperVersion as string | null, runtimeVersion: item.runtimeVersion as string | null, locations });
   }

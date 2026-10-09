@@ -70,15 +70,19 @@ test('a full-tier snapshot carries every host part with its capability and basis
   expect(calls.map(argv => argv.file.split('/').at(-1))).toEqual(['vm_stat', 'sysctl', 'notifyutil', 'ioreg', 'lsof', 'footprint']);
 });
 
-test('the status surface defaults to the glance tier: no lsof, no footprint, no runtime process', async () => {
+test('the status surface defaults to warning-only glance probes; full explicitly enables GPU and process diagnostics', async () => {
   const { get, calls, contexts } = await launch(() => reading('omlx'));
   const body = await get('/v2/snapshot?surface=status');
   expect(contexts[0]!.tier).toBe('glance');
   expect(body.host!.runtimeProcess).toBeUndefined();
   expect(body.capabilities['host.footprint']).toBeUndefined();
-  expect(body.host!.gpu).toBeDefined();
-  expect(calls.map(argv => argv.file.split('/').at(-1))).toEqual(['vm_stat', 'sysctl', 'notifyutil', 'ioreg']);
-  expect((await get('/v2/snapshot?surface=status&tier=full')).host!.runtimeProcess).toBeDefined();
+  expect(body.host!.gpu).toBeUndefined();
+  expect(body.capabilities['host.gpuBusy']).toBeUndefined();
+  expect(body.capabilities['host.gpuMemory']).toBeUndefined();
+  expect(calls.map(argv => argv.file.split('/').at(-1))).toEqual(['vm_stat', 'sysctl', 'notifyutil']);
+  const full = await get('/v2/snapshot?surface=status&tier=full');
+  expect(full.host!.runtimeProcess).toBeDefined();
+  expect(full.host!.gpu).toBeDefined();
 });
 
 test('only an answering oMLX on a loopback port gets the footprint probe', () => {

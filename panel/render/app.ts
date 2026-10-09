@@ -83,6 +83,7 @@ export class ScopeApp {
   render(): void {
     const { state } = this.p;
     if (state.disposed || !state.mounted) return;
+    this.p.shell.dataset.mediaMotion = String(this.p.visible() && !state.userPaused && !this.p.connections.isOpen);
     const s = this.input(), card = frameCard(s), open = state.open, compact = state.compact && !this.wide && !card;
     this.p.mediaJobs.sync(this.p.visible() && !state.userPaused && !card && !this.p.connections.isOpen && (state.tab === 'live' || state.tab === 'media' || compact));
     const mediaGlance = this.node('media-glance');
@@ -141,7 +142,7 @@ export class ScopeApp {
     if (active === 'media') {
       morph(this.node('view-media'), mediaMarkup(this.p.mediaJobs, this.p.session()?.id ?? null, s.now));
       const media = this.p.mediaJobs;
-      this.node('freshness').textContent = media.snapshot?.enabled === false ? 'Media monitoring is off' : media.stale ? 'Waiting for media update' : media.snapshot ? `Media updated ${ago(media.snapshot.sampledAtMs, s.now)}` : 'No media reading yet';
+      this.node('freshness').textContent = media.snapshot?.enabled === false ? 'Media monitoring is off' : media.stale ? 'Waiting for media update' : media.snapshot ? `Sources checked ${ago(media.snapshot.sampledAtMs, s.now)}` : 'No media reading yet';
     }
     if (active === 'live') {
       morph(this.node('view-live'), s.snapshot || s.frame ? html`${liveMarkup(live, open)}${this.chatSetupHint()}` : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);

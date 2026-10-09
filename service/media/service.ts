@@ -1,4 +1,4 @@
-import { mediaTerminal, MEDIA_JOB_LIMIT, type MediaCancelResultV1, type MediaJobV1, type MediaSnapshotV1 } from '../../src/contract/media.ts';
+import { mediaTerminal, withdrawMediaProgress, MEDIA_JOB_LIMIT, type MediaCancelResultV1, type MediaJobV1, type MediaSnapshotV1 } from '../../src/contract/media.ts';
 import { HttpFailure, type FetchImplementation } from '../http.ts';
 import { cancelMedia, collectMedia, type MediaAdapterOptions, type MediaCollection } from './adapters.ts';
 import { MediaDiscovery, type MediaSourceConfig } from './discovery.ts';
@@ -22,13 +22,16 @@ export class MediaService {
   private cancels = new Map<string, Promise<MediaCancelResultV1>>();
   private progress = new Map<string, { key: string; at: number }>();
   private options: MediaAdapterOptions;
+  private generation = 0;
+  private snapshotFlight: Promise<MediaSnapshotV1> | null = null;
+  private snapshotCache: { value: MediaSnapshotV1; until: number } | null = null;
   constructor(private input: MediaServiceOptions) {
-    this.options = { now: input.now ?? Date.now, fetchImpl: input.fetchImpl ?? fetch, cancelLocalVideo: input.cancelLocalVideo, localVideoDirectory: input.localVideoDirectory };
+    this.options = { now: input.now ?? Date.now, fetchImpl: input.fetchImpl ?? fetch, cancelLocalVideo: input.cancelLocalVideo, localVideoDirectory: input.localVideoDirectory, videoHistory: new Map() };
     this.discovery = new MediaDiscovery({ home: input.home, fetchImpl: this.options.fetchImpl, now: this.options.now, env: input.env });
   }
   configurations(): Promise<MediaSourceConfig[]> { return this.input.configurations?.() ?? this.discovery.configurations(); }
   get enabled(): boolean { return this.discovery.enabled; }
-  invalidate(enabled?: boolean): void { this.discovery.invalidate(enabled); for (const slot of this.slots.values()) slot.until = 0; }
+  invalidate(enabled?: boolean): void { this.generation++; this.snapshotCache = null; this.options.videoHistory?.clear(); this.discovery.invalidate(enabled); for (const slot of this.slots.values()) slot.until = 0; }
   private async read(config: MediaSourceConfig, fresh = false): Promise<MediaCollection> {
     const now = this.options.now();
     const fingerprint = JSON.stringify([config.kind, config.origin, config.directory, config.tokenPath, config.helperTokenPath]);
@@ -44,13 +47,26 @@ export class MediaService {
       source: { id: config.id, kind: config.kind, label: config.label,
         state: config.kind === 'qwen-image' && error instanceof HttpFailure && error.status === 404 ? 'unsupported' : 'disconnected', capabilities: { progress: false, cancel: false },
         message: config.kind === 'qwen-image' && error instanceof HttpFailure && error.status === 404 ? 'This image workflow does not publish media progress yet.' : 'Source unavailable. Open its application or check Connections.' },
-      jobs: (current.value?.jobs ?? []).map(job => mediaTerminal(job.state) ? job : { ...job, freshness: 'unavailable', progress: null, cancel: { supported: false } }),
+      jobs: (current.value?.jobs ?? []).map(job => mediaTerminal(job.state) ? job : withdrawMediaProgress(job, 'unavailable')),
     })).then(value => { current.value = value; current.until = this.options.now() + 1800; return value; }).finally(() => { delete current.flight; });
     return current.flight;
   }
-  async snapshot(): Promise<MediaSnapshotV1> {
+  snapshot(): Promise<MediaSnapshotV1> {
+    if (this.snapshotFlight) return this.snapshotFlight;
+    if (this.snapshotCache && this.options.now() < this.snapshotCache.until) return Promise.resolve(this.snapshotCache.value);
+    const generation = this.generation;
+    const flight = this.compose().then(value => {
+      if (generation !== this.generation) { this.snapshotFlight = null; return this.snapshot(); }
+      const expiry = value.jobs.filter(job => job.freshness === 'live').map(job => job.observedAtMs + 15_000);
+      this.snapshotCache = { value, until: Math.min(this.options.now() + 250, ...expiry) }; return value;
+    }).finally(() => { if (this.snapshotFlight === flight) this.snapshotFlight = null; });
+    this.snapshotFlight = flight; return flight;
+  }
+  private async compose(): Promise<MediaSnapshotV1> {
     const configs = await this.configurations(), ids = new Set(configs.map(config => config.id));
     for (const id of this.slots.keys()) if (!ids.has(id)) this.slots.delete(id);
+    const historyKeys = new Set(configs.filter(config => config.kind === 'local-video').map(config => `${config.id}\0${config.directory}`));
+    for (const key of this.options.videoHistory!.keys()) if (!historyKeys.has(key)) this.options.videoHistory!.delete(key);
     const collections = await Promise.all(configs.map(config => this.read(config))), now = this.options.now();
     let jobs = collections.flatMap(collection => collection.jobs.map(job => ({ ...job, sampledAtMs: now, cancel: { ...job.cancel } })));
     // A queue can atomically move a record between directories during a read. Completion wins that race.
@@ -66,8 +82,11 @@ export class MediaService {
       const matches = jobs.filter(job => job.id === promptId && collections.some(item => item.source.id === job.sourceId && item.source.kind === 'comfyui'));
       if (!bridge || matches.length !== 1) continue;
       const engine = matches[0]!;
-      if (bridge.state === 'running' && engine.state === 'running' && engine.freshness === 'live') {
+      if (bridge.state === 'running' && engine.state === 'running' && (bridge.phase === 'unknown' || bridge.phase === engine.phase)) {
         bridge.progress = engine.progress; bridge.phase = engine.phase; bridge.phaseKey = engine.phaseKey; bridge.progressAtMs = engine.progressAtMs;
+        if (engine.freshness === 'stale' || engine.freshness === 'unavailable') {
+          bridge.freshness = engine.freshness; bridge.lastProgress = engine.lastProgress; bridge.lastProgressAtMs = engine.lastProgressAtMs; bridge.cancel.supported = false;
+        }
       }
       jobs = jobs.filter(job => job !== engine);
     }
@@ -84,7 +103,9 @@ export class MediaService {
         job.state = 'cancelling'; job.cancel.supported = false;
         job.message = now - requested > 15_000 ? 'Cancellation has not been confirmed by the source.' : 'Waiting for cancellation acknowledgement';
       }
-      if (!mediaTerminal(job.state) && now - job.observedAtMs > 15_000) { job.freshness = 'stale'; job.progress = null; job.cancel.supported = false; }
+      if (!mediaTerminal(job.state) && now - job.observedAtMs > 15_000) Object.assign(job, withdrawMediaProgress(job, job.freshness === 'unavailable' ? 'unavailable' : 'stale'));
+      if (job.state !== 'running') job.progress = null;
+      if (job.state !== 'running' || job.freshness === 'live') { job.lastProgress = undefined; job.lastProgressAtMs = undefined; }
     }
     jobs.sort((a, b) => Number(mediaTerminal(a.state)) - Number(mediaTerminal(b.state)) || (b.finishedAtMs ?? b.queuedAtMs ?? b.observedAtMs) - (a.finishedAtMs ?? a.queuedAtMs ?? a.observedAtMs));
     jobs = jobs.slice(0, MEDIA_JOB_LIMIT);
@@ -110,7 +131,7 @@ export class MediaService {
     if (!job.cancel.supported) return result('unsupported');
     try {
       if (!await cancelMedia(config, jobId, this.options)) return result('failed');
-      this.pending.set(key, this.options.now()); this.slots.get(sourceId)!.until = 0; return result('requested');
+      this.pending.set(key, this.options.now()); this.slots.get(sourceId)!.until = 0; this.generation++; this.snapshotCache = null; return result('requested');
     } catch { return result('failed'); }
   }
 }

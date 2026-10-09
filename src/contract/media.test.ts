@@ -22,3 +22,9 @@ test('media parser requires a matching source and bounds both arrays', () => {
   expect(parseMediaSnapshot({ schemaVersion: 1, sampledAtMs: 1000, nextPollMs: 2000, sources: [], jobs: [job] })?.jobs).toHaveLength(0);
   expect(parseMediaSnapshot({ schemaVersion: 2 })).toBeNull();
 });
+test('last reported progress is a strict historical field and cannot become a live or terminal value',()=>{
+  const historical={...job,freshness:'stale',progress:null,lastProgress:job.progress,lastProgressAtMs:900};
+  expect(parseMediaJob(historical)?.lastProgress).toEqual(job.progress);expect(parseMediaJob(historical)?.progress).toBeNull();expect(parseMediaJob(historical)?.cancel.supported).toBe(false);
+  for(const change of [{freshness:'live'},{state:'cancelling'},{state:'waiting',phase:'waiting'},{state:'completed',phase:'completed',freshness:'last'},{lastProgressAtMs:1001},{lastProgressAtMs:undefined},{lastProgress:{value:11,total:10,unit:'steps',basis:'phase'}}])
+    expect(parseMediaJob({...historical,...change})?.lastProgress).toBeUndefined();
+});
