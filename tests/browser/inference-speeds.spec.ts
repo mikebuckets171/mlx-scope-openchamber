@@ -12,6 +12,16 @@ for (const theme of ['light', 'dark']) test(`Session shows the relevant stage an
     await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
     await expect(frame.locator('#ws')).not.toContainText('47.2');
     await expect(frame.locator('.speed-row')).toHaveCount(0);
+    for (const fontSize of [24, 32]) {
+      await frame.locator('html').evaluate((el, size) => { el.style.fontSize = `${size}px`; }, fontSize);
+      await expect.poll(() => frame.locator('#ws').evaluate(el => {
+        const reading = el.querySelector('.ws-measurement')!.getBoundingClientRect();
+        return ['.ws-phase', '.scope-choice'].every(selector => el.querySelector(selector)!.getBoundingClientRect().bottom <= reading.top);
+      })).toBe(true);
+      await expect.poll(() => frame.locator('#ws').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight + 1)).toBe(true);
+      expect(await frame.locator('#ws').evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await frame.locator('html').evaluate(el => { el.style.fontSize = '16px'; });
     const child = page.frames().find(frame => frame !== page.mainFrame())!;
     const backdrop = await page.evaluate(() => [getComputedStyle(document.documentElement).backgroundColor, getComputedStyle(document.body).backgroundColor]);
     expect(await child.evaluate(inspect, { openAll: false, backdrop })).toEqual([]);

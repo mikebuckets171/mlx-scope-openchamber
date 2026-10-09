@@ -33,9 +33,12 @@ paths, provider credentials, raw session IDs or uncontrolled screenshots of the 
   test files were corrected to assert exact completed-result facts and concise copy; all 92 affected and completion
   cases then passed. The first Linux CI run passed 379 cases and found three real enlarged-text layout failures.
   CSS repairs bound the Session grid, stack its controls at narrow text-relative widths and reserve room for wrapped
-  Engine facts. A regression checks that activity and scope controls do not overlap the measurement. All 44 affected
-  browser cases and 24 additional font-stress cases passed; 21 exact goldens and all three published screenshots stayed
-  unchanged. [PR 18 CI](https://github.com/mikebuckets171/mlx-scope-openchamber/pull/18/checks) reruns the canonical suite;
+  Engine facts. The repaired candidate passed all 382 Linux CI browser cases. An independent review corrected an
+  ineffective font override in the additional stress harness and found a 200% mixed-activity overlap and long failure
+  guidance. The final enlarged-text layout reserves a wrapped header within the host's 320 px clamp, and concise error
+  copy retains the failure and next action. Canonical regressions cover mixed activity at 150%/200% text and narrow
+  widths. All 44 layout cases, 10 failure/copy cases and 48 scenes with verified applied fonts passed, including six
+  enlarged full-view completion transitions. [PR 18 CI](https://github.com/mikebuckets171/mlx-scope-openchamber/pull/18/checks) verifies the final candidate;
   failed checks must pass before publication.
 - Final visual evidence covers 32 scenes and 21 exact goldens, including narrow layouts, both themes, enlarged text,
   keyboard controls, tool waits, interruption, completed results and cloud estimates. An independent 42-case final
@@ -59,8 +62,8 @@ paths, provider credentials, raw session IDs or uncontrolled screenshots of the 
   slowdown at or below 2% is made. Publication follows the maintainer's latest instruction to inspect the installed
   app and publish. The eight-hour soak is waived; sleep/wake and long-duration stability remain unqualified.
 
-Final panel SHA-256: `01c415d09702204b1139d56cf72680e3bcaa6a3d645ce4274ec3d68c0ab4e9f5`.
-Final stylesheet SHA-256: `4e9fe99a44b6049f925457aeb3ee6e9ec2c6b7d16b42674c1d4d3b87f0421faa`.
+Final panel SHA-256: `b469672bff7c17e67d18714852298a1de43f4fc60c43aa56bf3a73b6a70b6b8d`.
+Final stylesheet SHA-256: `8dd79ce03db2d5cbec92c0d10e29c5da362b0bcfe530247ac3283623c70bbd9b`.
 
 ## Publish and verify
 

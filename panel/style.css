@@ -343,7 +343,7 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 @container (max-width: 20em) {
   .ws-context { align-items: flex-start; flex-direction: column; gap: 0; }
   .ws-context .scope-choice { max-width: 100%; }
-  .ws-activity { grid-template-rows: 2.625rem 2.625rem minmax(2.25rem, auto); }
+  .ws-activity { grid-template-rows: 3.75rem 2.625rem minmax(2.0625rem, auto); }
   .ws-context { justify-content: flex-start; }
 }
 @media (max-width: 380px) {

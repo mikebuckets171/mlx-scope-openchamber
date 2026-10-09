@@ -63,7 +63,7 @@ export class StatusApp {
     return session?.id === this.session?.id && session?.model === this.session?.model;
   }
   reportPreferenceFailure(): void {
-    this.actionError = 'Changed here, but this host could not save the preference.';
+    this.actionError = 'Changed here; could not save.';
     this.render();
   }
   private readonly onChange = (event: Event): void => {
@@ -82,7 +82,7 @@ export class StatusApp {
       const session = this.session;
       void this.p.host.openSurface('plugin:mlx-scope').catch(() => {
         if (!this.sameSession(session)) return;
-        this.actionError = 'Could not open Scope. Use its icon in the side panel.';
+        this.actionError = 'Could not open Scope. Use the side icon.';
         this.render();
       });
     }

@@ -66,15 +66,23 @@ test('scope choice persists across reload, keeps Whole engine independent, and f
 });
 
 for (const surface of ['status', 'page']) test(`a rejected scope preference remains usable and reports that it was not saved on ${surface}`, async ({ page }) => {
+  if (surface === 'status') await page.setViewportSize({ width: 290, height: 550 });
   await page.goto(`/v2?surface=${surface}&state=decode&chat=local&storage=fail`);
   const frame = page.frameLocator('iframe'), scope = frame.getByRole('combobox', { name: 'Measurement scope' });
+  if (surface === 'status') await page.locator('iframe').evaluate(el => { (el as HTMLElement).style.width = '260px'; });
   await expect(scope).toHaveValue('chat');
   await scope.selectOption('engine');
   await expect(scope).toHaveValue('engine');
-  await expect(frame.locator(surface === 'status' ? '#ws-action-error' : '#action-status')).toContainText('could not save the preference');
+  await expect(frame.locator(surface === 'status' ? '#ws-action-error' : '#action-status')).toContainText(surface === 'status' ? 'Changed here; could not save.' : 'could not save the preference');
   await expect(frame.locator('#rate')).toBeVisible();
   const before = (await queries(page)).length;
   await expect.poll(async () => (await queries(page)).length).toBeGreaterThan(before);
+  if (surface === 'status') {
+    await frame.locator('html').evaluate(el => { el.style.fontSize = '32px'; });
+    await expect.poll(() => frame.locator('#ws').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight + 1)).toBe(true);
+    expect(await frame.locator('#ws').evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height)).toBeLessThanOrEqual(320);
+  }
 });
 
 test('chat estimate, reasoning, tool waiting, short completion, and cancellation use explicit states', async ({ page }) => {

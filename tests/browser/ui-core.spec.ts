@@ -285,12 +285,19 @@ test('Session summary ignores a remembered stats expansion and opens the full pa
 });
 
 test('Session summary reports a failed full-panel action without clipping the guidance', async ({ page }) => {
+  await page.setViewportSize({ width: 290, height: 550 });
   const frame = await status(page, 'state=pressure&openSurface=fail');
+  await page.locator('iframe').evaluate(el => { (el as HTMLElement).style.width = '260px'; });
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
   await expect(frame.locator('#ws-action-error')).toBeVisible();
   await expect(frame.locator('#ws-action-error')).toHaveAttribute('role', 'status');
-  await expect(frame.locator('#ws-action-error')).toHaveText('Could not open Scope. Use its icon in the side panel.');
+  await expect(frame.locator('#ws-action-error')).toHaveText('Could not open Scope. Use the side icon.');
   await expect.poll(() => lastHeight(page)).toBe(await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height));
+  expect(await problems(page)).toEqual([]);
+  await frame.locator('html').evaluate(el => { el.style.fontSize = '32px'; });
+  await expect.poll(() => frame.locator('#ws').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight + 1)).toBe(true);
+  expect(await frame.locator('#ws').evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height)).toBeLessThanOrEqual(320);
   expect(await problems(page)).toEqual([]);
 });
 
