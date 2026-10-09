@@ -25,6 +25,7 @@ export class Monitor {
   readonly poller: Poller;
   private delay = 2_000;
   private splashBoundaryAt: number | null = null;
+  private chatTimer: ReturnType<typeof setTimeout> | null = null;
   constructor(private readonly p: MonitorParts) {
     this.poller = new Poller(() => this.poll());
   }
@@ -93,12 +94,20 @@ export class Monitor {
     return { ...reading, request, body: { ...body, capabilities, runtime: { ...body.runtime, server, request } } };
   }
 
-  clearFreshness(): void { const state = this.p.state; if (state.freshnessTimer !== null) clearTimeout(state.freshnessTimer); state.freshnessTimer = null; }
+  clearFreshness(): void {
+    const state = this.p.state;
+    if (state.freshnessTimer !== null) clearTimeout(state.freshnessTimer); state.freshnessTimer = null;
+    if (this.chatTimer !== null) clearTimeout(this.chatTimer); this.chatTimer = null;
+  }
   /** One deadline, not an animation loop: a stalled request cannot leave a live rate on screen. */
   armFreshness(): void {
     const state = this.p.state;
     this.clearFreshness();
     if (state.disposed || !this.live) return;
+    const expiry = state.snapshot?.chat?.expiresAtMs;
+    if (expiry !== undefined && expiry > this.p.client.now()) this.chatTimer = setTimeout(() => {
+      this.chatTimer = null; this.p.render();
+    }, expiry - this.p.client.now());
     state.freshnessTimer = setTimeout(() => { state.freshnessTimer = null; state.stale = true; state.signal.break(); this.p.render(); }, freshnessDeadline(this.delay));
   }
 

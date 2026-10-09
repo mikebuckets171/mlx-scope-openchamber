@@ -109,6 +109,7 @@ if(m.type === 'hello') {
     else post({type:'result',id:m.id,ok:true,payload:{status:params.get('service') || 'ready'}}); return;
   }
   if(m.type === 'storage') {
+    if(params.get('storage') === 'startup-slow' && m.payload.op === 'get') await new Promise(resolve => setTimeout(resolve, 8_000));
     if(params.get('storage') === 'slow' && m.payload.op === 'keys') await new Promise(resolve => setTimeout(resolve, 700));
     const {op,key,value} = m.payload;
     if(params.get('storage') === 'fail') { post({type:'result',id:m.id,ok:false,code:'HOST_REJECTED',error:'Fixture storage failure'}); return; }

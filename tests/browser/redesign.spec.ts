@@ -199,17 +199,14 @@ test('the Session widget uses native rows and keeps detail in the full panel acr
   await expect(frame.locator('#ws')).toHaveAttribute('data-presentation', 'session');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.getByRole('button', { name: 'Show turn stats', exact: true })).toHaveCount(0);
-  await expect(frame.locator('.ws-model')).toBeVisible();
-  await expect(frame.locator('.ws-alert-row')).toContainText('Memory pressure');
-  await expect(frame.locator('.ws-alert-value')).toHaveText(/^Warning(?:\s*\+\d+ more)?$/);
+  await expect(frame.locator('.ws-model')).toHaveCount(0);
+  await expect(frame.locator('.ws-warning')).toContainText('Memory pressure');
+  await expect(frame.locator('.ws-warning')).toHaveText('Memory pressure · warning');
   await expect(frame.locator('.chip, .ts-rows, .ws-key-stats, .ws-spark')).toHaveCount(0);
-  const rows = await frame.locator('#ws').evaluate(el => {
-    const lanes = Array.from(el.querySelectorAll('.speed-row:not([data-stage="progress"])'));
-    return lanes.map(lane => ({ label: lane.querySelector('dt')!.textContent,
-      size: getComputedStyle(lane.querySelector('.speed-value')!).fontSize }));
-  });
-  expect(rows.map(row => row.label)).toEqual(['Prefill speed', 'Generation speed']);
-  expect(rows[0]!.size).toBe(rows[1]!.size);
+  await expect(frame.locator('.speed-row')).toHaveCount(0);
+  await expect(frame.getByRole('combobox', { name: 'Measurement scope' })).toHaveValue('chat');
+  const visibleRows = await frame.locator('#ws .ws-line').count();
+  expect(visibleRows).toBeLessThanOrEqual(3);
   await expect(frame.locator('html')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(frame.locator('body')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   const evidence = process.env.SCOPE_EVIDENCE_DIR;
@@ -239,8 +236,11 @@ test('current first-token timing comes only from the current request capability'
     preview.setPreviewPatch({ runtime: body.runtime, capabilities: body.capabilities });
   });
   await expect(frame.locator('#first-token')).toContainText('0.85 s');
+  await expect(frame.locator('#first-token [data-basis="reported"]')).toBeVisible();
+  await expect(frame.locator('#engine-facts')).toBeVisible();
   await expect(frame.locator('#request-details')).toHaveJSProperty('open', false);
   await expect(frame.locator('#metrics')).toBeHidden();
+  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
   await frame.locator('#request-details > summary').click();
   await expect(frame.locator('#first-token [data-basis="reported"]')).toBeVisible();
   await expect(frame.locator('#context-headroom')).toBeVisible();
@@ -254,7 +254,7 @@ test('current first-token timing comes only from the current request capability'
   await expect(frame.locator('#first-token')).toHaveCount(0);
 });
 
-test('the 280 px Session summary keeps performance readable and preserves a long model name', async ({ page }) => {
+test('the 280 px Session summary keeps performance readable without repeating a long host model name', async ({ page }) => {
   await page.setViewportSize({ width: 300, height: 600 });
   await page.goto('/v2?state=decode&surface=status');
   await page.evaluate(() => {
@@ -266,12 +266,12 @@ test('the 280 px Session summary keeps performance readable and preserves a long
     preview.setPreviewPatch({ runtime: body.runtime, capabilities: body.capabilities });
   });
   const frame = page.frameLocator('iframe');
-  await expect(frame.locator('.ws-model')).toContainText('a-very-long-model-name');
-  await expect(frame.locator('.ws-model')).toHaveAttribute('title', 'example-org/a-very-long-model-name-with-extra-training-and-quantization-details-27B-4bit');
+  await expect(frame.locator('.ws-model')).toHaveCount(0);
+  await expect(frame.locator('#ws')).not.toContainText('a-very-long-model-name');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
-  await expect(frame.locator('.ws-rate')).toContainText('26.4');
+  await expect(frame.locator('.ws-reading')).toContainText('26.4');
   await expect(frame.locator('.ws-key-stats, .ts-rows')).toHaveCount(0);
-  await expect(frame.locator('#ws')).not.toContainText('First token');
+  await expect(frame.locator('.ws-support')).toHaveText('Engine · First token 0.85 s');
   await expect(frame.locator('#ws')).not.toContainText('Context used');
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
   const fit = await frame.locator('#ws').evaluate(el => ({ height: el.getBoundingClientRect().height,
@@ -296,10 +296,10 @@ test('a remembered stats expansion cannot promote an unmeasured reply above curr
     preview.setPreviewPatch({ runtime: body.runtime, completions: body.completions, alerts: body.alerts, host: body.host });
   });
   const frame = page.frameLocator('iframe');
-  await expect(frame.locator('.ws-alert-value')).toHaveText(/^Warning(?:\s*\+\d+ more)?$/);
+  await expect(frame.locator('.ws-warning')).toHaveText('Memory pressure · warning');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.locator('.ws-phase')).toHaveText('Idle');
-  await expect(frame.locator('.ws-rate, .ws-age, .ts-head, .ts-rows, .chip')).toHaveCount(0);
+  await expect(frame.locator('.ws-reading, .ws-age, .ts-head, .ts-rows, .chip')).toHaveCount(0);
   await expect(frame.locator('#ws')).not.toContainText('Last reply');
   await expect(frame.locator('#ws')).not.toContainText('no turn summary');
   await expect(frame.locator('#ws')).not.toContainText('not observed');
@@ -312,14 +312,14 @@ test('a remembered stats expansion cannot promote an unmeasured reply above curr
 test('Session summary clears live speed when Splash readings become stale and restores it on fresh readings', async ({ page }) => {
   await page.goto('/v2?surface=status&state=splash-decode');
   const frame = page.frameLocator('iframe');
-  await expect(frame.locator('.ws-rate')).toContainText('43.8');
+  await expect(frame.locator('.ws-reading')).toContainText('43.8');
   await page.evaluate(() => (window as any).setPreviewState('splash-stale'));
-  await expect(frame.locator('.ws-rate')).toHaveCount(0);
+  await expect(frame.locator('.ws-reading')).toHaveCount(0);
   await expect(frame.locator('#ws')).not.toContainText('tok/s');
   await expect(frame.locator('.ws-phase')).not.toHaveText('Generating');
   await page.evaluate(() => (window as any).setPreviewState('splash-decode'));
-  await expect(frame.locator('.ws-rate')).toContainText('43.8');
-  await expect(frame.locator('.ws-scope')).toHaveText('All server activity');
+  await expect(frame.locator('.ws-reading')).toContainText('43.8');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
 });
 
 test('completed-response first token remains explicitly last reply during a later request', async ({ page }) => {
@@ -327,7 +327,10 @@ test('completed-response first token remains explicitly last reply during a late
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#reply-strip')).toContainText('Last reply');
   await expect(frame.locator('#reply-strip')).toContainText('0.51 s');
-  await expect(frame.locator('#first-token')).toHaveCount(0);
+  await expect(frame.locator('#engine-facts #first-token')).toHaveCount(0);
+  await expect(frame.locator('#completed-facts')).toContainText('Last engine result');
+  await expect(frame.locator('#completed-facts #first-token')).toContainText('0.51 s');
+  await expect(frame.locator('.instrument-primary')).toHaveAttribute('data-live', 'false');
   await page.evaluate(() => {
     const preview = window as any;
     const body = preview.ScopeStates.mockBody('bionic', { now: Date.now() });
@@ -337,6 +340,7 @@ test('completed-response first token remains explicitly last reply during a late
   await expect(frame.locator('#phase')).toHaveText('Generating');
   await expect(frame.locator('#reply-strip')).toContainText('Last reply');
   await expect(frame.locator('#reply-strip')).toContainText('0.51 s');
+  await expect(frame.locator('#completed-facts')).toHaveCount(0);
   await expect(frame.locator('#first-token')).toHaveCount(0);
   await expect(frame.locator('.speed-pair')).not.toContainText('0.51 s');
 });

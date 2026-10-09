@@ -3,6 +3,51 @@ import { encodeAttrs, encodeMarks, isBadQuery, MAX_ATTRS, MAX_MARKS, parseSnapsh
 
 const q = (text: string) => new URLSearchParams(text);
 
+test('selected-chat queries carry a paired session and model hash alongside the existing connection grammar', () => {
+  const chat = 'a'.repeat(64), chatModel = 'b'.repeat(64);
+  expect(parseSnapshotQuery(q(`provider=local&chat=${chat}&chatModel=${chatModel}&frame=1234abcd&surface=status`)))
+    .toEqual({ provider: 'local', chat, chatModel, frame: '1234abcd', surface: 'status', tier: 'glance', marks: [], attrs: [] });
+  expect(parseSnapshotQuery(q('provider=local&surface=status'))).toEqual({ provider: 'local', surface: 'status', tier: 'glance', marks: [], attrs: [] });
+});
+
+test('chat busy is an explicit bounded hint that requires the paired chat identifiers', () => {
+  const chat = 'a'.repeat(64), chatModel = 'b'.repeat(64), pair = `chat=${chat}&chatModel=${chatModel}`;
+  expect(parseSnapshotQuery(q(`provider=local&${pair}&chatBusy=1&surface=status`)))
+    .toEqual({ provider: 'local', chat, chatModel, chatBusy: true, surface: 'status', tier: 'glance', marks: [], attrs: [] });
+  for (const value of ['', '0', 'true', 'false', '-1', '2', '1.0', '01', '1&chatBusy=1']) {
+    expect(parseSnapshotQuery(q(`${pair}&chatBusy=${value}`)), value).toEqual({ error: 'bad_query', param: 'chatBusy' });
+  }
+  expect(parseSnapshotQuery(q('provider=local&chatBusy=1'))).toEqual({ error: 'bad_query', param: 'chat' });
+  expect(parseSnapshotQuery(q(pair))).not.toHaveProperty('chatBusy');
+});
+
+test('remote chat-only queries require exact selected identity and cannot select engine-only detail', () => {
+  const pair = `chat=${'a'.repeat(64)}&chatModel=${'b'.repeat(64)}`;
+  expect(parseSnapshotQuery(q(`provider=cloud&${pair}&chatOnly=1&chatBusy=1&surface=status`)))
+    .toEqual({ provider: 'cloud', chat: 'a'.repeat(64), chatModel: 'b'.repeat(64), chatOnly: true, chatBusy: true,
+      surface: 'status', tier: 'glance', marks: [], attrs: [] });
+  for (const value of ['', '0', 'true', '2', '01', '1&chatOnly=1'])
+    expect(parseSnapshotQuery(q(`provider=cloud&${pair}&chatOnly=${value}`))).toEqual({ error: 'bad_query', param: 'chatOnly' });
+  for (const [suffix, param] of [['', 'provider'], ['provider=', 'provider'], ['provider=cloud&runtime=omlx', 'runtime'],
+    ['provider=cloud&tier=full&detail=server', 'detail']] as const)
+    expect(parseSnapshotQuery(q(`${pair}&chatOnly=1&${suffix}`))).toEqual({ error: 'bad_query', param });
+  expect(parseSnapshotQuery(q('provider=cloud&chatOnly=1'))).toEqual({ error: 'bad_query', param: 'chat' });
+});
+
+test('missing, raw, malformed or repeated chat identifiers are rejected without echoing identifiers', () => {
+  const chat = 'a'.repeat(64), chatModel = 'b'.repeat(64);
+  const cases: Array<[string, string]> = [
+    [`chat=${chat}`, 'chatModel'], [`chatModel=${chatModel}`, 'chat'],
+    [`chat=ses_private&chatModel=${chatModel}`, 'chat'], [`chat=${chat}&chatModel=namespace/private-model`, 'chatModel'],
+    [`chat=${'A'.repeat(64)}&chatModel=${chatModel}`, 'chat'], [`chat=${'a'.repeat(63)}&chatModel=${chatModel}`, 'chat'],
+    [`chat=${chat}&chatModel=${'b'.repeat(65)}`, 'chatModel'], [`chat=&chatModel=${chatModel}`, 'chat'],
+    [`chat=${chat}&chat=${chat}&chatModel=${chatModel}`, 'chat'], [`chat=${chat}&chatModel=${chatModel}&chatModel=${chatModel}`, 'chatModel'],
+  ];
+  for (const [query, param] of cases) {
+    expect(parseSnapshotQuery(q(query))).toEqual({ error: 'bad_query', param });
+  }
+});
+
 test('snapshot queries follow the contract grammar', () => {
   expect(parseSnapshotQuery(q(''))).toEqual({ tier: 'full', marks: [], attrs: [] });
   expect(parseSnapshotQuery(q('surface=status'))).toEqual({ surface: 'status', tier: 'glance', marks: [], attrs: [] });

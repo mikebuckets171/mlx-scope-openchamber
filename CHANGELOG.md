@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.0.0
+
+- A fresh activity-first interface keeps one relevant measurement in a stable position, with Open MLX Scope in the sidebar.
+  The sidebar adds an available supporting fact and uses OpenChamber's model context instead of repeating it.
+  Full Live shows available Engine facts and a compatible Engine trend, with deeper measurements in a disclosure.
+  Completed facts belong to the exact result; one labeled chat average can remain in view memory until the next reply.
+- A saved This chat / Whole engine preference keeps scope explicit. Chat-matched runtime readings take precedence, then
+  labeled delivery estimates, then a labeled Engine fallback for local chats. Cloud chats can show estimated delivery
+  through the same optional companion, with no cloud API calls or local engine fallback.
+- Phase-aware readings distinguish prompt progress, generation/reasoning, tool waits, cancellation and Last results.
+  Chat/model switches and expired observations clear live rates immediately.
+- An optional OpenCode 2.0.25 companion estimates delivery over a five-second window after two seconds of observations,
+  with bounded calibration from comparable completed steps. Estimates always remain labeled.
+- Guided Enable/Disable preserves JSONC comments and existing plugins, verifies compatibility/readiness, and never
+  restarts an active session. Chat delivery telemetry is demand-gated; the existing optional Splash prompt-progress
+  observer remains separately configured.
+- Full Live and History retain charts, captures, comparisons and optional Mac diagnostics. Existing records and runtime
+  measurement bases are preserved; chat estimates do not enter engine charts or baselines.
+- Runtime adapters, Splash prompt progress, host permission declarations and OpenChamber 2.0.4 compatibility remain.
+
+
 ## 2.1.6
 
 - Long activity explanations now wrap within narrow panels, keeping their help button inside the panel in WebKit.

@@ -7,8 +7,9 @@ import { connName, PRESSURE, RT, rtName, statusCopy, THERMAL, THERMAL_WARN, ther
 import { ago, delta, dur, int, kt, mmss, pct, size, tps } from './format.ts';
 import { attrChip, attrTip, callouts, splashRateTip, tip, weightedTps, type Callout, type Chip, type Tip, type Val } from './parts.ts';
 export { weightedTps } from './parts.ts';
-import { ENGINE_SPEED, heldBySource, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING, type ScopeInput } from './scope.ts';
-import { promptPercent } from '../progress.ts';
+import { heldBySource, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING, type ScopeInput } from './scope.ts';
+import { presentSessionSection, type SessionSectionView } from './session.ts';
+import { fromSnapshot } from './reading.ts';
 
 // The Live tab (plan §5.9, the G2 mock): callouts, the hero (one speed with its basis ⓘ, the attribution chip, Last
 // reply and Next reply), the request tiles and the This Mac card with the short labels (full wording in its ⓘ).
@@ -16,9 +17,9 @@ import { promptPercent } from '../progress.ts';
 export type HeroKind = 'prefill' | 'decode' | 'server-decode' | 'busy' | 'slots' | 'ollama' | 'server' | 'queued' | 'processing' | 'inventory' | 'idle';
 export type HeroBody =
   | { kind: 'paused'; note: string }
-  | { kind: 'prefill'; percent: string; fraction: number; counts: string | null; eta: string | null; rate: string | null; source: string; tip: Tip }
-  | { kind: 'decode'; rate: string; basis: Basis; label: string; source: string; tip: Tip; chart: ChartView | null }
-  | { kind: 'word'; word: string; unit: string; note: Val | null };
+  | { kind: 'prefill'; fraction: number; counts: string | null; eta: string | null; tip: Tip }
+  | { kind: 'decode'; tip: Tip }
+  | { kind: 'word'; unit: string; note: Val | null };
 export type NextView =
   | { kind: 'offer' } | { kind: 'watch'; runtime: string } | { kind: 'armed'; left: string; tip: Tip }
   | { kind: 'measuring'; elapsed: string } | { kind: 'result' };
@@ -26,8 +27,8 @@ export interface ReplyView {
   chip: Chip | null; tip: Tip | null; when: string | null; empty: string | null;
   values: Val[]; split: Val[]; usual: Chip | null; next: NextView | null; model?: string;
 }
-export interface HeroView { speeds: SpeedsView; title: string; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
-export interface Tile { label: string; value: string; detail: string; meter: number | null }
+export interface HeroView { instrument: SessionSectionView; speeds: SpeedsView; title: string; chatOnly?: boolean; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; engineTrend: { chart: ChartView | null } | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
+export interface Tile { label: string; value: string; detail: string; meter: number | null; basis?: Basis }
 export interface MacRow { key: string; label: string; value: Val; level: Level | null; meter: number | null; tip: Tip | null }
 export interface MacView { title: string; tip: Tip; stale: boolean; line: Array<{ label: string; value: string; meter: number | null }>; rows: MacRow[]; details: MacRow[] }
 export interface LiveView { callouts: Callout[]; hero: HeroView | null; tiles: Tile[]; mac: MacView | null }
@@ -60,39 +61,35 @@ const liveLabel = (kind: HeroKind, s: ScopeInput): AttributionLabel =>
 const heroBody = (kind: HeroKind, s: ScopeInput): HeroBody => {
   const snapshot = s.snapshot!, runtime = snapshot.runtime, request = runtime.request, rt = rtName(snapshot.connection);
   const server = runtime.server, active = server.active ?? 0, queued = server.queued ?? 0;
-  const word = (text: string, unit: string, note: Val | null = null): HeroBody => ({ kind: 'word', word: text, unit, note });
+  const word = (unit: string, note: Val | null = null): HeroBody => ({ kind: 'word', unit, note });
   switch (kind) {
     case 'prefill': {
       const fraction = request!.prefillFraction!, stale = request!.prefillStale === true;
       const done = request!.prefillProcessedTokens, total = request!.prefillTotalTokens;
-      return { kind: 'prefill', percent: `${promptPercent(fraction)}${stale ? ' (last seen)' : ''}`, fraction, counts: done != null && total != null ? `${int(done)} of ${int(total)} ${snapshot.connection.runtime === 'splash' ? 'prompt tokens processed' : 'new tokens read'}` : null,
-        eta: !stale && request!.prefillEtaMs != null ? dur(request!.prefillEtaMs) : null, rate: request!.prefillTps != null ? tps(request!.prefillTps) : null,
-        source: `From ${rt}`, tip: tip('basis', `From ${rt}`, [`${rt} reports how much of this prompt has been read.`,
+      return { kind: 'prefill', fraction, counts: done != null && total != null ? `${int(done)} of ${int(total)} ${snapshot.connection.runtime === 'splash' ? 'prompt tokens processed' : 'new tokens read'}` : null,
+        eta: !stale && request!.prefillEtaMs != null ? dur(request!.prefillEtaMs) : null, tip: tip('basis', `From ${rt}`, [`${rt} reports how much of this prompt has been read.`,
           request!.prefillEtaMs != null && `${rt} estimates the finish time; it changes during prefill.`, stale && 'Progress has not updated yet.']) };
     }
     case 'decode': {
       const basis = snapshot.capabilities['request.decodeRate']?.basis ?? 'reported';
       const source = basis === 'reported' ? `From ${rt}` : `${basis === 'observed' ? 'Measured' : basis === 'derived' ? 'Calculated' : basis === 'estimate' ? 'Estimated' : 'Last reading'} from ${rt}`;
-      return { kind: 'decode', rate: tps(request!.decodeTps!), basis, label: basis === 'observed' ? 'Measured generation speed' : 'Average for this request', source,
-        tip: tip('basis', source, [basis === 'reported' ? `${rt} reports this request’s average speed, without Scope smoothing or estimates.` : 'Calculated from server readings. This is an average for the request.']),
-        chart: liveChart(s.samples, s.now, s.turnStartAt) };
+      return { kind: 'decode',
+        tip: tip('basis', source, [basis === 'reported' ? `${rt} reports this request’s average speed, without Scope smoothing or estimates.` : 'Calculated from server readings. This is an average for the request.']) };
     }
-    case 'server-decode': return { kind: 'decode', rate: tps(liveSplashRate(snapshot)!), basis: 'derived', label: ENGINE_SPEED, source: `Calculated from ${rt} · last ${dur(server.rates!.windowMs)}`,
-      tip: splashRateTip('basis', server.rates!.windowMs),
-      chart: liveChart(s.samples, s.now, null, 'server') };
+    case 'server-decode': return { kind: 'decode', tip: splashRateTip('basis', server.rates!.windowMs) };
     case 'slots': case 'busy': {
-      if (snapshot.connection.runtime === 'splash') return word('Working', SPLASH_WAITING);
+      if (snapshot.connection.runtime === 'splash') return word(SPLASH_WAITING);
       const rates = server.rates;
-      return word(`${active} requests`, `Speed unavailable for one request: ${active} ${kind === 'slots' ? 'slots are busy' : 'requests are running'}`,
+      return word(`Speed unavailable for one request: ${active} ${kind === 'slots' ? 'slots are busy' : 'requests are running'}`,
         rates?.decodeTps != null ? { text: `Generation `, strong: `${tps(rates.decodeTps)} tok/s`, unit: `over the last ${Math.round(rates.windowMs / 1_000)} s`,
           basis: 'derived', note: `Calculated from ${rt}` } : null);
     }
-    case 'ollama': return word(`${runtime.residency.length} loaded`, 'Ollama lists loaded models but does not provide request speeds');
-    case 'server': return word(`${active} running`, queued ? `${queued} waiting` : 'Nothing waiting');
-    case 'queued': return word(`${queued} waiting`, `${active} running`);
-    case 'processing': return word('Working', snapshot.connection.runtime === 'splash' ? runtime.phase === 'prefill' ? 'Reading prompt · waiting for update' : SPLASH_WAITING : `${rt} doesn’t report this request’s speed`);
-    case 'inventory': return word('Connected', `${rt} lists its models · no live request readings`);
-    default: return word('Idle', 'Model loaded · ready for the next request');
+    case 'ollama': return word('Ollama lists loaded models but does not provide request speeds');
+    case 'server': return word(queued ? `${queued} waiting` : 'Nothing waiting');
+    case 'queued': return word(`${queued} waiting · ${active} running`);
+    case 'processing': return word(snapshot.connection.runtime === 'splash' ? runtime.phase === 'prefill' ? 'Reading prompt · waiting for update' : SPLASH_WAITING : `${rt} doesn’t report this request’s speed`);
+    case 'inventory': return word(`${rt} lists its models · no live request readings`);
+    default: return word('Model loaded · ready for the next request');
   }
 };
 
@@ -158,14 +155,21 @@ const replyView = (s: ScopeInput): ReplyView | null => {
 const presentHero = (s: ScopeInput): HeroView | null => {
   const snapshot = s.snapshot;
   if (!snapshot) return null;
-  const kind = heroKind(s), title = modelOf(snapshot) ?? connName(snapshot.connection);
-  if (s.paused) return { speeds: presentSpeeds(s), title, attr: null, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, firstToken: null, context: null, reply: null };
+  const instrument = presentSessionSection({ ...s, reading: fromSnapshot(snapshot), chatIsLocal: s.chatIsLocal ?? null });
+  if (s.measurementScope !== 'engine' && s.chatIsLocal === false) return { instrument, speeds: instrument.speeds, title: 'This chat', chatOnly: true,
+    attr: null, body: null, engineTrend: null, firstToken: null, context: null, reply: null };
+  const kind = heroKind(s), title = modelOf(snapshot) ?? connName(snapshot.connection), body = kind ? heroBody(kind, s) : null;
+  // Keep the disclosure in place across lifecycle changes. Only compatible engine readings enter its chart.
+  const engineTrend = snapshot.capabilities['request.decodeRate'] || snapshot.capabilities['server.rates']
+    ? { chart: liveChart(s.samples, s.now, snapshot.connection.runtime === 'splash' ? null : s.turnStartAt,
+      snapshot.connection.runtime === 'splash' ? 'server' : 'request') } : null;
+  if (s.paused) return { instrument, speeds: presentSpeeds(s), title, attr: null, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, engineTrend, firstToken: null, context: null, reply: null };
   const reply = replyView(s);
 
   const live = kind === 'decode' || kind === 'prefill', label = kind ? liveLabel(kind, s) : SERVER_WIDE;
   return {
-    speeds: presentSpeeds(s), title, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
-    body: kind ? heroBody(kind, s) : null,
+    instrument, speeds: presentSpeeds(s), title, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
+    body, engineTrend,
     firstToken: kind && ACTIVE.has(snapshot.runtime.phase) && snapshot.runtime.request?.ttftMs != null && snapshot.capabilities['request.ttft']
       ? { text: 'First token', strong: dur(snapshot.runtime.request.ttftMs), basis: snapshot.capabilities['request.ttft'].basis } : null,
     context: kind ? contextBlock(s) : null, reply,
@@ -174,8 +178,17 @@ const presentHero = (s: ScopeInput): HeroView | null => {
 
 const presentTiles = (s: ScopeInput): Tile[] => {
   const snapshot = s.snapshot, request = snapshot?.runtime.request, server = snapshot?.runtime.server;
-  if (!snapshot || !request || s.paused || !s.fresh || !snapshot.capabilities['request.tokens'] || heroKind(s) === null) return [];
+  if (!snapshot || s.paused || !s.fresh || heroKind(s) === null) return [];
   const tiles: Tile[] = [];
+  if (!request || !snapshot.capabilities['request.tokens']) {
+    if (server?.active != null && snapshot.capabilities['server.requests']) tiles.push({ label: 'Active requests', value: String(server.active), detail: server.queued ? `${server.queued} queued` : 'Queue clear', meter: null, basis: snapshot.capabilities['server.requests']!.basis });
+    const memory = snapshot.runtime.memory, allocation = memory.modelBytes ?? memory.metalBytes;
+    const memoryCap = snapshot.capabilities[memory.modelBytes != null ? 'server.memory.model' : 'server.memory.metal'];
+    if (allocation != null && memoryCap) tiles.push({ label: memory.modelBytes != null ? 'Model memory' : 'Metal allocations', value: size(allocation), detail: 'engine allocations', meter: null, basis: memoryCap.basis });
+    const latency = server?.histograms?.ttftMs;
+    if (latency && snapshot.capabilities['server.latency']) tiles.push({ label: 'Median first token', value: dur(latency.p50), detail: `${latency.n} recent requests`, meter: null, basis: snapshot.capabilities['server.latency']!.basis });
+    return tiles;
+  }
   // While prefill runs there is no output yet, and the prompt size is the prefill line: three tiles.
   if (request.outputTokens != null) tiles.push({ label: 'Output', value: kt(request.outputTokens), detail: 'tokens so far', meter: null });
   if (request.elapsedMs != null) tiles.push({ label: 'Elapsed', value: dur(request.elapsedMs), detail: 'since it started', meter: null });
@@ -235,6 +248,8 @@ export const presentMac = (s: ScopeInput): MacView | null => {
   };
 };
 
-export const presentLive = (s: ScopeInput, extra: readonly Callout[] = []): LiveView => ({
-  callouts: callouts(s.snapshot, s.now, extra), hero: presentHero(s), tiles: presentTiles(s), mac: presentMac(s),
-});
+export const presentLive = (s: ScopeInput, extra: readonly Callout[] = []): LiveView => {
+  const chatOnly = s.measurementScope !== 'engine' && s.chatIsLocal === false;
+  return { callouts: chatOnly ? [...extra] : callouts(s.snapshot, s.now, extra), hero: presentHero(s),
+    tiles: chatOnly ? [] : presentTiles(s), mac: chatOnly ? null : presentMac(s) };
+};

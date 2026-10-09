@@ -1,7 +1,7 @@
 # llama-sleeping · /v2?state=llama-sleeping
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Asleep
@@ -17,18 +17,21 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 22% RAM 21.8 / 48 GiB | Memory normal Thermal normal
-[callout-live] {data-severity="info"}: Notice: | llama-server is asleep | Model unloaded until the next request. Scope skips slots to preserve sleep.
-h2: This Mac
-#scope-version: <version>
+#view-live
+[callout-live] {data-severity="info"}: Notice: | llama-server is asleep | The model will load on the next request. Scope lets it sleep.
+#hero {aria-label="Activity and speed"}: Waiting for the next request
+h2.instrument-phase {data-tone="normal"}: Asleep
+#reply-strip
+#measurement-details: Measurement details
 #freshness: Updated just now
 live #connection: llama-server
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
-live [callout-live]: Notice: llama-server is asleepModel unloaded until the next request. Scope skips slots to preserve sleep.
+live [callout-live]: Notice: llama-server is asleepThe model will load on the next request. Scope lets it sleep.
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Asleep
@@ -45,19 +48,19 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-live {aria-labelledby="tab-live"}
 #panel-server {aria-labelledby="server-title"}: Back to Live
 #server-title: Server & Mac details
-[callout-server] {data-severity="info"}: Notice: | llama-server is asleep | Model unloaded until the next request. Scope skips slots to preserve sleep.
-[server-catalog]: 1 loaded · 1 listed example-8b-instruct-q4_k_m.gguf | Loaded 32.8K context
+[callout-server] {data-severity="info"}: Notice: | llama-server is asleep | The model will load on the next request. Scope lets it sleep.
+[server-catalog]: 1 loaded · 1 listed example-8b-instruct-q4_k_m.gguf Loaded 32.8K context
 h2: Model inventory
 span.chip: gguf
-#server-runtime-details: Runtime details Asleep
-#machine {aria-label="This Mac" data-stale="false"}: i | CPU 22% RAM 21.8 / 48 GiB Swap 1.1 GiB
+#server-runtime-details: Server details Asleep
+#machine {aria-label="This Mac" data-stale="false"}: CPU 22% Memory allocated 21.8 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
-[mac-pressure]: macOS memory pressure (kernel) | Normal
-[mac-thermal]: Thermal pressure (macOS) i Normal
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#scope-version: <version>
 #freshness: Updated just now
 live #connection: llama-server
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
-live [callout-server]: Notice: llama-server is asleepModel unloaded until the next request. Scope skips slots to preserve sleep.
+live [callout-server]: Notice: llama-server is asleepThe model will load on the next request. Scope lets it sleep.

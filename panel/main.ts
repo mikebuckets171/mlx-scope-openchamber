@@ -2,6 +2,7 @@ import { connectHost, type HostReadyContext } from '@openchamber/sdk';
 import { applyHostReady } from './sdk-theme.ts';
 import { version } from '../package.json';
 import { ConnectionHelp } from './connection-help.ts';
+import { mountCompanionSetup } from './companion-setup.ts';
 import { ConnectionsView, readSelection } from './connections-view.ts';
 import { frameId, SnapshotClient } from './data/client.ts';
 import { Visibility } from './data/visibility.ts';
@@ -16,6 +17,7 @@ import { ICON } from './render/views/parts.ts';
 import { measurementReport } from './report.ts';
 import { Pipeline } from './state/pipeline.ts';
 import { ScopeState } from './state/scope-state.ts';
+import { FollowChat, type MeasurementScope } from './state/follow-chat.ts';
 
 // Bootstrap only (plan §4.1): one bundle for the rail panel, the page and the Work Status section; `ready.surface` picks
 // the renderer. The visibility gate exists before anything can poll, so a hidden rail tab never makes a request.
@@ -37,14 +39,44 @@ window.addEventListener('unhandledrejection', () => showStartupFailure());
 const host = connectHost();
 const client = new SnapshotClient(host);
 let monitor: Monitor | null = null, pipeline: Pipeline | null = null, render = (): void => {}, disposeSurface = (): void => {};
+let reportPreferenceFailure = (): void => {};
 const visibility = new Visibility(document, window, () => monitor?.sync());
 const prefs = new PrefsV2(host.storage), preferences = new Preferences(host.storage);
+const follow = new FollowChat();
+const resetSelection = (): void => {
+  if (state.disposed || !monitor) return;
+  monitor.poller.stop(); monitor.clearFreshness(); state.generation += 1;
+  state.clearObservations(); state.failures = 0; state.awaitingFresh = true; state.interrupted = true;
+  monitor.apply(frameReading('runtime_unreachable', 'Waiting for a fresh reading.', client.now()));
+  monitor.sync();
+  if (state.mounted) monitor.poller.start();
+};
+const changeMeasurementScope = (measurementScope: MeasurementScope): void => {
+  if (measurementScope === prefs.value.measurementScope) return;
+  void prefs.set({ measurementScope }).catch(() => { if (!state.disposed) reportPreferenceFailure(); });
+  resetSelection();
+};
+const stopFollowing = host.onSession(session => {
+  const wasBusy = follow.session?.busy, changed = follow.update(session);
+  if (session?.busy && !wasBusy) {
+    const window = !changed ? pipeline?.frame().windows.at(-1) : null;
+    state.beginChat(window?.endedAt === null ? window.startedAt ?? window.joinedAt ?? client.now() : client.now());
+  }
+  if (changed && (prefs.value.measurementScope ?? 'chat') === 'chat') resetSelection();
+  else if (session?.busy !== wasBusy && monitor?.live && state.mounted) {
+    // Activity hints request an update; they do not invalidate an otherwise fresh observation.
+    // Identity changes, interruption and the observation's own deadline still clear live readings.
+    render(); void monitor.poller.refresh();
+  }
+});
 const pipelineFor = (surface: string): Pipeline => pipeline = new Pipeline({ host, state, now: () => client.now(), surface,
-  toasts: () => prefs.value.toasts ?? 'critical', auto: () => prefs.value.autoLabel ?? true });
+  toasts: () => prefs.value.toasts ?? 'critical', auto: () => prefs.value.autoLabel ?? true,
+  changed: () => { if (monitor?.live && state.mounted) { render(); void monitor.poller.refresh(); } } });
 const monitorFor = (pipeline: Pipeline, tier: 'glance' | 'full', floorMs: number, query: () => Record<string, string> | undefined,
   update: (link: ReturnType<typeof frameReading>['link']) => void, refreshed: () => void): Monitor => new Monitor({
   state, client, frame: frameId(), visibility: () => visibility, tier, floorMs,
-  query: () => ({ ...query(), ...pipeline.query(), ...state.serverDetailsVisible && tier === 'full' ? { detail: 'server' as const } : {} }),
+  query: () => ({ ...follow.query(prefs.value.measurementScope ?? 'chat', query()), ...pipeline.query(),
+    ...state.serverDetailsVisible && tier === 'full' ? { detail: 'server' as const } : {} }),
   since: frame => pipeline.since(frame),
   received: (reading, fresh, cadenceMs) => {
     update(reading.link);
@@ -60,12 +92,15 @@ const mountStatus = async (ready: HostReadyContext): Promise<void> => {
   root.innerHTML = '<main class="scope" id="scope" data-surface="status" aria-label="MLX Scope"></main>';
   const pipeline = pipelineFor('status');
   const app = new StatusApp({ root: root.querySelector<HTMLElement>('#scope')!, host, state, client, pipeline, prefs, visible: () => visibility.visible }, ready.session);
+  app.onMeasurementScope = changeMeasurementScope;
+  reportPreferenceFailure = () => app.reportPreferenceFailure();
   render = () => app.render();
   monitor = monitorFor(pipeline, 'glance', 5_000, () => selection, () => {}, () => {});
   preferences.load((key, value) => { if (key === 'efficient') state.efficient = value; }).catch(() => {});
   disposeSurface = () => { app.dispose(); pipeline.dispose(); };
   void readSelection(host.storage).then(next => { selection = next; });
   state.mounted = true;
+  clearTimeout(readyDeadline);
   render();
   monitor.sync();
   monitor.poller.start();
@@ -74,6 +109,7 @@ const mountStatus = async (ready: HostReadyContext): Promise<void> => {
 /** The rail panel and the page. */
 const mountScope = async (ready: HostReadyContext): Promise<void> => {
   root.innerHTML = shellMarkup().markup;
+  root.prepend(startupFallback);
   const shell = root.querySelector<HTMLElement>('#scope')!, node = (id: string) => shell.querySelector<HTMLElement>(`#${id}`)!;
   shell.dataset.surface = ready.surface;
   node('scope-version').textContent = version;
@@ -82,21 +118,28 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
     node('action-status').textContent = message; node('action-status').hidden = !message;
     state.statusTimer = message ? setTimeout(() => { node('action-status').hidden = true; state.statusTimer = null; }, 8_000) : null;
   };
+  reportPreferenceFailure = () => actionStatus('Changed here, but this host could not save the preference.');
   const pipeline = pipelineFor(ready.surface);
   const refresh = node('refresh') as HTMLButtonElement;
   const connections: ConnectionsView = new ConnectionsView(shell, host.storage, () => {
-    if (state.disposed || !monitor) return;
-    monitor.poller.stop(); monitor.clearFreshness(); state.generation += 1;
-    state.clearObservations(); state.failures = 0; state.awaitingFresh = true; state.interrupted = true;
-    monitor.apply(frameReading('runtime_unreachable', 'Waiting for the selected connection. Existing observations were cleared.', client.now()));
-    if (state.mounted) monitor.poller.start();
+    // Picking a connection is an explicit whole-engine choice; This chat follows the chat instead.
+    void prefs.set({ measurementScope: 'engine' }).catch(() => { if (!state.disposed) reportPreferenceFailure(); });
+    resetSelection();
   }, actionStatus);
   const app = new ScopeApp({ shell, host, state, client, pipeline, version, connections, prefs, visible: () => visibility.visible, status: actionStatus });
+  app.onMeasurementScope = changeMeasurementScope;
   render = () => app.render();
   monitor = monitorFor(pipeline, 'full', 3_000, () => connections.query(), link => connections.update(link),
     () => { refresh.disabled = state.userPaused; refresh.removeAttribute('aria-busy'); });
   app.onRefreshNeeded = () => monitor!.poller.refresh();
   const help = new ConnectionHelp(shell, host, version);
+  const companion = mountCompanionSetup(node('companion-setup'), host);
+  const companionDetails = node('companion-details') as HTMLDetailsElement;
+  companionDetails.addEventListener('toggle', () => { if (companionDetails.open) void companion.refresh(); else companionDetails.hidden = true; });
+  node('chat-setup').addEventListener('click', () => {
+    companionDetails.hidden = false; companionDetails.open = true; companionDetails.scrollIntoView({ block: 'nearest' });
+    companionDetails.querySelector('summary')?.focus();
+  });
   const sharing = new SharingControls(node('share-actions'), host, () => measurementReport(state.latest, state.lastHost,
     state.userPaused ? true : state.awaitingFresh || state.stale ? 'refreshing' : false, version, client.now(), state.lastRequest), actionStatus);
 
@@ -146,11 +189,12 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
   menu.addEventListener('keydown', event => { if (event.key === 'Escape' && menu.open) { menu.open = false; summary.focus(); } });
   const outside = (event: PointerEvent): void => { if (menu.open && !menu.contains(event.target as Node)) menu.open = false; };
   document.addEventListener('pointerdown', outside, true);
-  disposeSurface = () => { app.dispose(); pipeline.dispose(); sharing.dispose(); help.dispose(); document.removeEventListener('pointerdown', outside, true); };
+  disposeSurface = () => { app.dispose(); pipeline.dispose(); sharing.dispose(); help.dispose(); companion.dispose(); document.removeEventListener('pointerdown', outside, true); };
 
   await Promise.all([preferences.load(applyPreference), prefs.load().then(showToasts), connections.load()]);
   if (state.disposed) return;
   state.mounted = true;
+  clearTimeout(readyDeadline);
   startupFallback.remove();
   shell.hidden = false;
   refresh.disabled = state.userPaused;
@@ -163,15 +207,18 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
 
 const readyDeadline = setTimeout(() => {
   if (state.mounted || state.disposed || state.startupFailed) return;
-  startupStatus.textContent = 'Waiting for OpenChamber. Open this monitor from the extension panel in OpenChamber. If it is already open there, reload the extension in Settings → Extensions.';
+  startupStatus.textContent = started
+    ? 'Waiting for saved settings from OpenChamber. If this continues, reload MLX Scope in Settings → Extensions.'
+    : 'Waiting for OpenChamber. Open this monitor from the extension panel in OpenChamber. If it is already open there, reload the extension in Settings → Extensions.';
 }, 6_000);
 let started = false;
 host.onReady(ready => {
-  clearTimeout(readyDeadline);
   applyHostReady(ready, document.documentElement);
   document.documentElement.style.colorScheme = ready.theme.mode;
   if (started) { render(); return; }
   started = true;
+  startupStatus.textContent = 'Loading saved settings…';
+  follow.update(ready.session);
   state.surface = ready.surface;
   (ready.surface === 'status' ? mountStatus(ready) : mountScope(ready)).catch(() => showStartupFailure());
 });
@@ -181,7 +228,7 @@ window.addEventListener('pagehide', event => {
   state.interrupted = true; state.awaitingFresh = true;
   if (!event.persisted) {
     state.disposed = true; clearTimeout(readyDeadline);
-    disposeSurface(); visibility.dispose();
+    disposeSurface(); visibility.dispose(); stopFollowing();
     if (state.statusTimer !== null) clearTimeout(state.statusTimer);
     host.dispose();
   }

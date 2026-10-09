@@ -187,7 +187,7 @@ export const sinceText = (at: number | undefined, now: number): string => at ===
 
 // Frame states: the service can't answer, so nothing below is a runtime reading (plan §6, SPIKES S11). No sessions grant (S2).
 export const APPROVAL = {
-  title: 'MLX Scope 2.0 needs one approval',
+  title: 'MLX Scope needs one approval',
   body: 'Allow Mac GPU, thermal and process readings, plus LM Studio’s CLI without starting it. Chat labels use the open chat’s activity without extra permissions. History stays local.',
   steps: ['Open Settings → Extensions → MLX Scope.', 'Choose Needs approval, then allow and enable.'],
   grant: [

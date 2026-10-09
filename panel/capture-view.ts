@@ -1,6 +1,6 @@
 import { PerformanceCapture } from './capture.ts';
 import { presentCapture } from './present/captures.ts';
-import type { Reading } from './present/reading.ts';
+import type { LegacyReading as Reading } from './compat/reading.ts';
 
 export const captureMarkup = `<section id="capture" class="capture-card" aria-labelledby="capture-title">
   <div class="section-heading"><h2 id="capture-title">Timed recording</h2><span id="capture-state">On demand</span></div>

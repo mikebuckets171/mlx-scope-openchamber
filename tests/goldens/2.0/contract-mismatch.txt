@@ -1,17 +1,17 @@
 # contract-mismatch · /v2?state=contract-mismatch
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="tabs" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="tabs" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Needs restart
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#restart-card {aria-labelledby="restart-title"}: The panel was updated, but its local service is still the old version. Open Settings → Extensions → MLX Scope. Pause it, then resume it. | Your history and captures are kept.
+#restart-card {aria-labelledby="restart-title"}: The panel was updated, but its local service is still the old version. Open Settings → Extensions → MLX Scope. Pause it, then resume it. Your history and captures are kept.
 #restart-title: MLX Scope needs a restart
-#scope-version: <version>
 #freshness: No reading yet
 live #connection (hidden): 
-live #connection-result (hidden): Check whether OpenChamber has started the extension service. This does not change your configuration.
+live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
+live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 

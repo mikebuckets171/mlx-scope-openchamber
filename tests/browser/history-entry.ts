@@ -9,11 +9,13 @@ import type { LedgerState } from '../../panel/history/ledger.ts';
 import { capturesView } from '../../panel/render/views/captures.ts';
 import { historyView } from '../../panel/render/views/history.ts';
 import type { ViewHandle } from '../../panel/render/views/types.ts';
+import { ICON } from '../../panel/render/views/parts.ts';
 import { withheldWhy, alertCopy } from '../../panel/present/copy.ts';
 const MOCK_TEXT = { withheld: (reason: string) => `All server activity · ${withheldWhy(reason)}`, alert: (id: Parameters<typeof alertCopy>[0], params: Parameters<typeof alertCopy>[1]) => alertCopy(id, params)[0] };
 import { MOCK_MODELS, MOCK_NOW, mockAccounting, mockLedgerRows, mockSnapshot, mockTrend, mockUsage } from '../../panel/testing/mock-history.ts';
 
 const params = new URLSearchParams(location.search);
+document.querySelector('.brand')!.insertAdjacentHTML('afterbegin', ICON.mark.markup);
 const tab = params.get('tab') === 'captures' ? 'captures' : 'history', state = params.get('state') ?? 'decode', page = params.get('surface') === 'page';
 const empty = state === 'history-empty';
 

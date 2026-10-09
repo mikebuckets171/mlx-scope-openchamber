@@ -18,6 +18,10 @@ export interface SnapshotQuery extends Selection {
   marks: Array<{ phase: MarkPhase; at: number; tag: string }>;
   attrs: Array<{ seq: number; attr: 'inferred' | 'withheld' | 'armed'; reason: WithholdReason | null }>;
   detail?: 'server';
+  /** SHA-256 companion matching keys; raw chat/model identifiers never travel in this query. */
+  chat?: string; chatModel?: string; chatBusy?: true;
+  /** Selected remote chat telemetry only: never read local runtimes, host diagnostics or engine history. */
+  chatOnly?: true;
 }
 export interface TrendQuery extends Selection { windowMs: 900_000 | 1_800_000 | 3_600_000; series: TrendSeries[] }
 export interface UsageQuery extends Selection { range: UsageRange }
@@ -81,9 +85,23 @@ export const parseSnapshotQuery = (params: Params): SnapshotQuery | BadQuery => 
   const frame = match(params, 'frame', value => HEX8.test(value) ? value : null);
   const surface = match(params, 'surface', value => SURFACES.find(item => item === value) ?? null);
   const since = match(params, 'since', integer);
-  return { ...selection(params), ...(frame ? { frame } : {}), ...(surface ? { surface } : {}),
+  const key = (value: string): string | null => /^[a-f0-9]{64}$/.test(value) ? value : null;
+  const chat = match(params, 'chat', key), chatModel = match(params, 'chatModel', key);
+  if (!!chat !== !!chatModel) throw new Bad(chat ? 'chatModel' : 'chat');
+  const chatBusy = match(params, 'chatBusy', value => value === '1' ? true as const : null);
+  if (chatBusy && !chat) throw new Bad('chat');
+  const selected = selection(params);
+  const chatOnly = match(params, 'chatOnly', value => value === '1' ? true as const : null);
+  if (chatOnly) {
+    if (!chat) throw new Bad('chat');
+    if (!selected.provider) throw new Bad('provider');
+    if (selected.runtime) throw new Bad('runtime');
+    if (detail) throw new Bad('detail');
+  }
+  return { ...selected, ...(frame ? { frame } : {}), ...(surface ? { surface } : {}),
     tier: tier ?? (surface === 'status' || surface === 'background' ? 'glance' : 'full'), ...(since !== undefined ? { since } : {}),
-    marks: repeated(params, 'mark', MAX_MARKS, mark), attrs: repeated(params, 'attr', MAX_ATTRS, attr), ...(detail ? { detail } : {}) };
+    marks: repeated(params, 'mark', MAX_MARKS, mark), attrs: repeated(params, 'attr', MAX_ATTRS, attr), ...(detail ? { detail } : {}),
+    ...(chat && chatModel ? { chat, chatModel } : {}), ...(chatBusy ? { chatBusy } : {}), ...(chatOnly ? { chatOnly } : {}) };
 });
 
 const WINDOWS = { 900: 900_000, 1800: 1_800_000, 3600: 3_600_000 } as const;

@@ -54,6 +54,23 @@ test('an unopened host shows setup guidance rather than an endless loading claim
   expect(await requests(page)).toBe(0);
 });
 
+for (const surface of ['page', 'status']) test(`slow saved settings retain a visible startup state on ${surface}`, async ({ page }) => {
+  await page.clock.install();
+  await page.goto(`/?surface=${surface}&storage=startup-slow`);
+  const frame = page.frameLocator('iframe');
+  await expect(frame.locator('#startup-fallback')).toBeVisible();
+  await expect(frame.locator('#startup-fallback [role="status"]')).toHaveText('Loading saved settings…');
+  await page.clock.fastForward(6_100);
+  await expect(frame.locator('#startup-fallback')).toBeVisible();
+  await expect(frame.locator('#startup-fallback [role="status"]')).toContainText('Waiting for saved settings');
+  expect(await requests(page)).toBe(0);
+  await page.clock.fastForward(8_100);
+  // Status reads the connection after preferences; give that second bounded read its turn too.
+  await page.clock.fastForward(8_100);
+  await expect(frame.locator('#scope')).toBeVisible();
+  await expect(frame.locator('#startup-fallback')).toHaveCount(0);
+});
+
 test('relay srcdoc transport renders packaged assets, follows theme changes and pauses polling', async ({ page }) => {
   const errors = errorsOf(page);
   await page.setViewportSize({ width: 1160, height: 950 });
@@ -111,7 +128,8 @@ test('runtime states and missing readings are explicit, never zero or placeholde
     if (state === 'offline') {
       await expect(frame.locator('#panel-live .connection-diagnosis')).toContainText('stopped responding');
       await expect(frame.locator('#rate')).toHaveCount(0);
-      await expect(frame.locator('.machine-summary')).toBeVisible();
+      await frame.locator('#measurement-details > summary').click();
+  await expect(frame.locator('.machine-summary')).toBeVisible();
       await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
       await expect(frame.locator('#machine')).toContainText('1.1 GiB');
     }

@@ -2,11 +2,12 @@
 
 ## Host
 
-MLX Scope 2.0 requires **OpenChamber 2.0.4 or newer** (`engines.openchamber` `>=2.0.4`) and pins
+MLX Scope 3.0 requires **OpenChamber 2.0.4 or newer** (`engines.openchamber` `>=2.0.4`) and pins
 [SDK 2.0.4](https://github.com/openchamber/openchamber/tree/main/packages/sdk), which keeps manifest API 1 and wire v1.
 It uses the panel, the full page, a Work Status section (`statusSection`, OpenChamber 2.0.1+), a `/scope` slash command
 answered by a background entry, the session-menu action, badges, toasts, host-managed storage and a local service.
-2.0.4 is the only host 2.0 is qualified on: 2.0.2 showed a black status surface, so the floor is not lower. Desktop and
+The inherited 2.0.4 qualification remains the compatibility floor; 2.0.2 showed a black status surface. The 3.0
+release also requires an installed OpenChamber 2.2.0 check, recorded in the release receipt. Desktop and
 web clients expose these surfaces; mobile and VS Code clients load no extensions. Runtime and Mac readings belong to the
 OpenChamber server's computer.
 
@@ -17,6 +18,23 @@ OpenChamber server's computer.
 | The git-update path from 1.6.1 to 2.0.0 | Rehearsed in Stage 12 in an isolated instance (`docs/2.0/REHEARSAL.md`); if not rehearsed, the receipt says "git-update path not rehearsed" |
 
 OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and correctness fixes only).
+
+## Optional chat delivery estimates
+
+Chat estimates initially support the released **OpenCode 2.0.25** plugin-event protocol. A real isolated 2.0.25 server
+with a synthetic streaming provider exercises waiting, generation, completion, calibration and hidden shutdown in local
+and synthetic remote modes. Compaction and title exclusion are covered separately by plugin-event fixtures. This
+checks protocol integration, not inference performance or an actual cloud provider. Unsupported versions disable estimates while all runtime
+adapters continue to operate. Guided setup reports the detected protocol and distinguishes installed/pending from
+a fresh loaded companion. It supports native v2 `providers.<id>.settings` and legacy local provider configuration.
+
+The companion needs observable text/reasoning events, corroborating primary HTTP request metadata and unambiguous usage
+accounting. Tool payloads, auxiliary title/compaction tasks, missing metadata and ambiguous concurrent writers produce
+no chat speed. Local measurements retain exact configured loopback endpoint matching and explicitly labeled Engine
+fallbacks. Cloud delivery is classified from the observed remote request, uses the same labeled estimate and completed
+average, and never probes the provider's API or falls back to a local engine. Remote provider-specific buffering and hidden
+reasoning remain limitations; observable delivery is not native cloud engine throughput. Cloud protocol/transport fixtures
+do not establish every provider's compatibility or real inference overhead.
 
 ## Runtimes
 
@@ -169,7 +187,8 @@ The SDK provides no hook into the host's own Turn stats and no way to hide a hos
 user setting in the Work Status panel's **Panel sections**. It provides no per-session token event and no push from a
 service, so views poll. Scope does not request the `sessions` capability: it sees only the open chat (its ID, busy
 state, model and turn events) and never lists projects or other chats. It does not scrape host DOM, read OpenChamber's
-settings, or intercept inference streams. It observes configured local connections; it does not manage models, cache,
+settings, or intercept inference streams on its own. The optional companion observes supported OpenCode events and retains the
+Splash response observer described above. Scope observes configured local connections; it does not manage models, cache,
 inference, or credentials.
 
 OpenChamber 2 runs OpenCode 2 and reads native local provider definitions from `providers.<id>.settings`; MLX Scope

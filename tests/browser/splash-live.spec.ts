@@ -12,8 +12,10 @@ test('Splish/Splash live rate stays server-wide and clears when the source stops
   await expect(frame.locator('[data-stage="generation"][data-basis="derived"]')).toContainText('Generation');
   await expect(frame.locator('[data-stage="generation"] .speed-source')).toContainText('Calculated');
   await expect(frame.locator('[data-stage="generation"] .speed-source')).toContainText('last 4.0 s');
-  await frame.getByRole('button', { name: 'About How speeds are measured', exact: true }).click();
-  await expect(frame.locator('#pop-live-basis')).toContainText('do not measure how fast tokens reach your chat');
+  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
+  await frame.locator('#engine-readings > summary').click();
+  await frame.getByRole('button', { name: 'About How engine speeds are measured', exact: true }).click();
+  await expect(frame.locator('#pop-live-basis')).toContainText('Engine speed is not chat delivery.');
   await page.evaluate(() => (window as any).setPreviewState('splash-measuring'));
   await expect(frame.locator('[data-stage="generation"] .speed-value > span')).toHaveCount(0);
   await expect(frame.locator('#hero')).toContainText('Measuring…');
@@ -96,7 +98,7 @@ for (const theme of ['light', 'dark']) test(`recent engine labels and intervals 
     if (width === 430) {
       await frame.locator('#monitor-menu > summary').click();
       await frame.locator('#compact').click();
-      await expect(frame.locator('#compact-glance .ws')).toContainText('Generation');
+      await expect(frame.locator('#compact-glance .ws')).toContainText('Generating');
       await expect(frame.locator('#compact-glance .ws')).toContainText('last 4.0 s');
       expect(await panelFrame.evaluate(inspect, false)).toEqual([]);
     }
@@ -104,7 +106,7 @@ for (const theme of ['light', 'dark']) test(`recent engine labels and intervals 
   await page.goto(`/v2?surface=status&state=splash-decode&theme=${theme}`);
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
-  await expect(frame.locator('.ws-scope')).toHaveText('All server activity');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
   const panelFrame = page.frames().find(frame => frame !== page.mainFrame())!;
   const backdrop = await page.evaluate(() => [getComputedStyle(document.documentElement).backgroundColor, getComputedStyle(document.body).backgroundColor]);
   expect(await panelFrame.evaluate(inspect, { openAll: false, backdrop })).toEqual([]);
@@ -115,12 +117,12 @@ test('the Session pane shows live derived tok/s and follows theme changes', asyn
   await page.setViewportSize({ width: 700, height: 500 });
   await page.goto('/v2?demo=1&surface=status&state=splash-decode&theme=graphite-mint');
   const frame = page.frameLocator('iframe');
-  await expect(frame.locator('.ws-rate')).toContainText('tok/s');
-  await expect(frame.locator('.ws-scope')).toHaveText('All server activity');
+  await expect(frame.locator('.ws-reading')).toContainText('tok/s');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
-  await expect(frame.locator('[data-stage="generation"] dd')).toHaveAttribute('title', /Calculated/);
-  const rate = await frame.locator('.ws-rate').innerText();
-  await expect.poll(() => frame.locator('.ws-rate').innerText()).not.toBe(rate);
+  await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /Calculated/);
+  const rate = await frame.locator('.ws-reading').innerText();
+  await expect.poll(() => frame.locator('.ws-reading').innerText()).not.toBe(rate);
   const evidence = process.env.SCOPE_EVIDENCE_DIR;
   if (evidence && testInfo.project.name === 'chromium') {
     await mkdir(evidence, { recursive: true });
@@ -128,8 +130,8 @@ test('the Session pane shows live derived tok/s and follows theme changes', asyn
   }
   await page.getByRole('combobox', { name: 'Preview theme' }).selectOption('warm-amber');
   await expect(frame.locator('html')).toHaveAttribute('data-oc-theme', 'light');
-  await expect(frame.locator('.ws-rate')).toContainText('tok/s');
+  await expect(frame.locator('.ws-reading')).toContainText('tok/s');
   await page.evaluate(() => (window as any).setPreviewState('splash-measuring'));
-  await expect(frame.locator('.ws-rate')).toHaveCount(0);
+  await expect(frame.locator('.ws-reading')).toHaveCount(0);
   await expect(frame.locator('#ws')).not.toContainText('tok/s');
 });

@@ -125,6 +125,8 @@ test('secondary views return to their parent and server-only reads stop outside 
 
 test('ⓘ is a disclosure: one open at a time, in flow, Esc closes it and returns focus; it survives polls', async ({ page }) => {
   const frame = await load(page, 'state=decode');
+  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
+  await frame.locator('#engine-readings > summary').click();
   const attr = frame.locator('#attribution .info'), basis = frame.locator('.instrument-basis .info');
   await attr.click();
   await expect(attr).toHaveAttribute('aria-expanded', 'true');
@@ -165,7 +167,7 @@ test('callouts: the most severe message first, the rest behind "N more"', async 
 
 test('needs approval (NO_SERVICE) and version skew replace the tabs with their S11 cards', async ({ page }) => {
   let frame = await load(page, 'state=needs-approval');
-  await expect(frame.locator('#approval-card h2')).toHaveText('MLX Scope 2.0 needs one approval');
+  await expect(frame.locator('#approval-card h2')).toHaveText('MLX Scope needs one approval');
   await expect(frame.locator('#workspace-nav')).toBeHidden();
   await expect(frame.locator('#phase')).toHaveText('Needs approval');
   await expect(frame.locator('#approval-card')).not.toContainText(/sessions|project names|chat titles/i);
@@ -175,7 +177,7 @@ test('needs approval (NO_SERVICE) and version skew replace the tabs with their S
   await expect(frame.locator('#phase')).toHaveText('Needs restart');
 });
 
-test('Compact shows both speeds, at most 200 px, and Expand returns to the tabs', async ({ page }) => {
+test('Compact shows one relevant reading, at most 200 px, and Expand returns to the tabs', async ({ page }) => {
   const frame = await load(page, 'state=pressure');
   await frame.locator('#monitor-menu > summary').click();
   await frame.locator('#compact').click();
@@ -185,7 +187,7 @@ test('Compact shows both speeds, at most 200 px, and Expand returns to the tabs'
     height: node.getBoundingClientRect().height, scroll: node.scrollHeight, padding: getComputedStyle(node).padding, margin: getComputedStyle(node).margin,
   }])));
   expect(compactSize.scope!.scroll, JSON.stringify(compactSize)).toBeLessThanOrEqual(200);
-  await expect(frame.locator('#compact-glance .ws-alert-row')).toContainText('Memory pressure');
+  await expect(frame.locator('#compact-glance .ws-warning')).toContainText('Memory pressure');
   expect(await problems(page)).toEqual([]);
   await frame.getByRole('button', { name: 'Expand' }).click();
   await expect(frame.locator('#workspace-nav')).toBeVisible();
@@ -207,8 +209,8 @@ test('Session summary leads with reply speed, keeps warnings visible, and fits i
   await expect(frame.locator('#ws')).toHaveAttribute('data-presentation', 'session');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
-  await expect(frame.locator('.ws-rate')).toContainText('26.4');
-  await expect(frame.locator('.ws-scope')).toHaveText('All server activity');
+  await expect(frame.locator('.ws-reading')).toContainText('26.4');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
   await expect(frame.locator('.chip, .ws-spark, .ws-key-stats, .ts-rows')).toHaveCount(0);
   await expect(frame.getByRole('button', { name: 'Show turn stats' })).toHaveCount(0);
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
@@ -216,16 +218,16 @@ test('Session summary leads with reply speed, keeps warnings visible, and fits i
   expect(await problems(page)).toEqual([]);
 
   frame = await status(page, 'state=pressure');
-  await expect(frame.locator('.ws-alert-row')).toContainText('Memory pressure');
-  await expect(frame.locator('.ws-alert-value')).toHaveText(/^Warning(?:\s*\+\d+ more)?$/);
-  await expect(frame.locator('.ws-alert-value')).toHaveAttribute('data-severity', 'warning');
-  await expect(frame.locator('.ws-alert-row .dot, .ws-alert-row .chip')).toHaveCount(0);
+  await expect(frame.locator('.ws-warning')).toContainText('Memory pressure');
+  await expect(frame.locator('.ws-warning')).toHaveText('Memory pressure · warning');
+  await expect(frame.locator('.ws-warning')).toHaveAttribute('data-severity', 'warning');
+  await expect(frame.locator('.ws-warning .dot, .ws-warning .chip')).toHaveCount(0);
   expect(await problems(page)).toEqual([]);
 
   frame = await status(page, 'state=decode&chat=cloud');
-  await expect.poll(() => lastHeight(page)).toBe(24);
-  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'non-local');
-  await expect(frame.locator('#ws')).toHaveText('This chat is not using a local model');
+  await expect.poll(() => lastHeight(page)).toBe(await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height));
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
   expect(await problems(page)).toEqual([]);
   for (const state of ['offline', 'splash-recovering', 'needs-approval', 'prefill', 'idle', 'pressure-critical']) {
     frame = await status(page, `state=${state}`);
@@ -265,8 +267,8 @@ test('Session summary ignores a remembered stats expansion and opens the full pa
   await page.evaluate(() => sessionStorage.setItem('pref.v2', JSON.stringify({ statusExpanded: true, tipDismissed: true, noticeDismissed: true })));
   let frame = await status(page, 'state=bionic&chat=local');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
-  await expect(frame.locator('.ws-phase')).toHaveText('Idle');
-  await expect(frame.locator('.speed-rows:not(.progress-row)')).not.toContainText('tok/s');
+  await expect(frame.locator('.ws-phase')).toHaveText('Waiting');
+  await expect(frame.locator('.ws-measurement')).toHaveCount(0);
   await expect(frame.locator('.ws-age')).toHaveCount(0);
   await expect(frame.locator('.ts-rows, .ts-head')).toHaveCount(0);
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
@@ -283,28 +285,49 @@ test('Session summary ignores a remembered stats expansion and opens the full pa
 });
 
 test('Session summary reports a failed full-panel action without clipping the guidance', async ({ page }) => {
+  await page.setViewportSize({ width: 290, height: 550 });
   const frame = await status(page, 'state=pressure&openSurface=fail');
+  await page.locator('iframe').evaluate(el => { (el as HTMLElement).style.width = '260px'; });
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
   await expect(frame.locator('#ws-action-error')).toBeVisible();
   await expect(frame.locator('#ws-action-error')).toHaveAttribute('role', 'status');
-  await expect(frame.locator('#ws-action-error')).toHaveText('Could not open Scope. Use its icon in the side panel.');
+  await expect(frame.locator('#ws-action-error')).toHaveText('Could not open Scope. Use the side icon.');
   await expect.poll(() => lastHeight(page)).toBe(await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height));
+  expect(await problems(page)).toEqual([]);
+  await frame.locator('html').evaluate(el => { el.style.fontSize = '32px'; });
+  await expect.poll(() => frame.locator('#ws').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight + 1)).toBe(true);
+  expect(await frame.locator('#ws').evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height)).toBeLessThanOrEqual(320);
   expect(await problems(page)).toEqual([]);
 });
 
-test('Session summary returns to the compact cloud row after a failed full-panel action', async ({ page }) => {
+test('Session clears a failed full-panel action when switching to a cloud chat', async ({ page }) => {
   const frame = await status(page, 'state=pressure&openSurface=fail');
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
   await expect(frame.locator('#ws-action-error')).toBeVisible();
   await page.evaluate(() => (window as W).setPreviewSession({
     id: 'cloud-chat', title: 'Cloud chat', busy: false, model: 'cloud-provider/fixture-model',
   }));
-  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'non-local');
-  await expect(frame.locator('#ws')).toHaveText('This chat is not using a local model');
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
   await expect(frame.locator('#ws-action-error')).not.toBeVisible();
-  await expect.poll(() => lastHeight(page)).toBe(24);
-  expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(24);
+  const height = await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height);
+  await expect.poll(() => lastHeight(page)).toBe(height);
+  expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(height);
   expect(await problems(page)).toEqual([]);
+});
+
+test('a delayed full-panel failure cannot return after switching chats', async ({ page }) => {
+  const frame = await status(page, 'state=pressure&chat=local&openSurface=defer');
+  await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
+  await expect.poll(() => host(page, w => w.previewSurfaceDeferred?.length)).toBe(1);
+  await page.evaluate(() => (window as W).setPreviewSession({ id: 'cloud-chat', busy: false, model: 'cloud-provider/fixture-model' }));
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await page.evaluate(() => (window as W).previewSurfaceDeferred.splice(0).forEach((reject: () => void) => reject()));
+  // Let the SDK deliver the rejected request and its promise callback before checking the unchanged instrument.
+  await frame.locator('#ws').evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(frame.locator('#ws-action-error')).toHaveCount(0);
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
 });
 
 test('the visibility gate engages before the first poll: a display:none frame makes zero requests', async ({ page }) => {

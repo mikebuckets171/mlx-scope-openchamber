@@ -78,10 +78,114 @@ test('runtime diagnostics are available in a disclosure without displacing serve
   expect(serverMarkup(view, new Set(['server-runtime-details'])).markup).toContain('id="server-runtime-details" open>');
 });
 
+test('full Live reserves the readout through freshness changes and shows no empty trend', () => {
+  for (const state of ['decode', 'prefill', 'idle']) {
+    const input = inputOf(state), markup = liveMarkup(presentLive(input), new Set()).markup;
+    expect(markup, state).toContain('class="instrument-readout"');
+    expect(markup, state).not.toContain('id="engine-trend"');
+    expect(markup, state).not.toContain('id="signal"');
+  }
+  const stale = liveMarkup(presentLive(inputOf('decode', undefined, { fresh: false })), new Set()).markup;
+  expect(stale).toContain('class="instrument-readout"');
+  expect(stale).not.toContain('id="engine-trend"');
+  expect(stale).not.toContain('id="rate"');
+});
+
+test('Engine trend retains compatible history during tools without admitting chat estimates or mixed rate bases', () => {
+  const input = inputOf('splash-decode', body => {
+    body.chat = { scope: 'chat', basis: 'estimated-characters', timingBasis: 'delivery-window', phase: 'tool',
+      observedAtMs: MOCK_NOW, expiresAtMs: MOCK_NOW + 5_000,
+      observation: { startedAtMs: MOCK_NOW - 3_000, endedAtMs: MOCK_NOW }, freshness: 'live' };
+  }, { samples: [{ at: MOCK_NOW - 2_000, rate: 30, phase: 'decode', segment: 1, basis: 'derived' },
+    { at: MOCK_NOW - 1_000, rate: 32, phase: 'decode', segment: 1, basis: 'derived' },
+    { at: MOCK_NOW - 500, rate: 999, phase: 'decode', segment: 2 }] });
+  const view = presentLive(input), markup = liveMarkup(view, new Set(['engine-trend'])).markup;
+  expect(view.hero?.instrument).toMatchObject({ phase: 'Using tools', measurement: null });
+  expect(view.hero?.engineTrend?.chart).toMatchObject({ points: 2, ceiling: '35 tok/s' });
+  expect(markup).toContain('id="engine-trend"');
+  expect(markup).toContain('Engine trend · 90 seconds');
+  expect(markup.indexOf('id="engine-trend"')).toBeLessThan(markup.indexOf('id="measurement-details"'));
+  expect(markup).toContain('id="signal"');
+  expect(markup).not.toContain('id="rate"');
+  expect(markup).not.toContain('999');
+  const unsupported = inputOf('ollama');
+  delete unsupported.snapshot!.capabilities['request.decodeRate'];
+  delete unsupported.snapshot!.capabilities['server.rates'];
+  expect(presentLive(unsupported).hero?.engineTrend).toBeNull();
+});
+
+test('available Engine facts are visible before deeper details and absent output is never invented', () => {
+  const markup = liveMarkup(presentLive(inputOf('decode', body => {
+    body.runtime.request.ttftMs = 850;
+    body.capabilities['request.ttft'] = { scope: 'request', basis: 'observed' };
+  })), new Set()).markup;
+  expect(markup).toContain('id="engine-facts" data-count="3"');
+  expect(markup).toContain('class="engine-facts-heading">Engine</span>');
+  expect(markup).toContain('>Output</span>');
+  expect(markup).toContain('>Elapsed</span>');
+  expect(markup).toContain('>First token</span>');
+  expect(markup).toContain('<strong data-basis="observed">0.85 s</strong>');
+  expect(markup).toContain('<span class="basis">measured</span>');
+  expect(markup.indexOf('id="engine-facts"')).toBeLessThan(markup.indexOf('id="measurement-details"'));
+  const stopped = liveMarkup(presentLive(inputOf('decode', body => {
+    body.chat = { scope: 'chat', basis: 'estimated-characters', timingBasis: 'delivery-window', phase: 'tool', observedAtMs: MOCK_NOW,
+      expiresAtMs: MOCK_NOW + 5_000, observation: { startedAtMs: MOCK_NOW - 3_000, endedAtMs: MOCK_NOW }, freshness: 'live' };
+  })), new Set()).markup;
+  expect(stopped).not.toContain('id="engine-facts"');
+  expect(stopped).not.toContain('id="first-token"');
+});
+
 test('needs approval lists every exec path as code; needs restart gives the two S11 steps', () => {
   const approval = frameCardMarkup('approval').markup, restart = frameCardMarkup('restart').markup;
   expect(approval).toContain('<code>/usr/sbin/ioreg</code>');
   expect(approval).toContain('<code>~/.cache/lm-studio/bin/lms</code>');
   expect(approval).not.toMatch(/sessions|chat titles/i);
   expect(restart).toContain('<li>Pause it, then resume it.</li>');
+});
+
+
+test('completed native facts belong to the exact selected last average', () => {
+  for (const measurementScope of ['chat', 'engine'] as const) {
+    const input = inputOf('idle', body => {
+      const c = body.completions.items.at(-1); c.basis = 'reported'; c.ttftMs = 850;
+    }, { measurementScope });
+    input.window = { tag: '00000000', startedAt: input.last!.completion.startedAt, endedAt: input.last!.completion.finishedAt, outcome: 'completed' };
+    const view = presentLive(input);
+    const markup = liveMarkup(view, new Set()).markup, visible = markup.split('id="measurement-details"')[0]!;
+    expect(visible).toContain('id="completed-facts" data-count="3"');
+    expect(visible).toContain(measurementScope === 'engine' ? 'Last engine result' : 'Last chat · matched result');
+    expect(visible).toContain('>Output</span><strong data-basis="reported">1,104</strong>');
+    expect(visible).toContain('>Duration</span><strong data-basis="derived">48 s</strong>');
+    expect(visible).toContain('>First token</span><strong data-basis="reported">0.85 s</strong>');
+    expect(visible).toContain('data-live="false"');
+    expect(visible).toContain('<time>Finished 1 min ago</time>');
+  }
+  const derived = liveMarkup(presentLive(inputOf('idle', body => { body.completions.items.at(-1).basis = 'derived'; })), new Set()).markup;
+  expect(derived.split('id="measurement-details"')[0]).toContain('>Output</span><strong data-basis="reported">1,104</strong>');
+  const view = presentLive(inputOf('idle', body => {
+    const c = body.completions.items.at(-1); c.basis = 'reported'; c.startedAt = null;
+    delete c.outputTokens; delete c.ttftMs;
+  }));
+  expect(liveMarkup(view, new Set()).markup.split('id="measurement-details"')[0]).not.toContain('id="completed-facts"');
+});
+
+test('completed chat facts never borrow output or first-token timing from an engine reply', () => {
+  for (const chatIsLocal of [true, false]) {
+    const view = presentLive(inputOf('decode', body => {
+      body.runtime.request.ttftMs = 850;
+      body.capabilities['request.ttft'] = { scope: 'request', basis: 'reported' };
+      body.chat = { scope: 'chat', basis: 'reported-output', timingBasis: 'completed-step', phase: 'complete',
+        tokensPerSecond: 7.2, observedAtMs: MOCK_NOW, expiresAtMs: MOCK_NOW + 5_000,
+        observation: { startedAtMs: MOCK_NOW - 3_000, endedAtMs: MOCK_NOW }, freshness: 'last' };
+    }, { chatIsLocal }));
+    const markup = liveMarkup(view, new Set()).markup, visible = markup.split('id="measurement-details"')[0]!;
+    expect(visible).toContain('id="completed-facts" data-count="1"');
+    expect(visible).toContain('Last chat result');
+    expect(visible).toContain('<time>Finished just now</time>');
+    expect(visible).toContain('>Step duration</span><strong data-basis="derived">3.0 s</strong>');
+    expect(visible).not.toContain('>Output</span>');
+    expect(visible).not.toContain('>First token</span>');
+    expect(visible).not.toContain('id="engine-facts"');
+    if (!chatIsLocal) expect(markup).not.toContain('id="measurement-details"');
+  }
 });

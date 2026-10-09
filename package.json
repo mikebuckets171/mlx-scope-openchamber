@@ -1,6 +1,6 @@
 {
   "name": "mlx-scope-openchamber",
-  "version": "2.1.6",
+  "version": "3.0.0",
   "description": "Lightweight local model monitoring for OpenChamber.",
   "private": true,
   "license": "MIT",
@@ -89,7 +89,7 @@
     "build:service": "bun build service/main.ts --target=node --format=esm --minify --outfile=service/main.js",
     "build:background": "openchamber-guest-bundle background/main.ts background/main.js && bun scripts/minify-guest.ts background/main.js",
     "type-check": "tsc --noEmit",
-    "test": "bun test ./service ./src ./panel ./background ./scripts ./tests/fixtures && node --test bridge/opencode/bridge.test.js",
+    "test": "bun test ./service ./src ./panel ./background ./scripts ./tests/fixtures && node --test bridge/opencode/*.test.js",
     "preview": "bun run build:panel && bun run build:background && bun tests/browser/server.ts",
     "test:browser": "playwright test",
     "test:goldens": "playwright test tests/browser/goldens.spec.ts",
@@ -130,10 +130,16 @@
     "docs/METRICS.md",
     "docs/ARCHITECTURE.md",
     "docs/COMPATIBILITY.md",
+    "docs/3.0/assets/session-light.png",
+    "docs/3.0/assets/session-dark.png",
+    "docs/3.0/assets/live-light.png",
     "bridge/opencode/README.md",
     "bridge/opencode/package.json",
     "bridge/opencode/index.js",
     "bridge/opencode/store.js",
-    "bridge/opencode/stream.js"
+    "bridge/opencode/stream.js",
+    "bridge/opencode/chat.js",
+    "bridge/opencode/demand.js",
+    "bridge/opencode/chat-store.js"
   ]
 }

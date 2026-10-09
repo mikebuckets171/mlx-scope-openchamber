@@ -57,6 +57,7 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
   await expect(frame.locator('#signal')).toBeVisible({ timeout: 12_000 });
   await expect(frame.locator('#signal .trace')).toBeAttached();
   const mounted = await frame.locator('#scope').elementHandle();
+  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
   await frame.locator('#request-details > summary').click();
   await frame.locator('#request-details > summary').focus();
 
@@ -64,7 +65,7 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
     await setTheme(page, palette);
     await expectPalette(frame, palette);
     await expect(frame.locator('#signal .trace')).toHaveCSS('stroke', rgb(palette.tokens.primaryText));
-    await expect(frame.locator('.scope-mark')).toHaveCSS('stroke', rgb(palette.tokens.primaryText));
+    await expect(frame.locator('.scope-mark')).toHaveCSS('color', rgb(palette.tokens.primaryText));
     const menuSurface = await frame.locator('.monitor-menu-content').evaluate(el => {
       const style = getComputedStyle(el);
       return [style.backgroundColor, style.backgroundImage];
@@ -101,7 +102,7 @@ test('the host primary remains the identity color during prefill while warnings 
   let frame = await load(page, 'state=prefill');
   await setTheme(page, VIOLET);
   await expect(frame.locator('.progress-track > span')).toHaveCSS('background-color', rgb(VIOLET.tokens.primaryText));
-  await expect(frame.locator('.scope-mark')).toHaveCSS('stroke', rgb(VIOLET.tokens.primaryText));
+  await expect(frame.locator('.scope-mark')).toHaveCSS('color', rgb(VIOLET.tokens.primaryText));
 
   for (const [state, severity, key] of [['pressure', 'warning', 'warningText'], ['pressure-critical', 'critical', 'errorText']] as const) {
     frame = await load(page, `state=${state}`);
@@ -110,22 +111,23 @@ test('the host primary remains the identity color during prefill while warnings 
     for (const palette of [VIOLET, PAPER]) {
       await setTheme(page, palette);
       await expect(alert).toHaveCSS('--tone', palette.tokens[key]);
+      if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
       await expect(frame.locator(`.machine-summary .level[data-level="${severity}"]`)).toHaveCSS('color', rgb(palette.tokens[key]));
-      await expect(frame.locator('.scope-mark')).toHaveCSS('stroke', rgb(palette.tokens.primaryText));
+      await expect(frame.locator('.scope-mark')).toHaveCSS('color', rgb(palette.tokens.primaryText));
     }
   }
 });
 
 test('the mounted Session summary and warning value follow custom host themes', async ({ page }) => {
   const frame = await load(page, 'surface=status&state=pressure-critical', 320);
-  await expect(frame.locator('.ws-alert-value')).toBeVisible();
+  await expect(frame.locator('.ws-warning')).toBeVisible();
   const mounted = await frame.locator('#scope').elementHandle();
   for (const palette of [VIOLET, COPPER, PAPER]) {
     await setTheme(page, palette);
     await expectPalette(frame, palette, true);
     await expect(frame.locator('.ws-phase')).toHaveCSS('color', rgb(palette.tokens.foreground));
-    await expect(frame.locator('.ws-alert-row .ws-label')).toHaveCSS('color', rgb(palette.tokens.muted));
-    await expect(frame.locator('.ws-alert-value')).toHaveCSS('color', rgb(palette.tokens.errorText));
+    await expect(frame.locator('.ws-measurement .ws-label')).toHaveCSS('color', rgb(palette.tokens.muted));
+    await expect(frame.locator('.ws-warning')).toHaveCSS('color', rgb(palette.tokens.errorText));
     await expect(frame.locator('.ws-dot')).toHaveCount(0);
     expect(await mounted!.evaluate(el => el === document.querySelector('#scope'))).toBe(true);
     const backdrop = await page.locator('iframe').evaluate(el => {

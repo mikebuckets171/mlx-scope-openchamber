@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { normalizeOmlxTelemetry, parseTelemetrySnapshot, MAX_RESIDENT_MODELS } from '../src/telemetry.ts';
 import { cacheSplit, prefillEstimate, SessionInsights, recentGenerationsReport, MAX_RECENT_GENERATIONS } from './insights.ts';
-import { frameReading, type Reading } from './present/reading.ts';
+import { legacyFrameReading as frameReading, type LegacyReading as Reading } from './compat/reading.ts';
 import { fromV1 } from './testing/readings.ts';
 const reading = (at: number, overrides: object = {}) => fromV1({ available: true, sampledAt: at, modelID: 'private-model', traceEpoch: 1, phase: 'decode',
   completionTokens: at / 1000 * 20, liveDecodeTPS: 20, activeRequests: 1, elapsedSeconds: at / 1000, ...overrides });

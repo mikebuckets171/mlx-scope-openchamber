@@ -8,7 +8,7 @@ import { frameReading, fromSnapshot, type Reading } from '../present/reading.ts'
 
 /** `mark`/`attr` are pre-encoded comma lists (src/contract/query.ts encodeMarks/encodeAttrs); `tier` defaults to full. */
 export type SnapshotQuery = { provider?: string; runtime?: string; frame: string; surface: string; since?: number;
-  tier?: 'glance' | 'full'; detail?: 'server'; mark?: string; attr?: string };
+  tier?: 'glance' | 'full'; detail?: 'server'; mark?: string; attr?: string; chat?: string; chatModel?: string; chatBusy?: string };
 const OFFSET_SAMPLES = 5;
 
 /** 8 hex characters per frame mount, memory only: the service's lease key. `getRandomValues` works on plain HTTP hosts. */
@@ -20,6 +20,7 @@ export const snapshotQuery = (query: SnapshotQuery): Record<string, string> => (
   frame: query.frame, ...SURFACES.includes(query.surface as Surface) ? { surface: query.surface } : {}, tier: query.tier ?? 'full',
   ...query.since !== undefined ? { since: String(query.since) } : {},
   ...query.detail ? { detail: query.detail } : {}, ...query.mark ? { mark: query.mark } : {}, ...query.attr ? { attr: query.attr } : {},
+  ...query.chat && query.chatModel ? { chat: query.chat, chatModel: query.chatModel, ...query.chatBusy === '1' ? { chatBusy: '1' } : {} } : {},
 });
 
 /** `serviceRequest` returns the body as a string (SPIKES S1); an object is accepted too. Malformed JSON throws. */

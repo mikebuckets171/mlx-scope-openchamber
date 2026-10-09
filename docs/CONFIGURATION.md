@@ -1,7 +1,8 @@
 # Configuration
 
-MLX Scope uses your existing local runtime connection. It does not rewrite
-OpenChamber, OpenCode, runtime, model, cache, or inference settings.
+MLX Scope uses your existing local runtime connection. Monitoring leaves your
+configuration unchanged. The optional **Enable companion** action below installs
+its OpenCode plugin; it preserves existing plugins and provider settings.
 
 ## Getting connected
 
@@ -60,6 +61,49 @@ the LM Studio family (`/lmstudio-greeting`), Splash (`/status`), and vllm-mlx's
 model list. mlx-lm is recognized by provider name only. Detection runs again when
 a runtime stops answering its own contract, fails its identity check, or comes
 back after 30 seconds away, so a different server on the same port is found.
+
+## Optional chat estimates
+
+In the full Scope panel, open **⋯ → Chat estimates…**, then choose **Enable
+companion**. This deliberate action copies the bundled OpenCode plugin to
+`~/.config/opencode/addons/mlx-scope-prompt-progress` and adds one entry to the
+existing global `opencode.json` or `opencode.jsonc`. There is no download or
+package-manager command. Other plugins, provider settings, JSONC comments, and
+the existing companion's options are preserved.
+
+Chat estimates are qualified for **OpenCode 2.0.25**. The companion observes the
+selected chat's public events, counts text and observable reasoning in memory, and
+saves only short-lived measurement metadata. Live estimates use a delivery
+window; a finished step uses reported output tokens and is labeled as an
+average. Neither is presented as the engine's native decode timing. The
+companion subscribes while a visible Scope view requests chat measurements;
+after the last view stops, that request expires within 15 seconds.
+
+After enabling, start a new reply and choose **Check status**. If setup
+remains pending, reload OpenCode when no reply is running. Scope never restarts
+OpenCode for you. A startup receipt confirms that the supported companion loaded;
+only a fresh heartbeat confirms a current connection. Unsupported versions keep
+runtime measurements available and withhold chat estimates.
+
+An existing prompt-progress installation keeps its provider ID and endpoint.
+For a new installation, Scope configures Splash prompt progress only when it
+finds exactly one eligible loopback Splash provider; otherwise prompt progress
+stays off and chat estimates remain available. See the
+[companion documentation](../bridge/opencode/README.md) for manual options.
+
+**Disable and remove** removes Scope's plugin entry and unchanged files it
+installed. Edited and unrelated files survive. A manually installed legacy
+companion offers **Disable companion**, which removes only its configuration
+entry; enabling an update first adopts that known installation for managed
+removal. A failed configuration write restores the previous installation, and
+an intervening user edit is preserved.
+
+Guided setup honors an absolute `XDG_CONFIG_HOME` or `OPENCODE_CONFIG_DIR` when
+the extension service receives it. It does not resolve project configurations.
+Inline configuration, an `OPENCODE_CONFIG` outside the global directory,
+symlinked paths, duplicate entries, or a companion installed elsewhere require
+manual setup. This prevents changing a different configuration or installing
+another observer accidentally.
 
 ## Discovery
 

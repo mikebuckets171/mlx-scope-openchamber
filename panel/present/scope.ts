@@ -1,7 +1,9 @@
 import type { CompletionV2 } from '../../src/contract/completion.ts';
+import type { ChatMeasurement } from '../../src/contract/chat.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { AttributionLabel } from '../attribution/join.ts';
 import type { NextReplyState } from '../attribution/next-reply.ts';
+import type { TurnWindow } from '../attribution/sessions.ts';
 import type { RegressionFlag, VsUsual } from '../history/regress.ts';
 import type { SignalPoint } from '../signal.ts';
 import type { PanelReason } from './reading.ts';
@@ -27,6 +29,12 @@ export interface ScopeInput {
   next: NextReplyState;
   samples: readonly SignalPoint[];           // the panel's own 90 s ring
   turnStartAt: number | null;                // this chat's turn start, when observed live
+  window?: TurnWindow | null;
+  measurementScope?: 'chat' | 'engine';
+  sessionModel?: string | null;
+  chatActivity?: 'idle' | 'busy' | null;
+  chatIsLocal?: boolean | null;
+  lastChat?: ChatMeasurement | null;
 }
 export const SERVER_WIDE: AttributionLabel = { kind: 'server-wide', reason: 'not-observed' };
 

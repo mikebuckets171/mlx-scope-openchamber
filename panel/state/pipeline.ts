@@ -21,7 +21,7 @@ import type { ScopeState } from './scope-state.ts';
 // from the leader only (P9). Nothing here reaches the DOM; presenters read what it exposes.
 
 type Host = Pick<HostClient, 'onSession' | 'onSessionLifecycle' | 'storage' | 'setBadge' | 'toast'>;
-export interface PipelineOptions { host: Host; state: ScopeState; now: () => number; surface: string; toasts: () => ToastPreference; auto: () => boolean }
+export interface PipelineOptions { host: Host; state: ScopeState; now: () => number; surface: string; toasts: () => ToastPreference; auto: () => boolean; changed?: () => void }
 
 export const ledgerAttr = (label: AttributionLabel): LedgerAttr => label.kind === 'inferred' ? 'inferred' : label.kind === 'armed' ? 'armed'
   : label.reason === 'not-observed' || label.reason === 'all-requests' ? 'not-observed' : `withheld:${label.reason}`;
@@ -35,6 +35,7 @@ export class Pipeline {
   readonly ledger: Ledger;
   private readonly recorder: LedgerRecorder;
   private readonly signals: Signals;
+  private readonly stopChatBoundary: () => void;
   private sent: number | undefined;
   private visible = true;
   private turnKey = '';
@@ -45,6 +46,15 @@ export class Pipeline {
   private usualAt = -Infinity;
   constructor(private readonly o: PipelineOptions) {
     this.attribution = new Attribution({ host: o.host, now: o.now, auto: o.auto });
+    let lastEnd = '';
+    this.stopChatBoundary = this.attribution.feed.onChange(() => {
+      const window = this.frame().windows.at(-1);
+      if (window?.endedAt === null && o.state.beginChat(window.startedAt ?? window.joinedAt ?? o.now())) o.changed?.();
+      else if (window?.outcome) {
+        const end = `${window.tag}${window.endedAt}${window.outcome}`;
+        if (end !== lastEnd) { lastEnd = end; o.changed?.(); }
+      }
+    });
     this.ledger = new Ledger({ storage: o.host.storage, now: o.now });
     this.recorder = new LedgerRecorder(this.ledger, completion => ledgerAttr(this.label(completion)));
     this.signals = new Signals(o.host, o.toasts, o.surface);
@@ -130,7 +140,10 @@ export class Pipeline {
   /** The live reading's label: the join rule applied to the request so far; server-wide while nothing runs. */
   liveLabel(_snapshot: SnapshotV2 | null): AttributionLabel { return safe(() => this.attribution.live(), null) ?? SERVER_WIDE; }
   turnView(): TurnView | null { return safe(() => this.attribution.turn(), null); }
-  window(): TurnWindow | null { return this.turnView()?.window ?? this.frame().windows.at(-1) ?? null; }
+  window(): TurnWindow | null {
+    const frame = this.frame(), window = this.turnView()?.window ?? frame.windows.at(-1);
+    return window?.tag === frame.chat?.tag ? window ?? null : null;
+  }
   /** The open chat's turn summary, only when every step in it is attributed (decision 11). */
   turn(): TurnSummary | null { return this.turnView()?.summary ?? null; }
   /** The open chat's runtime name when it isn't the monitored one ("this chat uses Splash"). */
@@ -145,5 +158,5 @@ export class Pipeline {
   cancel(): void { safe(() => this.attribution.cancel(), undefined); }
   get firstRun(): boolean { return safe(() => this.ledger.firstRun, false); }
   get recording(): boolean { return this.recorder.recording; }
-  dispose(): void { safe(() => this.attribution.dispose(), undefined); safe(() => this.signals.dispose(), undefined); safe(() => this.recorder.dispose(), undefined); }
+  dispose(): void { this.stopChatBoundary(); safe(() => this.attribution.dispose(), undefined); safe(() => this.signals.dispose(), undefined); safe(() => this.recorder.dispose(), undefined); }
 }
