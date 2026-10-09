@@ -1,7 +1,7 @@
 # bionic · /v2?state=bionic
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Idle
@@ -17,16 +17,14 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 7% Memory allocated 33.9 / 48 GiB
-#hero {aria-label="Model activity"}: tok/s Last chat · matched · avg. i 38.6 tokens per second. Completed request average · 48 s ago
-h2: Idle
-#model: example-27b-splash
+#view-live
+#hero {aria-label="Activity and speed"}: tok/s Last engine · avg. 38.6 tokens per second. Completed request average · 48 s ago | Finished 48 s ago
+h2.instrument-phase {data-tone="normal"}: Idle
 #rate: 38.6
-#engine-readings: Engine readings
+#completed-facts {aria-label="Last engine result" data-count="3"}: Last engine result Output 1,092 tokens Duration 29 s calculated
+#first-token: First token | 0.51 s
 #reply-strip: Measure next reply
-#last-reply: Last reply
-h2: This Mac
-#scope-version: <version>
+#measurement-details: Measurement details
 #freshness: Updated just now
 live #connection: Splash via Bionic
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -34,7 +32,7 @@ live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Idle
@@ -51,10 +49,10 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-live {aria-labelledby="tab-live"}
 #panel-server {aria-labelledby="server-title"}: Back to Live
 #server-title: Server & Mac details
-[server-residency]: i lms ps · refreshed on load/unload example-27b-splash 17.4 GiB loaded
+[server-residency]: lms ps · refreshed on load/unload example-27b-splash 17.4 GiB loaded
 h2: Loaded instances
 span.chip: Idle
-[server-engines]: i LM Studio · checked every 10 min splash 0.0.5 mlx-llm 0.28.1 llama.cpp 1.52.0
+[server-engines]: LM Studio · checked every 10 min splash 0.0.5 mlx-llm 0.28.1 llama.cpp 1.52.0
 h2: Model software
 span.chip {data-tone="accent"}: In use
 span.chip: Installed
@@ -64,18 +62,17 @@ h2: Model inventory
 span.chip {data-tone="accent"}: splash
 span.chip {data-tone="accent"}: splash
 span.chip: gguf
-[server-session]: i Since the log stream started Generation speed Cache efficiency Completed
+[server-session]: Since the log stream started Generation speed Cache efficiency Completed
 h2: Overall average
 span.val {data-basis="reported"}: 37.9 tok/s
 span.val {data-basis="reported"}: 61%
 span.val {data-basis="reported"}: 23
 #server-runtime-details: Server details Ready
-#machine {aria-label="This Mac" data-stale="false"}: i CPU 7% Memory allocated 33.9 / 48 GiB Swap 1.1 GiB
+#machine {aria-label="This Mac" data-stale="false"}: CPU 7% Memory allocated 33.9 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
-[mac-thermal]: Heat status i Normal
+[mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash via Bionic
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -83,7 +80,7 @@ live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## live · 320 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Idle
@@ -99,16 +96,14 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 7% Memory allocated 33.9 / 48 GiB
-#hero {aria-label="Model activity"}: tok/s Last chat · matched · avg. i 38.6 tokens per second. Completed request average · 48 s ago
-h2: Idle
-#model: example-27b-splash
+#view-live
+#hero {aria-label="Activity and speed"}: tok/s Last engine · avg. 38.6 tokens per second. Completed request average · 48 s ago | Finished 48 s ago
+h2.instrument-phase {data-tone="normal"}: Idle
 #rate: 38.6
-#engine-readings: Engine readings
+#completed-facts {aria-label="Last engine result" data-count="3"}: Last engine result Output 1,092 tokens Duration 29 s calculated
+#first-token: First token | 0.51 s
 #reply-strip: Measure next reply
-#last-reply: Last reply
-h2: This Mac
-#scope-version: <version>
+#measurement-details: Measurement details
 #freshness: Updated just now
 live #connection: Splash via Bionic
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.

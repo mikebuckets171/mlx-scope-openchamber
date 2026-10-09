@@ -1,5 +1,5 @@
 import { gib } from './present/format.ts';
-import type { Reading } from './present/reading.ts';
+import type { LegacyReading as Reading } from './compat/reading.ts';
 
 export const MAX_RECENT_GENERATIONS = 8;
 export const RECENT_WINDOW_MS = 10_000;

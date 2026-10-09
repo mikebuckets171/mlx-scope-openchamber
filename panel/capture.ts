@@ -1,5 +1,5 @@
 import { gibFixed } from './present/format.ts';
-import type { Reading } from './present/reading.ts';
+import type { LegacyReading as Reading } from './compat/reading.ts';
 
 export type Capture = {
   model: string; targetSeconds: 30 | 60; startedAt: number; lastAt: number;

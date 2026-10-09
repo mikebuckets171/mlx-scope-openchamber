@@ -1,7 +1,7 @@
 # ollama · /v2?state=ollama
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="unknown" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="unknown" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Connected
@@ -17,14 +17,11 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 5% Memory allocated 24.4 / 48 GiB
-#hero {aria-label="Model activity"}: Ollama lists loaded models but does not provide request speeds
-h2: Connected
-#model: example:14b
-#engine-readings: Engine readings
+#view-live
+#hero {aria-label="Activity and speed"}: Ollama lists loaded models but does not provide request speeds
+h2.instrument-phase {data-tone="normal"}: Connected
 #reply-strip
-h2: This Mac
-#scope-version: <version>
+#measurement-details: Measurement details
 #freshness: Updated just now
 live #connection: Ollama
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -32,7 +29,7 @@ live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="unknown" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="unknown" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Connected
@@ -49,17 +46,16 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-live {aria-labelledby="tab-live"}
 #panel-server {aria-labelledby="server-title"}: Back to Live
 #server-title: Server & Mac details
-[server-residency]: i 2 loaded example:14b 11.2 GiB loaded GPU memory (from Ollama) 10.1 GiB · 90% example-embed:latest 0.6 GiB loaded GPU memory (from Ollama) 0.6 GiB · 100%
+[server-residency]: 2 loaded example:14b 11.2 GiB loaded GPU memory (from Ollama) 10.1 GiB · 90% example-embed:latest 0.6 GiB loaded GPU memory (from Ollama) 0.6 GiB · 100%
 h2: Loaded models
 span.chip: unloads in 3 m 32 s
 span.chip: unloads in 38 s
 #server-runtime-details: Server details Ready
-#machine {aria-label="This Mac" data-stale="false"}: i CPU 5% Memory allocated 24.4 / 48 GiB Swap 1.1 GiB
+#machine {aria-label="This Mac" data-stale="false"}: CPU 5% Memory allocated 24.4 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
-[mac-thermal]: Heat status i Normal
+[mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#scope-version: <version>
 #freshness: Updated just now
 live #connection: Ollama
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.

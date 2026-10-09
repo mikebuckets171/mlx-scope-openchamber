@@ -3,6 +3,7 @@ import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 type Phase = 'generating' | 'reasoning' | 'tool' | 'waiting' | 'complete' | 'cancelled';
 const setPhase = (page: Page, phase: Phase, rate?: number) => page.evaluate(({ phase, rate }) => {
   const w = window as any, now = Date.now(), complete = phase === 'complete';
+  if (complete) w.setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' });
   w.setPreviewPatch({ chat: { scope: 'chat', basis: complete ? 'reported-output' : 'estimated-characters',
     timingBasis: complete ? 'completed-step' : 'delivery-window', phase, tokensPerSecond: rate,
     observedAtMs: now, expiresAtMs: now + 5_000,
@@ -55,6 +56,23 @@ test('ordinary busy changes retain a fresh speed while the refresh is pending', 
   await expect(frame.locator('#rate')).toHaveText('26.4');
 });
 
+for (const theme of ['light', 'dark']) test(`Session priority information fits the host clamp at 200% text in ${theme}`, async ({ page }) => {
+  await page.setViewportSize({ width: 260, height: 550 });
+  for (const state of ['pressure', 'pressure-critical', 'needs-approval', 'unconfigured', 'offline', 'runtime-changed', 'contract-mismatch', 'prefill-stall']) {
+    await page.goto(`/v2?surface=status&state=${state}&chat=local&theme=${theme}`);
+    await page.locator('iframe').evaluate(element => { (element as HTMLElement).style.width = '260px'; });
+    const frame = page.frameLocator('iframe');
+    await expect(frame.locator('.ws-phase')).toBeVisible();
+    await frame.locator('html').evaluate(element => { (element as HTMLElement).style.fontSize = '32px'; });
+    await expect.poll(() => frame.locator('#ws').evaluate(element => element.getBoundingClientRect().bottom <= innerHeight + 1), state).toBe(true);
+    expect(await frame.locator('#ws').evaluate(() => document.documentElement.scrollWidth > innerWidth), state).toBe(false);
+    const action = frame.getByRole('button', { name: 'Open MLX Scope', exact: true });
+    await expect(action).toBeVisible();
+    expect(await action.evaluate(element => element.getBoundingClientRect().bottom <= innerHeight), state).toBe(true);
+    expect(await frame.locator('#ws').evaluate(element => element.getBoundingClientRect().height), state).toBeLessThanOrEqual(320);
+  }
+});
+
 for (const width of [320, 1160]) for (const fontSize of [16, 32]) test(`full Live keeps controls in position across phase changes at ${width}px and ${fontSize}px text`, async ({ page }) => {
   await page.setViewportSize({ width, height: 950 });
   await page.goto('/v2?surface=page&state=splash-decode&chat=local');
@@ -62,6 +80,7 @@ for (const width of [320, 1160]) for (const fontSize of [16, 32]) test(`full Liv
   await frame.locator('html').evaluate((element, size) => { (element as HTMLElement).style.fontSize = `${size}px`; }, fontSize);
   await setPhase(page, 'generating', 17.8);
   await expect(frame.locator('#rate')).toHaveText('17.8');
+  await expect(frame.locator('#engine-trend')).toBeVisible();
   const trend = await position(frame, '#measurement-details > summary');
   for (const [phase, label] of [['reasoning', 'Reasoning'], ['tool', 'Using tools'], ['waiting', 'Waiting'], ['complete', 'Complete'], ['cancelled', 'Stopped']] as const) {
     await setPhase(page, phase, phase === 'reasoning' ? 18.1 : phase === 'complete' ? 19.2 : undefined);

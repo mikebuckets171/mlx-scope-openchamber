@@ -3,7 +3,9 @@
 ## 3.0.0
 
 - A fresh activity-first interface keeps one relevant measurement in a stable position, with Open MLX Scope in the sidebar.
-  The sidebar uses OpenChamber's model context instead of repeating it; the full view groups supporting measurement details.
+  The sidebar adds an available supporting fact and uses OpenChamber's model context instead of repeating it.
+  Full Live shows available Engine facts and a compatible Engine trend, with deeper measurements in a disclosure.
+  Completed facts belong to the exact result; one labeled chat average can remain in view memory until the next reply.
 - A saved This chat / Whole engine preference keeps scope explicit. Chat-matched runtime readings take precedence, then
   labeled delivery estimates, then a labeled Engine fallback for local chats. Cloud chats can show estimated delivery
   through the same optional companion, with no cloud API calls or local engine fallback.

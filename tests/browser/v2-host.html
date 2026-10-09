@@ -124,6 +124,7 @@ window.addEventListener('message', event => {
   if (m.type === 'open-surface') {
     window.previewOpenedSurfaces.push(m.payload.surfaceId);
     if (params.get('openSurface') === 'fail') failure(m.id, 'HOST_REJECTED', 'Fixture surface unavailable');
+    else if (params.get('openSurface') === 'defer') (window.previewSurfaceDeferred ??= []).push(() => failure(m.id, 'HOST_REJECTED', 'Fixture delayed surface failure'));
     else result(m.id);
     return;
   }

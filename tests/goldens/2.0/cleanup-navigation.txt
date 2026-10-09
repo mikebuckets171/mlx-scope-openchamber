@@ -1,7 +1,7 @@
 # Two primary destinations · 430 px
 
 ## live · 430 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -17,18 +17,17 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 31% Memory allocated 36.1 / 48 GiB
-#hero {aria-label="Model activity"}: tok/s Engine i 25.8 tokens per second. All engine requests · From server · average for this request
-h2: Generating
-#model: Example-27B-4bit
+#view-live
+#hero {aria-label="Activity and speed"}: tok/s Engine 25.8 tokens per second. All engine requests · From server · average for this request
+h2.instrument-phase {data-tone="normal"}: Generating
 #rate: 25.8
-#engine-trend: Engine trend
-#engine-readings: Engine readings
-#request-details: Request details
+#engine-facts {aria-label="Engine" data-count="2"}: Engine | Output | 824 | tokens so far | Elapsed | 46 s | since it started
+#engine-trend
+#signal: Engine trend · 90 seconds −90s Recent generation speed now
+#ceiling: 30 tok/s
+div.plot[role=img] {aria-label="Generation speed · average for this request, last 8 s: 25.8 to 28.1 tokens per second, now 25.8"}
 #reply-strip: Measure next reply
-#last-reply: Last reply
-h2: This Mac
-#scope-version: <version>
+#measurement-details: Measurement details
 #freshness: Updated just now
 live #connection: Local oMLX
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -36,7 +35,7 @@ live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## history · 430 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -52,7 +51,7 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Captures
 #panels
 #panel-history {aria-labelledby="tab-history"}
-#view-history: i 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed i Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out 14:04 1,104 out · 49.8K in (41.2K cached) 14:04 1,104 out · 49.8K in (41.2K cached) 13:58 862 out · 47.3K in (39.9K cached) 13:57 1,318 out · 45.1K in (38.7K cached) 13:51 2,210 out · 38.2K in (30.1K cached) Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac
+#view-history: 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out 14:04 1,104 out · 49.8K in (41.2K cached) 14:04 1,104 out · 49.8K in (41.2K cached) 13:58 862 out · 47.3K in (39.9K cached) 13:57 1,318 out · 45.1K in (38.7K cached) 13:51 2,210 out · 38.2K in (30.1K cached) Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac
 h2: Trend
 div.plot[role=img] {aria-label="Generation speed over the last 60 min: 6 turns, 21.5 to 27.6 tokens per second; not observed from 13:24 to 13:46."}: Not observed · Scope wasn’t open
 h2: Recent replies
@@ -71,7 +70,6 @@ span.val {data-basis="last-observed"}: 25.1 tok/slast reading
 span.chip {data-attr="inferred"}: Likely this chat
 span.val {data-basis="last-observed"}: 24.3 tok/slast reading
 span.chip {data-attr="armed" data-outline=""}: Next reply
-#scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -79,7 +77,7 @@ live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## reply capture · 430 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -96,10 +94,9 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-history {aria-labelledby="tab-history"}
 #panel-captures {aria-labelledby="captures-title"}: Back to History
 #captures-title: Captures
-#captures-content: Reply Timed recording i Measures your next reply in this chat, then stops. Measure next reply 0 of 12 · oldest replaced when full Nothing saved yet. Save a Next reply or a window to compare it later. Copy Add to chat draft Never includes model names
+#captures-content: Reply Timed recording Measures your next reply in this chat, then stops. Measure next reply 0 of 12 · oldest replaced when full Nothing saved yet. Save a Next reply or a window to compare it later. Copy Add to chat draft Never includes model names
 h2: Next reply
 h2: Saved
-#scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -107,7 +104,7 @@ live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## timed capture · 430 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -127,7 +124,6 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #captures-content: Reply Timed recording All server activity Averages all server activity for 30 or 60 seconds. Start capture Monitoring keeps running while you capture. 0 of 12 · oldest replaced when full Nothing saved yet. Save a Next reply or a window to compare it later. Copy Add to chat draft Never includes model names
 h2: Timed recording
 h2: Saved
-#scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -135,7 +131,7 @@ live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## live · 430 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -151,18 +147,17 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 31% Memory allocated 36.1 / 48 GiB
-#hero {aria-label="Model activity"}: tok/s Engine i 25.8 tokens per second. All engine requests · From server · average for this request
-h2: Generating
-#model: Example-27B-4bit
+#view-live
+#hero {aria-label="Activity and speed"}: tok/s Engine 25.8 tokens per second. All engine requests · From server · average for this request
+h2.instrument-phase {data-tone="normal"}: Generating
 #rate: 25.8
-#engine-trend: Engine trend
-#engine-readings: Engine readings
-#request-details: Request details
+#engine-facts {aria-label="Engine" data-count="2"}: Engine | Output | 824 | tokens so far | Elapsed | 46 s | since it started
+#engine-trend
+#signal: Engine trend · 90 seconds −90s Recent generation speed now
+#ceiling: 30 tok/s
+div.plot[role=img] {aria-label="Generation speed · average for this request, last 8 s: 25.8 to 28.1 tokens per second, now 25.8"}
 #reply-strip: Measure next reply
-#last-reply: Last reply
-h2: This Mac
-#scope-version: <version>
+#measurement-details: Measurement details
 #freshness: Updated just now
 live #connection: Local oMLX
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -170,7 +165,7 @@ live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## history · 430 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -186,7 +181,7 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Captures
 #panels
 #panel-history {aria-labelledby="tab-history"}
-#view-history: i 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed i Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out 14:04 1,104 out · 49.8K in (41.2K cached) 14:04 1,104 out · 49.8K in (41.2K cached) 13:58 862 out · 47.3K in (39.9K cached) 13:57 1,318 out · 45.1K in (38.7K cached) 13:51 2,210 out · 38.2K in (30.1K cached) Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac
+#view-history: 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out 14:04 1,104 out · 49.8K in (41.2K cached) 14:04 1,104 out · 49.8K in (41.2K cached) 13:58 862 out · 47.3K in (39.9K cached) 13:57 1,318 out · 45.1K in (38.7K cached) 13:51 2,210 out · 38.2K in (30.1K cached) Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac
 h2: Trend
 div.plot[role=img] {aria-label="Generation speed over the last 60 min: 6 turns, 21.5 to 27.6 tokens per second; not observed from 13:24 to 13:46."}: Not observed · Scope wasn’t open
 h2: Recent replies
@@ -205,7 +200,6 @@ span.val {data-basis="last-observed"}: 25.1 tok/slast reading
 span.chip {data-attr="inferred"}: Likely this chat
 span.val {data-basis="last-observed"}: 24.3 tok/slast reading
 span.chip {data-attr="armed" data-outline=""}: Next reply
-#scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -213,7 +207,7 @@ live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## reply capture · 430 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -230,10 +224,9 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-history {aria-labelledby="tab-history"}
 #panel-captures {aria-labelledby="captures-title"}: Back to History
 #captures-title: Captures
-#captures-content: Reply Timed recording i Measures your next reply in this chat, then stops. Measure next reply 0 of 12 · oldest replaced when full Nothing saved yet. Save a Next reply or a window to compare it later. Copy Add to chat draft Never includes model names
+#captures-content: Reply Timed recording Measures your next reply in this chat, then stops. Measure next reply 0 of 12 · oldest replaced when full Nothing saved yet. Save a Next reply or a window to compare it later. Copy Add to chat draft Never includes model names
 h2: Next reply
 h2: Saved
-#scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -241,7 +234,7 @@ live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## timed capture · 430 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -261,7 +254,6 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #captures-content: Reply Timed recording All server activity Averages all server activity for 30 or 60 seconds. Start capture Monitoring keeps running while you capture. 0 of 12 · oldest replaced when full Nothing saved yet. Save a Next reply or a window to compare it later. Copy Add to chat draft Never includes model names
 h2: Timed recording
 h2: Saved
-#scope-version: <version>
 #freshness: Updated just now
 live #connection: Local oMLX
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.

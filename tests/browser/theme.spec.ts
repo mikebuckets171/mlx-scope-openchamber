@@ -54,8 +54,6 @@ const expectPalette = async (frame: Frame, palette: HostTheme, transparent = fal
 test('a mounted panel repaints for same-mode custom themes and light/dark changes without losing its controls', async ({ page }) => {
   const frame = await load(page);
   // A constant fixture rate draws a horizontal SVG path with a zero-height bounding box.
-  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
-  await frame.locator('#engine-trend > summary').click();
   await expect(frame.locator('#signal')).toBeVisible({ timeout: 12_000 });
   await expect(frame.locator('#signal .trace')).toBeAttached();
   const mounted = await frame.locator('#scope').elementHandle();
@@ -87,8 +85,6 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
 
 test('legacy palette updates clear old text tokens and use the current host primary fallback', async ({ page }) => {
   const frame = await load(page);
-  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
-  await frame.locator('#engine-trend > summary').click();
   await expect(frame.locator('#signal')).toBeVisible({ timeout: 12_000 });
   await expect(frame.locator('#signal .trace')).toBeAttached();
   await setTheme(page, VIOLET);

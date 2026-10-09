@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { PerformanceCapture, capturedRate } from './capture.ts';
-import { frameReading, type Reading } from './present/reading.ts';
+import { legacyFrameReading as frameReading, type LegacyReading as Reading } from './compat/reading.ts';
 import { fromV1 } from './testing/readings.ts';
 const GB = 1e9;
 const frame = (ms: number, tokens = ms / 50, extra: Record<string, unknown> = {}) => fromV1({ available: true, runtime: 'omlx', phase: 'decode', sampledAt: 1_800_000_000_000 + ms, modelID: 'private/model', activeRequests: 1, traceEpoch: 2, completionTokens: tokens, liveDecodeTPS: 999, memory: {activeGB: 20}, system: {platform:'macOS', cpuPercent:12, sampledAt:1_800_000_000_000+ms, memoryTotalGB:48, memoryUsedGB:30, macOS:{swapUsedGB:1,sampledAt:1_800_000_000_000+ms}}, ...extra });

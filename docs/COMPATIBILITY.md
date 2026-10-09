@@ -22,8 +22,9 @@ OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and c
 ## Optional chat delivery estimates
 
 Chat estimates initially support the released **OpenCode 2.0.25** plugin-event protocol. A real isolated 2.0.25 server
-with a local synthetic streaming provider exercises waiting, generation, completion and compaction exclusion. This
-checks protocol integration, not inference performance. Unsupported versions disable estimates while all runtime
+with a synthetic streaming provider exercises waiting, generation, completion, calibration and hidden shutdown in local
+and synthetic remote modes. Compaction and title exclusion are covered separately by plugin-event fixtures. This
+checks protocol integration, not inference performance or an actual cloud provider. Unsupported versions disable estimates while all runtime
 adapters continue to operate. Guided setup reports the detected protocol and distinguishes installed/pending from
 a fresh loaded companion. It supports native v2 `providers.<id>.settings` and legacy local provider configuration.
 

@@ -2,78 +2,78 @@
 
 ## status-tip · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Generating Example-27B Engine tok/s 26.4 tokens per second. All engine requests · From server · average for this request Open MLX Scope
+#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 26.4 tokens per second. All engine requests · From server · average for this request | Engine · 612 tokens out | Open MLX Scope
 #rate: 26.4
-setHeight: 76
+setHeight: 108
 
 ## status-decode · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Generating Example-27B Engine tok/s 26.4 tokens per second. All engine requests · From server · average for this request Open MLX Scope
+#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 26.4 tokens per second. All engine requests · From server · average for this request | Engine · 612 tokens out | Open MLX Scope
 #rate: 26.4
-setHeight: 76
+setHeight: 108
 
 ## status-decode-light · 280 light status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Generating Example-27B Engine tok/s 26.4 tokens per second. All engine requests · From server · average for this request Open MLX Scope
+#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 26.4 tokens per second. All engine requests · From server · average for this request | Engine · 612 tokens out | Open MLX Scope
 #rate: 26.4
-setHeight: 76
+setHeight: 108
 
 ## status-prefill · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Reading prompt | Example-27B | Engine · prompt | 64% | Prompt read · 5824 of 9100 tokens | Open MLX Scope | This chat | Whole engine
-setHeight: 76
+#ws {data-mode="summary" data-presentation="session"}: Reading prompt | This chat | Whole engine | 64% | Engine · prompt | Prompt read · 5824 of 9100 tokens | Engine · 5,824 / 9,100 tokens | Open MLX Scope
+setHeight: 108
 
 ## status-idle · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:52px"}: Idle | Example-27B | Open MLX Scope | This chat | Whole engine
-setHeight: 52
+#ws {data-mode="summary" data-presentation="session"}: Idle | This chat | Whole engine | Open MLX Scope
+setHeight: 108
 
 ## status-alert · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:100px"}: Generating Example-27B Engine tok/s 21.2 tokens per second. All engine requests · From server · average for this request Memory pressure · warning Open MLX Scope
+#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 21.2 tokens per second. All engine requests · From server · average for this request | Memory pressure · warning | Open MLX Scope
 #rate: 21.2
-setHeight: 100
+setHeight: 108
 
 ## status-offline · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Offline | Scope checks again automatically | Open MLX Scope | This chat | Whole engine
-setHeight: 76
+#ws {data-mode="summary" data-presentation="session"}: Offline | This chat | Whole engine | Scope checks again automatically | Open MLX Scope
+setHeight: 108
 
 ## status-splash-decode · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Generating Example-27B Engine tok/s 43.8 tokens per second. All engine requests · Calculated · last 4.0 s Open MLX Scope
+#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 43.8 tokens per second. All engine requests · Calculated · last 4.0 s | Open MLX Scope
 #rate: 43.8
-setHeight: 76
+setHeight: 108
 
 ## status-splash-decode-light · 280 light status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Generating Example-27B Engine tok/s 43.8 tokens per second. All engine requests · Calculated · last 4.0 s Open MLX Scope
+#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 43.8 tokens per second. All engine requests · Calculated · last 4.0 s | Open MLX Scope
 #rate: 43.8
-setHeight: 76
+setHeight: 108
 
 ## status-recovering · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Recovering | Example-27B | Scope reads its status every 30 s | Open MLX Scope | This chat | Whole engine
-setHeight: 76
+#ws {data-mode="summary" data-presentation="session"}: Recovering | This chat | Whole engine | Scope reads its status every 30 s | Open MLX Scope
+setHeight: 108
 
 ## status-approval · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Needs approval | Settings → Extensions → MLX Scope | Open MLX Scope | This chat | Whole engine
-setHeight: 76
+#ws {data-mode="summary" data-presentation="session"}: Needs approval | This chat | Whole engine | Settings → Extensions → MLX Scope | Open MLX Scope
+setHeight: 108
 
 ## status-nonlocal · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="non-local" data-presentation="session" style="min-height:24px"}: This chat is not using a local model
-setHeight: 24
+#ws {data-mode="summary" data-presentation="session"}: Ready | This chat | Whole engine | Open MLX Scope
+setHeight: 108
 
 ## status-turnstats · 280 dark status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Idle example-27b Last chat · matched · avg. tok/s 38.6 tokens per second. Completed request average · 48 s ago Open MLX Scope
+#ws {data-mode="summary" data-presentation="session"}: Idle | tok/s Last engine · avg. 38.6 tokens per second. Completed request average · 48 s ago | Finished 48 s ago | Open MLX Scope
 #rate: 38.6
-setHeight: 76
+setHeight: 108
 
 ## status-turnstats-light · 280 light status
 main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session" style="min-height:76px"}: Idle example-27b Last chat · matched · avg. tok/s 38.6 tokens per second. Completed request average · 48 s ago Open MLX Scope
+#ws {data-mode="summary" data-presentation="session"}: Idle | tok/s Last engine · avg. 38.6 tokens per second. Completed request average · 48 s ago | Finished 48 s ago | Open MLX Scope
 #rate: 38.6
-setHeight: 76
+setHeight: 108

@@ -1,7 +1,7 @@
 # splash-recovering · /v2?state=splash-recovering
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Recovering
@@ -17,15 +17,12 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 12% Memory allocated 29.4 / 48 GiB
+#view-live
 [callout-live] {data-severity="warning"}: Warning: | Splash is recovering | since 14:03 | Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.
-#hero {aria-label="Model activity"}: Scope reads its status every 30 s
-h2: Recovering
-#model: example/Example-27B-Splash
-#engine-readings: Engine readings
+#hero {aria-label="Activity and speed"}: Scope reads its status every 30 s
+h2.instrument-phase {data-tone="normal"}: Recovering
 #reply-strip
-h2: This Mac
-#scope-version: <version>
+#measurement-details: Measurement details
 #freshness: Updated just now
 live #connection: Splash
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -34,7 +31,7 @@ live #action-status (hidden):
 live [callout-live]: Warning: Splash is recoveringsince 14:03Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Recovering
@@ -52,11 +49,11 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-server {aria-labelledby="server-title"}: Back to Live
 #server-title: Server & Mac details
 [callout-server] {data-severity="warning"}: Warning: | Splash is recovering | since 14:03 | Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.
-[server-latency]: i Splash · last reading First token typical · slowest 5% 212 readings Between tokens typical · slowest 5% 4,096 readings
+[server-latency]: Splash · last reading First token typical · slowest 5% 212 readings Between tokens typical · slowest 5% 4,096 readings
 h2: Response timing
 span.val {data-basis="reported"}: 0.41 s · 1.3 s
 span.val {data-basis="reported"}: 0.02 s · 0.04 s
-[server-memory]: i Splash · last reading GPU allocations Peak GPU allocations
+[server-memory]: Splash · last reading GPU allocations Peak GPU allocations
 h2: Model memory
 span.val {data-basis="reported"}: 12.5 GiB
 span.val {data-basis="reported"}: 13.0 GiB
@@ -64,17 +61,16 @@ span.val {data-basis="reported"}: 13.0 GiB
 h2: Model inventory
 span.chip {data-tone="accent"}: splash
 span.chip: vision · text + image
-[server-session]: i Last reading · Since this model started Generation speed Completed 1 failed
+[server-session]: Last reading · Since this model started Generation speed Completed 1 failed
 h2: Overall average
-span.val {data-basis="last-observed"}: 47.2 tok/slast reading
-span.val {data-basis="last-observed"}: 17last reading
+span.val {data-basis="last-observed"}: 47.2 tok/s | last reading
+span.val {data-basis="last-observed"}: 17 | last reading
 #server-runtime-details: Server details Recovering
-#machine {aria-label="This Mac" data-stale="false"}: i CPU 12% Memory allocated 29.4 / 48 GiB Swap 1.1 GiB
+#machine {aria-label="This Mac" data-stale="false"}: CPU 12% Memory allocated 29.4 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
-[mac-thermal]: Heat status i Normal
+[mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#scope-version: <version>
 #freshness: Updated just now
 live #connection: Splash
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.

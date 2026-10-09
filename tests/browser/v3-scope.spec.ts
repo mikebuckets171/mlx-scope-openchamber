@@ -58,7 +58,8 @@ test('scope choice persists across reload, keeps Whole engine independent, and f
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(scope).toHaveValue('engine');
   await scope.selectOption('chat');
-  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'non-local');
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
   await page.evaluate(() => (window as any).setPreviewSession({ id: 'local-again', title: 'Local', busy: true, model: 'omlx/Example-27B-4bit' }));
   await expect(scope).toHaveValue('chat');
   await expect.poll(async () => (await newest(page))?.chat).toBe(chatKey('session', 'local-again'));
@@ -79,8 +80,10 @@ for (const surface of ['status', 'page']) test(`a rejected scope preference rema
 test('chat estimate, reasoning, tool waiting, short completion, and cancellation use explicit states', async ({ page }) => {
   await page.goto('/v2?surface=status&state=splash-decode&chat=local');
   const frame = page.frameLocator('iframe');
+  await expect(frame.locator('#rate')).toHaveText('43.8');
   const phase = async (phase: string, rate?: number) => page.evaluate(({ phase, rate }) => {
     const w = window as any, now = Date.now(), complete = phase === 'complete';
+    if (complete) w.setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' });
     w.setPreviewPatch({ chat: { scope: 'chat', basis: complete ? 'reported-output' : 'estimated-characters',
       timingBasis: complete ? 'completed-step' : 'delivery-window', phase, tokensPerSecond: rate,
       observedAtMs: now, expiresAtMs: now + 5_000, observation: { startedAtMs: now - 3_000, endedAtMs: now }, freshness: complete ? 'last' : 'live' } });
@@ -109,6 +112,6 @@ test('an unknown provider echoed by an unavailable connection never makes a clou
     w.setPreviewPatch({ connection: body.connection, status: { state: 'unconfigured', reason: 'configuration_missing', params: {} } });
   });
   await expect.poll(() => page.evaluate(() => (window as any).previewRequests)).toBeGreaterThan(1);
-  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'non-local');
-  await expect(frame.locator('#ws')).toHaveText('This chat is not using a local model');
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
 });

@@ -63,9 +63,7 @@ export class ConnectionsView {
       this.revision += 1;
       this.commit(next);
       this.setOpen(false, true);
-      const save = this.pending.catch(() => {}).then(() => this.storage.set(STORAGE_KEY, next));
-      this.pending = save;
-      void save.catch(() => this.status('Connection changed here, but OpenChamber could not save the preference.'));
+      this.persist(() => this.storage.set(STORAGE_KEY, next));
     });
   }
   private node(id: string): HTMLElement { return this.root.querySelector<HTMLElement>(`#${id}`)!; }
@@ -74,22 +72,23 @@ export class ConnectionsView {
     this.selection = next;
     this.change();
   }
+  private persist(write: () => Promise<void>): void {
+    const save = this.pending.catch(() => {}).then(write);
+    this.pending = save;
+    void save.catch(() => this.status('Connection changed here, but OpenChamber could not save the preference.'));
+  }
   /** "Looks like Splash now · Switch": keep the chosen connection and watch the runtime that answers now. */
   switchRuntime(runtime: RuntimeSelection['runtime']): void {
     const next = {provider:this.selection.provider, runtime};
     this.revision += 1;
     this.commit(next);
-    const save = this.pending.catch(() => {}).then(() => this.storage.set(STORAGE_KEY, next));
-    this.pending = save;
-    void save.catch(() => this.status('Connection changed here, but OpenChamber could not save the preference.'));
+    this.persist(() => this.storage.set(STORAGE_KEY, next));
   }
   /** "Watch …": monitor the connection the open chat uses, read as whatever answers there. */
   watch(provider: string): void {
     this.revision += 1;
     this.commit({ provider, runtime: null });
-    const save = this.pending.catch(() => {}).then(() => this.storage.set(STORAGE_KEY, this.selection));
-    this.pending = save;
-    void save.catch(() => this.status('Connection changed here, but OpenChamber could not save the preference.'));
+    this.persist(() => this.storage.set(STORAGE_KEY, this.selection));
   }
   /** Opens the connection chooser, as the callout's Connection… link does. */
   openSetup(): void { this.setOpen(true, true); }

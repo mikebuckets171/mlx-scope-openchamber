@@ -1,7 +1,9 @@
 # MLX Scope 3.0 release gates
 
 This branch is a release candidate built from public 2.1.6 (`4298c03`). A version number in the candidate is not evidence
-of publication. Keep public `main` unchanged until every gate below has a dated receipt.
+of publication. Keep public `main` unchanged until the verification below has a dated receipt.
+The maintainer explicitly waived the eight-hour soak on October 8, 2026, and requested installed OpenChamber inspection
+followed by public publication. Do not report a soak as completed.
 
 ## Required evidence
 
@@ -15,16 +17,15 @@ of publication. Keep public `main` unchanged until every gate below has a dated 
   service RSS ≤132 MiB), plus separately attributed renderer and companion cost. Hidden views issue no runtime requests.
 - Paired representative real inference runs with Scope enabled/disabled. Investigate a repeatable median slowdown above
   2%; no unexplained regression may ship. Synthetic protocol streams do not satisfy this gate.
-- At least eight elapsed hours with the installed candidate, including real generations, hidden/idle periods, concurrent
-  chats and sleep/wake. Record crash/restart events, collector counts, stale-rate assertions and resource trend. A timer
-  alone does not establish scenario coverage. Missing coverage keeps the release pending.
+- The planned eight-hour stability soak is waived. Short automated lifecycle, hidden-view and resource checks remain;
+  they do not establish long-duration stability or sleep/wake coverage.
 
 Local development receipts live outside the repository until scrubbed and finalized. Never commit chat content, private
 paths, provider credentials, raw session IDs or uncontrolled screenshots of the user's conversations.
 
 ## Publish and verify
 
-After all gates pass, finalize a scrubbed receipt here, review the final diff, merge the candidate and push `v3.0.0`.
+After verification, finalize a scrubbed receipt here, review the final diff, merge the candidate and push `v3.0.0`.
 The existing tag workflow runs CI and publishes the named ZIP with its checksum. Download that asset, verify SHA-256
 and perform a clean installation. GitHub-generated source archives are not install packages.
 

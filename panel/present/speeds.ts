@@ -11,9 +11,9 @@ export interface Speed {
 }
 export interface SpeedsView { phase: string; model: string | null; speeds: Speed[]; averageTitle: string; averageNote: string; source: string }
 export const SPLASH_SPEED_HELP = [
-  'Prefill speed counts prompt tokens divided by the time Splash spent reading them. Generation speed counts kept output tokens divided by the time Splash spent generating them. Discarded draft tokens are excluded.',
-  'Calculated across all requests from at least three readings over 2–5 seconds. Each stage shows how long its recent readings cover. The time between updates is not used to calculate speed.',
-  'Overall average uses totals since this model started. These speeds do not measure how fast tokens reach your chat.',
+  'Prefill: prompt tokens ÷ reading time. Generation: kept output tokens ÷ generation time. Discarded drafts excluded.',
+  'All Splash requests · ≥3 readings over 2–5 s. Windows shown per stage. Polling time is excluded.',
+  'Overall averages use totals since model start. Engine speed is not chat delivery.',
 ];
 export interface SpeedInput { snapshot: SnapshotV2 | null; fresh?: boolean; paused?: boolean; efficient?: boolean }
 /** One instrument shared by Live, Compact and Session. Missing recent readings never borrow an average. */

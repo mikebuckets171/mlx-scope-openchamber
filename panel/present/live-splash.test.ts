@@ -31,10 +31,12 @@ test('Splash live throughput leads with derived server-wide speed, never the lif
     const input = scope(snapshot(body => { body.runtime.server.active = active; body.runtime.phase = active === 1 ? 'decode' : 'processing'; }));
     const view = presentLive(input), hero = view.hero!;
     expect(heroKind(input)).toBe('server-decode');
-    expect(hero.body).toMatchObject({ kind: 'decode', rate: '43.8', basis: 'derived', label: 'Recent generation speed' });
+    expect(hero.body).toMatchObject({ kind: 'decode' });
+    expect(hero.instrument.measurement).toMatchObject({ text: '43.8', basis: 'derived', label: 'Engine' });
     expect(hero.attr?.chip.text).toBe('All server activity · all requests');
     expect(hero.context).toBeNull();
-    expect(view.tiles).toEqual([]);
+    expect(view.tiles.map(tile => tile.label)).toEqual(['Active requests', 'Metal allocations', 'Median first token']);
+    expect(view.tiles[0]?.value).toBe(String(active));
     if (hero.body?.kind === 'decode') {
       expect(hero.body.tip.paras.join(' ')).toContain('time Splash spent generating');
       expect(hero.body.tip.paras.join(' ')).toContain('how quickly tokens reach your chat');
@@ -94,7 +96,7 @@ test('warmup, missing counters, idle, stale and unavailable Splash readings neve
     expect(history.points).toEqual([]);
   }
   const warming = snapshot(body => { delete body.runtime.server.rates; });
-  expect(presentLive(scope(warming)).hero?.body).toMatchObject({ kind: 'word', word: 'Working', unit: 'Waiting for update' });
+  expect(presentLive(scope(warming)).hero?.body).toMatchObject({ kind: 'word', unit: 'Waiting for update' });
   expect(presentLive(scope(snapshot(), { fresh: false })).hero?.body ?? null).toBeNull();
   expect(presentLive(scope(snapshot(), { paused: true })).hero?.body).toMatchObject({ kind: 'paused' });
   expect(status(snapshot(), { fresh: false }).glance?.line1.rate).toBeNull();
@@ -111,7 +113,7 @@ test('other server rates remain completion-based readings, while oMLX keeps its 
     expect(history.points).toEqual([]);
   }
   const body = parseSnapshotV2(mockBody('decode'))!;
-  expect(presentLive(scope(body)).hero?.body).toMatchObject({ kind: 'decode', rate: '26.4', basis: 'reported', label: 'Average for this request' });
+  expect(presentLive(scope(body)).hero?.instrument.measurement).toMatchObject({ text: '26.4', basis: 'reported' });
 });
 
 test('server signal histories break on gaps and resets, cannot mix with request averages, and never imply chat timing', () => {
@@ -152,7 +154,7 @@ test('Splash Server details distinguish recent decoding from lifetime averages a
 
 test('Splash displays the actual observed interval and keeps prompt processing separate', () => {
   const body = snapshot(body => { body.runtime.server.rates!.windowMs = 2_350; });
-  expect(presentLive(scope(body)).hero?.body).toMatchObject({ source: 'Calculated from Splash · last 2.4 s' });
+  expect(presentLive(scope(body)).hero?.instrument.measurement?.detail).toContain('last 2.4 s');
   expect(status(body).glance?.line2).toMatchObject({ reason: 'last 2.4 s · all requests' });
   body.runtime.phase = 'prefill'; delete body.runtime.server.rates;
   expect(presentLive(scope(body)).hero?.body).toMatchObject({ kind: 'word', unit: 'Reading prompt · waiting for update' });

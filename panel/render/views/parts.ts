@@ -22,9 +22,6 @@ const icon = (path: string, className = ''): Raw =>
   html`<svg class="scope-icon${className ? ` ${className}` : ''}" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false"><path d="${path}"/></svg>`;
 export const ICON = {
   measure: icon(ICON_PATH.measure),
-  close: icon(ICON_PATH.close),
-  down: icon(ICON_PATH.down),
-  up: icon(ICON_PATH.up),
   right: icon(ICON_PATH.right),
   pause: icon(ICON_PATH.pause),
   play: icon(ICON_PATH.play),
@@ -32,6 +29,8 @@ export const ICON = {
   mark: icon(ICON_PATH.mark, 'scope-mark'),
   info: icon(ICON_PATH.info),
 } as const;
+/** Legacy Turn-stats markup constructs its glyphs only when that unbundled renderer is used. */
+export const legacyIcon = (name: 'close' | 'down' | 'up'): Raw => icon(ICON_PATH[name]);
 
 /** Which disclosures are open, by element id; the one place a view reads it. */
 export type Open = ReadonlySet<string>;

@@ -28,10 +28,18 @@ reported progress takes precedence over speed. The sidebar suppresses empty meas
 tool, waiting, and stopped states when observed, and clears live rates on stale data or cancellation. A completed
 measurement is labeled **Last … · avg.**; it is never reused as a live speed. Engine results based only on the last
 observed request remain available in detailed reply history, without being promoted to a final sidebar average.
+Native completed results say **Last chat · matched** only when their interval belongs to the currently selected chat's
+observed window. A stored attribution verdict alone cannot identify that chat; otherwise the result says **Last engine**.
 
-The full Live view uses the same precedence. **Engine readings** and **Engine trend** keep runtime measurements
-separate from the headline's chat estimate. Existing history, captures, and baselines retain their runtime timing
+The full Live view uses the same precedence. Visible supporting facts have a separate **Engine** heading, including
+when the headline is a chat estimate. **Engine readings** and **Engine trend** keep runtime measurements
+separate from the headline's chat estimate. Per-request facts clear when chat output stops; engine-wide request,
+allocation and recent-latency readings may remain as fresh Engine context. Existing history, captures, and baselines retain their runtime timing
 meaning; chat delivery windows and completed-step averages are not merged into those series.
+
+After completion, visible facts belong to the exact labeled result: available output count, observed request duration,
+and first-token time for a runtime completion, or **Step duration** for a companion completion. Step duration includes
+waiting before delivery. Scope never borrows an unrelated engine reply's output or latency for a chat result.
 
 ## Chat estimates and completion timing
 
@@ -46,6 +54,11 @@ waiting before delivery, so the result is neither a live delivery-window rate no
 or ambiguous replies can finish without a rate. Tool use, cancellation, stream gaps, and identity changes reset live
 estimates. Expired, future, paused, and stale observations cannot appear live. The snapshot extension records scope,
 basis, timing basis, observation interval, and freshness independently of the runtime measurement fields.
+
+A view may retain one eligible completed chat result in memory after the private telemetry expires. It remains labeled
+**Last chat · avg.**, with its original timing, while that chat is idle and the view has a fresh service snapshot.
+A new reply, chat/model or connection change, service restart, or later chat lifecycle observation clears it. It is not
+persisted, cannot restore a live reading, and is discarded when that view closes. Telemetry expiry is never extended.
 
 ## Units
 

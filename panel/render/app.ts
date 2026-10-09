@@ -55,14 +55,15 @@ export class ScopeApp {
 
   /** Everything the presenters read, from the state and the pipeline. */
   input(): ScopeInput {
-    const { state, pipeline, client, version } = this.p, snapshot = state.snapshot, last = state.lastRequest;
+    const { state, pipeline, client, version } = this.p, snapshot = state.snapshot, last = state.lastRequest, chat = pipeline.frame().chat, window = pipeline.window();
     return {
       now: client.now(), version, snapshot, fresh: snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh, frame: state.frame, stale: state.stale,
       paused: state.userPaused, efficient: state.efficient, attribution: pipeline.liveLabel(snapshot), chatRuntime: pipeline.chatRuntime(),
       last: last ? { completion: last, label: pipeline.label(last), ...pipeline.usualFor(last, snapshot?.connection.runtime ?? null) } : null,
-      next: pipeline.nextState, samples: state.signal.points, turnStartAt: pipeline.window()?.startedAt ?? null,
-      measurementScope: this.p.prefs.value.measurementScope ?? 'chat', sessionModel: pipeline.frame().chat?.model ?? null,
-      chatActivity: pipeline.frame().chat ? pipeline.frame().chat!.busy ? 'busy' : 'idle' : null, chatIsLocal: pipeline.chatIsLocal(),
+      next: pipeline.nextState, samples: state.signal.points, window, turnStartAt: window?.startedAt ?? null,
+      measurementScope: this.p.prefs.value.measurementScope ?? 'chat', sessionModel: chat?.model ?? null,
+      chatActivity: chat ? window?.endedAt === null || chat.busy ? 'busy' : 'idle' : null, chatIsLocal: pipeline.chatIsLocal(),
+      lastChat: state.lastChat,
     };
   }
   /** Frame-side callouts: a poll without a body, or no fresh reading before the deadline. */
@@ -96,9 +97,9 @@ export class ScopeApp {
     const glance = this.node('compact-glance');
     glance.hidden = !compact;
     if (compact) {
-      morph(glance, sessionMarkup(presentSessionSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution, turn: null,
-        vsUsual: s.last?.vsUsual ?? null, sparkline: null, chatIsLocal: s.chatIsLocal ?? null, expanded: false, tipDismissed: true, fresh: s.fresh, paused: s.paused, next: s.next,
-        efficient: state.efficient, measurementScope: s.measurementScope, sessionModel: s.sessionModel, chatActivity: s.chatActivity,
+      morph(glance, sessionMarkup(presentSessionSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution,
+        chatIsLocal: s.chatIsLocal ?? null, fresh: s.fresh, paused: s.paused, next: s.next, window: s.window,
+        efficient: state.efficient, measurementScope: s.measurementScope, sessionModel: s.sessionModel, chatActivity: s.chatActivity, lastChat: s.lastChat,
         last: s.last && { completion: s.last.completion, label: s.last.label } }), null, true));
       return;
     }

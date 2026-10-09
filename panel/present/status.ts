@@ -1,6 +1,7 @@
 import type { Severity } from '../../src/contract/alerts.ts';
 import type { Basis } from '../../src/contract/capabilities.ts';
 import type { CompletionV2 } from '../../src/contract/completion.ts';
+import type { ChatMeasurement } from '../../src/contract/chat.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { TrendV2 } from '../../src/contract/trend.ts';
 import type { AttributionLabel } from '../attribution/join.ts';
@@ -42,6 +43,7 @@ export interface StatusSectionInput {
   measurementScope?: 'chat' | 'engine';
   sessionModel?: string | null;
   chatActivity?: 'idle' | 'busy' | null;
+  lastChat?: ChatMeasurement | null;
 }
 export interface StatusRow { label: string; value: string; basis: string | null }
 export type DotTone = 'live' | 'prefill' | 'warn' | 'bad' | 'idle';

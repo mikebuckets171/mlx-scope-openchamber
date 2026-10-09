@@ -236,6 +236,8 @@ test('current first-token timing comes only from the current request capability'
     preview.setPreviewPatch({ runtime: body.runtime, capabilities: body.capabilities });
   });
   await expect(frame.locator('#first-token')).toContainText('0.85 s');
+  await expect(frame.locator('#first-token [data-basis="reported"]')).toBeVisible();
+  await expect(frame.locator('#engine-facts')).toBeVisible();
   await expect(frame.locator('#request-details')).toHaveJSProperty('open', false);
   await expect(frame.locator('#metrics')).toBeHidden();
   if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
@@ -269,7 +271,7 @@ test('the 280 px Session summary keeps performance readable without repeating a 
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
   await expect(frame.locator('.ws-reading')).toContainText('26.4');
   await expect(frame.locator('.ws-key-stats, .ts-rows')).toHaveCount(0);
-  await expect(frame.locator('#ws')).not.toContainText('First token');
+  await expect(frame.locator('.ws-support')).toHaveText('Engine · First token 0.85 s');
   await expect(frame.locator('#ws')).not.toContainText('Context used');
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
   const fit = await frame.locator('#ws').evaluate(el => ({ height: el.getBoundingClientRect().height,

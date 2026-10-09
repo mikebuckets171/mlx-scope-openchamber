@@ -96,7 +96,7 @@ export const inspect = (options: boolean | { openAll: boolean; backdrop: string[
   for (const el of Array.from(document.querySelectorAll<HTMLElement>('[title]'))) {
     // Session model names may ellipsize and provenance explains its source in a title. Their visible labels still
     // identify the model and scope; neither is a tooltip-only control or an omitted measurement.
-    if (el.closest('#ws[data-presentation="session"]') && el.matches('.ws-phase, .ws-model, .ws-scope, .ws-note, .ws-label, .ws-warning, .ws-measurement, .speed-row dd')) continue;
+    if (el.closest('#ws[data-presentation="session"]') && el.matches('.ws-phase, .ws-model, .ws-scope, .ws-note, .ws-label, .ws-warning, .ws-measurement, .ws-support, .speed-row dd')) continue;
     if (el.closest('#scope')) problems.push(`tooltip-only text on <${el.tagName.toLowerCase()}>: "${el.title.slice(0, 30)}"`);
   }
   for (const c of Array.from(document.querySelectorAll('.plot, .ws-spark'))) if (c.getAttribute('role') !== 'img' || !c.getAttribute('aria-label')) problems.push(`chart without role="img" and a summary: ${c.className}`);

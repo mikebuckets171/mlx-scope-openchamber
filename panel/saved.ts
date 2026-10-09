@@ -2,7 +2,7 @@ import type { HostClient } from '@openchamber/sdk';
 import type { Capture } from './capture.ts';
 import { capturedRate } from './capture.ts';
 import { gib } from './present/format.ts';
-import type { Reading } from './present/reading.ts';
+import type { LegacyReading as Reading } from './compat/reading.ts';
 
 export const SAVED_LIMIT = 12;
 export const SAVED_KEY = 'observation.v1.';

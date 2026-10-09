@@ -1,7 +1,7 @@
 # llama · /v2?state=llama
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="processing" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="processing" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Working
@@ -17,15 +17,13 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #workspace-action: Server & Mac details
 #panels
 #panel-live {aria-labelledby="tab-live"}
-#view-live: CPU 22% Memory allocated 21.8 / 48 GiB
-#hero {aria-label="Model activity"}: Speed unavailable for one request: 2 slots are busy ·
-h2: Working
-#model: example-8b-instruct-q4_k_m.gguf
+#view-live
+#hero {aria-label="Activity and speed"}: Speed unavailable for one request: 2 slots are busy ·
+h2.instrument-phase {data-tone="normal"}: Working
 span.val {data-basis="derived"}: Generation 98.4 tok/s over the last 60 sCalculated from llama-server
-#engine-readings: Engine readings
+#engine-facts {aria-label="Engine" data-count="1"}: Engine | Active requests | 2 | Queue clear
 #reply-strip: Measure next reply
-h2: This Mac
-#scope-version: <version>
+#measurement-details: Measurement details
 #freshness: Updated just now
 live #connection: llama-server
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
@@ -33,7 +31,7 @@ live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="processing" data-stale="false" data-surface="panel"}: MLX Scope
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="processing" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #status-pill
 #phase: Working
@@ -50,31 +48,30 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panel-live {aria-labelledby="tab-live"}
 #panel-server {aria-labelledby="server-title"}: Back to Live
 #server-title: Server & Mac details
-[server-slots]: i 2 of 4 busy Slot 0 412 decoded · 3,180 prompt 32.8K context Slot 1 1,290 decoded · 8,420 prompt 32.8K context Slot 2 Waiting 32.8K context Slot 3 Waiting 32.8K context
+[server-slots]: 2 of 4 busy Slot 0 412 decoded · 3,180 prompt 32.8K context Slot 1 1,290 decoded · 8,420 prompt 32.8K context Slot 2 Waiting 32.8K context Slot 3 Waiting 32.8K context
 h2: Slots
 span.chip {data-tone="accent"}: Busy
 span.chip {data-tone="accent"}: Busy
 span.chip: Idle
 span.chip: Idle
-[server-rates]: i last 60 s Prefill speed Generation speed Processing · deferred
+[server-rates]: last 60 s Prefill speed Generation speed Processing · deferred
 h2: All server speeds
-span.val {data-basis="derived"}: 812 tok/scalculated
-span.val {data-basis="derived"}: 98.4 tok/scalculated
+span.val {data-basis="derived"}: 812 tok/s | calculated
+span.val {data-basis="derived"}: 98.4 tok/s | calculated
 span.val {data-basis="reported"}: 2 · 0
-[server-spec]: i last 10 min Draft acceptance Accepted
+[server-spec]: last 10 min Draft acceptance Accepted
 h2: Draft token reuse
-span.val {data-basis="derived"}: 70%calculated
+span.val {data-basis="derived"}: 70% | calculated
 span.val {data-basis="reported"}: 3,584 of 5,120
 [server-catalog]: 1 loaded · 1 listed example-8b-instruct-q4_k_m.gguf Loaded 32.8K context
 h2: Model inventory
 span.chip: gguf
 #server-runtime-details: Server details Ready
-#machine {aria-label="This Mac" data-stale="false"}: i CPU 22% Memory allocated 21.8 / 48 GiB Swap 1.1 GiB
+#machine {aria-label="This Mac" data-stale="false"}: CPU 22% Memory allocated 21.8 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
-[mac-thermal]: Heat status i Normal
+[mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#scope-version: <version>
 #freshness: Updated just now
 live #connection: llama-server
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.

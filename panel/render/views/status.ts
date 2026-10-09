@@ -2,13 +2,13 @@ import { BASIS_WORD } from '../../present/parts.ts';
 import { SEVERITY_WORD } from '../../present/copy.ts';
 import type { DotTone, GlanceLine1, GlanceLine2, GlanceNotice, Spark, StatusSectionView } from '../../present/status.ts';
 import { html, type Raw } from '../html.ts';
-import { chip, chips, ICON } from './parts.ts';
+import { chip, chips, legacyIcon } from './parts.ts';
 
 // The glance component (G2): the Work Status section at 280 px and the rail's Compact mode. Line 1: phase dot · model ·
 // reading · label; line 2: sparkline, chips, the view switch; line 3: the top alert. Turn stats replaces it when chosen.
 
 const dot = (tone: DotTone): Raw => html`<span class="ws-dot" data-tone="${tone}" aria-hidden="true"></span>`;
-const toggle = (expanded: boolean): Raw => html`<button class="ws-toggle" id="ws-toggle" type="button" data-action="status-toggle" aria-expanded="${String(expanded)}" aria-label="${expanded ? 'Show the glance view' : 'Show turn stats'}">${expanded ? ICON.up : ICON.down}</button>`;
+const toggle = (expanded: boolean): Raw => html`<button class="ws-toggle" id="ws-toggle" type="button" data-action="status-toggle" aria-expanded="${String(expanded)}" aria-label="${expanded ? 'Show the glance view' : 'Show turn stats'}">${legacyIcon(expanded ? 'up' : 'down')}</button>`;
 /** Fewer than 2 readings: no chart. The line says so only when nothing more useful needs the room. */
 const spark = (s: Spark | null, size = ''): Raw | '' => s
   ? html`<span class="ws-spark${size ? ` ${size}` : ''}" role="img" aria-label="${s.label}"><svg viewBox="0 0 100 16" preserveAspectRatio="none" aria-hidden="true"><path class="axis" d="M0 15.5H100"/><path d="${s.path}"/></svg></span>`
@@ -29,7 +29,7 @@ const line2 = (l: GlanceLine2 | null, compact: boolean): Raw | '' => {
   }
 };
 
-const notice = (n: GlanceNotice | null): Raw | '' => n ? html`<div class="connection-diagnosis" data-severity="info" role="${n.dismiss === 'tip' ? 'note' : 'status'}"><span>${n.text}${n.action ? ` · ${n.action}` : ''}</span><button class="close" type="button" data-action="dismiss-${n.dismiss}" aria-label="${n.dismiss === 'tip' ? 'Dismiss tip' : 'Dismiss'}">${ICON.close}</button></div>` : '';
+const notice = (n: GlanceNotice | null): Raw | '' => n ? html`<div class="connection-diagnosis" data-severity="info" role="${n.dismiss === 'tip' ? 'note' : 'status'}"><span>${n.text}${n.action ? ` · ${n.action}` : ''}</span><button class="close" type="button" data-action="dismiss-${n.dismiss}" aria-label="${n.dismiss === 'tip' ? 'Dismiss tip' : 'Dismiss'}">${legacyIcon('close')}</button></div>` : '';
 
 /** The Session pane gives the model its own row and separates any alert; Compact keeps its original height. */
 export const statusHeight = (view: StatusSectionView, compact = false): number => Math.min(compact ? 160 : 200, view.height + (view.glance?.line1.model ? 24 : 0) + (!compact && view.glance?.alert ? 8 : 0) + (compact ? 0 : (view.glance?.metrics?.length ?? 0) * 20) + (view.glance?.line1.since && view.glance.line1.model ? 16 : 0));

@@ -47,7 +47,9 @@ test('decode: one hero speed with its basis ⓘ, context used, the request tiles
   const view = presentLive(inputOf('decode')), hero = view.hero!;
   expect(heroKind(inputOf('decode'))).toBe('decode');
   expect(hero.title).toBe('Example-27B-4bit');
-  expect(hero.body).toMatchObject({ kind: 'decode', rate: '26.4', source: 'From oMLX', chart: null });
+  expect(hero.body).toMatchObject({ kind: 'decode' });
+  expect(hero.instrument.measurement).toMatchObject({ text: '26.4', basis: 'reported' });
+  expect(hero.engineTrend?.chart).toBeNull();
   expect(hero.attr?.chip).toEqual({ text: 'Likely this chat', attr: 'inferred' });
   expect(hero.attr?.tip.paras.join(' ')).toContain('Alternating requests from another chat can’t be ruled out.');
   expect(hero.context?.used).toBe('52.7K of 131K tokens');
@@ -92,7 +94,9 @@ test('attribution chips: inferred and armed say so; server-wide always names its
 
 test('prefill: progress, counts and the server\'s own estimate lead; three tiles while nothing is output', () => {
   const view = presentLive(inputOf('prefill'));
-  expect(view.hero!.body).toMatchObject({ kind: 'prefill', percent: '64%', counts: '5,824 of 9,100 new tokens read', eta: '18 s', rate: '185' });
+  expect(view.hero!.body).toMatchObject({ kind: 'prefill', counts: '5,824 of 9,100 new tokens read', eta: '18 s' });
+  expect(view.hero!.instrument.measurement).toMatchObject({ text: '64%', kind: 'progress' });
+  expect(view.hero!.speeds.speeds[0]?.value).toBe('185');
   expect(view.tiles.map(tile => tile.label)).toEqual(['Elapsed', 'Input reused', 'Requests']);
   const stalled = presentLive(inputOf('prefill-stall'));
   expect(stalled.hero!.body).toMatchObject({ kind: 'prefill', eta: null });
@@ -134,7 +138,7 @@ test('needs approval and version skew replace every view with the S11 copy, and 
   expect(presentHeader(approval)).toMatchObject({ phase: 'Needs approval', connection: null, data: { approval: true } });
   expect(frameCard(inputOf('decode', { snapshot: null, frame: { reason: 'contract_mismatch', message: null } }))).toBe('restart');
   const copy = everything(APPROVAL);
-  expect(copy).toContain('MLX Scope 2.0 needs one approval');
+  expect(copy).toContain('MLX Scope needs one approval');
   expect(copy).not.toMatch(/sessions|project names|folders|chat titles/i);
   for (const path of ['/usr/sbin/ioreg', '/usr/bin/notifyutil', '/usr/sbin/lsof', '/usr/bin/footprint', '~/.lmstudio/bin/lms', '~/.cache/lm-studio/bin/lms',
     '/opt/homebrew/bin/macmon', '/usr/local/bin/macmon', 'vm_stat, sysctl']) expect(copy).toContain(path);
@@ -190,7 +194,7 @@ test('Work Status glance: 56 px, 80 with an alert, 24 for a non-local chat, 96 w
   expect(statusOf('offline').glance!.line1).toMatchObject({ dot: 'bad', title: 'oMLX stopped responding' });
   expect(statusOf('splash-recovering').glance!.line2).toEqual({ kind: 'note', text: 'Scope reads its status every 30 s' });
   const approval = presentStatusSection({ ...statusInputFrame('needs_approval') });
-  expect(approval).toMatchObject({ height: 56, glance: { line1: { title: 'MLX Scope 2.0 needs one approval' } } });
+  expect(approval).toMatchObject({ height: 56, glance: { line1: { title: 'MLX Scope needs one approval' } } });
   // A withheld live reading: a short chip whose reason is line 2.
   const withheld = statusOf('decode', { attribution: { kind: 'server-wide', reason: 'model-differs' } });
   expect(withheld.glance!.line1).toMatchObject({ chip: { text: 'All server activity' }, describedBy: true });

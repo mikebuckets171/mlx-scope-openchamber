@@ -8,6 +8,7 @@ import { presentSessionSection } from './session.ts';
 import { presentLive } from './live.ts';
 import { SERVER_WIDE } from './scope.ts';
 import type { StatusSectionInput } from './status.ts';
+import type { ChatMeasurement } from '../../src/contract/chat.ts';
 
 const inputOf = (state: string, extra: Partial<StatusSectionInput> = {}, patch: (body: Record<string, any>) => void = () => {}): StatusSectionInput => {
   const body = structuredClone(mockBody(state)); patch(body);
@@ -19,10 +20,52 @@ const inputOf = (state: string, extra: Partial<StatusSectionInput> = {}, patch: 
     last: completion ? { completion, label: SERVER_WIDE } : null, ...extra };
 };
 
+test('a retained completed chat average remains labeled and never supplies a live reading', () => {
+  const lastChat: ChatMeasurement = { scope: 'chat', phase: 'complete', freshness: 'last', basis: 'reported-output',
+    timingBasis: 'completed-step', tokensPerSecond: 35, observedAtMs: MOCK_NOW - 60_000, expiresAtMs: MOCK_NOW - 45_000,
+    observation: { startedAtMs: MOCK_NOW - 62_000, endedAtMs: MOCK_NOW - 60_000 } };
+  const input = inputOf('idle', { lastChat, chatActivity: 'idle', chatIsLocal: false });
+  expect(presentSessionSection(input)).toMatchObject({ phase: 'Complete', measurement: { label: 'Last chat · avg.', live: false,
+    text: '35.0', result: { label: 'Last chat result', durationMs: 2_000, timing: 'step' } } });
+  for (const extra of [{ chatActivity: 'busy' as const }, { paused: true }, { fresh: false }, { measurementScope: 'engine' as const }]) {
+    expect(presentSessionSection({ ...input, ...extra }).measurement?.label).not.toBe('Last chat · avg.');
+  }
+  expect(presentSessionSection({ ...input, lastChat: { ...lastChat, freshness: 'live' } }).measurement).toBeNull();
+  const current = { ...lastChat, observedAtMs: MOCK_NOW, expiresAtMs: MOCK_NOW + 15_000 };
+  const busy = { ...input, chatActivity: 'busy' as const, snapshot: { ...input.snapshot!, chat: current } };
+  expect(presentSessionSection(busy)).toMatchObject({ phase: 'Waiting', measurement: null });
+});
+
+test('native completed facts belong to the exact last average and omit unknown duration', () => {
+  const input = inputOf('idle', { chatActivity: 'idle' });
+  input.last = { label: SERVER_WIDE, completion: { seq: 42, finishedAt: MOCK_NOW - 1_000, startedAt: MOCK_NOW - 4_000,
+    model: 'fixture', basis: 'reported', decodeTps: 30, outputTokens: 90, ttftMs: 120, overlapped: false, host: {} } };
+  expect(presentSessionSection(input).measurement?.result).toEqual({ label: 'Last engine result', timing: 'request',
+    outputTokens: 90, ttftMs: 120, durationMs: 3_000 });
+  input.last.completion.startedAt = null;
+  expect(presentSessionSection(input).measurement?.result).not.toHaveProperty('durationMs');
+});
+
+test('a stored native verdict labels this chat only inside its currently selected window', () => {
+  const input = inputOf('idle', { chatActivity: 'idle', window: { tag: '00000000',
+    startedAt: MOCK_NOW - 5_000, endedAt: MOCK_NOW, outcome: 'completed' } });
+  input.last = { label: { kind: 'inferred' }, completion: { seq: 42, finishedAt: MOCK_NOW - 1_000, startedAt: MOCK_NOW - 4_000,
+    model: 'fixture', basis: 'reported', decodeTps: 30, outputTokens: 90, overlapped: false, host: {} } };
+  expect(presentSessionSection(input).measurement?.label).toBe('Last chat · matched · avg.');
+  for (const window of [null, { ...input.window!, startedAt: MOCK_NOW - 500 },
+    { ...input.window!, endedAt: MOCK_NOW - 2_000 }, { ...input.window!, startedAt: null }]) {
+    expect(presentSessionSection({ ...input, window }).measurement?.label).toBe('Last engine · avg.');
+  }
+  expect(presentSessionSection({ ...input, window: { ...input.window!, startedAt: null, joinedAt: MOCK_NOW - 5_000 } }).measurement?.label)
+    .toBe('Last chat · matched · avg.');
+  input.last.completion.startedAt = null;
+  expect(presentSessionSection(input).measurement?.label).toBe('Last engine · avg.');
+});
+
 test('Session leads with current performance despite a remembered expanded preference and older reply', () => {
   const input = inputOf('decode'), view = presentSessionSection(input), markup = sessionMarkup(view).markup;
-  expect(view).toMatchObject({ mode: 'summary', phase: 'Generating', value: { text: '26.4', unit: 'tok/s', basis: 'reported' },
-    scope: { text: 'Engine', attr: 'server' }, age: null });
+  expect(view).toMatchObject({ phase: 'Generating', measurement: { text: '26.4', unit: 'tok/s', basis: 'reported' },
+    measurementScope: 'chat' });
   expect(markup).toContain('Open MLX Scope');
   expect(markup).not.toMatch(/status-toggle|ts-rows|ws-spark|ws-key-stats|class="chip|Recording reply history|Replace Turn stats/);
   expect(markup).not.toContain('Last reply');
@@ -34,9 +77,9 @@ test.each(['processing', 'queued', 'decode'] as const)('current %s without speed
   });
   input.last = { completion: input.last!.completion, label: { kind: 'inferred' } };
   const view = presentSessionSection(input);
-  expect(view.value).toBeNull();
-  expect(view.age).toBeNull();
-  expect(view.scope).toEqual({ text: 'This chat', detail: 'Whole engine · several requests at once', attr: 'server' });
+  expect(view.measurement).toBeNull();
+  expect(view.support).toBeNull();
+  expect(view.measurementScope).toBe('chat');
   expect(view.phase).not.toBe('Last reply');
   expect(sessionMarkup(view).markup).not.toContain('Chat · matched · prompt');
 });
@@ -48,7 +91,7 @@ test('an idle reply without measured speed keeps current idle state and warning 
       model: 'Example-27B-4bit', basis: 'reported', overlapped: false, host: {} }];
   });
   const view = presentSessionSection(input), markup = sessionMarkup(view).markup;
-  expect(view).toMatchObject({ phase: 'Idle', value: null, age: null,
+  expect(view).toMatchObject({ phase: 'Idle', measurement: null,
     alert: { label: 'Memory pressure · warning', value: '', severity: 'warning' } });
   expect(markup).toContain('Memory pressure');
   expect(markup).not.toMatch(/Last reply|no turn summary|class="chip|ws-dot|ws-severity/);
@@ -58,8 +101,8 @@ test('an idle reply without measured speed keeps current idle state and warning 
 test('an idle instrument does not promote the measured last reply into a current speed', () => {
   const view = presentSessionSection(inputOf('idle'));
   expect(view.phase).toBe('Idle');
-  expect(view.value).toBeNull();
-  expect(view.age).toBeNull();
+  expect(view.measurement).toBeNull();
+  expect(view.support).toBeNull();
   expect(view.speeds.speeds.every(speed => speed.value === null)).toBe(true);
   expect(sessionMarkup(view).markup).not.toContain('tok/s');
 });
@@ -69,7 +112,6 @@ test('critical memory pressure retains semantic severity in the compact summary'
   expect(view.alert).toMatchObject({ label: 'Memory pressure · critical', value: '', severity: 'critical' });
   const markup = sessionMarkup(view).markup;
   expect(markup).toContain('data-severity="critical"');
-  expect(view.height).toBeLessThanOrEqual(200);
 });
 
 test('the sidebar shows only the priority warning and keeps secondary alerts in full details', () => {
@@ -84,19 +126,19 @@ test('the sidebar shows only the priority warning and keeps secondary alerts in 
 
 test('an active next-reply measurement remains labelled and cancellable in Session', () => {
   const armed = presentSessionSection(inputOf('idle', { next: { kind: 'armed', at: MOCK_NOW - 12_000 } }));
-  expect(armed).toMatchObject({ phase: 'Idle', age: null, cancelMeasurement: true });
+  expect(armed).toMatchObject({ phase: 'Idle', cancelMeasurement: true });
   expect(armed.note).toMatch(/^Next reply armed/);
   expect(sessionMarkup(armed).markup).toContain('data-action="next-cancel">Cancel');
   const measuring = presentSessionSection(inputOf('decode', { next: { kind: 'measuring', startedAt: MOCK_NOW - 9_000, steps: [] } }));
-  expect(measuring).toMatchObject({ phase: 'Generating', age: null, cancelMeasurement: true,
-    value: { text: '26.4' }, note: 'Recording reply · 9.0 s' });
+  expect(measuring).toMatchObject({ phase: 'Generating', cancelMeasurement: true,
+    measurement: { text: '26.4' }, note: 'Recording reply · 9.0 s' });
 });
 
 test('retained readings never appear as live speed and freshness can recover', () => {
   const input = inputOf('decode'), retained = presentSessionSection({ ...input, fresh: false });
-  expect(retained).toMatchObject({ phase: 'Waiting for update', value: null, age: null, tone: 'warning' });
+  expect(retained).toMatchObject({ phase: 'Waiting for update', measurement: null, tone: 'warning' });
   expect(sessionMarkup(retained).markup).not.toContain('tok/s');
-  expect(presentSessionSection({ ...input, fresh: true }).value?.text).toBe('26.4');
+  expect(presentSessionSection({ ...input, fresh: true }).measurement?.text).toBe('26.4');
 });
 
 test('prefill and generation keep distinct current readings and attribution', () => {
@@ -104,16 +146,16 @@ test('prefill and generation keep distinct current readings and attribution', ()
   expect(view.phase).toBe('Reading prompt');
   expect(view.speeds.speeds[0]).toMatchObject({ label: 'Prefill speed', value: '185', basis: 'reported' });
   expect(view.speeds.speeds[1]).toMatchObject({ label: 'Generation speed', value: null, detail: 'No text being generated' });
-  expect(view.scope?.text).toBe('Chat · matched · prompt');
+  expect(view.measurement?.label).toBe('Chat · matched · prompt');
   expect(presentSessionSection(inputOf('prefill')).speeds.speeds[0].value).toBe('185');
 });
 
 test('Splash current rates are independently derived and server-wide', () => {
   const view = presentSessionSection(inputOf('splash-mixed'));
-  expect(view).toMatchObject({ phase: 'Reading and generating', scope: { text: 'Engine', attr: 'server' } });
+  expect(view).toMatchObject({ phase: 'Reading and generating', measurement: { label: 'Engine' } });
   expect(view.speeds.speeds).toMatchObject([{ value: '612', detail: 'Calculated · last 3.2 s' }, { value: '43.8', detail: 'Calculated · last 4.0 s' }]);
   expect(sessionMarkup(view).markup).not.toContain('47.2');
-  expect(presentSessionSection(inputOf('splash-stale')).value).toBeNull();
+  expect(presentSessionSection(inputOf('splash-stale')).measurement).toBeNull();
   const collecting = presentSessionSection(inputOf('splash-prefill-waiting'));
   expect(collecting.speeds.speeds[0]).toMatchObject({ value: null, detail: 'Measuring…' });
   expect(sessionMarkup(collecting).markup).not.toContain('fresh output');
@@ -128,17 +170,15 @@ test('Energy saving explains an absent active recent speed without hiding a vali
 
 test('a cloud chat stays quiet without borrowing engine measurements or local warnings', () => {
   const view = presentSessionSection(inputOf('pressure', { chatIsLocal: false }));
-  expect(view).toMatchObject({ mode: 'summary', height: 76, phase: 'Ready',
-    tone: 'normal', value: null, model: null, alert: null, cancelMeasurement: false });
+  expect(view).toMatchObject({ phase: 'Ready',
+    tone: 'normal', measurement: null, alert: null, cancelMeasurement: false });
   expect(sessionMarkup(view).markup).not.toMatch(/Memory pressure|tok\/s|ws-model/);
   expect(sessionMarkup(view).markup).toContain('Open MLX Scope');
 });
 
-test('Session keeps model matching metadata without repeating the host model in its visible instrument', () => {
+test('Session does not repeat the host model in its visible instrument', () => {
   const hostile = 'example-org/a-long-model-name-27B-4bit<image>"\'&';
   const view = presentSessionSection(inputOf('decode', {}, body => { body.runtime.request.model = hostile; }));
-  expect(view.modelTitle).toBe(hostile);
-  expect(view.model).not.toBeNull();
   const markup = sessionMarkup(view).markup;
   expect(markup).not.toContain(esc(hostile));
   expect(markup).not.toContain('class="ws-model"');
@@ -148,8 +188,6 @@ test('Session keeps model matching metadata without repeating the host model in 
 test('every fixture renders a bounded Session summary without raw placeholders or nested statistics', () => {
   for (const state of MOCK_STATES) {
     const view = presentSessionSection(inputOf(state)), markup = sessionMarkup(view).markup;
-    expect(view.height, state).toBeLessThanOrEqual(200);
-    expect(view.height, state).toBeGreaterThanOrEqual(24);
     expect(markup, state).not.toMatch(/undefined|NaN|\[object|status-toggle|ts-rows|ws-spark|ws-key-stats|class="chip/);
   }
 });
@@ -176,7 +214,9 @@ test('Splash shows reported whole-prompt counts separately from its independentl
   const view = presentSessionSection(inputOf('splash-progress'));
   expect(view.progress).toMatchObject({ text: '64%', detail: 'Prompt read · 3840 of 6000 tokens', basis: 'reported' });
   expect(view.speeds.speeds[0]).toMatchObject({ value: '612', basis: 'derived' });
-  expect(presentSessionSection(inputOf('splash-progress-held')).progress?.text).toBe('64% (last seen)');
+  expect(presentSessionSection(inputOf('splash-progress-held')).measurement).toMatchObject({
+    text: '64%', label: 'Engine · prompt · last seen', live: false,
+  });
   expect(presentSessionSection(inputOf('splash-progress', { paused: true })).progress).toBeNull();
   const unsupported = inputOf('splash-progress'); delete unsupported.snapshot!.capabilities['request.prefillProgress'];
   expect(presentSessionSection(unsupported).progress).toBeNull();
@@ -186,20 +226,18 @@ const chatSample = (patch: Record<string, unknown> = {}) => ({ scope: 'chat', ba
   phase: 'generating', tokensPerSecond: 19.2, observedAtMs: MOCK_NOW, expiresAtMs: MOCK_NOW + 5_000,
   observation: { startedAtMs: MOCK_NOW - 3_000, endedAtMs: MOCK_NOW }, freshness: 'live', ...patch });
 
-test('activity changes keep Session controls in the same sized section while withholding absent readings', () => {
+test('activity changes retain Session structure while withholding absent readings', () => {
   const views = ['generating', 'reasoning', 'tool', 'waiting', 'complete', 'cancelled'].map(phase =>
     presentSessionSection(inputOf('decode', {}, body => {
       body.chat = chatSample({ phase, tokensPerSecond: ['generating', 'reasoning'].includes(phase) ? 19.2 : undefined });
     })));
   for (const view of views) {
     const markup = sessionMarkup(view).markup;
-    expect(view.height, view.phase).toBe(76);
     expect(markup).toContain('<div class="ws-activity">');
     expect(markup).not.toContain('>—<');
     expect(markup.includes('ws-measurement'), view.phase).toBe(view.measurement !== null);
   }
   const stale = presentSessionSection(inputOf('decode', { fresh: false }));
-  expect(stale.height).toBe(76);
   expect(stale.measurement).toBeNull();
 });
 
@@ -272,7 +310,7 @@ test('Whole engine remains usable while the selected chat is cloud; the default 
   const input = inputOf('decode', { chatIsLocal: false });
   expect(presentSessionSection(input).measurement).toBeNull();
   const view = presentSessionSection({ ...input, measurementScope: 'engine' });
-  expect(view.mode).toBe('summary');
+  expect(view.measurementScope).toBe('engine');
   expect(view.measurement?.label).toBe('Engine');
 });
 
@@ -288,9 +326,9 @@ test('the native scope menu is accessible and empty measurement lanes are omitte
   const view = presentSessionSection(inputOf('decode')), markup = sessionMarkup(view).markup;
   expect(markup).toContain('aria-label="Measurement scope"');
   expect(markup).toContain('<option value="chat" selected>This chat</option>');
-  expect(markup.match(/class="ws-line/g)).toHaveLength(2);
+  expect(markup.match(/class="ws-line/g)).toHaveLength(3);
+  expect(markup).toContain(view.support!.text);
   expect(markup).not.toMatch(/Prefill speed|Prompt progress|Generation speed|>—</);
-  expect(view.height).toBe(76);
   expect(sessionMarkup(presentSessionSection(inputOf('decode', { measurementScope: 'engine' }))).markup).toContain('<option value="engine" selected>Whole engine</option>');
 });
 
@@ -302,7 +340,7 @@ test('waiting for chat output preserves supported prompt progress while the engi
 test('cloud delivery always remains a chat estimate even when a native rate is present', () => {
   const input = inputOf('pressure', { chatIsLocal: false }, body => { body.chat = chatSample(); });
   const view = presentSessionSection(input);
-  expect(view).toMatchObject({ phase: 'Generating', alert: null, model: null,
+  expect(view).toMatchObject({ phase: 'Generating', alert: null,
     measurement: { label: 'Chat · est.', text: '19.2', basis: 'estimate', live: true } });
   expect(view.measurement!.detail).toContain('provider buffering');
   expect(view.speeds.speeds).toEqual([]);
@@ -316,7 +354,7 @@ test('cloud delivery always remains a chat estimate even when a native rate is p
 test.each([['reasoning', 'Reasoning'], ['tool', 'Using tools'], ['waiting', 'Waiting'], ['cancelled', 'Stopped']] as const)(
   'cloud %s is explicit and never borrows the local engine speed', (phase, label) => {
     const input = inputOf('decode', { chatIsLocal: false }, body => { body.chat = chatSample({ phase, tokensPerSecond: phase === 'reasoning' ? 19.2 : undefined }); });
-    expect(presentSessionSection(input)).toMatchObject({ phase: label, height: 76 });
+    expect(presentSessionSection(input)).toMatchObject({ phase: label });
     expect(presentSessionSection(input).measurement?.label ?? null).toBe(phase === 'reasoning' ? 'Chat · est.' : null);
   });
 
@@ -337,4 +375,27 @@ test('cloud full view excludes local diagnostics, charts, older replies and capt
   expect(view.mac).toBeNull();
   expect(view.hero).toMatchObject({ chatOnly: true, body: null, reply: null, engineTrend: null,
     instrument: { measurement: { label: 'Chat · est.' } } });
+});
+
+test('Session supports the reading with one fresh fact whose engine scope stays explicit', () => {
+  const input = inputOf('decode', {}, body => {
+    body.runtime.request.ttftMs = 1200;
+    body.capabilities['request.ttft'] = { basis: 'reported', scope: 'request' };
+  }), view = presentSessionSection(input);
+  expect(view.support?.text).toMatch(/^Engine · First token /);
+  expect(presentSessionSection({ ...input, fresh: false }).support).toBeNull();
+  expect(presentSessionSection({ ...input, paused: true }).support).toBeNull();
+  expect(presentSessionSection({ ...input, chatIsLocal: false }).support).toBeNull();
+  expect(presentSessionSection(inputOf('pressure')).support).toBeNull();
+  const prefill = inputOf('prefill');
+  expect(presentSessionSection(prefill).support?.text).toContain('tokens');
+  const next = inputOf('prefill', {}, body => { body.chat = chatSample(); });
+  expect(presentSessionSection(next).support).toBeNull();
+  const fallback = inputOf('decode', {}, body => { delete body.runtime.request.ttftMs; });
+  expect(presentSessionSection(fallback).support?.text).toContain('tokens out');
+  const estimate = inputOf('decode', { attribution: { kind: 'inferred' } }, body => {
+    body.chat = chatSample(); body.runtime.request.decodeTps = null;
+  });
+  expect(presentSessionSection(estimate).measurement?.label).toBe('Chat · est.');
+  expect(presentSessionSection(estimate).support?.text).toMatch(/^Engine · /);
 });

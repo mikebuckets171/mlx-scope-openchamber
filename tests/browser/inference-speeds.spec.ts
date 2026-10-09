@@ -105,7 +105,8 @@ test('Splash progress uses reported counts, labels held observations, and never 
     await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /3840 of 6000 tokens/);
     await expect(frame.locator('#ws')).not.toContainText('612');
     await page.evaluate(() => (window as any).setPreviewState('splash-progress-held'));
-    await expect(frame.locator('.ws-reading')).toHaveText('64% (last seen)');
+    await expect(frame.locator('.ws-reading')).toHaveText('64%');
+    await expect(frame.locator('.ws-label')).toContainText('last seen');
     await expect(frame.locator('.ws-measurement')).toHaveAttribute('data-live', 'false');
     await page.evaluate(() => (window as any).setPreviewState('splash-prefill'));
     await expect(frame.locator('.ws-reading')).toHaveText('612 tok/s');

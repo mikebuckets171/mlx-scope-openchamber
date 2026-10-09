@@ -167,7 +167,7 @@ class Harness {
     const height = await this.panel.evaluate(() => Math.ceil(document.querySelector('main.scope')!.getBoundingClientRect().bottom) + 16);
     await this.page.setViewportSize({ width, height: height + 24 });
     await expect.soft(this.panel.locator(status ? '#ws' : 'main.scope')).toHaveScreenshot(`${name}.png`,
-      { mask: status ? [] : [this.panel.locator('#scope-version')], maskColor: '#808080' });
+      { mask: status ? [] : [this.panel.locator('#scope-version:visible')], maskColor: '#808080' });
     await this.page.setViewportSize({ width, height: 900 });
   }
   async close(): Promise<void> {

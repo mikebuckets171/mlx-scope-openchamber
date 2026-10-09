@@ -32,7 +32,7 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
 
 ## Where MLX Scope shows up
 
-- **Session sidebar.** Activity leads, followed by one relevant reading and **Open MLX Scope**. OpenChamber already
+- **Session sidebar.** Activity leads, followed by one relevant reading, an available supporting fact and **Open MLX Scope**. OpenChamber already
   shows the selected model, so the sidebar does not repeat it.
   Prompt progress appears while reading; speed appears while generating or reasoning. Tool use and waiting are explicit,
   and a completed measurement says **Last**. Unsupported measurements leave no empty rows. One priority warning can add a row.
@@ -45,8 +45,11 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   or hardware warnings. Theme-native rows remain readable at increased text size.
   The section samples only while visible and uses lighter Mac probes than the full panel.
 - **Rail panel and full page.** **Live** and **History** remain available at every width. Live leads with the same activity,
-  reading and scope menu as the sidebar. **Measurement details** groups engine readings, the engine trend, request details
-  and the last reply; engine charts never mix in chat estimates. **Server & Mac details** opens diagnostics with **Back to Live**.
+  reading and scope menu as the sidebar, with available supporting facts in a separate **Engine** group and a visible
+  **Engine trend** when compatible samples exist. Prompt progress shows supported counts and an available server estimate.
+  Completed results retain their own available output, duration and first-token facts; chat step timing stays distinct.
+  **Measurement details** groups deeper engine readings, request details and the last reply; engine charts never mix in
+  chat estimates. **Server & Mac details** opens diagnostics with **Back to Live**.
   History retains recent replies, trends, insights, alerts, and storage. **Captures** opens from History with
   **Back to History**, a **Reply / Timed window** selector, and saved captures. Active recordings remain cancellable
   while you navigate. Resizing preserves your selected destination. Open the rail from the Session action or the full
@@ -64,9 +67,9 @@ The Session sidebar in a dark theme ([light theme](docs/3.0/assets/session-light
 
 <img src="docs/3.0/assets/session-dark.png" alt="MLX Scope 3.0 in the Session sidebar, showing one labeled Engine reading and the This chat scope menu" width="350">
 
-The full Live view keeps measurement details one click away.
+The full Live view shows the useful signal directly and keeps deeper measurements one click away.
 
-![MLX Scope 3.0 full Live view with activity first, a labeled speed and collapsed measurement details](docs/3.0/assets/live-light.png)
+![MLX Scope 3.0 full Live view with activity first, a labeled speed, Engine facts and a compatible Engine trend](docs/3.0/assets/live-light.png)
 
 ## Prompt progress for standalone Splash
 

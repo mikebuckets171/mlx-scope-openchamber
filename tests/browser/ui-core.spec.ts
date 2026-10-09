@@ -167,7 +167,7 @@ test('callouts: the most severe message first, the rest behind "N more"', async 
 
 test('needs approval (NO_SERVICE) and version skew replace the tabs with their S11 cards', async ({ page }) => {
   let frame = await load(page, 'state=needs-approval');
-  await expect(frame.locator('#approval-card h2')).toHaveText('MLX Scope 2.0 needs one approval');
+  await expect(frame.locator('#approval-card h2')).toHaveText('MLX Scope needs one approval');
   await expect(frame.locator('#workspace-nav')).toBeHidden();
   await expect(frame.locator('#phase')).toHaveText('Needs approval');
   await expect(frame.locator('#approval-card')).not.toContainText(/sessions|project names|chat titles/i);
@@ -225,9 +225,9 @@ test('Session summary leads with reply speed, keeps warnings visible, and fits i
   expect(await problems(page)).toEqual([]);
 
   frame = await status(page, 'state=decode&chat=cloud');
-  await expect.poll(() => lastHeight(page)).toBe(24);
-  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'non-local');
-  await expect(frame.locator('#ws')).toHaveText('This chat is not using a local model');
+  await expect.poll(() => lastHeight(page)).toBe(await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height));
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
   expect(await problems(page)).toEqual([]);
   for (const state of ['offline', 'splash-recovering', 'needs-approval', 'prefill', 'idle', 'pressure-critical']) {
     frame = await status(page, `state=${state}`);
@@ -294,19 +294,33 @@ test('Session summary reports a failed full-panel action without clipping the gu
   expect(await problems(page)).toEqual([]);
 });
 
-test('Session summary returns to the compact cloud row after a failed full-panel action', async ({ page }) => {
+test('Session clears a failed full-panel action when switching to a cloud chat', async ({ page }) => {
   const frame = await status(page, 'state=pressure&openSurface=fail');
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
   await expect(frame.locator('#ws-action-error')).toBeVisible();
   await page.evaluate(() => (window as W).setPreviewSession({
     id: 'cloud-chat', title: 'Cloud chat', busy: false, model: 'cloud-provider/fixture-model',
   }));
-  await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'non-local');
-  await expect(frame.locator('#ws')).toHaveText('This chat is not using a local model');
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
   await expect(frame.locator('#ws-action-error')).not.toBeVisible();
-  await expect.poll(() => lastHeight(page)).toBe(24);
-  expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(24);
+  const height = await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height);
+  await expect.poll(() => lastHeight(page)).toBe(height);
+  expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(height);
   expect(await problems(page)).toEqual([]);
+});
+
+test('a delayed full-panel failure cannot return after switching chats', async ({ page }) => {
+  const frame = await status(page, 'state=pressure&chat=local&openSurface=defer');
+  await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
+  await expect.poll(() => host(page, w => w.previewSurfaceDeferred?.length)).toBe(1);
+  await page.evaluate(() => (window as W).setPreviewSession({ id: 'cloud-chat', busy: false, model: 'cloud-provider/fixture-model' }));
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await page.evaluate(() => (window as W).previewSurfaceDeferred.splice(0).forEach((reject: () => void) => reject()));
+  // Let the SDK deliver the rejected request and its promise callback before checking the unchanged instrument.
+  await frame.locator('#ws').evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(frame.locator('#ws-action-error')).toHaveCount(0);
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
 });
 
 test('the visibility gate engages before the first poll: a display:none frame makes zero requests', async ({ page }) => {

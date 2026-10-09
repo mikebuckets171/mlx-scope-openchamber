@@ -2,10 +2,9 @@ import type { Severity } from '../../src/contract/alerts.ts';
 import type { Basis } from '../../src/contract/capabilities.ts';
 import { sameModel } from '../attribution/join.ts';
 import { prefillReading } from '../progress.ts';
-import { alertCopy, APPROVAL, RESTART, statusGlanceNote, withheldWhy } from './copy.ts';
-import { ago, dur, mmss, tps } from './format.ts';
+import { alertCopy, APPROVAL, RESTART, statusGlanceNote } from './copy.ts';
+import { ago, dur, kt, mmss, tps } from './format.ts';
 import { visibleAlerts } from './parts.ts';
-import { glanceModel } from './scope.ts';
 import { presentSpeeds, type SpeedsView } from './speeds.ts';
 import type { StatusSectionInput } from './status.ts';
 
@@ -13,22 +12,22 @@ import type { StatusSectionInput } from './status.ts';
 export interface SessionMeasurement {
   label: string; text: string; unit: string | null; basis: Basis;
   detail: string; live: boolean; kind: 'speed' | 'progress';
+  result?: { label: string; outputTokens?: number; durationMs?: number; ttftMs?: number; timing: 'request' | 'step' };
 }
 export interface SessionSectionView {
-  mode: 'summary' | 'non-local'; height: number; phase: string; tone: 'normal' | 'warning' | 'critical';
+  phase: string; tone: 'normal' | 'warning' | 'critical';
   measurementScope: 'chat' | 'engine'; measurement: SessionMeasurement | null;
+  support: { text: string; detail: string; basis?: Basis } | null;
   speeds: SpeedsView;
   progress: { text: string; detail: string; basis: Basis } | null;
-  value: { text: string; unit: string | null; basis: Basis } | null;
-  model: string | null; modelTitle: string | null;
-  scope: { text: string; detail: string | null; attr: 'inferred' | 'armed' | 'server' } | null;
-  age: string | null; note: string | null;
+  note: string | null;
   alert: { label: string; value: string; severity: Severity; more: number } | null;
   cancelMeasurement: boolean;
 }
 const positive = (value: number | null | undefined): value is number => value != null && Number.isFinite(value) && value > 0;
+type SessionSectionInput = Omit<StatusSectionInput, 'turn' | 'vsUsual' | 'sparkline' | 'expanded' | 'tipDismissed'> & Partial<StatusSectionInput>;
 
-export const presentSessionSection = (input: StatusSectionInput): SessionSectionView => {
+export const presentSessionSection = (input: SessionSectionInput): SessionSectionView => {
   const snapshot = input.snapshot, next = input.next, measurementScope = input.measurementScope ?? 'chat';
   const engine = measurementScope === 'engine';
   const nonLocal = !engine && input.chatIsLocal === false;
@@ -38,13 +37,14 @@ export const presentSessionSection = (input: StatusSectionInput): SessionSection
   const fresh = snapshot !== null && input.fresh !== false && !input.paused && !frame;
   const usable = !nonLocal && fresh && snapshot.status.state === 'ready' && snapshot.status.reason === null;
   const candidate = snapshot?.chat;
-  const chat = !engine && fresh && candidate && candidate.observedAtMs <= input.now && candidate.expiresAtMs > input.now ? candidate : null;
+  const observedChat = candidate && candidate.observedAtMs <= input.now && candidate.expiresAtMs > input.now ? candidate : null;
+  const retained = input.lastChat?.freshness === 'last' && input.lastChat.observedAtMs <= input.now && input.chatActivity === 'idle' ? input.lastChat : null;
+  const chat = !engine && fresh ? observedChat ?? retained : null;
   const readingPrompt = usable && snapshot.runtime.phase === 'prefill' && (!chat || chat.phase === 'waiting');
   const chatStopped = chat && (['tool', 'cancelled', 'complete'].includes(chat.phase) || chat.phase === 'waiting' && !readingPrompt);
   const matched = !engine && input.attribution.kind !== 'server-wide' && snapshot?.connection.runtime !== 'splash';
   const source = matched ? 'Chat · matched' : 'Engine';
-  const sourceDetail = matched ? 'The runtime request matches this chat; another request using the same model cannot be ruled out.'
-    : !engine && input.attribution.kind === 'server-wide' ? `Whole engine · ${withheldWhy(input.attribution.reason)}` : 'All requests on this engine';
+  const sourceDetail = 'Runtime match to this chat; other requests with this model remain possible.';
   let phase = speeds.phase === 'Status stale' ? 'Waiting for update' : speeds.phase === 'Not admitting' ? 'Not accepting requests'
     : snapshot?.status.reason === 'admin_unauthorized' ? 'Limited access' : speeds.phase;
   let measurement: SessionMeasurement | null = null, progress: SessionSectionView['progress'] = null, age: string | null = null;
@@ -55,10 +55,10 @@ export const presentSessionSection = (input: StatusSectionInput): SessionSection
     ?? speeds.speeds.find(speed => speed.value !== null) : undefined;
   const reading = readingPrompt && snapshot!.capabilities['request.prefillProgress'] ? prefillReading(input.reading) : null;
   if (reading?.percent != null) {
-    progress = { text: `${reading.completed.replace(' complete', '')}${reading.stale ? ' (last seen)' : ''}`,
+    progress = { text: reading.completed.replace(' complete', ''),
       detail: `Prompt read${reading.stale ? ' · last seen' : ''}${reading.counts ? ` · ${reading.counts.done} of ${reading.counts.total} tokens` : ''}`,
       basis: snapshot!.capabilities['request.prefillProgress']?.basis ?? 'reported' };
-    measurement = { label: `${source} · prompt`, ...progress, unit: null, live: !reading.stale, kind: 'progress' };
+    measurement = { label: `${source} · prompt${reading.stale ? ' · last seen' : ''}`, ...progress, unit: null, live: !reading.stale, kind: 'progress' };
   } else if (usable && !chatStopped && matched && activeSpeed?.value !== null && activeSpeed) {
     measurement = { label: source, text: activeSpeed.value!, unit: 'tok/s', basis: activeSpeed.basis,
       detail: `${sourceDetail} ${activeSpeed.detail}`, live: true, kind: 'speed' };
@@ -70,10 +70,12 @@ export const presentSessionSection = (input: StatusSectionInput): SessionSection
       detail: `All engine requests · ${activeSpeed.detail}`, live: true, kind: 'speed' };
   }
   if (chat) {
-    phase = readingPrompt ? 'Reading prompt' : { generating: 'Generating', reasoning: 'Reasoning', tool: 'Using tools', waiting: 'Waiting', complete: 'Complete', cancelled: 'Stopped' }[chat.phase];
-    if (chat.phase === 'complete' && positive(chat.tokensPerSecond)) {
+    phase = readingPrompt ? 'Reading prompt' : chat.phase === 'complete' && input.chatActivity === 'busy' ? 'Waiting'
+      : { generating: 'Generating', reasoning: 'Reasoning', tool: 'Using tools', waiting: 'Waiting', complete: 'Complete', cancelled: 'Stopped' }[chat.phase];
+    if (chat.phase === 'complete' && input.chatActivity !== 'busy' && positive(chat.tokensPerSecond)) {
       measurement = { label: 'Last chat · avg.', text: tps(chat.tokensPerSecond), unit: 'tok/s', basis: 'derived', live: false, kind: 'speed',
-        detail: `Reported output tokens divided by observed step duration. This completed-step average includes waiting before delivery${nonLocal ? '; it is not the cloud engine’s internal speed' : ''}.` };
+        detail: `Reported output tokens divided by observed step duration, including waiting before delivery${nonLocal ? '; cloud engine timing is unknown' : ''}.`,
+        result: { label: 'Last chat result', durationMs: chat.observation.endedAtMs - chat.observation.startedAtMs, timing: 'step' } };
       age = ago(chat.observedAtMs, input.now);
     }
   }
@@ -82,9 +84,15 @@ export const presentSessionSection = (input: StatusSectionInput): SessionSection
   const lastMatches = engine || !input.sessionModel || sameModel(input.sessionModel, last?.completion.model ?? null);
   if (!measurement && usable && !cancelled && !chatStopped && snapshot.runtime.phase === 'idle' && (engine || input.chatActivity !== 'busy')
     && last && lastMatches && positive(last.completion.decodeTps) && last.completion.basis !== 'last-observed') {
-    const lastMatched = !engine && last.label.kind !== 'server-wide' && snapshot.connection.runtime !== 'splash';
+    const window = input.window;
+    const lastMatched = !engine && last.label.kind !== 'server-wide' && snapshot.connection.runtime !== 'splash'
+      && window && last.completion.startedAt !== null && last.completion.startedAt >= (window.startedAt ?? window.joinedAt ?? Infinity)
+      && last.completion.finishedAt <= (window.endedAt ?? input.now);
     measurement = { label: `Last ${lastMatched ? 'chat · matched' : 'engine'} · avg.`, text: tps(last.completion.decodeTps), unit: 'tok/s',
-      basis: last.completion.basis, live: false, kind: 'speed', detail: `Completed request average · ${ago(last.completion.finishedAt, input.now)}` };
+      basis: last.completion.basis, live: false, kind: 'speed', detail: `Completed request average · ${ago(last.completion.finishedAt, input.now)}`,
+      result: { label: `Last ${lastMatched ? 'chat · matched' : 'engine'} result`, timing: 'request',
+        outputTokens: last.completion.outputTokens, ttftMs: last.completion.ttftMs,
+        ...last.completion.startedAt !== null ? { durationMs: last.completion.finishedAt - last.completion.startedAt } : {} } };
     age = ago(last.completion.finishedAt, input.now);
   }
   if (cancelled && !engine) { measurement = null; phase = 'Stopped'; }
@@ -107,16 +115,17 @@ export const presentSessionSection = (input: StatusSectionInput): SessionSection
     value: '', severity: top.severity, more: 0 } : null;
   // Keep the one priority warning; repeated setup explanations remain in the full panel.
   if (alert) note = null;
-  const model = !engine && input.sessionModel ? input.sessionModel : speeds.model;
-  const scope = measurement ? { text: measurement.label, detail: measurement.detail, attr: measurement.label.includes('chat') || measurement.label.startsWith('Chat') ? 'inferred' as const : 'server' as const }
-    : { text: engine ? 'Whole engine' : 'This chat', detail: sourceDetail, attr: matched ? 'inferred' as const : 'server' as const };
+  const request = usable ? snapshot.runtime.request : null;
+  const prefix = measurement?.label.startsWith('Chat · matched') ? '' : 'Engine · ';
+  const output = measurement?.live && runtimePhaseAgrees && usable && ['decode', 'processing'].includes(snapshot.runtime.phase);
+  const support = alert || !fresh || cancelled ? null : age && measurement ? { text: `Finished ${age}`, detail: measurement.detail }
+    : reading?.counts && measurement?.live ? { text: `${prefix}${kt(reading.counts.done)} / ${kt(reading.counts.total)} tokens`, detail: progress!.detail }
+    : output && request?.ttftMs != null && snapshot!.capabilities['request.ttft'] ? { text: `${prefix}First token ${dur(request.ttftMs)}`, detail: 'Time to first token for this engine request.', basis: snapshot!.capabilities['request.ttft']!.basis }
+    : output && request?.outputTokens != null ? { text: `${prefix}${kt(request.outputTokens)} tokens out`, detail: 'Output so far for this engine request.', basis: snapshot!.capabilities['request.tokens']?.basis }
+    : usable && !chatStopped && snapshot.runtime.server.active! > 1 ? { text: `Engine · ${snapshot.runtime.server.active} active`, detail: 'Concurrent requests reported by this engine.' } : null;
   // Missing readings leave the activity area's geometry intact without inventing a measurement row.
-  return { mode: 'summary', height: 76 + (!nonLocal && (alert || note) ? 24 : 0),
-    measurementScope, measurement, speeds, progress,
+  return { measurementScope, measurement, support, speeds, progress,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
-    value: !measurement ? null : { text: measurement.text, unit: measurement.unit, basis: measurement.basis },
-    model: nonLocal || !model ? null : glanceModel(model), modelTitle: nonLocal ? null : model,
-    scope: nonLocal ? { text: 'This chat', detail: 'Delivery observed in the selected chat', attr: 'inferred' } : scope,
-    age, note: nonLocal ? null : note, alert,
+    note: nonLocal ? null : note, alert,
     cancelMeasurement: !nonLocal && (next?.kind === 'armed' || next?.kind === 'measuring') };
 };

@@ -58,6 +58,10 @@ const changeMeasurementScope = (measurementScope: MeasurementScope): void => {
 };
 const stopFollowing = host.onSession(session => {
   const wasBusy = follow.session?.busy, changed = follow.update(session);
+  if (session?.busy && !wasBusy) {
+    const window = !changed ? pipeline?.frame().windows.at(-1) : null;
+    state.beginChat(window?.endedAt === null ? window.startedAt ?? window.joinedAt ?? client.now() : client.now());
+  }
   if (changed && (prefs.value.measurementScope ?? 'chat') === 'chat') resetSelection();
   else if (session?.busy !== wasBusy && monitor?.live && state.mounted) {
     // Activity hints request an update; they do not invalidate an otherwise fresh observation.
@@ -66,7 +70,8 @@ const stopFollowing = host.onSession(session => {
   }
 });
 const pipelineFor = (surface: string): Pipeline => pipeline = new Pipeline({ host, state, now: () => client.now(), surface,
-  toasts: () => prefs.value.toasts ?? 'critical', auto: () => prefs.value.autoLabel ?? true });
+  toasts: () => prefs.value.toasts ?? 'critical', auto: () => prefs.value.autoLabel ?? true,
+  changed: () => { if (monitor?.live && state.mounted) { render(); void monitor.poller.refresh(); } } });
 const monitorFor = (pipeline: Pipeline, tier: 'glance' | 'full', floorMs: number, query: () => Record<string, string> | undefined,
   update: (link: ReturnType<typeof frameReading>['link']) => void, refreshed: () => void): Monitor => new Monitor({
   state, client, frame: frameId(), visibility: () => visibility, tier, floorMs,

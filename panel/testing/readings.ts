@@ -3,7 +3,7 @@ import type { CompletionV2 } from '../../src/contract/completion.ts';
 import { toSnapshotV2, type V1Snapshot } from '../../src/contract/convert-v1.ts';
 import { parseSnapshotV2, type SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { parseTelemetrySnapshot } from '../../src/telemetry.ts';
-import { fromSnapshot, type Reading } from '../present/reading.ts';
+import { legacyFromSnapshot as fromSnapshot, type LegacyReading as Reading } from '../compat/reading.ts';
 
 export const EXTRAS = { service: { version: '2.0.0', instance: '5c1e0a7b' } };
 const wire = <T>(value: T): T => JSON.parse(JSON.stringify(value));
