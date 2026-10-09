@@ -207,7 +207,7 @@ still the previous version, pause MLX Scope and resume it in Settings → Extens
 
 | Entry | What Scope runs | Why |
 |---|---|---|
-| Local service (`service/main.js`) | Runs under your account while a Scope view needs readings | Reads the local runtime APIs on loopback and runs the commands below. It keeps readings in memory and writes no files |
+| Local service (`service/main.js`) | Runs under your account while a Scope view needs readings | Reads local runtime APIs on loopback and runs the commands below. Keeps runtime readings in memory, writes bounded private chat-demand metadata, and changes companion files/configuration only after Enable or Disable |
 | `/usr/bin/vm_stat` | `vm_stat` | Memory page counts: used, wired and compressed memory (as in 1.x) |
 | `/usr/sbin/sysctl` | `sysctl -i vm.swapusage kern.memorystatus_vm_pressure_level iogpu.wired_limit_mb` | Swap, the kernel's memory pressure level and the GPU wired-memory limit (1.x read swap only) |
 | `/usr/sbin/ioreg` | `ioreg -r -d 1 -w 0 -c IOAccelerator` | GPU busy and GPU memory, as the graphics driver reports them |
@@ -232,10 +232,11 @@ still the previous version, pause MLX Scope and resume it in Settings → Extens
 
 ## What the readings mean
 
-Readings are **server-wide**: they describe the whole runtime and the whole Mac, not the selected chat, unless a reply is
-labelled "This chat · inferred" or "Next reply". Values the runtime doesn't report are left out. Idle time is a
-gap in a chart, never a zero. Held or stale readings are labelled, and every value that isn't reported directly carries
-its basis: derived, observed, last observed or estimate.
+Every reading identifies its scope and basis. **Engine** readings describe the whole runtime; **Chat** readings identify
+matched runtime observations, estimated delivery or a completed-step average. Hardware readings describe the whole Mac.
+The [metric definitions](docs/METRICS.md) explain source precedence and matching limits. Values the runtime doesn't
+report are left out. Idle time is a gap in a chart, never a zero. Held or stale readings are labelled, and every value
+that isn't reported directly carries its basis: derived, observed, last observed or estimate.
 
 oMLX primary DFlash output uses fresh token counters to calculate clearly labelled **recent output** speed. Before output
 arrives, it shows processing without inventing prefill progress.

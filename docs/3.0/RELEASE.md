@@ -27,10 +27,16 @@ paths, provider credentials, raw session IDs or uncontrolled screenshots of the 
 ## October 8 candidate receipt
 
 - Full check passed: 1,725 Bun tests, 38 Node companion tests, type checking, privacy scanning, reproducible bundles,
-  package allowlist and clean extracted service/runtime smoke. The original bundle ceilings are unchanged.
-- Chromium/WebKit broad coverage produced 378 passing cases and four outdated presentation expectations. The two
-  test files were corrected to assert the new exact completed-result facts and equivalent concise copy; all 92 affected
-  and completion cases then passed. Shipping product bytes stayed identical. Release CI reruns the canonical suite.
+  package allowlist and clean extracted service/runtime smoke. The candidate stayed within the enforced 3.0 bundle
+  ceilings; CPU/RSS ceilings are unchanged.
+- Chromium/WebKit local broad coverage produced 378 passing cases and four outdated presentation expectations. The two
+  test files were corrected to assert exact completed-result facts and concise copy; all 92 affected and completion
+  cases then passed. The first Linux CI run passed 379 cases and found three real enlarged-text layout failures.
+  CSS repairs bound the Session grid, stack its controls at narrow text-relative widths and reserve room for wrapped
+  Engine facts. A regression checks that activity and scope controls do not overlap the measurement. All 44 affected
+  browser cases and 24 additional font-stress cases passed; 21 exact goldens and all three published screenshots stayed
+  unchanged. [PR 18 CI](https://github.com/mikebuckets171/mlx-scope-openchamber/pull/18/checks) reruns the canonical suite;
+  failed checks must pass before publication.
 - Final visual evidence covers 32 scenes and 21 exact goldens, including narrow layouts, both themes, enlarged text,
   keyboard controls, tool waits, interruption, completed results and cloud estimates. An independent 42-case final
   layout/lifecycle review found no open issue.
@@ -42,18 +48,19 @@ paths, provider credentials, raw session IDs or uncontrolled screenshots of the 
 - The actual bundled OpenCode 2.0.25 passed isolated local and remote protocol smoke, including matching, calibration,
   completed timing and hidden shutdown. Setup preservation/rollback and companion absence/version mismatch are covered
   by tests. The optional companion was not enabled in the user's live configuration for this receipt.
-- Service plus children: maximum active CPU 1.180%, idle 0.595%, glance 0.578% of one core; peak RSS 80.1 MiB.
+- Service plus children: maximum active CPU 1.180%, idle 0.595%, glance 0.578% of one core; service peak RSS 80.1 MiB.
   Isolated Chromium renderer main-thread CPU was 0.104–0.678%; hidden views made zero snapshot requests and settled
   within 0.051 MiB of retained heap. These renderer measurements exclude aggregate browser/WebView, GPU and RSS costs.
   Companion probes separately measured median incremental CPU of 0.064% idle, 0.960% visible and 0.088% hidden,
-  with zero hidden telemetry writes. Component measurements are not summed into an aggregate host claim.
+  with zero hidden chat-telemetry writes. The separately configured legacy Splash progress observer is outside that
+  probe. Component measurements are not summed into an aggregate host claim.
 - One bounded, uncontaminated 128-token real inference with monitoring enabled passed native counter qualification.
   The enabled/disabled median comparison remains unqualified alongside interactive user workloads; no claim of a
   slowdown at or below 2% is made. Publication follows the maintainer's latest instruction to inspect the installed
   app and publish. The eight-hour soak is waived; sleep/wake and long-duration stability remain unqualified.
 
 Final panel SHA-256: `01c415d09702204b1139d56cf72680e3bcaa6a3d645ce4274ec3d68c0ab4e9f5`.
-Final stylesheet SHA-256: `b0c3dbcfd3347eab8581d7d9817d2fa01fea30e19343ed67cd70936644cd83c6`.
+Final stylesheet SHA-256: `4e9fe99a44b6049f925457aeb3ee6e9ec2c6b7d16b42674c1d4d3b87f0421faa`.
 
 ## Publish and verify
 

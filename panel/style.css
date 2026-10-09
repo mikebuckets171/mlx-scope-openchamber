@@ -110,8 +110,8 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 
 /* Session and compact rail share three reserved rows, without empty value elements. */
 .ws { position: relative; width: auto; min-width: 0; container-type: inline-size; font-size: max(12px, .75rem); line-height: 1.5; font-variant-numeric: tabular-nums; }
-.ws-activity { display: grid; grid-template-rows: max(24px, 1.5rem) max(36px, 2.25rem) minmax(max(20px, 1.25rem), auto); }
-.ws-line { display: flex; align-items: baseline; gap: 8px; min-height: max(24px, 1.5rem); }
+.ws-activity { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: max(24px, 1.5rem) max(36px, 2.25rem) minmax(max(20px, 1.25rem), auto); }
+.ws-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; min-height: max(24px, 1.5rem); }
 .ws-context { grid-row: 1; align-items: baseline; justify-content: space-between; gap: 8px; }
 .ws-measurement { grid-row: 2; min-height: 0; align-content: start; flex-wrap: wrap; gap: 0 8px; }
 .ws-support { grid-row: 3; min-height: 0; color: var(--scope-muted); font-size: max(11px, .6875rem); overflow-wrap: anywhere; }
@@ -340,14 +340,11 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .alog .sev[data-severity="critical"] { background: var(--scope-bad); }
 
 /* Responsive choices are explicit; there are no inherited layout overrides */
-@container (max-width: 13em) {
+@container (max-width: 20em) {
   .ws-context { align-items: flex-start; flex-direction: column; gap: 0; }
   .ws-context .scope-choice { max-width: 100%; }
   .ws-activity { grid-template-rows: 2.625rem 2.625rem minmax(2.25rem, auto); }
   .ws-context { justify-content: flex-start; }
-}
-@container (min-width: 13em) and (max-width: 20em) {
-  .ws-activity { grid-template-rows: 1.5rem 3rem minmax(2.25rem, auto); }
 }
 @media (max-width: 380px) {
   .scope { padding-inline: 16px; }
@@ -355,7 +352,7 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
   .status-pill .conn { max-width: 90px; }
   .instrument-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
   .instrument-source { margin-left: 4px; }
-  .instrument-evidence { min-height: max(176px, 9.25rem); }
+  .instrument-evidence { min-height: max(176px, 11.25rem); }
   .metrics.engine-facts { display: flex; flex-direction: column; gap: 8px; }
   .engine-facts > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0 12px; }
   .engine-facts .metric-detail, .engine-facts > div > .basis { grid-column: 1 / -1; }

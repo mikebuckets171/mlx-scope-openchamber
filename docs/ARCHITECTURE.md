@@ -26,8 +26,9 @@ visible frame ──serviceRequest GET /v2/snapshot?frame&surface&tier&since&mar
 
 1. **Visible frames poll** at the service's `nextPollMs`: panel and page 500 ms while active and 2 s idle; the Work
    Status section 1 s active, 3 s idle and 10 s after 5 minutes idle. Energy-saving floors are 3 s (panel) and 5 s
-   (status). A lower-priority frame polls at 10 s or slower while a higher-priority leader is visible. The one backoff is
-   `min(8 s, 0.5 s · 2ⁿ)`, held in the scheduler.
+   (status). A lower-priority frame normally polls at 10 s or slower while a higher-priority leader is visible.
+   Fresh chat observations and a busy remote chat awaiting its first observation retain active presentation cadence;
+   runtime collection remains shared. The one backoff is `min(8 s, 0.5 s · 2ⁿ)`, held in the scheduler.
 2. **Scheduler and slot.** The adapter reading joins the in-flight collection or reuses a cache younger than the
    cadence. A slot moves detecting → ready ⇄ degraded → failing → re-detect; re-detection runs after repeated contract
    failures, a failed identity check, or the first success after 30 s unreachable, so a new runtime on the same port is
@@ -153,5 +154,6 @@ This measures the bundled service **and every process it spawns**, with fake run
 no view, active (500 ms polls while the runtime generates), idle (2 s polls) and paused. It reports CPU time as a
 percentage of one core, sampled RSS, request and spawn counts, and snapshot latency, and checks the budgets from
 `docs/2.0/SPIKES.md` S13: no-view CPU, idle and active CPU, service RSS, the spawn budgets above, zero requests and spawns
-with no view, and children gone within 65 s of the last read. Work Status and macmon phases, renderer CPU, and the
-8-hour Work Status soak are measured on the real host in Stage 12.
+with no view, and children gone within 65 s of the last read. Work Status and macmon phases and renderer CPU have
+separate probes. See the [3.0 release receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/3.0/RELEASE.md) for current measurements and qualification limits;
+the maintainer waived the planned eight-hour soak for 3.0.

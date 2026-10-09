@@ -14,7 +14,8 @@
 - An optional OpenCode 2.0.25 companion estimates delivery over a five-second window after two seconds of observations,
   with bounded calibration from comparable completed steps. Estimates always remain labeled.
 - Guided Enable/Disable preserves JSONC comments and existing plugins, verifies compatibility/readiness, and never
-  restarts an active session. Private expiring metadata is collected only while Scope is watched.
+  restarts an active session. Chat delivery telemetry is demand-gated; the existing optional Splash prompt-progress
+  observer remains separately configured.
 - Full Live and History retain charts, captures, comparisons and optional Mac diagnostics. Existing records and runtime
   measurement bases are preserved; chat estimates do not enter engine charts or baselines.
 - Runtime adapters, Splash prompt progress, host permission declarations and OpenChamber 2.0.4 compatibility remain.

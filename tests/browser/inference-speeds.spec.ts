@@ -28,6 +28,10 @@ for (const theme of ['light', 'dark']) test(`Session shows the relevant stage an
     await frame.locator('html').evaluate(el => { el.style.fontSize = '24px'; });
     await expect.poll(() => frame.locator('#ws').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight + 1)).toBe(true);
     expect(await frame.locator('#ws').evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expect.poll(() => frame.locator('#ws').evaluate(el => {
+      const reading = el.querySelector('.ws-measurement')!.getBoundingClientRect();
+      return ['.ws-phase', '.scope-choice'].every(selector => el.querySelector(selector)!.getBoundingClientRect().bottom <= reading.top);
+    })).toBe(true);
     await expect(frame.getByRole('combobox', { name: 'Measurement scope' })).toBeVisible();
   }
 });
