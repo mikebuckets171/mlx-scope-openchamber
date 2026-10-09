@@ -327,7 +327,10 @@ test('completed-response first token remains explicitly last reply during a late
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#reply-strip')).toContainText('Last reply');
   await expect(frame.locator('#reply-strip')).toContainText('0.51 s');
-  await expect(frame.locator('#first-token')).toHaveCount(0);
+  await expect(frame.locator('#engine-facts #first-token')).toHaveCount(0);
+  await expect(frame.locator('#completed-facts')).toContainText('Last engine result');
+  await expect(frame.locator('#completed-facts #first-token')).toContainText('0.51 s');
+  await expect(frame.locator('.instrument-primary')).toHaveAttribute('data-live', 'false');
   await page.evaluate(() => {
     const preview = window as any;
     const body = preview.ScopeStates.mockBody('bionic', { now: Date.now() });
@@ -337,6 +340,7 @@ test('completed-response first token remains explicitly last reply during a late
   await expect(frame.locator('#phase')).toHaveText('Generating');
   await expect(frame.locator('#reply-strip')).toContainText('Last reply');
   await expect(frame.locator('#reply-strip')).toContainText('0.51 s');
+  await expect(frame.locator('#completed-facts')).toHaveCount(0);
   await expect(frame.locator('#first-token')).toHaveCount(0);
   await expect(frame.locator('.speed-pair')).not.toContainText('0.51 s');
 });
