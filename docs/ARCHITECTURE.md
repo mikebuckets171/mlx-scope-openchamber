@@ -155,5 +155,4 @@ no view, active (500 ms polls while the runtime generates), idle (2 s polls) and
 percentage of one core, sampled RSS, request and spawn counts, and snapshot latency, and checks the budgets from
 `docs/2.0/SPIKES.md` S13: no-view CPU, idle and active CPU, service RSS, the spawn budgets above, zero requests and spawns
 with no view, and children gone within 65 s of the last read. Work Status and macmon phases and renderer CPU have
-separate probes. See the [3.0 release receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/3.0/RELEASE.md) for current measurements and qualification limits;
-the maintainer waived the planned eight-hour soak for 3.0.
+separate probes. See the [3.0 verification receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/3.0/RELEASE.md) for current measurements and their scope.
