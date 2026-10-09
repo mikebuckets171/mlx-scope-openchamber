@@ -2,9 +2,11 @@
 
 ## 3.0.0
 
-- A quiet Session sidebar follows the selected chat, showing model/activity, one relevant measurement and Open MLX Scope.
+- A fresh activity-first interface keeps one relevant measurement in a stable position, with Open MLX Scope in the sidebar.
+  The sidebar uses OpenChamber's model context instead of repeating it; the full view groups supporting measurement details.
 - A saved This chat / Whole engine preference keeps scope explicit. Chat-matched runtime readings take precedence, then
-  labeled delivery estimates, then a labeled Engine fallback. Cloud chats stay inactive.
+  labeled delivery estimates, then a labeled Engine fallback for local chats. Cloud chats can show estimated delivery
+  through the same optional companion, with no cloud API calls or local engine fallback.
 - Phase-aware readings distinguish prompt progress, generation/reasoning, tool waits, cancellation and Last results.
   Chat/model switches and expired observations clear live rates immediately.
 - An optional OpenCode 2.0.25 companion estimates delivery over a five-second window after two seconds of observations,

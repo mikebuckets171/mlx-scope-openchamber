@@ -19,6 +19,18 @@ export function loopbackEndpoint(value) {
     return key('endpoint', url.origin);
   } catch { return null; }
 }
+/** Classify only the observed primary destination. Query strings are never retained or hashed (cloud URLs may carry keys). */
+export function observedEndpoint(value) {
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash) return null;
+    if (['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) {
+      const endpointKey = loopbackEndpoint(value);
+      return endpointKey ? { endpointKey } : null;
+    }
+    return { endpointKey: key('endpoint', url.origin), destination: 'remote' };
+  } catch { return null; }
+}
 
 // Unicode code points, including surrogate pairs split across event deltas. No text is retained.
 function characters(text, state) {
@@ -37,28 +49,35 @@ function characters(text, state) {
 
 /** A bounded fold of the released 2.0.25 public events. Never stores event objects, deltas, or tool payloads. */
 export function createChatTracker({ now = Date.now, publish = () => {}, remove = () => {} } = {}) {
-  const watched = new Set(), routes = new Map(), chats = new Map(), calibration = new Map();
+  const watched = new Map(), routes = new Map(), chats = new Map(), calibration = new Map();
   const drop = sessionKey => { chats.delete(sessionKey); remove(sessionKey); };
   const resetWindow = state => { state.points = []; state.firstAt = undefined; state.lastDelta = undefined; };
   const clear = () => { for (const sessionKey of chats.keys()) drop(sessionKey); routes.clear(); watched.clear(); };
   function setWatched(items) {
-    watched.clear(); for (const item of items.slice(0, MAX_CHATS)) watched.add(watchKey(item));
-    for (const [sessionKey, state] of chats) if (!watched.has(state.match)) drop(sessionKey);
-    for (const match of routes.keys()) if (!watched.has(match)) routes.delete(match);
+    watched.clear();
+    for (const item of items.slice(0, MAX_CHATS)) {
+      const match = watchKey(item), destinations = watched.get(match) ?? new Set();
+      destinations.add(item.destination ?? 'local'); watched.set(match, destinations);
+    }
+    for (const [sessionKey, state] of chats) if (!watched.has(state.match) || state.endpointKey && !watched.get(state.match).has(state.destination ?? 'local')) drop(sessionKey);
+    for (const [match, route] of routes) if (!watched.has(match) || !watched.get(match).has(route.destination ?? 'local')) routes.delete(match);
   }
   function authorizeHttp(event) {
     // Corroborate the actual primary HTTP destination, not a provider name or inferred model alias.
     if (!watched.size || event.kind !== 'primary' || !id(event.sessionID) || !id(event.model?.providerID) || !id(event.model?.id)) return;
     const match = watchKey(identity(event)); if (!watched.has(match)) return;
-    const endpointKey = event.request?.method === 'POST' ? loopbackEndpoint(event.request.url) : null;
-    if (!endpointKey || event.request.signal?.aborted) { routes.delete(match); drop(key('session', event.sessionID)); return; }
+    const endpoint = event.request?.method === 'POST' ? observedEndpoint(event.request.url) : null;
+    if (!endpoint || !watched.get(match).has(endpoint.destination ?? 'local') || event.request.signal?.aborted) { routes.delete(match); drop(key('session', event.sessionID)); return; }
     if (routes.size >= MAX_CHATS && !routes.has(match)) return;
     const state = chats.get(key('session', event.sessionID));
     if (state?.match === match && !state.endpointKey) {
-      state.endpointKey = endpointKey; state.calibrationKey = `${state.identity.providerKey}:${state.identity.modelKey}:${endpointKey}`;
+      state.endpointKey = endpoint.endpointKey; state.destination = endpoint.destination;
+      state.calibrationKey = `${state.identity.providerKey}:${state.identity.modelKey}:${endpoint.endpointKey}`;
       emit(state, 'waiting'); return;
     }
-    routes.set(match, { endpointKey, at: now() });
+    // A second primary dispatch to another destination cannot reuse the previous step's delivery window.
+    if (state?.match === match && (state.endpointKey !== endpoint.endpointKey || state.destination !== endpoint.destination)) drop(key('session', event.sessionID));
+    routes.set(match, { ...endpoint, at: now() });
   }
   const ratioFor = state => {
     const steps = calibration.get(state.calibrationKey) ?? [];
@@ -74,7 +93,7 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
       ...(Number.isFinite(rate) && rate >= 0 ? { tokensPerSecond: rate } : {}),
       ...(!reported && fit.steps ? { calibrationSteps: fit.steps } : {}) };
     state.phase = phase; state.updated = time; state.stale = false;
-    publish({ ...state.identity, endpointKey: state.endpointKey, measurement });
+    publish({ ...state.identity, endpointKey: state.endpointKey, ...state.destination === 'remote' ? { destination: 'remote' } : {}, measurement });
   }
   function sample(state, amount, phase) {
     const time = now();
@@ -106,9 +125,9 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
       if (!id(data.model?.providerID) || !id(data.model?.id) || !id(data.assistantMessageID)
         || !safe(data.started) || data.started > time) return;
       const ident = identity(data), match = watchKey(ident), route = routes.get(match);
-      if (!watched.has(match) || route && time - route.at > 600_000 || chats.size >= MAX_CHATS) return;
+      if (!watched.has(match) || route && (!watched.get(match).has(route.destination ?? 'local') || time - route.at > 600_000) || chats.size >= MAX_CHATS) return;
       routes.delete(match); // One HTTP dispatch proves one step, never a later unobserved route.
-      const next = { identity: ident, match, endpointKey: route?.endpointKey,
+      const next = { identity: ident, match, endpointKey: route?.endpointKey, destination: route?.destination,
         calibrationKey: route ? `${ident.providerKey}:${ident.modelKey}:${route.endpointKey}` : undefined,
         assistantKey: key('assistant', data.assistantMessageID), started: data.started,
         seen: new Set(), parts: new Map(), total: 0, text: 0, reasoning: 0, points: [], eligible: true, updated: time };

@@ -199,7 +199,7 @@ test('the Session widget uses native rows and keeps detail in the full panel acr
   await expect(frame.locator('#ws')).toHaveAttribute('data-presentation', 'session');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.getByRole('button', { name: 'Show turn stats', exact: true })).toHaveCount(0);
-  await expect(frame.locator('.ws-model')).toBeVisible();
+  await expect(frame.locator('.ws-model')).toHaveCount(0);
   await expect(frame.locator('.ws-warning')).toContainText('Memory pressure');
   await expect(frame.locator('.ws-warning')).toHaveText('Memory pressure · warning');
   await expect(frame.locator('.chip, .ts-rows, .ws-key-stats, .ws-spark')).toHaveCount(0);
@@ -238,6 +238,7 @@ test('current first-token timing comes only from the current request capability'
   await expect(frame.locator('#first-token')).toContainText('0.85 s');
   await expect(frame.locator('#request-details')).toHaveJSProperty('open', false);
   await expect(frame.locator('#metrics')).toBeHidden();
+  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
   await frame.locator('#request-details > summary').click();
   await expect(frame.locator('#first-token [data-basis="reported"]')).toBeVisible();
   await expect(frame.locator('#context-headroom')).toBeVisible();
@@ -251,7 +252,7 @@ test('current first-token timing comes only from the current request capability'
   await expect(frame.locator('#first-token')).toHaveCount(0);
 });
 
-test('the 280 px Session summary keeps performance readable and preserves a long model name', async ({ page }) => {
+test('the 280 px Session summary keeps performance readable without repeating a long host model name', async ({ page }) => {
   await page.setViewportSize({ width: 300, height: 600 });
   await page.goto('/v2?state=decode&surface=status');
   await page.evaluate(() => {
@@ -263,8 +264,8 @@ test('the 280 px Session summary keeps performance readable and preserves a long
     preview.setPreviewPatch({ runtime: body.runtime, capabilities: body.capabilities });
   });
   const frame = page.frameLocator('iframe');
-  await expect(frame.locator('.ws-model')).toContainText('a-very-long-model-name');
-  await expect(frame.locator('.ws-model')).toHaveAttribute('title', 'example-org/a-very-long-model-name-with-extra-training-and-quantization-details-27B-4bit');
+  await expect(frame.locator('.ws-model')).toHaveCount(0);
+  await expect(frame.locator('#ws')).not.toContainText('a-very-long-model-name');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
   await expect(frame.locator('.ws-reading')).toContainText('26.4');
   await expect(frame.locator('.ws-key-stats, .ts-rows')).toHaveCount(0);

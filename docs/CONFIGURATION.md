@@ -72,14 +72,14 @@ package-manager command. Other plugins, provider settings, JSONC comments, and
 the existing companion's options are preserved.
 
 Chat estimates are qualified for **OpenCode 2.0.25**. The companion observes the
-selected local chat's public events, counts text and reasoning in memory, and
+selected chat's public events, counts text and observable reasoning in memory, and
 saves only short-lived measurement metadata. Live estimates use a delivery
 window; a finished step uses reported output tokens and is labeled as an
 average. Neither is presented as the engine's native decode timing. The
 companion subscribes while a visible Scope view requests chat measurements;
 after the last view stops, that request expires within 15 seconds.
 
-After enabling, start a new local reply and choose **Check status**. If setup
+After enabling, start a new reply and choose **Check status**. If setup
 remains pending, reload OpenCode when no reply is running. Scope never restarts
 OpenCode for you. A startup receipt confirms that the supported companion loaded;
 only a fresh heartbeat confirms a current connection. Unsupported versions keep

@@ -54,10 +54,12 @@ const expectPalette = async (frame: Frame, palette: HostTheme, transparent = fal
 test('a mounted panel repaints for same-mode custom themes and light/dark changes without losing its controls', async ({ page }) => {
   const frame = await load(page);
   // A constant fixture rate draws a horizontal SVG path with a zero-height bounding box.
+  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
   await frame.locator('#engine-trend > summary').click();
   await expect(frame.locator('#signal')).toBeVisible({ timeout: 12_000 });
   await expect(frame.locator('#signal .trace')).toBeAttached();
   const mounted = await frame.locator('#scope').elementHandle();
+  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
   await frame.locator('#request-details > summary').click();
   await frame.locator('#request-details > summary').focus();
 
@@ -65,7 +67,7 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
     await setTheme(page, palette);
     await expectPalette(frame, palette);
     await expect(frame.locator('#signal .trace')).toHaveCSS('stroke', rgb(palette.tokens.primaryText));
-    await expect(frame.locator('.scope-mark')).toHaveCSS('stroke', rgb(palette.tokens.primaryText));
+    await expect(frame.locator('.scope-mark')).toHaveCSS('color', rgb(palette.tokens.primaryText));
     const menuSurface = await frame.locator('.monitor-menu-content').evaluate(el => {
       const style = getComputedStyle(el);
       return [style.backgroundColor, style.backgroundImage];
@@ -85,6 +87,7 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
 
 test('legacy palette updates clear old text tokens and use the current host primary fallback', async ({ page }) => {
   const frame = await load(page);
+  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
   await frame.locator('#engine-trend > summary').click();
   await expect(frame.locator('#signal')).toBeVisible({ timeout: 12_000 });
   await expect(frame.locator('#signal .trace')).toBeAttached();
@@ -103,7 +106,7 @@ test('the host primary remains the identity color during prefill while warnings 
   let frame = await load(page, 'state=prefill');
   await setTheme(page, VIOLET);
   await expect(frame.locator('.progress-track > span')).toHaveCSS('background-color', rgb(VIOLET.tokens.primaryText));
-  await expect(frame.locator('.scope-mark')).toHaveCSS('stroke', rgb(VIOLET.tokens.primaryText));
+  await expect(frame.locator('.scope-mark')).toHaveCSS('color', rgb(VIOLET.tokens.primaryText));
 
   for (const [state, severity, key] of [['pressure', 'warning', 'warningText'], ['pressure-critical', 'critical', 'errorText']] as const) {
     frame = await load(page, `state=${state}`);
@@ -112,8 +115,9 @@ test('the host primary remains the identity color during prefill while warnings 
     for (const palette of [VIOLET, PAPER]) {
       await setTheme(page, palette);
       await expect(alert).toHaveCSS('--tone', palette.tokens[key]);
+      if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
       await expect(frame.locator(`.machine-summary .level[data-level="${severity}"]`)).toHaveCSS('color', rgb(palette.tokens[key]));
-      await expect(frame.locator('.scope-mark')).toHaveCSS('stroke', rgb(palette.tokens.primaryText));
+      await expect(frame.locator('.scope-mark')).toHaveCSS('color', rgb(palette.tokens.primaryText));
     }
   }
 });

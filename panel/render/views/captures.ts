@@ -8,7 +8,7 @@ import { capturesReport, nextReplyCapture, presentCaptures, windowCapture, type 
   type SavedRow, type ValueView, type WindowCard } from '../../present/captures-tab.ts';
 import type { HistoryText } from '../../present/history.ts';
 import { connectionName } from '../../present/messages.ts';
-import { box, group, small, span, strong, button, chip, delegate, el, morph, section, seg, svg, Tips, val } from './history-parts.ts';
+import { box, group, small, span, strong, button, chip, delegate, el, morph, section, seg, scopeIcon, Tips, val } from './history-parts.ts';
 import type { MountView, ViewContext, ViewHandle } from './types.ts';
 
 // Owner: ui-history. The Captures tab: Next reply, the 30/60 s window and saved captures. Monitoring keeps running
@@ -28,7 +28,7 @@ export interface CapturesDeps {
 }
 const TICK_MS = 1_000, NAMES_MAX = 64;
 
-const measure = (): SVGElement => svg('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true' }, svg('circle', { cx: 8, cy: 8, r: 5.5 }), svg('circle', { cx: 8, cy: 8, r: 1.6 }));
+const measure = (): SVGElement => scopeIcon('measure');
 const values = (list: readonly ValueView[], className: string): HTMLElement => box(className, list.map(item => val(item.text, item.basis, item.note)));
 
 const nextCard = (card: NextCard, tips: Tips): HTMLElement => {

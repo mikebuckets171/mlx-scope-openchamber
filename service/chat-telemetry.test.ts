@@ -2,7 +2,7 @@ import { afterEach, expect, test } from 'bun:test';
 import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ChatTelemetry, type ChatTarget } from './chat-telemetry.ts';
+import { ChatTelemetry, type ChatTarget, type RemoteChatTarget } from './chat-telemetry.ts';
 const homes: string[] = [];
 afterEach(async () => { await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true }))); });
 const at = 100_000, writer = '00000000-2222-4333-8444-555555555555';
@@ -69,5 +69,49 @@ test('expired crash files do not exhaust the fresh writer limit',async()=>{
   }
   await f.write(f.body);
   expect(await telemetry.observe('11111111',target)).toEqual(measurement);
+  await telemetry.dispose();
+});
+
+test('remote demand requires explicit destination proof and never weakens local endpoint matching', async () => {
+  const f = await fixture(), telemetry = new ChatTelemetry(f.home, () => at);
+  const remote: RemoteChatTarget = { sessionKey: target.sessionKey, providerKey: target.providerKey, modelKey: target.modelKey, destination: 'remote' };
+  const entry = { ...target, destination: 'remote', measurement };
+  await f.write(f.body);
+  expect(await telemetry.observe('11111111', remote)).toBeNull();
+  await f.write({ ...f.body, entries: [entry] });
+  expect(await telemetry.observe('11111111', target)).toBeNull();
+  expect(await telemetry.observe('22222222', remote)).toEqual(measurement);
+  const demand = JSON.parse(await readFile(join(f.directory, 'demand.json'), 'utf8'));
+  expect(demand.watched).toEqual([target, remote]);
+  for (const invalid of [{ ...entry, endpointKey: undefined }, { ...entry, endpointKey: 'raw endpoint' },
+    { ...entry, sessionKey: 'e'.repeat(64) }, { ...entry, providerKey: 'e'.repeat(64) }, { ...entry, modelKey: 'e'.repeat(64) },
+    { ...entry, destination: 'local' }]) {
+    await f.write({ ...f.body, entries: [invalid] }); expect(await telemetry.observe('22222222', remote)).toBeNull();
+  }
+  await telemetry.dispose();
+});
+
+test('ambiguous remote endpoints or writers never produce a combined or selected rate', async () => {
+  const f = await fixture(), telemetry = new ChatTelemetry(f.home, () => at);
+  const remote: RemoteChatTarget = { sessionKey: target.sessionKey, providerKey: target.providerKey, modelKey: target.modelKey, destination: 'remote' };
+  const entry = { ...target, destination: 'remote', measurement }, other = '00000000-3333-4333-8444-555555555555';
+  await f.write({ ...f.body, entries: [entry, { ...entry, endpointKey: 'e'.repeat(64) }] });
+  expect(await telemetry.observe('11111111', remote)).toBeNull();
+  await f.write({ ...f.body, entries: [entry] });
+  await f.write({ ...f.body, writerID: other, entries: [entry] }, `${other}.json`);
+  expect(await telemetry.observe('11111111', remote)).toBeNull();
+  await telemetry.dispose();
+});
+
+test('remote demand canonicalizes metadata, expires with its views, and clears cancellation speed', async () => {
+  const f = await fixture(); let now = at; const telemetry = new ChatTelemetry(f.home, () => now);
+  const remote: RemoteChatTarget = { sessionKey: target.sessionKey, providerKey: target.providerKey, modelKey: target.modelKey, destination: 'remote' };
+  const cancelled = { ...measurement, phase: 'cancelled' as const, tokensPerSecond: undefined };
+  await f.write({ ...f.body, entries: [{ ...target, destination: 'remote', measurement: cancelled }] });
+  expect(await telemetry.observe('11111111', { ...remote, content: 'PRIVATE', credential: 'PRIVATE' } as RemoteChatTarget)).toEqual(cancelled);
+  const demand = await readFile(join(f.directory, 'demand.json'), 'utf8');
+  expect(JSON.parse(demand).watched).toEqual([remote]); expect(demand).not.toContain('PRIVATE');
+  now += 16_000; expect(await telemetry.observe('22222222', null)).toBeNull();
+  await expect(readFile(join(f.directory, 'demand.json'))).rejects.toThrow();
   await telemetry.dispose();
 });

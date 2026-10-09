@@ -2,7 +2,11 @@
 
 The 3.0 companion adds demand-gated chat delivery observations on **OpenCode 2.0.25** and retains the existing Splash prompt-progress observer. Unsupported OpenCode versions disable chat estimates while native runtime monitoring remains available. The plugin ID remains `mlx-scope-prompt-progress` to update existing installations in place.
 
-The Splash observer enables Splash's `return_progress` option on existing streaming requests. It observes the same HTTP response, without changing the model route, starting a proxy, or submitting a prompt. Scope can then show **Prompt progress** from `processed / total`; the completed portion includes cached prompt tokens. Native oMLX metrics do not require the companion. Chat delivery estimates can observe any proven loopback provider, including oMLX.
+The Splash observer enables Splash's `return_progress` option on existing streaming requests. It observes the same HTTP response, without changing the model route, starting a proxy, or submitting a prompt. Scope can then show **Prompt progress** from `processed / total`; the completed portion includes cached prompt tokens. Native oMLX metrics do not require the companion.
+
+Chat delivery estimates can observe proven loopback providers, including oMLX, and cloud replies using the supported
+OpenCode event protocol. They measure delivery through OpenCode, including network buffering, rather than remote engine
+internals. Cloud observation never adds an API request or changes a provider's request or response.
 
 Add this directory to OpenCode's existing `plugins` list; keep the other entries:
 
@@ -68,9 +72,9 @@ Primary Splash 1.3 evidence: installed `server/server.py` validates `return_prog
 
 ## Chat delivery telemetry (3.0)
 
-Use Scope's deliberate Enable action to install the bundled companion at the stable global `addons/mlx-scope-prompt-progress` directory, retaining existing plugins and JSONC comments. The optional `promptProgress: false` setting disables Splash HTTP modification without disabling chat observation. Setup must never restart a running inference session automatically. The current stream cannot be recovered retroactively when monitoring becomes visible midway through a reply; Scope uses its labeled engine fallback until a newly observed primary step.
+Use Scope's deliberate Enable action to install the bundled companion at the stable global `addons/mlx-scope-prompt-progress` directory, retaining existing plugins and JSONC comments. The optional `promptProgress: false` setting disables Splash HTTP modification without disabling chat observation. Setup must never restart a running inference session automatically. The current stream cannot be recovered retroactively when monitoring becomes visible midway through a reply. A local chat can use its labeled engine fallback until a newly observed primary step; a cloud chat waits without an engine fallback.
 
-The observer uses the supported `ctx.event.subscribe({ signal })` API, with one subscription and one demand-file poll per process across loaded plugin locations. The event subscription exists only while at least one matching visible Scope view has a valid lease. Its `http.request` hook reads only primary request metadata to corroborate a literal loopback destination before counting a step. It never changes those requests. The separate existing Splash HTTP observer still only adds `return_progress` for its explicitly configured provider.
+The observer uses the supported `ctx.event.subscribe({ signal })` API, with one subscription and one demand-file poll per process across loaded plugin locations. The event subscription exists only while at least one matching visible Scope view has a valid lease. Its `http.request` hook reads only primary POST request metadata to corroborate an HTTP(S) destination before counting a step. Local targets require a literal loopback origin; remote targets require an observed non-loopback origin. It never changes those requests. The separate existing Splash HTTP observer still only adds `return_progress` for its explicitly configured provider.
 
 Protocol qualification is exact for **2.0.25**. The released schema uses `session.step.started`, `session.step.streamed`, `session.step.ended`, `session.text.*`, `session.reasoning.*`, `session.tool.*`, and `session.execution.*`, with the envelope's numeric `created` timestamp and ordinal text/reasoning parts. These are different from old `session.next.*` events; old payloads are not interpreted as current telemetry. Public primary sources inspected for this implementation:
 
@@ -92,7 +96,10 @@ type ChatDemand = {
   schemaVersion: 1;
   updatedAtMs: number;
   expiresAtMs: number; // > now, <= updatedAtMs + 15000
-  watched: Array<{ sessionKey: string; providerKey: string; modelKey: string }>; // <= 16
+  watched: Array<{ // <= 16
+    sessionKey: string; providerKey: string; modelKey: string;
+    destination?: 'remote'; // absent for local targets
+  }>;
 };
 ```
 
@@ -126,6 +133,7 @@ type ChatTelemetryFile = {
   expiresAtMs: number; // update + 15000
   entries: Array<{ // <= 16
     sessionKey: string; providerKey: string; modelKey: string; endpointKey: string;
+    destination?: 'remote'; // absent for local observations
     measurement: {
       scope: 'chat';
       basis: 'estimated-characters' | 'calibrated-characters' | 'reported-output';
@@ -142,7 +150,7 @@ type ChatTelemetryFile = {
 };
 ```
 
-Only `generating`/`reasoning` may carry a live rate; `complete` may carry a last completed-step average. Quiet/cancelled states have no rate. Readers must reject symlinks, wrong owners/permissions, future/expired documents, unsupported protocols, excessive entries, and files larger than 64 KiB; scan at most 256 directory entries and accept at most sixteen fresh valid writers, ignoring expired crash remnants. Require exactly one matching session/provider/model/endpoint observation and use its own expiry rather than the writer expiry to decide freshness. Matching hashes are local transport metadata and must never enter exported diagnostics. Conversation text, reasoning, tool content, credentials, raw model/session identifiers, and provider URLs are never written by chat telemetry.
+Only `generating`/`reasoning` may carry a live rate; `complete` may carry a last completed-step average. Quiet/cancelled states have no rate. Readers must reject symlinks, wrong owners/permissions, future/expired documents, unsupported protocols, excessive entries, and files larger than 64 KiB; scan at most 256 directory entries and accept at most sixteen fresh valid writers, ignoring expired crash remnants. Local readings require exactly one matching session/provider/model and configured endpoint, with no remote classification. Remote readings require exactly one matching session/provider/model and remote classification with a valid observed endpoint hash. Multiple matching endpoints or writers are ambiguous and produce no reading. Calibration remains specific to the observed endpoint. Use each observation's own expiry rather than the writer expiry to decide freshness. Matching hashes are local transport metadata and must never enter exported diagnostics. Conversation text, reasoning, tool content, credentials, raw model/session identifiers, and provider URLs are never written by chat telemetry.
 
 Tests cover the released event shapes, minimum window, bounded rolling samples, Unicode splits, concurrent selected chats, gaps, cancellation, retries, tool exclusions, completion timing, calibration eligibility/limits, demand expiry, shared subscriptions, unsupported versions, private files, and prompt-progress opt-out. The existing Splash byte-preservation and backpressure tests remain unchanged.
 

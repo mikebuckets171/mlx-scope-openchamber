@@ -1,3 +1,4 @@
+import { ICON_PATH } from './parts.ts';
 import type { Basis } from '../../../src/contract/capabilities.ts';
 import type { AttrChip } from '../../present/history.ts';
 
@@ -23,6 +24,10 @@ export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs =
 export const svg = (tag: string, attrs: Attrs = {}, ...children: Child[]): SVGElement => {
   const node = document.createElementNS(SVG, tag) as SVGElement; fill(node, attrs, children); return node;
 };
+/** The DOM-rendered views use the same glyphs as the markup-rendered views. */
+export const scopeIcon = (name: keyof typeof ICON_PATH): SVGElement => svg('svg',
+  { class: 'scope-icon', viewBox: '0 0 24 24', fill: 'currentColor', stroke: 'none', 'aria-hidden': 'true', focusable: 'false' },
+  svg('path', { d: ICON_PATH[name] }));
 /** Common text and layout nodes keep History and Captures markup concise. */
 export const span = (...children: Child[]): HTMLSpanElement => el('span', {}, ...children);
 export const strong = (...children: Child[]): HTMLElement => el('strong', {}, ...children);
@@ -54,7 +59,7 @@ export class Tips {
   make(key: string, title: string, paras: readonly string[]): { btn: HTMLElement; pop: HTMLElement } {
     const id = `${this.prefix}-tip-${key}`, open = this.open.has(key);
     return {
-      btn: el('button', { class: 'info', type: 'button', 'aria-expanded': String(open), 'aria-controls': id, 'aria-label': `About ${title}`, 'data-action': 'tip', 'data-arg': key }, 'i'),
+      btn: el('button', { class: 'info', type: 'button', 'aria-expanded': String(open), 'aria-controls': id, 'aria-label': `About ${title}`, 'data-action': 'tip', 'data-arg': key }, scopeIcon('info')),
       pop: el('div', { class: 'pop', id, role: 'note', hidden: !open }, el('strong', {}, title), paras.map(p => el('p', {}, p))),
     };
   }

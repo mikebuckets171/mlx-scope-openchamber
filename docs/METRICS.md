@@ -5,7 +5,7 @@ measurements leave no empty sidebar rows. Unknown is not zero, and idle time is 
 
 ## The main reading
 
-**This chat** is the default saved scope. It follows the selected chat's local provider and model, and chooses the
+**This chat** is the default saved scope. It follows the selected chat's provider and model, and chooses the
 first available reading in this order:
 
 1. A fresh runtime request in the current phase, matched to this chat and labeled **Chat · matched**. This is an inferred association: another
@@ -14,6 +14,11 @@ first available reading in this order:
    arriving through OpenCode, with a token estimate, rather than the engine's native decode time.
 3. A fresh runtime reading labeled **Engine**. This fallback covers activity on the selected engine and never silently
    becomes a chat measurement.
+
+Cloud chats use only the companion's delivery observations. A live **Chat · est.** includes network delivery and provider
+buffering, so it cannot be treated as the cloud engine's internal generation throughput. Remote observations require an
+observed primary HTTP request and exact chat/provider/model matching. The remote path makes no runtime, cloud API, or
+hardware requests and has no Engine fallback. Missing observations leave the activity and controls in place.
 
 When a chat output event arrives before the runtime's next poll, a previous prompt-reading rate cannot appear as
 generation or reasoning speed. Scope uses a valid chat estimate or waits for a compatible engine reading.

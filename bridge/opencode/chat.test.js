@@ -4,7 +4,7 @@ import { chmod, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { key } from './store.js';
-import { createChatTracker, loopbackEndpoint, WINDOW_MS } from './chat.js';
+import { createChatTracker, loopbackEndpoint, observedEndpoint, WINDOW_MS } from './chat.js';
 import { createChatStore, readPrivateJSON, atomicPrivateJSON } from './chat-store.js';
 import { createChatObserver, parseDemand } from './demand.js';
 import { makePlugin } from './index.js';
@@ -12,14 +12,14 @@ import { execFileSync } from 'node:child_process';
 
 const ident = (session = 'ses_private', model = 'private-model', provider = 'local') => ({
   sessionKey: key('session', session), modelKey: key('model', model), providerKey: key('provider', provider) });
-function harness() {
+function harness({ remote = false } = {}) {
   let time = 100_000, serial = 0; const saved = new Map();
   const tracker = createChatTracker({ now: () => time, publish: entry => saved.set(entry.sessionKey, entry), remove: k => saved.delete(k) });
-  tracker.setWatched([ident()]);
+  tracker.setWatched([{ ...ident(), ...remote ? { destination: 'remote' } : {} }]);
   const send = (type, data = {}, envelope = {}) => tracker.event({ type: `session.${type}`, id: `evt_${++serial}`, created: time,
     data: { sessionID: 'ses_private', assistantMessageID: 'assistant-private', ...data }, ...envelope });
   const authorize = (overrides = {}) => tracker.authorizeHttp({ sessionID: 'ses_private', model: { providerID: 'local', id: 'private-model' }, kind: 'primary',
-    request: new Request('http://127.0.0.1:8000/v1/chat/completions', { method: 'POST' }), ...overrides });
+    request: new Request(remote ? 'https://cloud.example/v1/chat/completions' : 'http://127.0.0.1:8000/v1/chat/completions', { method: 'POST' }), ...overrides });
   const start = (data = {}) => { authorize(); send('step.started', { started: time, model: { providerID: 'local', id: 'private-model' }, ...data }); };
   const part = (kind = 'text', ordinal = 0) => send(`${kind}.started`, { ordinal });
   const delta = (value = 'a'.repeat(40), kind = 'text', ordinal = 0, envelope) => send(`${kind}.delta`, { ordinal, delta: value }, envelope);
@@ -143,6 +143,57 @@ test('only watched primary loopback requests may prove a step; no title, compact
   const h = harness(); h.start(); h.tracker.setWatched([]); h.delta(); assert.equal(h.measurement, undefined); assert.equal(h.tracker.stats().routes, 0);
 });
 
+test('remote observations require deliberate remote demand and the actual primary HTTP destination', () => {
+  const h = harness({ remote: true }); h.start(); h.part(); h.delta(); h.advance(2000); h.part('reasoning', 1); h.delta('b'.repeat(40), 'reasoning', 1);
+  assert.equal(h.measurement.tokensPerSecond, 5); assert.equal(h.measurement.phase, 'reasoning');
+  assert.equal(h.saved.get(ident().sessionKey).destination, 'remote');
+  assert.equal(h.saved.get(ident().sessionKey).endpointKey, key('endpoint', 'https://cloud.example'));
+  for (const overrides of [{ kind: 'title' }, { kind: 'compaction' }, { kind: 'generate' },
+    { request: new Request('http://127.0.0.1:8000/v1/chat/completions', { method: 'POST' }) },
+    { request: new Request('https://cloud.example/v1/chat/completions') }]) {
+    const other = harness({ remote: true }); other.authorize(overrides);
+    other.send('step.started', { model: { providerID: 'local', id: 'private-model' }, started: other.time });
+    assert.equal(other.measurement, undefined);
+  }
+});
+
+test('remote endpoint classification never retains URL paths, query credentials, or headers', () => {
+  const remote = observedEndpoint('https://cloud.example/custom/private-path?api_key=PRIVATE');
+  assert.deepEqual(remote, { destination: 'remote', endpointKey: key('endpoint', 'https://cloud.example') });
+  assert.deepEqual(observedEndpoint('https://cloud.example/v1/chat/completions?api-version=2'), remote);
+  assert.ok(!JSON.stringify(remote).match(/PRIVATE|api_key|private-path|cloud\.example/));
+  for (const url of ['file:///private', 'https://user:password@cloud.example/v1', 'https://cloud.example/v1#private',
+    'http://127.0.0.1:8000/v1?secret=yes']) assert.equal(observedEndpoint(url), null);
+  assert.deepEqual(observedEndpoint('http://localhost:8000/v1'), { endpointKey: loopbackEndpoint('http://127.0.0.1:8000/v1') });
+});
+
+test('remote calibration stays endpoint-specific and destination changes reset live observations', () => {
+  const h = harness({ remote: true });
+  for (let i = 0; i < 3; i++) {
+    h.start(); h.part(); h.delta(); h.advance(1000); h.delta(); h.advance(1000); h.delta(); complete(h, { tokens: 15 }); h.advance(1000);
+  }
+  h.start(); h.part(); h.delta(); h.advance(2000); h.delta(); assert.equal(h.measurement.basis, 'calibrated-characters');
+  h.authorize({ request: new Request('https://other.example/v1/chat/completions', { method: 'POST' }) });
+  assert.equal(h.measurement, undefined);
+  h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
+  h.part(); h.delta(); h.advance(2000); h.delta(); assert.equal(h.measurement.basis, 'estimated-characters');
+  assert.equal(h.saved.get(ident().sessionKey).endpointKey, key('endpoint', 'https://other.example'));
+  h.send('execution.interrupted'); assert.equal(h.measurement.phase, 'cancelled'); assert.equal(h.measurement.tokensPerSecond, undefined);
+  h.tracker.setWatched([ident()]); assert.equal(h.measurement, undefined);
+});
+
+test('simultaneous local and remote chats retain their own destination proof and clear on hidden demand', () => {
+  const h = harness(), remote = { ...ident('second'), destination: 'remote' };
+  h.tracker.setWatched([ident(), remote]); h.start();
+  h.authorize({ sessionID: 'second', request: new Request('https://cloud.example/v1/chat/completions', { method: 'POST' }) });
+  h.send('step.started', { sessionID: 'second', started: h.time, model: { providerID: 'local', id: 'private-model' } });
+  assert.equal(h.saved.size, 2);
+  assert.equal(h.saved.get(ident().sessionKey).destination, undefined);
+  assert.equal(h.saved.get(remote.sessionKey).destination, 'remote');
+  h.tracker.setWatched([]); assert.equal(h.saved.size, 0); assert.equal(h.tracker.stats().routes, 0);
+  h.delta(); assert.equal(h.saved.size, 0);
+});
+
 test('simultaneous selected chats retain independent observations and switching removes old data', () => {
   const h = harness(); h.tracker.setWatched([ident(), ident('second')]); h.start(); h.part(); h.delta();
   h.authorize({ sessionID: 'second' }); h.send('step.started', { sessionID: 'second', started: h.time, model: { providerID: 'local', id: 'private-model' } });
@@ -156,6 +207,9 @@ test('private demand requires bounded matching identifiers and a short valid lea
   for (const invalid of [{ ...demand(10), expiresAtMs: 30_010 }, { ...demand(10), watched: [ident(), { sessionKey: 'raw' }] },
     { ...demand(10), watched: Array(17).fill(ident()) }, { ...demand(10), schemaVersion: 2 }, demand(11)]) assert.deepEqual(parseDemand(invalid, 10), []);
   assert.deepEqual(parseDemand(demand(10), 15_010), []);
+  const remote = { ...ident(), destination: 'remote' };
+  assert.deepEqual(parseDemand(demand(10, [ident(), remote, remote]), 10), [ident(), remote]);
+  assert.deepEqual(parseDemand(demand(10, [{ ...ident(), destination: 'unknown' }]), 10), []);
 });
 
 test('chat transport is private, bounded, metadata only, and symlink/oversize reads fail closed', async () => {
@@ -171,6 +225,20 @@ test('chat transport is private, bounded, metadata only, and symlink/oversize re
     assert.equal(await readPrivateJSON(directory, 'demand.json'), null);
     await chmod(join(directory, 'demand.json'), 0o644); assert.equal(await readPrivateJSON(directory, 'demand.json'), null);
     h.advance(5000); store.remove(ident().sessionKey); await store.flush(); assert.ok(!(await readdir(directory)).includes(`${store.writerID}.json`));
+  } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('remote transport publishes only hashes, classification and measurement metadata', async () => {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), 'scope-remote-chat-'))), h = harness({ remote: true }); h.start();
+  const store = createChatStore({ directory, now: () => h.time, intervalMs: 0, runtimeVersion: '2.0.25' });
+  try {
+    store.update({ ...h.saved.values().next().value, url: 'https://cloud.example/v1?api_key=PRIVATE', headers: { authorization: 'PRIVATE' }, content: 'PRIVATE' });
+    await store.flush();
+    const raw = await readFile(store.file, 'utf8'), entry = JSON.parse(raw).entries[0];
+    assert.equal(entry.destination, 'remote'); assert.equal(entry.endpointKey, key('endpoint', 'https://cloud.example'));
+    assert.ok(!raw.match(/PRIVATE|cloud\.example|api_key|authorization|ses_private|private-model/));
+    h.tracker.setWatched([]); store.remove(ident().sessionKey); await store.flush();
+    assert.ok(!(await readdir(directory)).includes(`${store.writerID}.json`));
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 

@@ -21,7 +21,7 @@ for (const theme of ['light', 'dark']) test(`Session shows the relevant stage an
     await expect(frame.locator('#ws')).not.toContainText('fresh output');
     await page.evaluate(() => (window as any).setPreviewState('splash-long-warning'));
     await expect(frame.locator('.ws-warning')).toContainText('Swap grew');
-    await expect(frame.locator('.ws-model')).toHaveAttribute('title', /A-very-long-model-name/);
+    await expect(frame.locator('.ws-model')).toHaveCount(0);
     expect(await child.evaluate(inspect, { openAll: false, backdrop })).toEqual([]);
     await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
     await expect.poll(() => page.evaluate(() => (window as any).previewOpenedSurfaces)).toEqual(['plugin:mlx-scope']);
@@ -72,6 +72,10 @@ test('extreme rates fit and retain their full accessible value; keyboard focus s
   const backdrop = await page.evaluate(() => [getComputedStyle(document.documentElement).backgroundColor, getComputedStyle(document.body).backgroundColor]);
   expect(await child.evaluate(inspect, { openAll: false, backdrop })).toEqual([]);
   await frame.locator('body').evaluate(el => { el.tabIndex = -1; el.focus(); }); await page.keyboard.press(testInfo.project.name === 'webkit' ? 'Alt+Tab' : 'Tab');
+  await expect(frame.getByLabel('Measurement scope')).toBeFocused();
+  const scopeFocus = await frame.getByLabel('Measurement scope').evaluate(el => { const s = getComputedStyle(el); return { style: s.outlineStyle, offset: s.outlineOffset, width: s.outlineWidth }; });
+  expect(scopeFocus).toEqual({ style: 'solid', offset: '-2px', width: '2px' });
+  await page.keyboard.press(testInfo.project.name === 'webkit' ? 'Alt+Tab' : 'Tab');
   const action = frame.getByRole('button', { name: 'Open MLX Scope', exact: true });
   await expect(action).toBeFocused();
   const focus = await action.evaluate(el => { const s = getComputedStyle(el); return { style: s.outlineStyle, offset: s.outlineOffset, width: s.outlineWidth }; });

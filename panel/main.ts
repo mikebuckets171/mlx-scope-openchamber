@@ -60,7 +60,9 @@ const stopFollowing = host.onSession(session => {
   const wasBusy = follow.session?.busy, changed = follow.update(session);
   if (changed && (prefs.value.measurementScope ?? 'chat') === 'chat') resetSelection();
   else if (session?.busy !== wasBusy && monitor?.live && state.mounted) {
-    state.awaitingFresh = true; render(); void monitor.poller.refresh();
+    // Activity hints request an update; they do not invalidate an otherwise fresh observation.
+    // Identity changes, interruption and the observation's own deadline still clear live readings.
+    render(); void monitor.poller.refresh();
   }
 });
 const pipelineFor = (surface: string): Pipeline => pipeline = new Pipeline({ host, state, now: () => client.now(), surface,
@@ -93,6 +95,7 @@ const mountStatus = async (ready: HostReadyContext): Promise<void> => {
   disposeSurface = () => { app.dispose(); pipeline.dispose(); };
   void readSelection(host.storage).then(next => { selection = next; });
   state.mounted = true;
+  clearTimeout(readyDeadline);
   render();
   monitor.sync();
   monitor.poller.start();
@@ -101,6 +104,7 @@ const mountStatus = async (ready: HostReadyContext): Promise<void> => {
 /** The rail panel and the page. */
 const mountScope = async (ready: HostReadyContext): Promise<void> => {
   root.innerHTML = shellMarkup().markup;
+  root.prepend(startupFallback);
   const shell = root.querySelector<HTMLElement>('#scope')!, node = (id: string) => shell.querySelector<HTMLElement>(`#${id}`)!;
   shell.dataset.surface = ready.surface;
   node('scope-version').textContent = version;
@@ -185,6 +189,7 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
   await Promise.all([preferences.load(applyPreference), prefs.load().then(showToasts), connections.load()]);
   if (state.disposed) return;
   state.mounted = true;
+  clearTimeout(readyDeadline);
   startupFallback.remove();
   shell.hidden = false;
   refresh.disabled = state.userPaused;
@@ -197,15 +202,17 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
 
 const readyDeadline = setTimeout(() => {
   if (state.mounted || state.disposed || state.startupFailed) return;
-  startupStatus.textContent = 'Waiting for OpenChamber. Open this monitor from the extension panel in OpenChamber. If it is already open there, reload the extension in Settings → Extensions.';
+  startupStatus.textContent = started
+    ? 'Waiting for saved settings from OpenChamber. If this continues, reload MLX Scope in Settings → Extensions.'
+    : 'Waiting for OpenChamber. Open this monitor from the extension panel in OpenChamber. If it is already open there, reload the extension in Settings → Extensions.';
 }, 6_000);
 let started = false;
 host.onReady(ready => {
-  clearTimeout(readyDeadline);
   applyHostReady(ready, document.documentElement);
   document.documentElement.style.colorScheme = ready.theme.mode;
   if (started) { render(); return; }
   started = true;
+  startupStatus.textContent = 'Loading saved settings…';
   follow.update(ready.session);
   state.surface = ready.surface;
   (ready.surface === 'status' ? mountStatus(ready) : mountScope(ready)).catch(() => showStartupFailure());

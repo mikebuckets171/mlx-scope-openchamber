@@ -125,6 +125,7 @@ test('secondary views return to their parent and server-only reads stop outside 
 
 test('ⓘ is a disclosure: one open at a time, in flow, Esc closes it and returns focus; it survives polls', async ({ page }) => {
   const frame = await load(page, 'state=decode');
+  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
   await frame.locator('#engine-readings > summary').click();
   const attr = frame.locator('#attribution .info'), basis = frame.locator('.instrument-basis .info');
   await attr.click();

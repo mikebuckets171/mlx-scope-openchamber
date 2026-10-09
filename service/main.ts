@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createChatDestination, createChatSource } from './chat-source.ts';
 import { ChatTelemetry } from './chat-telemetry.ts';
 import { createCompanionSetup } from './companion-setup.ts';
 import { RuntimeClient } from './runtime-client.ts';
@@ -29,12 +30,8 @@ const history = new ServiceHistory(instance, { energy: (from, to) => host.energy
 const server = createScopeServer(token, {
   read: (selection, request) => client.read(selection, request), host: context => host.sample(context), history,
   companionSetup,
-  chat: async (query, reading) => {
-    if (!query.frame || query.surface === 'background') return null;
-    const target = query.chat && query.chatModel && query.provider && reading.meta.connection.id === query.provider
-      ? await client.companionTarget(query.provider) : null;
-    return chat.observe(query.frame, target ? { ...target, sessionKey: query.chat!, modelKey: query.chatModel! } : null);
-  },
+  chatDestination: createChatDestination(client),
+  chat: createChatSource(chat, client),
   ...historySources(history, { now: Date.now, readUsage: query => client.usage(query) }),
 }, { instance });
 server.on('error', (error: NodeJS.ErrnoException) => {

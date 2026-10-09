@@ -12,6 +12,7 @@ test('Splish/Splash live rate stays server-wide and clears when the source stops
   await expect(frame.locator('[data-stage="generation"][data-basis="derived"]')).toContainText('Generation');
   await expect(frame.locator('[data-stage="generation"] .speed-source')).toContainText('Calculated');
   await expect(frame.locator('[data-stage="generation"] .speed-source')).toContainText('last 4.0 s');
+  if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
   await frame.locator('#engine-readings > summary').click();
   await frame.getByRole('button', { name: 'About How engine speeds are measured', exact: true }).click();
   await expect(frame.locator('#pop-live-basis')).toContainText('do not measure how fast tokens reach your chat');

@@ -69,8 +69,8 @@ export class ConnectionsView {
     });
   }
   private node(id: string): HTMLElement { return this.root.querySelector<HTMLElement>(`#${id}`)!; }
+  /** Every explicit choice also chooses Whole engine, even if the saved connection already matches. */
   private commit(next: RuntimeSelection): void {
-    if (this.selection.provider === next.provider && this.selection.runtime === next.runtime) return;
     this.selection = next;
     this.change();
   }
@@ -97,7 +97,8 @@ export class ConnectionsView {
     const revision = this.revision;
     try {
       const selection = selectionValue(await this.storage.get(STORAGE_KEY));
-      if (selection && revision === this.revision) this.commit(selection);
+      // Restoring a saved connection is not a user action and must not change the measurement scope.
+      if (selection && revision === this.revision) this.selection = selection;
     } catch { /* An unavailable preference store must not block monitoring. */ }
   }
   query(): Record<string, string> | undefined {

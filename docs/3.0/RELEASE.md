@@ -6,7 +6,8 @@ of publication. Keep public `main` unchanged until every gate below has a dated 
 ## Required evidence
 
 - Full type, fixture, privacy, unit, browser, bundle and clean ZIP checks. Keep all adapter and Splash progress fixtures.
-- OpenCode 2.0.25 actual-protocol smoke: estimates, three-step calibration, completed averages and hidden shutdown.
+- OpenCode 2.0.25 actual-protocol smoke: local and remote delivery matching, estimates, three-step calibration,
+  completed averages and hidden shutdown. Provider-specific buffering and observable reasoning limits remain explicit.
 - Real installed OpenChamber 2.2.0 Session/rail/page checks, both themes, keyboard use, narrow widths and larger text.
   Retain the 2.0.4 SDK/manifest floor and inherited host contract checks.
 - Local upgrade preserving settings/history/captures, with and without the optional companion; setup rollback and removal.

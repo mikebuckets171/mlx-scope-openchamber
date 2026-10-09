@@ -28,7 +28,7 @@ export interface ReplyView {
   chip: Chip | null; tip: Tip | null; when: string | null; empty: string | null;
   values: Val[]; split: Val[]; usual: Chip | null; next: NextView | null; model?: string;
 }
-export interface HeroView { instrument: SessionSectionView; speeds: SpeedsView; title: string; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
+export interface HeroView { instrument: SessionSectionView; speeds: SpeedsView; title: string; chatOnly?: boolean; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; engineTrend: { chart: ChartView | null } | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
 export interface Tile { label: string; value: string; detail: string; meter: number | null }
 export interface MacRow { key: string; label: string; value: Val; level: Level | null; meter: number | null; tip: Tip | null }
 export interface MacView { title: string; tip: Tip; stale: boolean; line: Array<{ label: string; value: string; meter: number | null }>; rows: MacRow[]; details: MacRow[] }
@@ -162,14 +162,20 @@ const presentHero = (s: ScopeInput): HeroView | null => {
   if (!snapshot) return null;
   const instrument = presentSessionSection({ ...s, reading: fromSnapshot(snapshot), chatIsLocal: s.chatIsLocal ?? null,
     turn: null, vsUsual: s.last?.vsUsual ?? null, sparkline: null, expanded: false, tipDismissed: true });
-  const kind = heroKind(s), title = modelOf(snapshot) ?? connName(snapshot.connection);
-  if (s.paused) return { instrument, speeds: presentSpeeds(s), title, attr: null, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, firstToken: null, context: null, reply: null };
+  if (s.measurementScope !== 'engine' && s.chatIsLocal === false) return { instrument, speeds: instrument.speeds, title: 'This chat', chatOnly: true,
+    attr: null, body: null, engineTrend: null, firstToken: null, context: null, reply: null };
+  const kind = heroKind(s), title = modelOf(snapshot) ?? connName(snapshot.connection), body = kind ? heroBody(kind, s) : null;
+  // Keep the disclosure in place across lifecycle changes. Only compatible engine readings enter its chart.
+  const engineTrend = snapshot.capabilities['request.decodeRate'] || snapshot.capabilities['server.rates']
+    ? { chart: body?.kind === 'decode' ? body.chart : liveChart(s.samples, s.now, snapshot.connection.runtime === 'splash' ? null : s.turnStartAt,
+      snapshot.connection.runtime === 'splash' ? 'server' : 'request') } : null;
+  if (s.paused) return { instrument, speeds: presentSpeeds(s), title, attr: null, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, engineTrend, firstToken: null, context: null, reply: null };
   const reply = replyView(s);
 
   const live = kind === 'decode' || kind === 'prefill', label = kind ? liveLabel(kind, s) : SERVER_WIDE;
   return {
     instrument, speeds: presentSpeeds(s), title, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
-    body: kind ? heroBody(kind, s) : null,
+    body, engineTrend,
     firstToken: kind && ACTIVE.has(snapshot.runtime.phase) && snapshot.runtime.request?.ttftMs != null && snapshot.capabilities['request.ttft']
       ? { text: 'First token', strong: dur(snapshot.runtime.request.ttftMs), basis: snapshot.capabilities['request.ttft'].basis } : null,
     context: kind ? contextBlock(s) : null, reply,
@@ -239,6 +245,8 @@ export const presentMac = (s: ScopeInput): MacView | null => {
   };
 };
 
-export const presentLive = (s: ScopeInput, extra: readonly Callout[] = []): LiveView => ({
-  callouts: callouts(s.snapshot, s.now, extra), hero: presentHero(s), tiles: presentTiles(s), mac: presentMac(s),
-});
+export const presentLive = (s: ScopeInput, extra: readonly Callout[] = []): LiveView => {
+  const chatOnly = s.measurementScope !== 'engine' && s.chatIsLocal === false;
+  return { callouts: chatOnly ? [...extra] : callouts(s.snapshot, s.now, extra), hero: presentHero(s),
+    tiles: chatOnly ? [] : presentTiles(s), mac: chatOnly ? null : presentMac(s) };
+};

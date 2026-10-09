@@ -8,8 +8,10 @@ export function parseDemand(value, now = Date.now()) {
   const seen = new Set(), watched = [];
   for (const item of value.watched) {
     if (!item || !HASH.test(item.sessionKey) || !HASH.test(item.providerKey) || !HASH.test(item.modelKey)) return [];
-    const match = `${item.sessionKey}:${item.providerKey}:${item.modelKey}`;
-    if (!seen.has(match)) { seen.add(match); watched.push({ sessionKey: item.sessionKey, providerKey: item.providerKey, modelKey: item.modelKey }); }
+    if (item.destination !== undefined && item.destination !== 'remote') return [];
+    const match = `${item.sessionKey}:${item.providerKey}:${item.modelKey}:${item.destination ?? 'local'}`;
+    if (!seen.has(match)) { seen.add(match); watched.push({ sessionKey: item.sessionKey, providerKey: item.providerKey, modelKey: item.modelKey,
+      ...item.destination === 'remote' ? { destination: 'remote' } : {} }); }
   }
   return watched;
 }

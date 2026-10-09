@@ -78,6 +78,40 @@ test('runtime diagnostics are available in a disclosure without displacing serve
   expect(serverMarkup(view, new Set(['server-runtime-details'])).markup).toContain('id="server-runtime-details" open>');
 });
 
+test('full Live keeps its readout and engine trend controls through activity and freshness changes', () => {
+  for (const state of ['decode', 'prefill', 'idle']) {
+    const input = inputOf(state), markup = liveMarkup(presentLive(input), new Set()).markup;
+    expect(markup, state).toContain('class="instrument-readout"');
+    expect(markup, state).toContain('id="engine-trend"');
+    expect(markup, state).not.toContain('id="signal"');
+  }
+  const stale = liveMarkup(presentLive(inputOf('decode', undefined, { fresh: false })), new Set()).markup;
+  expect(stale).toContain('class="instrument-readout"');
+  expect(stale).toContain('id="engine-trend"');
+  expect(stale).not.toContain('id="rate"');
+});
+
+test('Engine trend retains compatible history during tools without admitting chat estimates or mixed rate bases', () => {
+  const input = inputOf('splash-decode', body => {
+    body.chat = { scope: 'chat', basis: 'estimated-characters', timingBasis: 'delivery-window', phase: 'tool',
+      observedAtMs: MOCK_NOW, expiresAtMs: MOCK_NOW + 5_000,
+      observation: { startedAtMs: MOCK_NOW - 3_000, endedAtMs: MOCK_NOW }, freshness: 'live' };
+  }, { samples: [{ at: MOCK_NOW - 2_000, rate: 30, phase: 'decode', segment: 1, basis: 'derived' },
+    { at: MOCK_NOW - 1_000, rate: 32, phase: 'decode', segment: 1, basis: 'derived' },
+    { at: MOCK_NOW - 500, rate: 999, phase: 'decode', segment: 2 }] });
+  const view = presentLive(input), markup = liveMarkup(view, new Set(['engine-trend'])).markup;
+  expect(view.hero?.instrument).toMatchObject({ phase: 'Using tools', measurement: null });
+  expect(view.hero?.engineTrend?.chart).toMatchObject({ points: 2, ceiling: '35 tok/s' });
+  expect(markup).toContain('id="engine-trend" open>');
+  expect(markup).toContain('id="signal"');
+  expect(markup).not.toContain('id="rate"');
+  expect(markup).not.toContain('999');
+  const unsupported = inputOf('ollama');
+  delete unsupported.snapshot!.capabilities['request.decodeRate'];
+  delete unsupported.snapshot!.capabilities['server.rates'];
+  expect(presentLive(unsupported).hero?.engineTrend).toBeNull();
+});
+
 test('needs approval lists every exec path as code; needs restart gives the two S11 steps', () => {
   const approval = frameCardMarkup('approval').markup, restart = frameCardMarkup('restart').markup;
   expect(approval).toContain('<code>/usr/sbin/ioreg</code>');

@@ -1,12 +1,13 @@
 # MLX Scope
 
-Lightweight local model monitoring for OpenChamber.
+Lightweight model monitoring for OpenChamber.
 
 MLX Scope keeps honest runtime readings beside your conversation. It observes oMLX, Splash in Bionic, LM Studio,
 llama.cpp `llama-server`, Ollama, vllm-mlx, mlx-lm and standalone Splash through their supported passive APIs, plus the
 Mac they run on. It never sends inference, loads or unloads a model, or starts a runtime. The Session sidebar follows your chat and presents one relevant reading. Optional, clearly labeled chat delivery
 estimates supplement native engine measurements; missing measurements leave no empty rows. Every value identifies
-its source and scope. Live estimates, native throughput and completed-reply averages remain separate.
+its source and scope. Live estimates, native throughput and completed-reply averages remain separate. The optional
+companion also observes cloud chat delivery through OpenCode; it never calls a cloud API or reports cloud engine internals.
 
 | Runtime | Readings |
 | --- | --- |
@@ -31,18 +32,21 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
 
 ## Where MLX Scope shows up
 
-- **Session sidebar.** Two or three quiet rows: model and activity, one relevant reading, and **Open MLX Scope**.
+- **Session sidebar.** Activity leads, followed by one relevant reading and **Open MLX Scope**. OpenChamber already
+  shows the selected model, so the sidebar does not repeat it.
   Prompt progress appears while reading; speed appears while generating or reasoning. Tool use and waiting are explicit,
   and a completed measurement says **Last**. Unsupported measurements leave no empty rows. One priority warning can add a row.
-  The small scope menu remembers **This chat** (default) or **Whole engine**. This chat follows the open chat's local
+  The small scope menu remembers **This chat** (default) or **Whole engine**. This chat follows the open chat's
   provider and model. It prefers a matching runtime measurement, then a labeled **Chat · est.** delivery estimate from
   the optional companion, then an explicitly labeled **Engine** fallback. **Chat · matched** is inferred from runtime
   activity, not a server-provided chat identifier. Whole engine watches the selected connection independently.
-  Cloud chats have a neutral single-line state in This chat mode. Theme-native rows remain readable at increased text size.
+  Cloud chats use the same activity and reading layout: **Chat · est.** while streaming, then **Last chat · avg.** when
+  reliable reported usage is available. Without observations they stay quiet. They never borrow a local engine's reading
+  or hardware warnings. Theme-native rows remain readable at increased text size.
   The section samples only while visible and uses lighter Mac probes than the full panel.
-- **Rail panel and full page.** **Live** and **History** remain available at every width. Live leads with the same reading
-  and scope menu as the sidebar. **Engine readings**, **Engine trend**, request details, and the last reply expand when
-  needed; engine charts never mix in chat estimates. **Server & Mac details** opens diagnostics with **Back to Live**.
+- **Rail panel and full page.** **Live** and **History** remain available at every width. Live leads with the same activity,
+  reading and scope menu as the sidebar. **Measurement details** groups engine readings, the engine trend, request details
+  and the last reply; engine charts never mix in chat estimates. **Server & Mac details** opens diagnostics with **Back to Live**.
   History retains recent replies, trends, insights, alerts, and storage. **Captures** opens from History with
   **Back to History**, a **Reply / Timed window** selector, and saved captures. Active recordings remain cancellable
   while you navigate. Resizing preserves your selected destination. Open the rail from the Session action or the full
@@ -60,9 +64,9 @@ The Session sidebar in a dark theme ([light theme](docs/3.0/assets/session-light
 
 <img src="docs/3.0/assets/session-dark.png" alt="MLX Scope 3.0 in the Session sidebar, showing one labeled Engine reading and the This chat scope menu" width="350">
 
-The full Live view keeps engine readings and request details one click away.
+The full Live view keeps measurement details one click away.
 
-![MLX Scope 3.0 full Live view with a labeled speed and collapsed engine and request details](docs/3.0/assets/live-light.png)
+![MLX Scope 3.0 full Live view with activity first, a labeled speed and collapsed measurement details](docs/3.0/assets/live-light.png)
 
 ## Prompt progress for standalone Splash
 

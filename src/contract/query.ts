@@ -20,6 +20,8 @@ export interface SnapshotQuery extends Selection {
   detail?: 'server';
   /** SHA-256 companion matching keys; raw chat/model identifiers never travel in this query. */
   chat?: string; chatModel?: string; chatBusy?: true;
+  /** Selected remote chat telemetry only: never read local runtimes, host diagnostics or engine history. */
+  chatOnly?: true;
 }
 export interface TrendQuery extends Selection { windowMs: 900_000 | 1_800_000 | 3_600_000; series: TrendSeries[] }
 export interface UsageQuery extends Selection { range: UsageRange }
@@ -88,10 +90,18 @@ export const parseSnapshotQuery = (params: Params): SnapshotQuery | BadQuery => 
   if (!!chat !== !!chatModel) throw new Bad(chat ? 'chatModel' : 'chat');
   const chatBusy = match(params, 'chatBusy', value => value === '1' ? true as const : null);
   if (chatBusy && !chat) throw new Bad('chat');
-  return { ...selection(params), ...(frame ? { frame } : {}), ...(surface ? { surface } : {}),
+  const selected = selection(params);
+  const chatOnly = match(params, 'chatOnly', value => value === '1' ? true as const : null);
+  if (chatOnly) {
+    if (!chat) throw new Bad('chat');
+    if (!selected.provider) throw new Bad('provider');
+    if (selected.runtime) throw new Bad('runtime');
+    if (detail) throw new Bad('detail');
+  }
+  return { ...selected, ...(frame ? { frame } : {}), ...(surface ? { surface } : {}),
     tier: tier ?? (surface === 'status' || surface === 'background' ? 'glance' : 'full'), ...(since !== undefined ? { since } : {}),
     marks: repeated(params, 'mark', MAX_MARKS, mark), attrs: repeated(params, 'attr', MAX_ATTRS, attr), ...(detail ? { detail } : {}),
-    ...(chat && chatModel ? { chat, chatModel } : {}), ...(chatBusy ? { chatBusy } : {}) };
+    ...(chat && chatModel ? { chat, chatModel } : {}), ...(chatBusy ? { chatBusy } : {}), ...(chatOnly ? { chatOnly } : {}) };
 });
 
 const WINDOWS = { 900: 900_000, 1800: 1_800_000, 3600: 3_600_000 } as const;

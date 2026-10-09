@@ -7,7 +7,22 @@ import { parseChatMeasurement, type ChatMeasurement } from '../src/contract/chat
 
 const TTL = 15_000, MAX_BYTES = 65_536, HEX = /^[a-f0-9]{64}$/, UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const object = (v: unknown): Record<string, any> | null => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, any> : null;
-export interface ChatTarget { sessionKey: string; providerKey: string; modelKey: string; endpointKey: string }
+interface ChatIdentity { sessionKey: string; providerKey: string; modelKey: string }
+export interface LocalChatTarget extends ChatIdentity { endpointKey: string; destination?: undefined }
+/** The companion corroborates the actual remote primary request; its endpoint remains part of calibration/matching. */
+export interface RemoteChatTarget extends ChatIdentity { destination: 'remote'; endpointKey?: undefined }
+export type ChatTarget = LocalChatTarget | RemoteChatTarget;
+const canonicalTarget = (target: ChatTarget | null): ChatTarget | null => {
+  if (!target || ![target.sessionKey, target.providerKey, target.modelKey].every(value => HEX.test(value))) return null;
+  const identity = { sessionKey: target.sessionKey, providerKey: target.providerKey, modelKey: target.modelKey };
+  if (target.destination === 'remote') return target.endpointKey === undefined ? { ...identity, destination: 'remote' } : null;
+  return target.destination === undefined && HEX.test(target.endpointKey) ? { ...identity, endpointKey: target.endpointKey } : null;
+};
+const matchesTarget = (entry: Record<string, any>, target: ChatTarget): boolean => {
+  if (['sessionKey', 'providerKey', 'modelKey'].some(key => entry[key] !== target[key as keyof ChatIdentity])) return false;
+  return target.destination === 'remote' ? entry.destination === 'remote' && typeof entry.endpointKey === 'string' && HEX.test(entry.endpointKey)
+    : entry.destination === undefined && entry.endpointKey === target.endpointKey;
+};
 export interface CompanionProbe {
   companionVersion: string; protocol: string; runtimeVersion: string; supported: boolean;
   loadedAtMs: number; updatedAtMs?: number; expiresAtMs?: number;
@@ -60,8 +75,9 @@ export class ChatTelemetry {
   }
   async observe(frame: string, target: ChatTarget | null): Promise<ChatMeasurement | null> {
     const now = this.now();
+    target = canonicalTarget(target);
     for (const [id, item] of this.frames) if (item.until <= now) this.frames.delete(id);
-    if (target && Object.values(target).every(value => HEX.test(value))) {
+    if (target) {
       if (this.frames.has(frame) || this.frames.size < 16) this.frames.set(frame, { target, until: now + TTL });
     } else this.frames.delete(frame);
     // Do not create caches for users who have never enabled the companion. Its startup creates the directory.
@@ -100,7 +116,7 @@ export class ChatTelemetry {
         if (++count > 16) return null;
         for (const raw of value.entries) {
           const entry = object(raw);
-          if (!entry || Object.entries(target).some(([key,val]) => entry[key] !== val)) continue;
+          if (!entry || !matchesTarget(entry, target)) continue;
           const measurement = parseChatMeasurement(entry.measurement, checkedAt);
           if (measurement) found.push(measurement);
         }

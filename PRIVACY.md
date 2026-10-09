@@ -47,6 +47,10 @@ For chat delivery estimates, the companion subscribes to OpenCode 2.0.25's suppo
 visible Scope view requests them. Text and observable reasoning deltas are counted transiently in memory; their
 content is never written, logged, or sent to Scope. Tool payloads, title generation, compaction, and ambiguous usage
 accounting are excluded. Calibration keeps at most ten comparable character/token totals in memory, never content.
+The same observer can count cloud replies already streamed through OpenCode. Scope makes no cloud API requests and
+needs no additional cloud credentials. Primary-request metadata is inspected only to classify the destination and hash
+its origin; the URL, query parameters, headers and request body are never persisted by chat delivery monitoring. The
+existing Splash prompt-progress observer remains restricted to its configured loopback endpoint.
 
 Private `~/.cache/mlx-scope/chat-telemetry/` files contain bounded counters, timing, freshness, protocol versions and
 SHA-256 matching identifiers. Session, provider, model and endpoint matching hashes are deterministic and can correlate

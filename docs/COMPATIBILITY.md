@@ -27,9 +27,13 @@ checks protocol integration, not inference performance. Unsupported versions dis
 adapters continue to operate. Guided setup reports the detected protocol and distinguishes installed/pending from
 a fresh loaded companion. It supports native v2 `providers.<id>.settings` and legacy local provider configuration.
 
-The companion needs observable text/reasoning events, corroborating loopback request metadata and unambiguous usage
+The companion needs observable text/reasoning events, corroborating primary HTTP request metadata and unambiguous usage
 accounting. Tool payloads, auxiliary title/compaction tasks, missing metadata and ambiguous concurrent writers produce
-no chat speed. Native engine readings remain available as explicitly labeled Engine fallbacks.
+no chat speed. Local measurements retain exact configured loopback endpoint matching and explicitly labeled Engine
+fallbacks. Cloud delivery is classified from the observed remote request, uses the same labeled estimate and completed
+average, and never probes the provider's API or falls back to a local engine. Remote provider-specific buffering and hidden
+reasoning remain limitations; observable delivery is not native cloud engine throughput. Cloud protocol/transport fixtures
+do not establish every provider's compatibility or real inference overhead.
 
 ## Runtimes
 

@@ -14,7 +14,7 @@ export function parseCompanionSetup(value: unknown): CompanionSetupStatus | null
   return v as unknown as CompanionSetupStatus;
 }
 export const companionSetupMarkup = (): string => html`<div class="companion-setup" data-companion-setup>
-  <p class="insight-note">The optional companion adds live estimates for this chat when the server cannot measure speed. It counts local text and reasoning in memory; chat content is never saved by Scope.</p>
+  <p class="insight-note">The optional companion estimates delivery speed for local and cloud chats. It counts streamed text and observable reasoning on your computer; Scope never saves chat content.</p>
   <p class="insight-note">Enable adds Scope’s companion to your OpenCode plugins. Existing plugins and provider settings stay in place. Requires OpenCode 2.0.25.</p>
   <p class="insight-note" data-companion-status role="status">Checking companion…</p>
   <div class="insight-actions"><button type="button" class="btn" data-companion-action="enable" hidden>Enable companion</button><button type="button" class="btn quiet" data-companion-action="disable" hidden>Disable and remove</button><button type="button" class="btn quiet" data-companion-action="check">Check status</button></div>

@@ -37,12 +37,46 @@ test('a busy selected chat starts active cadence before its first companion obse
   expect(snapshotPollMs(value)).toBe(10_000);
 });
 
-test('completed or cancelled chat readings do not accelerate an idle engine; lower-priority frames still yield', () => {
+test('completed or cancelled chat readings do not accelerate an idle engine', () => {
   const value = input();
   expect(snapshotPollMs({ ...value, chat: { ...chat, phase: 'cancelled', tokensPerSecond: undefined } })).toBe(10_000);
   const complete: ChatMeasurement = { ...chat, phase: 'complete', freshness: 'last', timingBasis: 'completed-step', basis: 'reported-output' };
   expect(snapshotPollMs({ ...value, chat: complete })).toBe(10_000);
-  expect(snapshotPollMs({ ...value, chat, lease: { ...value.lease, leader: false, leaderSurface: 'page', yielded: true } })).toBe(10_000);
+});
+
+test('validated live chat observations keep visible followers current while another page holds the lease', () => {
+  const value = input(), lease = { ...value.lease, leader: false, leaderSurface: 'page' as const, yielded: true };
+  for (const phase of ['waiting', 'generating', 'reasoning', 'tool'] as const) {
+    const observed = { ...chat, phase, tokensPerSecond: phase === 'generating' || phase === 'reasoning' ? chat.tokensPerSecond : undefined };
+    for (const [surface, cadence] of [['status', 1_000], ['panel', 500], ['page', 500]] as const) {
+      const current = { ...value, lease, chat: observed, query: { surface } };
+      expect(snapshotPollMs(current), `${surface}: ${phase}`).toBe(cadence);
+      const snapshot = composeSnapshot(current);
+      expect(snapshot.lease).toMatchObject({ leader: false, leaderSurface: 'page' });
+      expect(snapshot.chat).toEqual(observed);
+      expect(snapshot.nextPollMs).toBe(cadence);
+    }
+  }
+});
+
+test('absence, expiry, future timestamps, invalid measurements and background frames never bypass presentation yield', () => {
+  const value = input(), lease = { ...value.lease, leader: false, leaderSurface: 'page' as const, yielded: true };
+  for (const observed of [null, { ...chat, expiresAtMs: NOW }, { ...chat, observedAtMs: NOW + 1 },
+    { ...chat, observation: { startedAtMs: NOW - 1_000, endedAtMs: NOW } },
+    { ...chat, phase: 'cancelled' as const, tokensPerSecond: undefined },
+    { ...chat, phase: 'complete' as const, freshness: 'last' as const, timingBasis: 'completed-step' as const, basis: 'reported-output' as const }]) {
+    expect(snapshotPollMs({ ...value, lease, chat: observed })).toBe(10_000);
+  }
+  expect(snapshotPollMs({ ...value, lease, chat, serverNow: chat.expiresAtMs })).toBe(10_000);
+  expect(snapshotPollMs({ ...value, lease, chat, query: { surface: 'background' } })).toBe(10_000);
+});
+
+test('live chat presentation keeps runtime failure backoff intact', () => {
+  const value = input(), lease = { ...value.lease, leader: false, leaderSurface: 'page' as const, yielded: true };
+  for (const surface of ['status', 'panel', 'page'] as const) {
+    const current = { ...value, lease, chat, query: { surface }, reading: { ...value.reading, meta: { ...value.reading.meta, failures: 4 } } };
+    expect(snapshotPollMs(current)).toBe(8_000);
+  }
 });
 
 test('snapshot composition preserves the independent chat basis without fabricating engine rates', () => {

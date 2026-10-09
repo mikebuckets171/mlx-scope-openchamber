@@ -10,7 +10,7 @@ import { RegressionTracker, type RegressionFlag } from '../../history/regress.ts
 import { baselineSummary } from '../../history/summary.ts';
 import { HISTORY_LIST_LIMIT, HISTORY_LIST_STEP, presentHistory, type BaselineCard, type HistoryEntry, type HistoryText, type HistoryView, type TrendCard } from '../../present/history.ts';
 import { connectionName } from '../../present/messages.ts';
-import { box, group, small, span, strong, button, chip, delegate, el, focusKey, morph, section, seg, svg, Tips, val, type Child } from './history-parts.ts';
+import { box, group, small, span, strong, button, chip, delegate, el, focusKey, morph, scopeIcon, section, seg, svg, Tips, val, type Child } from './history-parts.ts';
 import type { MountView, ViewContext, ViewHandle } from './types.ts';
 
 // Owner: ui-history. The History tab and the page's History column.
@@ -37,6 +37,7 @@ const REASON: Readonly<Record<string, string>> = {
   unparseable: 'The trend arrived in a shape Scope doesn’t know, so it isn’t shown.',
 };
 const GRID = 'M4 4H596 M4 60H596 M4 116H596';
+const disclosureArrow = (): HTMLSpanElement => el('span', { class: 'disclosure-arrow', 'aria-hidden': 'true' }, scopeIcon('right'));
 
 // ---------- parts ----------
 const trendFigure = (card: TrendCard, page: boolean): HTMLElement => {
@@ -280,7 +281,7 @@ class HistoryViewHandle implements ViewHandle {
       class: 'history-storage', open: storageOpen || storageNeedsAttention, 'data-attention': String(storageNeedsAttention),
     }, el('summary', { 'data-focus': 'history-storage' }, span( 'History storage'),
       el('span', { class: 'history-storage-state', 'data-paused': String(view.storage.paused) },
-        storageNeedsAttention ? 'Needs attention' : view.storage.label)), storage) : storage;
+        storageNeedsAttention ? 'Needs attention' : view.storage.label), disclosureArrow()), storage) : storage;
     const baseline = section('Usual speed', view.baseline.model || view.baseline.bucket ? [view.baseline.model ? el('span', { translate: 'no' }, view.baseline.model) : null,
         view.baseline.model && view.baseline.bucket ? ' · ' : null, view.baseline.bucket] : null, baselineBody(view.baseline, tips, this.status.baseline),
       tip('baseline', 'Usual speed', view.baseline.tip), 'insight-section history-baseline');
@@ -299,12 +300,12 @@ class HistoryViewHandle implements ViewHandle {
     const insightsAttention = !!view.baseline.flag;
     const insights = el('details', { class: 'history-insights', 'data-attention': String(insightsAttention),
       open: this.root.querySelector<HTMLDetailsElement>('.history-insights')?.open || insightsAttention },
-      el('summary', {}, span( 'Insights'), el('span', { class: 'history-storage-state' }, insightsAttention ? 'Slower than usual' : 'Baselines & usage')),
+      el('summary', {}, span( 'Insights'), el('span', { class: 'history-storage-state' }, insightsAttention ? 'Slower than usual' : 'Baselines & usage'), disclosureArrow()),
       group( baseline, usage));
     const alertsAttention = this.snapshot?.alerts.some(alert => alert.severity !== 'info') ?? false;
     const alerts = el('details', { class: 'history-alerts', 'data-attention': String(alertsAttention),
       open: this.root.querySelector<HTMLDetailsElement>('.history-alerts')?.open || alertsAttention },
-      el('summary', {}, span( 'Alert log'), el('span', { class: 'history-storage-state' }, alertsAttention ? 'Needs attention' : `${view.alertLog.length} recorded`)), alertLog);
+      el('summary', {}, span( 'Alert log'), el('span', { class: 'history-storage-state' }, alertsAttention ? 'Needs attention' : `${view.alertLog.length} recorded`), disclosureArrow()), alertLog);
     const next = group( trend, replies, insights, alerts, storageDetails);
     morph(this.root, next);
     const select = this.root.querySelector<HTMLSelectElement>('select[data-action="retention"]');

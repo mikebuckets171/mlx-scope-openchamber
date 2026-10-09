@@ -63,8 +63,12 @@ observations and invalidates in-flight replies. `Whole engine` retains explicit 
 contract and runtime routes remain compatible; `snapshot.chat` is an optional allowlisted measurement with scope,
 basis, timing basis, observation interval, expiry and freshness. It is never merged into engine trends or baselines.
 
-Visible frames send hashed session/model matching keys with the selected provider. The service validates a discovered
-loopback origin and writes a bounded union of watched targets into a private demand file (15-second expiry). One
+Visible frames send hashed session/model matching keys with the selected provider. Configuration metadata identifies
+whether the selected provider has a discovered loopback origin. Local targets retain exact endpoint matching; remote
+targets carry an explicit destination classification and require a matching observed primary HTTP request. Remote
+snapshots omit engine, history and hardware readings and never run a runtime collector. The additive `chatOnly=1`
+query also requests that path explicitly. The service writes a bounded union of watched targets into a private demand
+file (15-second expiry). One
 companion subscription per OpenCode process counts qualified delivery events while demanded and writes bounded
 expiring metadata. The service accepts exactly one matching writer; absent, stale, unsafe, unsupported or ambiguous
 records contribute no chat value. A one-shot view timer removes expired chat readings even if the next poll stalls.

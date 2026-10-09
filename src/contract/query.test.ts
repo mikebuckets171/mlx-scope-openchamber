@@ -21,6 +21,19 @@ test('chat busy is an explicit bounded hint that requires the paired chat identi
   expect(parseSnapshotQuery(q(pair))).not.toHaveProperty('chatBusy');
 });
 
+test('remote chat-only queries require exact selected identity and cannot select engine-only detail', () => {
+  const pair = `chat=${'a'.repeat(64)}&chatModel=${'b'.repeat(64)}`;
+  expect(parseSnapshotQuery(q(`provider=cloud&${pair}&chatOnly=1&chatBusy=1&surface=status`)))
+    .toEqual({ provider: 'cloud', chat: 'a'.repeat(64), chatModel: 'b'.repeat(64), chatOnly: true, chatBusy: true,
+      surface: 'status', tier: 'glance', marks: [], attrs: [] });
+  for (const value of ['', '0', 'true', '2', '01', '1&chatOnly=1'])
+    expect(parseSnapshotQuery(q(`provider=cloud&${pair}&chatOnly=${value}`))).toEqual({ error: 'bad_query', param: 'chatOnly' });
+  for (const [suffix, param] of [['', 'provider'], ['provider=', 'provider'], ['provider=cloud&runtime=omlx', 'runtime'],
+    ['provider=cloud&tier=full&detail=server', 'detail']] as const)
+    expect(parseSnapshotQuery(q(`${pair}&chatOnly=1&${suffix}`))).toEqual({ error: 'bad_query', param });
+  expect(parseSnapshotQuery(q('provider=cloud&chatOnly=1'))).toEqual({ error: 'bad_query', param: 'chat' });
+});
+
 test('missing, raw, malformed or repeated chat identifiers are rejected without echoing identifiers', () => {
   const chat = 'a'.repeat(64), chatModel = 'b'.repeat(64);
   const cases: Array<[string, string]> = [

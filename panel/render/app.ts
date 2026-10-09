@@ -76,7 +76,8 @@ export class ScopeApp {
     const { state } = this.p;
     if (state.disposed || !state.mounted) return;
     const s = this.input(), card = frameCard(s), open = state.open, compact = state.compact && !this.wide && !card;
-    state.serverDetailsVisible = state.tab === 'server' && !compact && !card;
+    const chatOnly = s.measurementScope !== 'engine' && s.chatIsLocal === false;
+    state.serverDetailsVisible = state.tab === 'server' && !compact && !card && !chatOnly;
     renderHeader(this.p.shell, presentHeader(s));
     const scopeControl = this.p.shell.querySelector<HTMLElement>('#measurement-choice');
     if (scopeControl) morph(scopeControl, scopeMenuMarkup(this.p.prefs.value.measurementScope ?? 'chat'));
@@ -96,7 +97,7 @@ export class ScopeApp {
     glance.hidden = !compact;
     if (compact) {
       morph(glance, sessionMarkup(presentSessionSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution, turn: null,
-        vsUsual: s.last?.vsUsual ?? null, sparkline: null, chatIsLocal: null, expanded: false, tipDismissed: true, fresh: s.fresh, paused: s.paused, next: s.next,
+        vsUsual: s.last?.vsUsual ?? null, sparkline: null, chatIsLocal: s.chatIsLocal ?? null, expanded: false, tipDismissed: true, fresh: s.fresh, paused: s.paused, next: s.next,
         efficient: state.efficient, measurementScope: s.measurementScope, sessionModel: s.sessionModel, chatActivity: s.chatActivity,
         last: s.last && { completion: s.last.completion, label: s.last.label } }), null, true));
       return;
@@ -104,7 +105,7 @@ export class ScopeApp {
     if (card) return;
     const active = state.tab, primary = primaryTab(active), live = presentLive(s, this.extra(s));
     const action = this.node('workspace-action');
-    action.hidden = active === 'server' || active === 'captures';
+    action.hidden = active === 'server' || active === 'captures' || active === 'live' && chatOnly;
     morph(action, active === 'live'
       ? html`<button class="btn quiet" type="button" data-action="open-server">Server &amp; Mac details</button>`
       : active === 'history' ? html`<button class="btn quiet" type="button" data-action="open-captures">Captures</button>` : '');

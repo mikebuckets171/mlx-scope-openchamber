@@ -66,6 +66,7 @@ export function createChatStore({ directory = CHAT_DIRECTORY, now = Date.now, wa
     writerID, file: join(directory, `${writerID}.json`),
     update(value) {
       if (closed || !HASH.test(value.sessionKey) || !HASH.test(value.providerKey) || !HASH.test(value.modelKey) || !HASH.test(value.endpointKey)) return;
+      if (value.destination !== undefined && value.destination !== 'remote') return;
       prune(); if (!entries.has(value.sessionKey) && entries.size >= 16) return;
       // Only allowlisted metadata enters the local transport, regardless of caller extensions.
       const m = value.measurement;
@@ -74,7 +75,7 @@ export function createChatStore({ directory = CHAT_DIRECTORY, now = Date.now, wa
         observation: { startedAtMs: m.observation.startedAtMs, endedAtMs: m.observation.endedAtMs },
         freshness: m.freshness, calibrationSteps: m.calibrationSteps };
       entries.set(value.sessionKey, { sessionKey: value.sessionKey, providerKey: value.providerKey, modelKey: value.modelKey,
-        endpointKey: value.endpointKey, measurement }); schedule();
+        endpointKey: value.endpointKey, ...value.destination === 'remote' ? { destination: 'remote' } : {}, measurement }); schedule();
     },
     remove(sessionKey) { if (entries.delete(sessionKey)) schedule(); },
     async flush() { if (dirty || timer) await write(); await writing; },

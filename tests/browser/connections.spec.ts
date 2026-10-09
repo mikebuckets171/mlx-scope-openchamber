@@ -29,10 +29,11 @@ test('a chosen connection is stored without credentials, sent with each poll, an
   await expect(frame.locator('#prefill-percent')).toHaveText('64%');
   await choose(page, 'studio');
   await expect(frame.locator('#connection')).toHaveText('LM Studio local');
-  await expect(frame.locator('.instrument-heading h2')).toHaveText('Connected');
+  await expect(frame.locator('.instrument-phase')).toHaveText('Connected');
   await expect(frame.locator('#rate')).toHaveCount(0);
   await expect(frame.locator('#hero')).toContainText('LM Studio lists its models · no live request readings');
   await expect(frame.locator('#metrics')).toHaveCount(0);
+  await frame.locator('#measurement-details > summary').click();
   await expect(frame.locator('.machine-summary')).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('connection.selection')!))).toEqual({ provider: 'studio', runtime: null });
   expect(await selection(page)).toEqual({ provider: 'studio' });
@@ -64,7 +65,7 @@ test('standalone Splash: server-wide averages and Metal memory stay separate, an
   await choose(page, 'splash');
   await expect(frame.locator('#connection')).toHaveText('Inco AI Splash');
   await expect(frame.locator('#model')).toHaveText('incoai/Qwen3.8-27B-Splash');
-  await expect(frame.locator('.instrument-heading h2')).toHaveText('Idle');
+  await expect(frame.locator('.instrument-phase')).toHaveText('Idle');
   await expect(frame.locator('#rate')).toHaveCount(0);
   await expect(frame.locator('#metrics')).toHaveCount(0);
   await server(frame);
@@ -129,6 +130,7 @@ test('a storage failure keeps the chosen connection usable; a missing setup poin
   frame = await open(page, 'setup=missing');
   const callout = frame.locator('#view-live > .connection-diagnosis');
   await expect(callout).toContainText('isn’t answering');
+  await frame.locator('#measurement-details > summary').click();
   await expect(frame.locator('.machine-summary')).toBeVisible();
   await callout.getByRole('button', { name: 'Connection…' }).click();
   await expect(frame.getByLabel('Connection', { exact: true })).toBeFocused();

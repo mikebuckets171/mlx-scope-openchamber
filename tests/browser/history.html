@@ -1,19 +1,24 @@
 <!doctype html>
-<html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
+<html lang="en" data-oc-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
 <title>MLX Scope · History and Captures preview</title>
 <!-- Set the fixture's color scheme before WebKit styles native controls. -->
-<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') === 'light' ? 'light' : 'dark';</script>
+<script>
+  const historyLight = new URLSearchParams(location.search).get('theme') === 'light', historyRoot = document.documentElement;
+  historyRoot.dataset.ocTheme = historyLight ? 'light' : 'dark'; historyRoot.style.colorScheme = historyRoot.dataset.ocTheme;
+  if (historyLight) for (const [name, value] of Object.entries({bg:'#f7f9fb',elevated:'#ffffff',fg:'#172a37',muted:'#596977',border:'#ced7df',hover:'#e8e4de','muted-surface':'#f0ece6',primary:'#2868a5','primary-fg':'#ffffff','primary-text':'#245a90','success-text':'#197e68','warning-text':'#966113','error-text':'#b13a45','info-text':'#286cae'})) historyRoot.style.setProperty('--oc-' + name, value);
+  if (!historyLight) for (const [name, value] of Object.entries({bg:'#10151b',elevated:'#202c36',fg:'#e9f0f5',muted:'#9aa9b7',border:'#3b3a47',hover:'#2c2736','muted-surface':'#25222d',primary:'#3b72ad','primary-fg':'#ffffff','primary-text':'#98c8fa','success-text':'#7dd9bd','warning-text':'#dfb976','error-text':'#ee8992','info-text':'#86b7ed'})) historyRoot.style.setProperty('--oc-' + name, value);
+</script>
 <link rel="stylesheet" href="/history.css"></head>
 <body>
-<!-- Synthetic preview (ui-history): the approved mock's shell around the real History and Captures views. -->
+<!-- Isolated synthetic data around the real History and Captures views. -->
 <main class="scope" id="scope" data-phase="decode" data-stale="false" data-approval="false" data-paused="false">
   <header class="masthead">
-    <div class="brand"><svg class="scope-mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11"/><path d="M3 14h6l3-5 4 10 3-5h6"/></svg><h1>MLX <span>Scope</span></h1></div>
-    <div class="status-pill"><span class="connection-dot" aria-hidden="true"></span><span class="phase">Generating</span><span class="status-sep" aria-hidden="true">·</span><span class="conn">Local oMLX</span></div>
+    <div class="brand"><h1>MLX Scope</h1></div>
+    <div class="status-pill"><span class="connection-dot" aria-hidden="true"></span><span class="conn">Local oMLX</span></div>
   </header>
   <nav class="workspace-nav" aria-label="Scope workspaces"><div class="tablist" role="tablist" id="tabs"></div></nav>
   <div id="views"></div>
-  <footer><span>MLX Scope 2.0.0 · preview</span><span>Synthetic data</span></footer>
+  <footer><span>Synthetic data</span></footer>
 </main>
 <script>
   // The shell is static; the entry script mounts the real view into the selected tab's panel.

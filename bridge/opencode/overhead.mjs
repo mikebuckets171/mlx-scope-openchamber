@@ -1,4 +1,4 @@
-// node bridge/opencode/overhead.mjs /absolute/evidence/directory
+// node bridge/opencode/overhead.mjs /absolute/evidence/directory [absolute frozen companion directory]
 // Measures this companion inside an isolated Node worker, never a whole OpenCode process or real inference.
 import assert from 'node:assert/strict';
 import { fork } from 'node:child_process';
@@ -6,15 +6,18 @@ import { createHash, randomUUID } from 'node:crypto';
 import { watch } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { cpus, platform, release } from 'node:os';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const digest = (kind, value) => createHash('sha256').update(`mlx-scope-${kind}-v1\0${value}`).digest('hex');
 const CHATS = 4, IDLE_MS = 6_000, VISIBLE_MS = 10_000, HIDDEN_MS = 6_000, DELTA_MS = 100;
 const UUID_FILE = /^[a-f0-9-]{36}\.json$/;
 const watched = Array.from({ length: CHATS }, (_, i) => ({ sessionKey: digest('session', `ses_fixture_${i}`),
-  providerKey: digest('provider', 'fixture'), modelKey: digest('model', 'fixture') }));
+  providerKey: digest('provider', 'fixture'), modelKey: digest('model', 'fixture'), ...i % 2 ? { destination: 'remote' } : {} }));
+const companionFiles = ['index.js', 'chat.js', 'demand.js', 'chat-store.js', 'store.js', 'stream.js', 'package.json'];
+const companionDigests = async directory => Object.fromEntries(await Promise.all(companionFiles.map(async name =>
+  [name, createHash('sha256').update(await readFile(join(directory, name))).digest('hex')])));
 async function demand(directory, ttl = 15_000) {
   const now = Date.now(), temp = join(directory, `.${randomUUID()}.tmp`);
   await writeFile(temp, JSON.stringify({ schemaVersion: 1, updatedAtMs: now, expiresAtMs: now + ttl, watched }), { mode: 0o600 });
@@ -43,11 +46,13 @@ function source() {
   };
 }
 
-async function worker(enabled, directory) {
+async function worker(enabled, directory, companionDirectory) {
   const events = source(), hooks = [[], []], disposals = []; let generation = 0, serial = 0, emitted = 0, deltas = 0;
   let phase = 'setup'; process.send({ type: 'phase', phase });
   if (enabled) {
-    const { makePlugin } = await import('./index.js'), { createChatObserver } = await import('./demand.js'), { createStore } = await import('./store.js');
+    const { makePlugin } = await import(pathToFileURL(join(companionDirectory, 'index.js')).href),
+      { createChatObserver } = await import(pathToFileURL(join(companionDirectory, 'demand.js')).href),
+      { createStore } = await import(pathToFileURL(join(companionDirectory, 'store.js')).href);
     const plugin = makePlugin({ shared: {}, observerFactory: () => createChatObserver({ directory }),
       storeFactory: () => createStore({ directory: join(directory, 'progress') }) });
     for (let location = 0; location < 2; location++) disposals.push(await plugin.setup({ app: { version: '2.0.25' }, options: { promptProgress: false },
@@ -62,7 +67,8 @@ async function worker(enabled, directory) {
     generation++; roundTicks = 0; counts = Array(CHATS).fill(0);
     for (let i = 0; i < CHATS; i++) {
       const request = { kind: 'primary', sessionID: `ses_fixture_${i}`, model: { providerID: 'fixture', id: 'fixture' },
-        request: new Request('http://127.0.0.1:7777/v1/chat/completions', { method: 'POST' }) };
+        request: new Request(i % 2 ? 'https://fixture.invalid/v1/chat/completions' : 'http://127.0.0.1:7777/v1/chat/completions',
+          { method: 'POST' }) };
       for (const callback of hooks[i % 2]) callback(request);
       emit(i, 'step.started', { started: Date.now(), model: request.model }); emit(i, 'text.started', { ordinal: 0 });
     }
@@ -108,18 +114,21 @@ async function worker(enabled, directory) {
 }
 
 if (process.argv[2] === '--worker') {
-  await worker(process.argv[3] === 'on', process.argv[4]);
+  await worker(process.argv[3] === 'on', process.argv[4], process.argv[5]);
 } else {
   const output = process.argv[2];
   if (!output || !output.startsWith('/')) throw new Error('Pass an absolute evidence output directory.');
   await mkdir(output, { recursive: true });
   const file = fileURLToPath(import.meta.url), runs = [], startedAt = new Date().toISOString();
+  const companionDirectory = resolve(process.argv[3] ?? dirname(file));
+  const measuredDigests = await companionDigests(companionDirectory);
   // Alternating order balances warm caches and background load; all six workers run sequentially.
   for (let pair = 0; pair < 3; pair++) for (const enabled of pair === 1 ? [true, false] : [false, true]) {
+    assert.deepEqual(await companionDigests(companionDirectory), measuredDigests, 'Freeze the companion before measuring.');
     const directory = await mkdtemp(join(output, '.companion-overhead-')); await chmod(directory, 0o700);
     let phase = 'setup', result, maxWriterBytes = 0, maxWriters = 0, maxDirectoryBytes = 0, samples = 0;
     const files = new Map(), changes = {}, warnings = [];
-    const child = fork(file, ['--worker', enabled ? 'on' : 'off', directory], { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+    const child = fork(file, ['--worker', enabled ? 'on' : 'off', directory, companionDirectory], { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
     child.stderr.on('data', chunk => { if (warnings.length < 10) warnings.push(String(chunk).slice(0, 500)); });
     let scanning = false;
     const inspect = async () => {
@@ -153,9 +162,12 @@ if (process.argv[2] === '--worker') {
       const record = { pair, ...result, filesystem: { samples, maxWriters, maxWriterBytes, maxDirectoryBytes, changes }, warnings };
       runs.push(record); console.log(JSON.stringify({ pair, enabled, idleCPU: result.idle.cpuPercentOneCore,
         visibleCPU: result.visible.cpuPercentOneCore, hiddenCPU: result.hidden.cpuPercentOneCore, maxWriterBytes }));
+      assert.deepEqual(await companionDigests(companionDirectory), measuredDigests, 'Companion changed during measurement.');
       await writeFile(join(output, 'companion-overhead.json'), JSON.stringify({ startedAt, recordedAt: new Date().toISOString(),
+        companionSha256: measuredDigests,
         environment: { node: process.version, platform: platform(), release: release(), cpu: cpus()[0]?.model, logicalCPUs: cpus().length },
-        method: { chats: CHATS, deltaCadenceMs: DELTA_MS, locations: 2, phasesMs: { idle: IDLE_MS, visible: VISIBLE_MS, hidden: HIDDEN_MS },
+        method: { chats: CHATS, localChats: 2, remoteChats: 2, deltaCadenceMs: DELTA_MS, locations: 2,
+          phasesMs: { idle: IDLE_MS, visible: VISIBLE_MS, hidden: HIDDEN_MS },
           attribution: 'isolated Node worker process; enabled-minus-disabled incremental companion including event subscription and filesystem work; not whole OpenCode',
           runtimeProtocol: 'released OpenCode 2.0.25 shapes, separately qualified by protocol-smoke.mjs' }, runs }, null, 2));
     } finally { await rm(directory, { recursive: true, force: true }); }
