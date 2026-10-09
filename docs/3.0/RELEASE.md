@@ -1,7 +1,8 @@
 # MLX Scope 3.0 verification
 
-This branch is a release candidate built from public 2.1.6 (`4298c03`). A version number in the candidate is not evidence
-of publication. Keep public `main` unchanged until the verification below has a dated receipt.
+MLX Scope 3.0.0 builds on public 2.1.6 (`4298c03`). The dated verification below passed before the candidate merged
+into public `main`. Publication is handled by the existing tag workflow; a package version alone is not evidence
+of a published release.
 The maintainer explicitly waived the eight-hour soak on October 8, 2026, and requested installed OpenChamber inspection
 followed by public publication. Do not report a soak as completed.
 
@@ -24,22 +25,16 @@ followed by public publication. Do not report a soak as completed.
 Local development receipts live outside the repository until scrubbed and finalized. Never commit chat content, private
 paths, provider credentials, raw session IDs or uncontrolled screenshots of the user's conversations.
 
-## October 8 candidate receipt
+## October 8 release receipt
 
 - Full check passed: 1,725 Bun tests, 38 Node companion tests, type checking, privacy scanning, reproducible bundles,
   package allowlist and clean extracted service/runtime smoke. The candidate stayed within the enforced 3.0 bundle
   ceilings; CPU/RSS ceilings are unchanged.
-- Chromium/WebKit local broad coverage produced 378 passing cases and four outdated presentation expectations. The two
-  test files were corrected to assert exact completed-result facts and concise copy; all 92 affected and completion
-  cases then passed. The first Linux CI run passed 379 cases and found three real enlarged-text layout failures.
-  CSS repairs bound the Session grid, stack its controls at narrow text-relative widths and reserve room for wrapped
-  Engine facts. The repaired candidate passed all 382 Linux CI browser cases. An independent review corrected an
-  ineffective font override in the additional stress harness and found a 200% mixed-activity overlap and long failure
-  guidance. The final enlarged-text layout reserves a wrapped header within the host's 320 px clamp, and concise error
-  copy retains the failure and next action. Canonical regressions cover mixed activity at 150%/200% text and narrow
-  widths. All 44 layout cases, 10 failure/copy cases and 48 scenes with verified applied fonts passed, including six
-  enlarged full-view completion transitions. [PR 18 CI](https://github.com/mikebuckets171/mlx-scope-openchamber/pull/18/checks) verifies the final candidate;
-  failed checks must pass before publication.
+- [Final candidate CI](https://github.com/mikebuckets171/mlx-scope-openchamber/actions/runs/37876339361) passed all 382
+  Chromium/WebKit browser cases and both macOS/Ubuntu verification jobs. Canonical regressions cover mixed activity at
+  150%/200% text, narrow widths and failure guidance within the host's 320 px clamp. Supplemental checks passed 44
+  layout cases, 10 failure/copy cases and 48 scenes with verified applied fonts, including six enlarged full-view
+  completion transitions. Earlier layout and stress-harness findings were corrected before this final verification.
 - Final visual evidence covers 32 scenes and 21 exact goldens, including narrow layouts, both themes, enlarged text,
   keyboard controls, tool waits, interruption, completed results and cloud estimates. An independent 42-case final
   layout/lifecycle review found no open issue.
@@ -52,7 +47,7 @@ paths, provider credentials, raw session IDs or uncontrolled screenshots of the 
   completed timing and hidden shutdown. Setup preservation/rollback and companion absence/version mismatch are covered
   by tests. The optional companion was not enabled in the user's live configuration for this receipt.
 - Service plus children: maximum active CPU 1.180%, idle 0.595%, glance 0.578% of one core; service peak RSS 80.1 MiB.
-  Isolated Chromium renderer main-thread CPU was 0.104–0.678%; hidden views made zero snapshot requests and settled
+  Final-artifact isolated Chromium renderer main-thread CPU was 0.072–0.689%; hidden views made zero snapshot requests and settled
   within 0.051 MiB of retained heap. These renderer measurements exclude aggregate browser/WebView, GPU and RSS costs.
   Companion probes separately measured median incremental CPU of 0.064% idle, 0.960% visible and 0.088% hidden,
   with zero hidden chat-telemetry writes. The separately configured legacy Splash progress observer is outside that
