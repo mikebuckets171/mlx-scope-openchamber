@@ -16,6 +16,8 @@ A circular indicator shows the backend's measured percentage for the displayed p
 
 Elapsed time uses the source’s reported start time, or its queue time when no start is supplied. An observation timestamp means the source was checked; the time progress changed is a separate value. Old file observations and disconnected sources never become fresh merely because Scope polled them. A retained percentage is labelled **Last reported** and its ring stays still; live progress and cancellation are withdrawn. Scope invents neither an ETA nor a weighted whole-render percentage.
 
+While a Scope surface is visible, active media is checked every two seconds; a source with only finished jobs is checked every five seconds. If no source is detected, discovery retries every 30 seconds. Hidden surfaces and disabled media make no media requests. A backend may publish progress less often than Scope checks it: **Sources checked** confirms the check, while the job's update age identifies its latest report.
+
 **Cancel job** appears only when the adapter supports exact cancellation and the job is freshly observed. Confirm the named job. Scope shows Cancelling until the owner reports a terminal state; an unconfirmed result remains explicit. It never falls back to a global interrupt. Queue ownership, scheduling, handoffs, retries and completion notifications stay with the generating tool.
 
 ## Integration contract

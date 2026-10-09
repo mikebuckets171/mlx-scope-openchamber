@@ -1,0 +1,318 @@
+{
+  "recordedAt": "2026-10-09T06:53:23.836Z",
+  "serviceSha256": "c546c680817919141797cb82ae19b6b94c5413b2e09ab675fc9470f2156005b0",
+  "node": "v22.23.1",
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5 Pro",
+    "logicalCores": 18
+  },
+  "service": {
+    "pass": true,
+    "checks": [
+      {
+        "name": "childAccounting.phaseBoundaryChildren",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      },
+      {
+        "name": "childAccounting.wholeRunDiscrepancySeconds",
+        "value": 0.0043159999999999865,
+        "limit": 0.025,
+        "pass": true
+      },
+      {
+        "name": "childAccounting.wrapperLoggedAsCommand",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      },
+      {
+        "name": "active.cpuPercent",
+        "value": 1.736,
+        "limit": 1.9,
+        "pass": true
+      },
+      {
+        "name": "idle.cpuPercent",
+        "value": 0.633,
+        "limit": 0.68,
+        "pass": true
+      },
+      {
+        "name": "glance.cpuPercent",
+        "value": 0.611,
+        "limit": 0.68,
+        "pass": true
+      },
+      {
+        "name": "noView.cpuPercent",
+        "value": 0.004,
+        "limit": 0.07,
+        "pass": true
+      },
+      {
+        "name": "service.peakRssMiB",
+        "value": 82.297,
+        "limit": 132,
+        "pass": true
+      },
+      {
+        "name": "noView.runtimeRequests",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      },
+      {
+        "name": "noView.mediaRequests",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      },
+      {
+        "name": "hidden.runtimeRequests",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      },
+      {
+        "name": "hidden.mediaRequests",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      },
+      {
+        "name": "media.maxConcurrentRequestsPerEndpoint",
+        "value": 1,
+        "limit": 1,
+        "pass": true
+      },
+      {
+        "name": "media.snapshotJobLimit",
+        "value": 64,
+        "limit": 64,
+        "pass": true
+      },
+      {
+        "name": "hidden.childrenAtEnd",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      },
+      {
+        "name": "hidden.spawnsAfter60Seconds",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      },
+      {
+        "name": "unexpectedFilesInHome",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      }
+    ],
+    "phases": {
+      "noView": {
+        "wallSeconds": 10.007,
+        "serviceCpuPercent": 0.004,
+        "childrenCpuPercent": 0,
+        "totalCpuPercent": 0.004,
+        "servicePeakRssMiB": 47.047,
+        "peakTreeRssMiB": 47.047,
+        "mediaRequests": 0,
+        "runtimeRequests": 0,
+        "spawns": 0,
+        "spawnsByFile": {},
+        "maxLiveChildren": 0,
+        "mediaViewRequests": 0,
+        "maxJobs": 0,
+        "mediaLatencyP95Ms": null
+      },
+      "warmup": {
+        "wallSeconds": 5.007,
+        "serviceCpuPercent": 2.578,
+        "childrenCpuPercent": 2.393,
+        "totalCpuPercent": 4.971,
+        "servicePeakRssMiB": 78.047,
+        "peakTreeRssMiB": 78,
+        "mediaRequests": 10,
+        "runtimeRequests": 13,
+        "spawns": 6,
+        "spawnsByFile": {
+          "vm_stat": 1,
+          "sysctl": 1,
+          "notifyutil": 1,
+          "ioreg": 1,
+          "lsof": 1,
+          "footprint": 1
+        },
+        "maxLiveChildren": 0,
+        "mediaViewRequests": 12,
+        "maxJobs": 64,
+        "mediaLatencyP95Ms": 75.974
+      },
+      "active": {
+        "wallSeconds": 30.007,
+        "serviceCpuPercent": 0.858,
+        "childrenCpuPercent": 0.879,
+        "totalCpuPercent": 1.736,
+        "servicePeakRssMiB": 82.297,
+        "peakTreeRssMiB": 82.297,
+        "mediaRequests": 43,
+        "runtimeRequests": 60,
+        "spawns": 15,
+        "spawnsByFile": {
+          "ioreg": 6,
+          "vm_stat": 3,
+          "sysctl": 3,
+          "footprint": 3
+        },
+        "maxLiveChildren": 0,
+        "mediaViewRequests": 60,
+        "maxJobs": 64,
+        "mediaLatencyP95Ms": 47.268
+      },
+      "idleWarmup": {
+        "wallSeconds": 3.007,
+        "serviceCpuPercent": 0.985,
+        "childrenCpuPercent": 0,
+        "totalCpuPercent": 0.985,
+        "servicePeakRssMiB": 67.766,
+        "peakTreeRssMiB": 67.766,
+        "mediaRequests": 3,
+        "runtimeRequests": 5,
+        "spawns": 0,
+        "spawnsByFile": {},
+        "maxLiveChildren": 0,
+        "mediaViewRequests": 8,
+        "maxJobs": 64,
+        "mediaLatencyP95Ms": 31.6
+      },
+      "idle": {
+        "wallSeconds": 30.008,
+        "serviceCpuPercent": 0.296,
+        "childrenCpuPercent": 0.337,
+        "totalCpuPercent": 0.633,
+        "servicePeakRssMiB": 68.031,
+        "peakTreeRssMiB": 68.031,
+        "mediaRequests": 16,
+        "runtimeRequests": 19,
+        "spawns": 8,
+        "spawnsByFile": {
+          "vm_stat": 2,
+          "sysctl": 2,
+          "ioreg": 2,
+          "notifyutil": 1,
+          "footprint": 1
+        },
+        "maxLiveChildren": 0,
+        "mediaViewRequests": 24,
+        "maxJobs": 64,
+        "mediaLatencyP95Ms": 49.699
+      },
+      "glanceWarmup": {
+        "wallSeconds": 5.007,
+        "serviceCpuPercent": 0.665,
+        "childrenCpuPercent": 0,
+        "totalCpuPercent": 0.665,
+        "servicePeakRssMiB": 67.953,
+        "peakTreeRssMiB": 67.953,
+        "mediaRequests": 9,
+        "runtimeRequests": 5,
+        "spawns": 0,
+        "spawnsByFile": {},
+        "maxLiveChildren": 0,
+        "mediaViewRequests": 12,
+        "maxJobs": 64,
+        "mediaLatencyP95Ms": 34.39
+      },
+      "glance": {
+        "wallSeconds": 30.008,
+        "serviceCpuPercent": 0.533,
+        "childrenCpuPercent": 0.078,
+        "totalCpuPercent": 0.611,
+        "servicePeakRssMiB": 66.453,
+        "peakTreeRssMiB": 66.453,
+        "mediaRequests": 43,
+        "runtimeRequests": 30,
+        "spawns": 6,
+        "spawnsByFile": {
+          "vm_stat": 3,
+          "sysctl": 3
+        },
+        "maxLiveChildren": 0,
+        "mediaViewRequests": 60,
+        "maxJobs": 64,
+        "mediaLatencyP95Ms": 49.262
+      },
+      "hidden": {
+        "wallSeconds": 75.009,
+        "serviceCpuPercent": 0.003,
+        "childrenCpuPercent": 0,
+        "totalCpuPercent": 0.003,
+        "servicePeakRssMiB": 63.766,
+        "peakTreeRssMiB": 63.766,
+        "mediaRequests": 0,
+        "runtimeRequests": 0,
+        "spawns": 0,
+        "spawnsByFile": {},
+        "maxLiveChildren": 0,
+        "mediaViewRequests": 0,
+        "maxJobs": 0,
+        "mediaLatencyP95Ms": null
+      }
+    },
+    "peakConcurrentRequests": {
+      "/system_stats": 1,
+      "/mlx-scope/v1/media": 1,
+      "/api/jobs": 1,
+      "/mlx-scope/v1/progress": 1
+    },
+    "method": {
+      "servicePlusDescendants": true,
+      "syntheticSources": [
+        "oMLX",
+        "ComfyUI",
+        "Qwen image",
+        "LocalVideo spool",
+        "private feed"
+      ],
+      "simultaneousMediaViews": 4,
+      "configuredMediaSources": 4,
+      "fixtureJobCountBeforeBound": 73,
+      "psSampleMs": 500,
+      "childrenCpu": "Exact wait4 CPU per original command, assigned to its completion phase; includes measured native wrapper CPU and a conservative share of nonnegative whole-run residual CPU",
+      "sourceFixtureCpuExcluded": true,
+      "disabledViewBehavior": "No media or runtime request after last view read",
+      "startupSettlingSeconds": 15
+    },
+    "childAccounting": {
+      "mode": "wait4",
+      "children": 35,
+      "childCpuSeconds": 0.41559099999999993,
+      "measuredWrapperCpuSeconds": 0.092313,
+      "residualCpuSecondsIncluded": 0,
+      "wholeRunDifferenceSeconds": -0.0043159999999999865,
+      "phaseBoundaryChildren": 0,
+      "wrapperSha256": "268d6f57c420e43fa2bf9b68c4cd8d53822b1e40df78f3d494e7b6460a839e9a"
+    },
+    "reapedChildCpuSecondsEstimate": 0.504,
+    "unexpectedFiles": []
+  },
+  "helper": {
+    "calls": 10,
+    "wallSeconds": 20.04040670800896,
+    "cpuSeconds": 0.004513,
+    "cpuPercentOneCore": 0.022519503050786,
+    "fixtureProcessMaxRssBytes": 16809984,
+    "observedRegistryEntries": 1001,
+    "mutationsOrBackgroundTasks": 0,
+    "sourceSha256": "801a3a1dac54d098b828d4a5d8151d668126eb47e67bcb118263d0ef10d79e4f",
+    "method": "10 real snapshot function calls at a two-second visible cadence, CPU-only registry/queue stubs, no ComfyUI process or GPU imports",
+    "limitation": "Incremental helper function cost; fixture Python RSS is not additional ComfyUI RSS. Existing ComfyUI resource use is excluded."
+  },
+  "limits": "Synthetic service/children and passive helper CPU only. Renderer and real inference impact require separate evidence."
+}

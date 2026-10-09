@@ -18,6 +18,7 @@ const here = dirname(fileURLToPath(import.meta.url)), root = resolve(here, '..')
 const { values: flags } = parseArgs({ options: {
   service: { type: 'string', default: join(root, 'service/main.js') }, out: { type: 'string' },
   seconds: { type: 'string', default: '30' }, 'helper-python': { type: 'string', default: 'python3' },
+  'child-rusage-wrapper': { type: 'string' },
 } });
 const seconds = Number(flags.seconds);
 assert(Number.isFinite(seconds) && seconds >= 10 && seconds <= 120, '--seconds must be 10–120.');
@@ -118,7 +119,24 @@ async function measureService() {
       await chmod(join(feed, 'fixture.json'), 0o600);
     };
     await updateFiles(); const allowedFiles = new Set(await allFiles(home)); allowedFiles.add(join(video, 'done', 'video-active.json'));
-    const argv = [process.execPath, '--import', pathToFileURL(join(here, 'lib/spawn-log-preload.mjs')).href, serviceFile];
+    const exactLog = join(scratch, 'children.jsonl'), wrapperImports = [];
+    if (flags['child-rusage-wrapper']) {
+      const wrapperFile = resolve(flags['child-rusage-wrapper']), preload = join(scratch, 'exact-children.mjs');
+      assert(existsSync(wrapperFile), 'Missing measurement-only child wrapper.');
+      // Load before the existing logger so it records the original command and the wrapper PID.
+      await writeFile(preload, `import cp from 'node:child_process'; import {syncBuiltinESMExports} from 'node:module';
+const wrapper=${JSON.stringify(wrapperFile)}, log=${JSON.stringify(exactLog)};
+for(const method of ['spawn','execFile','spawnSync','execFileSync']) {
+ const original=cp[method]; cp[method]=function(file,...rest) {
+  const args=Array.isArray(rest[0])?rest.shift():[];
+  return original.call(this,wrapper,[log,String(file),...args],...rest);
+ };
+}
+syncBuiltinESMExports();
+`);
+      wrapperImports.push('--import', pathToFileURL(preload).href);
+    }
+    const argv = [process.execPath, ...wrapperImports, '--import', pathToFileURL(join(here, 'lib/spawn-log-preload.mjs')).href, serviceFile];
     const timeWrapper = platform() === 'darwin';
     child = spawn(timeWrapper ? '/usr/bin/time' : argv[0], timeWrapper ? ['-l', ...argv] : argv.slice(1), {
       cwd: home, stdio: ['ignore', 'ignore', 'pipe'], env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', HOME: home, TMPDIR: home, TMP: home, TEMP: home,
@@ -183,6 +201,19 @@ async function measureService() {
     const time = /([\d.]+)\s+user\s+([\d.]+)\s+sys/.exec(stderr), totalCpu = time ? +time[1] + +time[2] : null;
     const unseen = spawns.filter(row => !row.pid || !childCpu.has(row.pid));
     const reaped = totalCpu === null ? null : Math.max(0, totalCpu - final.cpuMicros / 1e6 - [...childCpu.values()].reduce((a, b) => a + b, 0));
+    const exactRows = flags['child-rusage-wrapper'] ? readFileSync(exactLog, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : null;
+    if (exactRows) {
+      assert.equal(exactRows.length, spawns.length, 'Every service child must have exact CPU accounting.');
+      assert(exactRows.length > 0 && exactRows.every(row => row.kind === 'child-usage' && Number.isInteger(row.pid) && row.pid > 0
+        && ['at', 'startedAt', 'childCpuMicros', 'wrapperCpuMicros'].every(key => Number.isFinite(row[key]) && row[key] >= 0) && row.at >= row.startedAt), 'Invalid native child CPU accounting.');
+      assert.equal(new Set(exactRows.map(row => row.pid)).size, exactRows.length, 'Duplicate child accounting.');
+      assert(exactRows.every(row => spawns.some(spawn => spawn.pid === row.pid)), 'Unmatched child wrapper.');
+      assert.notEqual(totalCpu, null, 'Whole-run rusage is required to include residual wrapper overhead.');
+    }
+    const recordedChildSeconds = exactRows?.reduce((sum, row) => sum + (row.childCpuMicros + row.wrapperCpuMicros) / 1e6, 0) ?? 0;
+    // Include all measured wrapper CPU, then conservatively apportion any nonnegative whole-run remainder
+    // (final wrapper write/exit, time-tool rounding and service final-log overhead) across wrappers.
+    const wrapperResidual = exactRows ? Math.max(0, totalCpu - final.cpuMicros / 1e6 - recordedChildSeconds) : 0;
     const summaries = {};
     for (const [name, item] of Object.entries(phases)) {
       const inside = samples.filter(row => row.at >= item.start.at && row.at <= item.end.at), wall = (item.end.at - item.start.at) / 1000;
@@ -190,7 +221,10 @@ async function measureService() {
       for (const row of inside) for (const child of row.children) lastCpu.set(child.pid, child.cpuSeconds);
       const seen = [...lastCpu].reduce((n, [pid, cpu]) => n + cpu - (startCpu.get(pid) ?? 0), 0);
       const endedUnseen = unseen.filter(row => { const end = exits.get(row.id); return end && end.at >= item.start.at && end.at < item.end.at; }).length;
-      const childSeconds = seen + (unseen.length ? endedUnseen / unseen.length * (reaped ?? 0) : 0), serviceSeconds = (item.end.cpuMicros - item.start.cpuMicros) / 1e6;
+      const exactInWindow = exactRows?.filter(row => row.at >= item.start.at && row.at < item.end.at);
+      const childSeconds = exactInWindow ? exactInWindow.reduce((sum, row) => sum + (row.childCpuMicros + row.wrapperCpuMicros) / 1e6, 0) + wrapperResidual * exactInWindow.length / exactRows.length
+        : seen + (unseen.length ? endedUnseen / unseen.length * (reaped ?? 0) : 0);
+      const serviceSeconds = (item.end.cpuMicros - item.start.cpuMicros) / 1e6;
       const inWindow = row => row.at >= item.start.at && row.at < item.end.at;
       summaries[name] = { wallSeconds: round(wall), serviceCpuPercent: round(serviceSeconds / wall * 100),
         childrenCpuPercent: round(childSeconds / wall * 100), totalCpuPercent: round((serviceSeconds + childSeconds) / wall * 100),
@@ -202,6 +236,11 @@ async function measureService() {
         mediaViewRequests: item.mediaViewRequests, maxJobs: item.maxJobs, mediaLatencyP95Ms: item.mediaLatencyP95Ms };
     }
     const checks = [], check = (name, value, limit) => checks.push({ name, value, limit, pass: value <= limit });
+    if (exactRows) {
+      check('childAccounting.phaseBoundaryChildren', exactRows.filter(row => Object.values(phases).some(phase => row.startedAt < phase.start.at && row.at >= phase.start.at)).length, 0);
+      check('childAccounting.wholeRunDiscrepancySeconds', Math.abs(totalCpu - final.cpuMicros / 1e6 - recordedChildSeconds), .025);
+      check('childAccounting.wrapperLoggedAsCommand', spawns.filter(row => row.file === basename(flags['child-rusage-wrapper'])).length, 0);
+    }
     check('active.cpuPercent', summaries.active.totalCpuPercent, 1.9);
     check('idle.cpuPercent', summaries.idle.totalCpuPercent, .68);
     check('glance.cpuPercent', summaries.glance.totalCpuPercent, .68);
@@ -218,8 +257,14 @@ async function measureService() {
     return { pass: checks.every(row => row.pass), checks, phases: summaries, peakConcurrentRequests: Object.fromEntries(peakRequests),
       method: { servicePlusDescendants: true, syntheticSources: ['oMLX', 'ComfyUI', 'Qwen image', 'LocalVideo spool', 'private feed'],
         simultaneousMediaViews: 4, configuredMediaSources: 4, fixtureJobCountBeforeBound: 73, psSampleMs: 500,
-        childrenCpu: 'ps CPU deltas plus whole-run reaped CPU apportioned across short-lived child spawns, matching the existing service harness',
+        childrenCpu: exactRows ? 'Exact wait4 CPU per original command, assigned to its completion phase; includes measured native wrapper CPU and a conservative share of nonnegative whole-run residual CPU' : 'ps CPU deltas plus whole-run reaped CPU apportioned across short-lived child spawns, matching the existing service harness',
         sourceFixtureCpuExcluded: true, disabledViewBehavior: 'No media or runtime request after last view read', startupSettlingSeconds: 15 },
+      childAccounting: exactRows ? { mode: 'wait4', children: exactRows.length,
+        childCpuSeconds: exactRows.reduce((sum, row) => sum + row.childCpuMicros / 1e6, 0),
+        measuredWrapperCpuSeconds: exactRows.reduce((sum, row) => sum + row.wrapperCpuMicros / 1e6, 0), residualCpuSecondsIncluded: wrapperResidual,
+        wholeRunDifferenceSeconds: totalCpu - final.cpuMicros / 1e6 - recordedChildSeconds,
+        phaseBoundaryChildren: exactRows.filter(row => Object.values(phases).some(phase => row.startedAt < phase.start.at && row.at >= phase.start.at)).length,
+        wrapperSha256: digest(resolve(flags['child-rusage-wrapper'])) } : { mode: 'pooled-estimate' },
       reapedChildCpuSecondsEstimate: reaped === null ? null : round(reaped), unexpectedFiles };
   } finally {
     sampling = false; await sampler;
