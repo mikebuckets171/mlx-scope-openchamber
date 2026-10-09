@@ -27,6 +27,8 @@ checks protocol integration, not inference performance or an actual cloud provid
 adapters continue to operate. Guided setup reports the detected protocol and distinguishes installed/pending from
 a fresh loaded companion. It supports native v2 `providers.<id>.settings` and legacy local provider configuration.
 
+Managed updates are qualified against the real 2.0.25 configuration watcher while an existing synthetic response finishes. The server remains running and the request is not duplicated. The reproducible developer check is `node bridge/opencode/protocol-hot-reload-smoke.mjs /absolute/path/to/opencode /absolute/path/to/previous/companion`; it copies that previous bundle into an isolated test directory and never changes the live installation.
+
 The companion needs observable text/reasoning events, corroborating primary HTTP request or qualified WebSocket handshake metadata and unambiguous usage
 accounting. Tool payloads, auxiliary title/compaction tasks, missing metadata and ambiguous concurrent writers produce
 no chat speed. Local measurements retain exact configured loopback endpoint matching and explicitly labeled Engine
