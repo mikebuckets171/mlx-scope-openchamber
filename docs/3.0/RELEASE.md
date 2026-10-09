@@ -1,4 +1,4 @@
-# MLX Scope 3.0 release gates
+# MLX Scope 3.0 verification
 
 This branch is a release candidate built from public 2.1.6 (`4298c03`). A version number in the candidate is not evidence
 of publication. Keep public `main` unchanged until the verification below has a dated receipt.
@@ -15,13 +15,45 @@ followed by public publication. Do not report a soak as completed.
 - Local upgrade preserving settings/history/captures, with and without the optional companion; setup rollback and removal.
 - Fresh service + child CPU/RSS measurement under the existing ceilings (idle/glance ≤0.68% of one core, active ≤1.9%,
   service RSS ≤132 MiB), plus separately attributed renderer and companion cost. Hidden views issue no runtime requests.
-- Paired representative real inference runs with Scope enabled/disabled. Investigate a repeatable median slowdown above
-  2%; no unexplained regression may ship. Synthetic protocol streams do not satisfy this gate.
+- The original performance plan calls for paired representative real inference runs with Scope enabled/disabled and
+  investigation of a repeatable median slowdown above 2%. Component budgets and synthetic protocol streams do not
+  establish that comparison. Its qualification status must be reported separately.
 - The planned eight-hour stability soak is waived. Short automated lifecycle, hidden-view and resource checks remain;
   they do not establish long-duration stability or sleep/wake coverage.
 
 Local development receipts live outside the repository until scrubbed and finalized. Never commit chat content, private
 paths, provider credentials, raw session IDs or uncontrolled screenshots of the user's conversations.
+
+## October 8 candidate receipt
+
+- Full check passed: 1,725 Bun tests, 38 Node companion tests, type checking, privacy scanning, reproducible bundles,
+  package allowlist and clean extracted service/runtime smoke. The original bundle ceilings are unchanged.
+- Chromium/WebKit broad coverage produced 378 passing cases and four outdated presentation expectations. The two
+  test files were corrected to assert the new exact completed-result facts and equivalent concise copy; all 92 affected
+  and completion cases then passed. Shipping product bytes stayed identical. Release CI reruns the canonical suite.
+- Final visual evidence covers 32 scenes and 21 exact goldens, including narrow layouts, both themes, enlarged text,
+  keyboard controls, tool waits, interruption, completed results and cloud estimates. An independent 42-case final
+  layout/lifecycle review found no open issue.
+- Installed OpenChamber 2.2.0 rendered the Session sidebar, rail and full-page Live/History controls. The sidebar was
+  inspected in light/dark modes, including 150% host text. Real results remained labeled Last engine averages.
+  The update preserved all 14 existing storage entries before subsequent normal collection. A host shutdown timeout
+  required recovery after its OpenCode process had already stopped; the cause is unqualified, and this is not a
+  long-duration host-stability receipt. The inference runtime was not restarted.
+- The actual bundled OpenCode 2.0.25 passed isolated local and remote protocol smoke, including matching, calibration,
+  completed timing and hidden shutdown. Setup preservation/rollback and companion absence/version mismatch are covered
+  by tests. The optional companion was not enabled in the user's live configuration for this receipt.
+- Service plus children: maximum active CPU 1.180%, idle 0.595%, glance 0.578% of one core; peak RSS 80.1 MiB.
+  Isolated Chromium renderer main-thread CPU was 0.104–0.678%; hidden views made zero snapshot requests and settled
+  within 0.051 MiB of retained heap. These renderer measurements exclude aggregate browser/WebView, GPU and RSS costs.
+  Companion probes separately measured median incremental CPU of 0.064% idle, 0.960% visible and 0.088% hidden,
+  with zero hidden telemetry writes. Component measurements are not summed into an aggregate host claim.
+- One bounded, uncontaminated 128-token real inference with monitoring enabled passed native counter qualification.
+  The enabled/disabled median comparison remains unqualified alongside interactive user workloads; no claim of a
+  slowdown at or below 2% is made. Publication follows the maintainer's latest instruction to inspect the installed
+  app and publish. The eight-hour soak is waived; sleep/wake and long-duration stability remain unqualified.
+
+Final panel SHA-256: `01c415d09702204b1139d56cf72680e3bcaa6a3d645ce4274ec3d68c0ab4e9f5`.
+Final stylesheet SHA-256: `b0c3dbcfd3347eab8581d7d9817d2fa01fea30e19343ed67cd70936644cd83c6`.
 
 ## Publish and verify
 
