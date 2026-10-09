@@ -57,15 +57,15 @@ test('every mock state renders every view without a raw placeholder', () => {
   }
 });
 
-test('two primary tabs keep secondary workspaces in the correct accessible parent', () => {
-  expect(TABS.map(([, label]) => label)).toEqual(['Live', 'History']);
-  for (const [view, parent] of [['live', 'live'], ['server', 'live'], ['history', 'history'], ['captures', 'history']] as const) {
+test('three primary tabs keep secondary workspaces in the correct accessible parent', () => {
+  expect(TABS.map(([, label]) => label)).toEqual(['Live', 'Media', 'History']);
+  for (const [view, parent] of [['live', 'live'], ['server', 'live'], ['media', 'media'], ['history', 'history'], ['captures', 'history']] as const) {
     expect(primaryTab(view)).toBe(parent);
     const markup = tabsMarkup(TABS, primaryTab(view)).markup;
-    expect([...markup.matchAll(/tabindex="(-?\d)"/g)].map(match => match[1])).toEqual(parent === 'live' ? ['0', '-1'] : ['-1', '0']);
+    expect([...markup.matchAll(/tabindex="(-?\d)"/g)].map(match => match[1])).toEqual(TABS.map(([id]) => id === parent ? '0' : '-1'));
     expect(markup).toContain(`id="tab-${parent}" data-tab="${parent}" aria-controls="panel-${parent}" aria-selected="true"`);
   }
-  expect(shellMarkup().markup.match(/role="tabpanel"/g)).toHaveLength(2);
+  expect(shellMarkup().markup.match(/role="tabpanel"/g)).toHaveLength(3);
   expect(shellMarkup().markup).toContain('aria-labelledby="captures-title"');
 });
 

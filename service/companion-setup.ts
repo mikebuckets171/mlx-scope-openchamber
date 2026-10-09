@@ -253,9 +253,9 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
     const live = !!(current && receipt.updatedAtMs && receipt.updatedAtMs <= now() + 1_000 && receipt.expiresAtMs && receipt.expiresAtMs > now() && receipt.expiresAtMs - receipt.updatedAtMs <= 15_000);
     const state = valid && !supported ? 'incompatible' : configured ? current ? 'ready' : 'pending' : 'disabled';
     const message = state === 'incompatible' ? 'This OpenCode version is not qualified for chat estimates. Runtime measurements remain available.'
-      : state === 'ready' ? live ? 'Companion connected. Estimates follow the chat you are watching.' : 'Companion loaded. Open a local chat to check live readings.'
-        : state === 'pending' ? 'Companion configured. Start a new local reply, then check status. If it stays pending, reload OpenCode when no reply is running.'
-          : 'Enable live estimates for local chats when the server has no measured speed. Requires OpenCode 2.0.25.';
+      : state === 'ready' ? live ? 'Chat tracking is connected. Estimates follow the chat you are watching.' : 'Chat tracking is ready for your next local or cloud reply.'
+        : state === 'pending' ? 'Installed · waiting for OpenCode to load chat tracking. Your current work can continue.'
+          : 'Enable delivery-speed estimates for local and cloud chats. Requires OpenCode 2.0.25.';
     return { state, message, configured, managed: info.managed, canEnable: state !== 'incompatible', canDisable: configured || info.managed,
       runtimeVersion, companionVersion, protocol, live };
   };

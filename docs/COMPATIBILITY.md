@@ -2,12 +2,11 @@
 
 ## Host
 
-MLX Scope 3.0 requires **OpenChamber 2.0.4 or newer** (`engines.openchamber` `>=2.0.4`) and pins
+MLX Scope 3.1 requires **OpenChamber 2.0.4 or newer** (`engines.openchamber` `>=2.0.4`) and pins
 [SDK 2.0.4](https://github.com/openchamber/openchamber/tree/main/packages/sdk), which keeps manifest API 1 and wire v1.
 It uses the panel, the full page, a Work Status section (`statusSection`, OpenChamber 2.0.1+), a `/scope` slash command
 answered by a background entry, the session-menu action, badges, toasts, host-managed storage and a local service.
-The inherited 2.0.4 qualification remains the compatibility floor; 2.0.2 showed a black status surface. The 3.0
-release also requires an installed OpenChamber 2.2.0 check, recorded in the release receipt. Desktop and
+The inherited 2.0.4 qualification remains the compatibility floor; 2.0.2 showed a black status surface. The 3.1 candidate retains this SDK floor and is checked in the installed OpenChamber 2.2.0 host. Desktop and
 web clients expose these surfaces; mobile and VS Code clients load no extensions. Runtime and Mac readings belong to the
 OpenChamber server's computer.
 
@@ -195,3 +194,9 @@ OpenChamber 2 runs OpenCode 2 and reads native local provider definitions from `
 recognizes those alongside the v1 `provider.<id>.options` form. OpenCode 2's connected credentials are stored in
 private database storage. Scope does not inspect that database and cannot promise access to credentials available only
 through `/connect`. Project-only provider definitions remain outside Scope's discovery boundary.
+
+## Media monitoring in 3.1
+
+ComfyUI basic monitoring uses existing lifecycle APIs. Detailed node-local progress is initially qualified for ComfyUI 0.38.0 with Scope’s optional helper. Other versions keep basic monitoring; unknown nodes use indeterminate progress or generic units. Cancellation is enabled only on a qualified job-scoped API.
+
+The local-video adapter recognizes the existing standard OpenCode video queue; custom queue directories are read-only unless their scoped cancellation owner is separately supported. Qwen image tracking requires the producer’s metadata/control integration. Other tools can publish the documented private [Media telemetry contract](MEDIA.md). Supporting a generator’s telemetry does not imply that Scope installs, launches or controls generation for it.

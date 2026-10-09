@@ -57,14 +57,14 @@ test('every mock state passes the checks in light at 320, at 430, and on the 1,1
   expect(errors).toEqual([]);
 });
 
-test('Live and History are the only primary destinations and resizing preserves selection', async ({ page }) => {
+test('Live, Media and History are the primary destinations and resizing preserves selection', async ({ page }) => {
   const frame = await load(page, 'surface=page&state=decode', 1160);
-  await expect(frame.getByRole('tab')).toHaveText(['Live', 'History']);
+  await expect(frame.getByRole('tab')).toHaveText(['Live', 'Media', 'History']);
   await expect(frame.locator('#view-history')).toBeHidden();
   await frame.getByRole('tab', { name: 'History', exact: true }).click();
   for (const width of [430, 320, 1160]) {
     await page.setViewportSize({ width, height: 900 });
-    await expect(frame.getByRole('tab')).toHaveText(['Live', 'History']);
+    await expect(frame.getByRole('tab')).toHaveText(['Live', 'Media', 'History']);
     await expect(frame.getByRole('tab', { name: 'History', exact: true })).toHaveAttribute('aria-selected', 'true');
     await expect(frame.locator('#view-history')).toBeVisible();
     await expect(frame.locator('#view-live')).toBeHidden();
@@ -74,7 +74,7 @@ test('Live and History are the only primary destinations and resizing preserves 
 test('tabs: keyboard navigation with roving tabindex, and monitoring keeps running on every tab', async ({ page }) => {
   const frame = await load(page, 'state=decode');
   await frame.getByRole('tab', { name: 'Live', exact: true }).focus();
-  for (const name of ['History', 'Live', 'History']) {
+  for (const name of ['Media', 'History', 'Live', 'Media', 'History']) {
     await page.keyboard.press('ArrowRight');
     await expect(frame.getByRole('tab', { name, exact: true })).toBeFocused();
     await expect(frame.getByRole('tab', { name, exact: true })).toHaveAttribute('aria-selected', 'true');

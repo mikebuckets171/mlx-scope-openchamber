@@ -9,29 +9,29 @@ import type { PrimaryTab } from './views/types.ts';
 // The rail panel's and the page's static shell (G2 mock, 1.6 structure): masthead with the status pill, pause and ⋯,
 // the segmented tabs, one tabpanel per tab, and the footer. Polls patch the pill and the active panel only.
 
-export const TABS: ReadonlyArray<readonly [PrimaryTab, string]> = [['live', 'Live'], ['history', 'History']];
+export const TABS: ReadonlyArray<readonly [PrimaryTab, string]> = [['live', 'Live'], ['media', 'Media'], ['history', 'History']];
 
 const menuButton = (id: string, attributes: Raw, label: Part): Raw =>
   html`<button id="${id}" type="button"${attributes}><span class="menu-check" aria-hidden="true"></span>${label}</button>`;
-const menu = html`<details class="monitor-menu" id="monitor-menu"><summary class="icon-btn" aria-label="More options">${ICON.more}</summary><div class="monitor-menu-content"><div id="measurement-choice"></div>${menuButton('chat-setup', html``, 'Chat estimates…')}${menuButton('refresh', html` disabled`, 'Refresh readings')}${menuButton('compact', html` aria-pressed="false"`, 'Compact view')}${menuButton('efficiency', html` aria-pressed="false"`, 'Energy-saving updates')}${menuButton('toasts', html` aria-describedby="toasts-state"`, html`Pop-up alerts: <span id="toasts-state">critical only</span>`)}<div id="share-actions" class="share-actions" aria-label="Share readings"></div>${menuButton('connection-change', html` aria-expanded="false" aria-controls="connection-setup"`, 'Connection…')}<p class="menu-about"><span>MLX Scope <span id="scope-version"></span></span><span id="cadence">Adaptive updates</span><span>Private local monitoring · Chat delivery remains estimated</span></p></div></details>`;
+const menu = html`<details class="monitor-menu" id="monitor-menu"><summary class="icon-btn" aria-label="More options">${ICON.more}</summary><div class="monitor-menu-content"><div id="measurement-choice"></div>${menuButton('refresh', html` disabled`, 'Refresh readings')}${menuButton('compact', html` aria-pressed="false"`, 'Compact view')}${menuButton('efficiency', html` aria-pressed="false"`, 'Energy-saving updates')}${menuButton('toasts', html` aria-describedby="toasts-state"`, html`Pop-up alerts: <span id="toasts-state">critical only</span>`)}<div id="share-actions" class="share-actions" aria-label="Share readings"></div><p class="menu-about"><span>MLX Scope <span id="scope-version"></span></span><span id="cadence">Adaptive updates</span><span>Private local monitoring · Chat delivery remains estimated</span></p></div></details>`;
 
 /** The 3.0 shell keeps navigation quiet; the active instrument owns activity and measurement. */
 export const shellMarkup = (): Raw => html`<main class="scope" id="scope" aria-labelledby="scope-title" hidden>
   <header class="masthead">
     <div class="brand">${ICON.mark}<h1 id="scope-title">MLX Scope</h1></div>
     <div class="status-pill" id="status-pill"><span class="connection-dot" aria-hidden="true"></span><span class="phase sr-only" id="phase">Connecting</span><span class="status-sep sr-only" id="status-sep" aria-hidden="true">·</span><span class="conn" id="connection" role="status">Local server</span></div>
-    <div class="monitor-controls"><button class="icon-btn" id="pause" type="button" aria-pressed="false" aria-label="Pause monitoring">${ICON.pause}</button>${menu}</div>
+    <div class="monitor-controls"><button class="btn quiet connections-trigger" id="connection-change" type="button" aria-expanded="false" aria-controls="connection-setup">Connections</button><button class="icon-btn" id="pause" type="button" aria-pressed="false" aria-label="Pause monitoring">${ICON.pause}</button>${menu}</div>
   </header>
   ${raw(connectionsMarkup)}
-  <details class="connection-help" id="connection-help"><summary>Connection help${DISCLOSURE_ARROW}</summary><p id="connection-result" role="status">Check MLX Scope’s connection to OpenChamber.</p><div class="insight-actions"><button id="check-connection" type="button">Check MLX Scope</button><button id="connection-guide" type="button">Setup guide</button></div></details>
-  <details class="connection-help" id="companion-details" hidden><summary>Chat estimates setup${DISCLOSURE_ARROW}</summary><div id="companion-setup"></div></details>
   <button id="connection-configure" type="button" hidden>Connection…</button><p id="action-status" class="action-status" role="status" hidden></p><div id="frame-card"></div>
   <nav class="workspace-nav" id="workspace-nav" aria-label="Scope workspaces"><div class="tablist" role="tablist" id="tablist"></div><div id="workspace-action" class="workspace-action" hidden></div></nav>
   <div id="next-activity" class="next-activity" hidden></div><div id="capture-activity" class="next-activity" role="region" aria-label="Active timed capture" hidden></div>
   <div id="panels">
     <div role="tabpanel" id="panel-live" aria-labelledby="tab-live" tabindex="0" hidden><div class="view" id="view-live"></div><section class="view secondary-view" id="panel-server" aria-labelledby="server-title" hidden></section></div>
+    <div role="tabpanel" id="panel-media" aria-labelledby="tab-media" tabindex="0" hidden><div class="view" id="view-media"></div></div>
     <div role="tabpanel" id="panel-history" aria-labelledby="tab-history" tabindex="0" hidden><div class="view" id="view-history"></div><section class="view secondary-view" id="panel-captures" aria-labelledby="captures-title" hidden><div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-history">Back to History</button><h2 id="captures-title" tabindex="-1">Captures</h2></div><div id="captures-content"></div></section></div>
   </div>
+  <div id="media-glance"></div>
   <section class="compact-glance" id="compact-glance" aria-label="MLX Scope glance" hidden></section>
   <footer><span id="freshness">No reading yet</span></footer>
 </main>`;

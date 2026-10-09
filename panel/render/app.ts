@@ -1,4 +1,9 @@
-import type { HostClient } from '@openchamber/sdk';
+import { ago } from '../present/format.ts';
+import type { CompanionSetupStatus } from '../../service/companion-setup.ts';
+import type { MediaController } from '../media/controller.ts';
+import { mediaMarkup, mediaGlanceMarkup } from '../media/view.ts';
+import { DigitRoll } from './digit-roll.ts';
+import type { HostClient, SessionSnapshot } from '@openchamber/sdk';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { ConnectionsView } from '../connections-view.ts';
 import { CaptureStore } from '../captures/store.ts';
@@ -31,15 +36,17 @@ import { primaryTab, type Tab, type ViewHandle } from './views/types.ts';
 
 export interface AppParts {
   shell: HTMLElement; host: HostClient; state: ScopeState; client: SnapshotClient; pipeline: Pipeline; version: string;
-  connections: ConnectionsView; prefs: PrefsV2; visible: () => boolean; status: (message: string) => void;
+  session: () => SessionSnapshot | null; mediaJobs: MediaController; companion: () => CompanionSetupStatus | null; connections: ConnectionsView; prefs: PrefsV2; visible: () => boolean; status: (message: string) => void;
 }
 export class ScopeApp {
   private wide = false;
+  private readonly digits: DigitRoll;
   private readonly views = new Map<'history' | 'captures', { host: HTMLElement; handle: ViewHandle }>();
   private readonly media = typeof matchMedia === 'function' ? matchMedia('(min-width: 900px)') : null;
   private readonly node = (id: string): HTMLElement => this.p.shell.querySelector<HTMLElement>(`#${id}`)!;
   constructor(private readonly p: AppParts) {
     const shell = p.shell;
+    this.digits = new DigitRoll(shell);
     shell.addEventListener('click', this.onClick);
     shell.addEventListener('change', this.onChange);
     shell.addEventListener('keydown', this.onKey);
@@ -77,6 +84,10 @@ export class ScopeApp {
     const { state } = this.p;
     if (state.disposed || !state.mounted) return;
     const s = this.input(), card = frameCard(s), open = state.open, compact = state.compact && !this.wide && !card;
+    this.p.mediaJobs.sync(this.p.visible() && !state.userPaused && !card && !this.p.connections.isOpen && (state.tab === 'live' || state.tab === 'media' || compact));
+    const mediaGlance = this.node('media-glance');
+    mediaGlance.hidden = !!card || state.tab === 'media';
+    morph(mediaGlance, card || state.tab === 'media' ? '' : mediaGlanceMarkup(this.p.mediaJobs, this.p.session()?.id ?? null, s.now, false));
     const chatOnly = s.measurementScope !== 'engine' && s.chatIsLocal === false;
     state.serverDetailsVisible = state.tab === 'server' && !compact && !card && !chatOnly;
     renderHeader(this.p.shell, presentHeader(s));
@@ -85,8 +96,10 @@ export class ScopeApp {
     this.p.shell.dataset.compact = String(compact);
     const cardHost = this.node('frame-card');
     morph(cardHost, card ? frameCardMarkup(card) : '');
-    this.node('workspace-nav').hidden = !!card || compact;
-    this.node('panels').hidden = !!card || compact;
+    this.node('workspace-nav').hidden = !!card || compact || this.p.connections.isOpen;
+    cardHost.hidden = this.p.connections.isOpen;
+    this.node('freshness').parentElement!.hidden = this.p.connections.isOpen;
+    this.node('panels').hidden = !!card || compact || this.p.connections.isOpen;
     this.node('next-activity').hidden = true;
     // A timed window belongs to this frame, even when Compact or another workspace is visible.
     this.view('captures', this.node('captures-content'), s.snapshot);
@@ -96,17 +109,18 @@ export class ScopeApp {
     morph(timedHost, showTimed ? html`<div class="next-row"><span class="pulse" aria-hidden="true"></span><span>${timed}</span><button class="btn quiet" type="button" data-action="window-cancel">Cancel</button></div>` : '');
     const glance = this.node('compact-glance');
     glance.hidden = !compact;
+    if (this.p.connections.isOpen) { glance.hidden = true; timedHost.hidden = true; mediaGlance.hidden = true; this.digits.reset(); return; }
     if (compact) {
       morph(glance, sessionMarkup(presentSessionSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution,
         chatIsLocal: s.chatIsLocal ?? null, fresh: s.fresh, paused: s.paused, next: s.next, window: s.window,
         efficient: state.efficient, measurementScope: s.measurementScope, sessionModel: s.sessionModel, chatActivity: s.chatActivity, lastChat: s.lastChat,
         last: s.last && { completion: s.last.completion, label: s.last.label } }), null, true));
-      return;
+      this.syncMotion(); return;
     }
-    if (card) return;
+    if (card) { this.syncMotion(); return; }
     const active = state.tab, primary = primaryTab(active), live = presentLive(s, this.extra(s));
     const action = this.node('workspace-action');
-    action.hidden = active === 'server' || active === 'captures' || active === 'live' && chatOnly;
+    action.hidden = active === 'media' || active === 'server' || active === 'captures' || active === 'live' && chatOnly;
     morph(action, active === 'live'
       ? html`<button class="btn quiet" type="button" data-action="open-server">Server &amp; Mac details</button>`
       : active === 'history' ? html`<button class="btn quiet" type="button" data-action="open-captures">Captures</button>` : '');
@@ -124,12 +138,31 @@ export class ScopeApp {
     const showActivity = (active === 'history' || active === 'server') && (next?.kind === 'armed' || next?.kind === 'measuring');
     activity.hidden = !showActivity;
     morph(activity, showActivity ? nextRow(next, open) : '');
+    if (active === 'media') {
+      morph(this.node('view-media'), mediaMarkup(this.p.mediaJobs, this.p.session()?.id ?? null, s.now));
+      const media = this.p.mediaJobs;
+      this.node('freshness').textContent = media.snapshot?.enabled === false ? 'Media monitoring is off' : media.stale ? 'Waiting for media update' : media.snapshot ? `Media updated ${ago(media.snapshot.sampledAtMs, s.now)}` : 'No media reading yet';
+    }
     if (active === 'live') {
-      morph(this.node('view-live'), s.snapshot || s.frame ? liveMarkup(live, open) : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
+      morph(this.node('view-live'), s.snapshot || s.frame ? html`${liveMarkup(live, open)}${this.chatSetupHint()}` : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
     }
     if (active === 'server') morph(this.node('panel-server'), html`<div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-live">Back to Live</button><h2 id="server-title" tabindex="-1">Server &amp; Mac details</h2></div>${serverMarkup(presentServer(s.snapshot, s.now, this.extra(s), s.fresh && !s.paused), open)}${macCard(presentMac(s), open)}`);
     if (active === 'history') this.view('history', this.node('view-history'), s.snapshot);
+    this.syncMotion();
   }
+  private chatSetupHint() {
+    const s = this.input(), status = this.p.companion();
+    if (s.measurementScope === 'engine' || s.snapshot?.chat || s.paused || s.frame || !s.fresh) return '';
+    if (status?.state === 'ready') return s.chatIsLocal === false ? html`<p class="coverage-note">Chat speed is ready. Your next streamed reply will show its estimated delivery speed.</p>` : '';
+    if (status?.state === 'pending') return html`<div class="setup-hint"><p>${status.message}</p><button class="btn quiet" type="button" data-action="chat-setup">View setup</button></div>`;
+    if (s.chatIsLocal !== false && s.snapshot?.runtime.request?.decodeTps != null) return '';
+    return html`<div class="setup-hint"><div><h3>${s.chatIsLocal === false ? 'See this chat’s delivery speed' : 'Track speed for this chat'}</h3><p>${status?.state === 'incompatible' ? status.message : 'Optional chat tracking adds labeled delivery estimates for local and cloud models.'}</p></div><button class="btn quiet" type="button" data-action="chat-setup">${status?.canEnable ? 'Enable chat speed' : 'Chat speed setup'}</button></div>`;
+  }
+  private syncMotion(): void {
+    const s = this.input(), chat = this.p.session(), snapshot = s.snapshot;
+    this.digits.sync(`${this.p.state.generation}/${chat?.id ?? ''}/${chat?.model ?? ''}/${snapshot?.connection.id ?? ''}/${snapshot?.connection.generation ?? ''}/${snapshot?.runtime.phase ?? ''}/${s.window?.startedAt ?? ''}/${snapshot?.chat?.phase ?? ''}`, this.p.visible() && s.fresh && !s.paused && this.p.state.tab === 'live');
+  }
+  visibilityChanged(): void { this.render(); }
   /**
    * History and Captures are ui-history's views, given this frame's one Ledger, its Next reply control and the poll's
    * selection (INTERFACES §4.4). Mounted once into a stable host that moves between layouts; Captures is mounted from
@@ -195,11 +228,21 @@ export class ScopeApp {
     if (disclose) { this.disclose(disclose); return; }
     // History and Captures have their own delegated controls and share only the frame-owned controller.
     if (target.closest('.view-host')) return;
+    const media = target.closest<HTMLElement>('[data-media-action]');
+    if (media) {
+      const key = media.dataset.job!, action = media.dataset.mediaAction;
+      if (action === 'cancel') { this.p.mediaJobs.requestCancel(key); this.p.shell.querySelector<HTMLElement>('[data-media-action="dismiss"]')?.focus(); }
+      else if (action === 'confirm') void this.p.mediaJobs.cancel(key);
+      else if (action === 'dismiss') this.p.mediaJobs.dismissCancel();
+      return;
+    }
     const action = target.closest<HTMLElement>('[data-action]')?.dataset.action;
     if (action) this.act(action);
   };
   private act(action: string): void {
     const { pipeline, state, connections } = this.p;
+    if (action === 'open-media') { this.select('media', true); return; }
+    if (action === 'chat-setup') { connections.openSetup(); this.node('companion-title').focus({ preventScroll: true }); this.node('companion-title').scrollIntoView({ block: 'nearest' }); return; }
     if (action === 'open-server') { this.select('server', true); return; }
     if (action === 'open-captures') { this.select('captures', true); return; }
     if (action === 'back-live') { this.select('live', true); return; }
@@ -252,6 +295,8 @@ export class ScopeApp {
   };
   /** Views other tracks mounted are told the frame is going away. */
   dispose(): void {
+    this.digits.dispose();
+    this.p.shell.removeEventListener('click', this.onClick); this.p.shell.removeEventListener('keydown', this.onKey); this.p.shell.removeEventListener('toggle', this.onToggle, true);
     this.p.shell.removeEventListener('change', this.onChange);
     this.media?.removeEventListener('change', this.onLayout);
     for (const { handle } of this.views.values()) try { handle.dispose(); } catch { /* see view() */ }

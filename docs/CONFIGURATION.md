@@ -1,18 +1,22 @@
 # Configuration
 
+Start with **This chat**: Scope follows the provider and model of the chat open in OpenChamber. Open **Connections** to see readiness, enable optional chat speed or media progress, or choose a connection for Whole engine monitoring. Native runtime measurements do not require the chat helper. Cloud delivery estimates do.
+
+Helper installation never restarts OpenCode or a generation backend. “Installed” means files are present; “Ready” means the expected runtime helper answered or supplied its qualified load receipt. Media setup and custom local connections are described in [Media](MEDIA.md).
+
 MLX Scope uses your existing local runtime connection. Monitoring leaves your
-configuration unchanged. The optional **Enable companion** action below installs
+configuration unchanged. The optional **Enable chat speed** action in Connections installs
 its OpenCode plugin; it preserves existing plugins and provider settings.
 
 ## Getting connected
 
 Start your runtime's local server and configure it as a provider in OpenChamber
 or OpenCode, as you normally would for chatting. Open MLX Scope: **Automatic**
-prefers the provider of the global selected model, then the named oMLX connection.
+prefers the provider of the selected chat’s model, then the named oMLX connection.
 Existing oMLX settings provide a fallback when no oMLX provider was found.
 
-Use **⋯ → Connection** when you want another configured server. Select its
-**Connection**, leave **Runtime** on automatic detection or choose the matching
+Choose **Whole engine**, then open **Connections** when you want another configured server. Select its
+**Connection**, leave **Server type** on automatic detection or choose the matching
 runtime, then select **Use connection**. This changes only what MLX Scope observes.
 It saves the provider ID and runtime choice, never an endpoint or API key.
 A runtime you choose explicitly is never switched automatically; if the server on
@@ -64,8 +68,7 @@ back after 30 seconds away, so a different server on the same port is found.
 
 ## Optional chat estimates
 
-In the full Scope panel, open **⋯ → Chat estimates…**, then choose **Enable
-companion**. This deliberate action copies the bundled OpenCode plugin to
+Open **Connections**, then choose **Enable chat speed**. This deliberate action copies the bundled OpenCode plugin to
 `~/.config/opencode/addons/mlx-scope-prompt-progress` and adds one entry to the
 existing global `opencode.json` or `opencode.jsonc`. There is no download or
 package-manager command. Other plugins, provider settings, JSONC comments, and
@@ -79,8 +82,7 @@ average. Neither is presented as the engine's native decode timing. The
 companion subscribes while a visible Scope view requests chat measurements;
 after the last view stops, that request expires within 15 seconds.
 
-After enabling, start a new reply and choose **Check status**. If setup
-remains pending, reload OpenCode when no reply is running. Scope never restarts
+Connections checks activation while open. If setup remains pending, it activates the next time OpenCode starts; leave active work running. Scope never restarts
 OpenCode for you. A startup receipt confirms that the supported companion loaded;
 only a fresh heartbeat confirms a current connection. Unsupported versions keep
 runtime measurements available and withhold chat estimates.
@@ -113,7 +115,7 @@ custom names; they do not have to be `omlx` or another runtime's name.
 | Source | Use |
 | --- | --- |
 | `${XDG_CONFIG_HOME:-~/.config}/opencode/config.json` | Legacy compatibility input; OpenCode 2 no longer reads this filename |
-| `${XDG_CONFIG_HOME:-~/.config}/opencode/opencode.json` | OpenCode 1 `provider` entries or OpenCode 2 `providers` entries, plus the global selected model |
+| `${XDG_CONFIG_HOME:-~/.config}/opencode/opencode.json` | OpenCode 1 `provider` entries or OpenCode 2 `providers` entries, plus the selected chat’s model |
 | `${XDG_CONFIG_HOME:-~/.config}/opencode/opencode.jsonc` | JSONC overlay in either provider format |
 | Absolute `OPENCODE_CONFIG_DIR/opencode.json(c)` | Alternate OpenCode 2 global config root, when available to the extension service; the default global root and its legacy `config.json` are not read in this mode |
 | Absolute `OPENCODE_CONFIG` | Explicit configuration overlay, when available to the service |

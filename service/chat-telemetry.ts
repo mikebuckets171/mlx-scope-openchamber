@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { chmod, lstat, mkdir, open, opendir, rename, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { version as companionVersion } from '../package.json';
+import { version as companionVersion } from '../bridge/opencode/package.json';
 import { parseChatMeasurement, type ChatMeasurement } from '../src/contract/chat.ts';
 
 const TTL = 15_000, MAX_BYTES = 65_536, HEX = /^[a-f0-9]{64}$/, UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;

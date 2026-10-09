@@ -14,6 +14,10 @@ export const EXEC_PATHS = {
 /** Under HOME; the manifest declares them as `~/…`. */
 export const LMS_HOME_PATHS = ['.lmstudio/bin/lms', '.cache/lm-studio/bin/lms'] as const;
 export const MACMON_PATHS = ['/opt/homebrew/bin/macmon', '/usr/local/bin/macmon'] as const;
+/** The optional video adapter can request cancellation of exactly one observed queue job. */
+export const LOCAL_VIDEO_PATH = '.config/opencode/bin/local-video';
+export const localVideoCancelArgv = (jobId: string, home: string): Argv | null => path.isAbsolute(home) && /^\d{8}T\d{6}-[a-f0-9]{8}$/.test(jobId)
+  ? { file: path.join(home, LOCAL_VIDEO_PATH), args: ['cancel', jobId], timeoutMs: 3_000, maxBytes: 8_192 } : null;
 export const SYSCTL_KEYS = ['vm.swapusage', 'kern.memorystatus_vm_pressure_level', 'iogpu.wired_limit_mb'] as const;
 export const IOREG_MAX_BYTES = 128 * 1024;
 /** One macmon NDJSON line; longer lines are dropped whole (BoundedLines). */
@@ -99,6 +103,7 @@ export const allowed = (argv: Argv, home: string): boolean => {
     case EXEC_PATHS.footprint: return same(argv, footprintArgv(decimal(args.at(-1))));
   }
   if ((MACMON_PATHS as readonly string[]).includes(file)) return same(argv, macmonArgv(file));
+  if (file === path.join(home, LOCAL_VIDEO_PATH)) return same(argv, localVideoCancelArgv(args[1] ?? '', home));
   const lms = path.isAbsolute(home) && LMS_HOME_PATHS.some(relative => path.join(home, relative) === file);
   const commands: LmsCommand[] = ['ps', 'runtime-ls', 'log-stream'];
   return lms && commands.some(command => same(argv, lmsArgv(file, command, decimal(args.at(-1)), serverInfo(argv.env?.LMS_API_SERVER_INFO_PATH))));

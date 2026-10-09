@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { chatKey } from '../src/contract/chat-key.ts';
 import type { ChatMeasurement } from '../src/contract/chat.ts';
 import type { SnapshotV2 } from '../src/contract/snapshot.ts';
-import { version } from '../package.json';
+import { version } from '../bridge/opencode/package.json';
 import { createChatDestination, createChatSource } from './chat-source.ts';
 import { ChatTelemetry, type ChatTarget } from './chat-telemetry.ts';
 import { chatOnlyReading, createScopeServer, type Sources } from './server.ts';

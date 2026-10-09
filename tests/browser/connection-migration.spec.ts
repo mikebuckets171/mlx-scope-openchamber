@@ -24,6 +24,7 @@ for (const savedScope of [null, 'chat', 'engine'] as const) {
     if (savedScope !== 'chat') return;
     // Confirming the same saved connection is still a deliberate Whole engine choice.
     await frame.locator('#connection-change').click();
+    if (!await frame.locator('#runtime-connection-details').evaluate(element => (element as HTMLDetailsElement).open)) await frame.locator('#runtime-connection-details > summary').click();
     await expect(frame.locator('#connection-provider')).toHaveValue('saved-local');
     await expect(frame.locator('#connection-runtime')).toHaveValue('splash');
     await frame.locator('#connection-apply').click();
@@ -35,6 +36,7 @@ for (const savedScope of [null, 'chat', 'engine'] as const) {
     await frame.locator('#monitor-menu > summary').click();
     await scope.selectOption('chat');
     await frame.locator('#connection-change').click();
+    if (!await frame.locator('#runtime-connection-details').evaluate(element => (element as HTMLDetailsElement).open)) await frame.locator('#runtime-connection-details > summary').click();
     await frame.locator('#connection-provider').selectOption('omlx');
     await frame.locator('#connection-runtime').selectOption('');
     await frame.locator('#connection-apply').click();

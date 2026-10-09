@@ -16,7 +16,8 @@ const open = async (page: Page, query = '') => {
 const selection = async (page: Page) => { const { provider, runtime } = await page.evaluate(() => (window as W).previewQueries.at(-1)); return { provider, runtime }; };
 const choose = async (page: Page, provider: string, runtime = '') => {
   const frame = page.frameLocator('iframe');
-  await menu(frame, '#connection-change');
+  await frame.locator('#connection-change').click();
+  if (!await frame.locator('#runtime-connection-details').evaluate(element => (element as HTMLDetailsElement).open)) await frame.locator('#runtime-connection-details > summary').click();
   await frame.getByLabel('Connection', { exact: true }).selectOption(provider);
   await frame.getByLabel('Server type', { exact: true }).selectOption(runtime);
   await frame.getByRole('button', { name: 'Use connection', exact: true }).click();
@@ -106,17 +107,17 @@ test('Splash in Bionic is named, keeps its last reply exact, and lists its Splas
   await expect(frame.locator('[data-key="server-catalog"] .chip[data-tone="accent"]')).toHaveCount(5);
   await menu(frame, '#connection-change');
   await expect(frame.getByLabel('Connection', { exact: true }).locator('option[value="bionic"]')).toHaveText('Splash (Bionic)');
-  await expect(frame.locator('#connection-choice-note')).toContainText('Using Splash in Bionic? Keep Automatic.');
+  await expect(frame.locator('#connection-choice-note')).toContainText('This chat chooses its matching server automatically.');
 });
 
-test('connection setup closes on Escape back to the menu button, and a custom provider takes an explicit runtime', async ({ page }) => {
+test('connection setup closes on Escape back to Connections, and a custom provider takes an explicit runtime', async ({ page }) => {
   const frame = await open(page);
   await openMenu(frame);
   await frame.locator('#connection-change').focus(); await frame.locator('#connection-change').press('Enter');
   await expect(frame.locator('#connection-setup')).toBeVisible();
-  await frame.getByLabel('Connection', { exact: true }).press('Escape');
+  await frame.locator('#connection-setup-title').press('Escape');
   await expect(frame.locator('#connection-setup')).toBeHidden();
-  await expect(frame.locator('#monitor-menu > summary')).toBeFocused();
+  await expect(frame.locator('#connection-change')).toBeFocused();
   await choose(page, 'custom', 'lmstudio');
   await expect(frame.locator('#connection')).toHaveText('Custom local');
   expect(await selection(page)).toEqual({ provider: 'custom', runtime: 'lmstudio' });
@@ -133,7 +134,7 @@ test('a storage failure keeps the chosen connection usable; a missing setup poin
   await frame.locator('#measurement-details > summary').click();
   await expect(frame.locator('.machine-summary')).toBeVisible();
   await callout.getByRole('button', { name: 'Connection…' }).click();
-  await expect(frame.getByLabel('Connection', { exact: true })).toBeFocused();
+  await expect(frame.locator('#connection-setup-title')).toBeFocused();
 });
 
 test('switching while paused keeps the pause and discards the previous connection\'s readings', async ({ page }) => {

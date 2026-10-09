@@ -1,6 +1,6 @@
 {
   "name": "mlx-scope-openchamber",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Lightweight local model monitoring for OpenChamber.",
   "private": true,
   "license": "MIT",
@@ -76,7 +76,8 @@
             "~/.lmstudio/bin/lms",
             "~/.cache/lm-studio/bin/lms",
             "/opt/homebrew/bin/macmon",
-            "/usr/local/bin/macmon"
+            "/usr/local/bin/macmon",
+            "~/.config/opencode/bin/local-video"
           ]
         }
       },
@@ -94,10 +95,11 @@
     "test:browser": "playwright test",
     "test:goldens": "playwright test tests/browser/goldens.spec.ts",
     "verify:package": "bun scripts/verify-package.ts",
-    "check": "bun run type-check && bun run scan && bun run test && bun run build && bun run verify:package",
+    "check": "bun run type-check && bun run scan && bun run test && bun run test:helpers && bun run build && bun run verify:package",
     "check:all": "bun run check && bun run test:browser",
     "scan": "bun scripts/scan-committed.ts",
-    "overhead": "node scripts/measure-overhead.mjs"
+    "overhead": "node scripts/measure-overhead.mjs",
+    "test:helpers": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s bridge/comfyui -p \"test_*.py\""
   },
   "dependencies": {
     "@openchamber/sdk": "2.0.4",
@@ -140,6 +142,10 @@
     "bridge/opencode/stream.js",
     "bridge/opencode/chat.js",
     "bridge/opencode/demand.js",
-    "bridge/opencode/chat-store.js"
+    "bridge/opencode/chat-store.js",
+    "bridge/comfyui/__init__.py",
+    "bridge/comfyui/snapshot.py",
+    "bridge/comfyui/README.md",
+    "docs/MEDIA.md"
   ]
 }
