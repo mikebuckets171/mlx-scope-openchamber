@@ -48,8 +48,8 @@ visible Scope view requests them. Text and observable reasoning deltas are count
 content is never written, logged, or sent to Scope. Tool payloads, title generation, compaction, and ambiguous usage
 accounting are excluded. Calibration keeps at most ten comparable character/token totals in memory, never content.
 The same observer can count cloud replies already streamed through OpenCode. Scope makes no cloud API requests and
-needs no additional cloud credentials. Primary-request metadata is inspected only to classify the destination and hash
-its origin; the URL, query parameters, headers and request body are never persisted by chat delivery monitoring. The
+needs no additional cloud credentials. Primary HTTP or qualified WebSocket handshake metadata is inspected only to match the session/model, classify the destination and hash
+its origin; the URL, query parameters, headers and request body are never persisted by chat delivery monitoring. WebSocket frames and headers are not inspected. The
 existing Splash prompt-progress observer remains restricted to its configured loopback endpoint.
 
 Private `~/.cache/mlx-scope/chat-telemetry/` files contain bounded counters, timing, freshness, protocol versions and

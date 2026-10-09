@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse } from 'jsonc-parser/lib/esm/main.js';
 import { COMPANION_FILES, COMPANION_ID, createCompanionSetup, type CompanionProbe, type CompanionSetupOptions } from './companion-setup.ts';
+import { version as companionVersion } from '../bridge/opencode/package.json';
 
 const homes: string[] = [];
 afterEach(async () => { for (const home of homes.splice(0)) await rm(home, { recursive: true, force: true }); });
@@ -12,12 +13,12 @@ async function fixture(text?: string, extra: Partial<CompanionSetupOptions> = {}
   const root = join(home, '.config', 'opencode'), bundle = join(home, 'bundle'), config = join(root, 'opencode.json');
   const addon = join(root, 'addons', COMPANION_ID);
   await mkdir(root, { recursive: true }); await mkdir(bundle);
-  for (const name of COMPANION_FILES) await writeFile(join(bundle, name), name === 'package.json' ? JSON.stringify({ name: COMPANION_ID, version: '3.0.0', type: 'module' }) : `// bundled ${name}\n`);
+  for (const name of COMPANION_FILES) await writeFile(join(bundle, name), name === 'package.json' ? JSON.stringify({ name: COMPANION_ID, version: companionVersion, type: 'module' }) : `// bundled ${name}\n`);
   if (text !== undefined) await writeFile(config, text, { mode: 0o600 });
   const options = { home, env: {}, bundleDirectory: bundle, ...extra };
   return { home, root, bundle, config, addon, options, setup: createCompanionSetup(options) };
 }
-const receipt = (at: number, extra: Partial<CompanionProbe> = {}): CompanionProbe => ({ companionVersion: '3.0.0', protocol: 'opencode-2.0.25', runtimeVersion: '2.0.25', supported: true, loadedAtMs: at, ...extra });
+const receipt = (at: number, extra: Partial<CompanionProbe> = {}): CompanionProbe => ({ companionVersion, protocol: 'opencode-2.0.25', runtimeVersion: '2.0.25', supported: true, loadedAtMs: at, ...extra });
 
 describe('explicit companion setup', () => {
   it('status creates no files; enable installs the bundled package and a scoped entry', async () => {
@@ -25,7 +26,7 @@ describe('explicit companion setup', () => {
     expect((await f.setup.status()).state).toBe('disabled');
     expect(await readdir(f.root)).toEqual([]);
     expect((await f.setup.enable()).state).toBe('pending');
-    expect(parse(await readFile(f.config, 'utf8')).plugins).toEqual([{ package: f.addon, options: { promptProgress: false } }]);
+    expect(parse(await readFile(f.config, 'utf8')).plugins).toEqual([{ package: f.addon, options: { promptProgress: false, scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/) } }]);
     expect((await stat(f.addon)).mode & 0o777).toBe(0o700);
     for (const name of COMPANION_FILES) expect((await stat(join(f.addon, name))).mode & 0o777).toBe(0o600);
     expect((await f.setup.status()).managed).toBe(true);
@@ -37,13 +38,21 @@ describe('explicit companion setup', () => {
   // Keep this private configuration comment.
   "plugins": [
     "another-plugin", // keep its entry
-    {"package": ${JSON.stringify(f.addon)}, "options": {"providerID":"custom-splash","baseURL":"http://localhost:9876/v1","custom":true}},
+    {"package": ${JSON.stringify(f.addon)}, "options": {"providerID":"custom-splash",/* keep these options */"baseURL":"http://localhost:9876/v1","custom":true}},
   ],
   "theme": "unchanged",
 }\n`;
     await writeFile(f.config, original);
-    await f.setup.enable(); await f.setup.enable();
-    expect(await readFile(f.config, 'utf8')).toBe(original);
+    await f.setup.enable();
+    const installed = await readFile(f.config, 'utf8');
+    expect(installed).toContain('// Keep this private configuration comment.');
+    expect(installed).toContain('// keep its entry');
+    expect(installed).toContain('/* keep these options */');
+    expect(parse(installed).plugins).toEqual(['another-plugin', { package: f.addon, options: {
+      providerID: 'custom-splash', baseURL: 'http://localhost:9876/v1', custom: true, scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/),
+    } }]);
+    await f.setup.enable();
+    expect(await readFile(f.config, 'utf8')).toBe(installed);
     expect((await f.setup.disable()).state).toBe('disabled');
     const disabled = await readFile(f.config, 'utf8');
     expect(disabled).toContain('// Keep this private configuration comment.');
@@ -60,7 +69,7 @@ describe('explicit companion setup', () => {
     await f.setup.enable();
     const changed = await readFile(config, 'utf8');
     expect(changed).toContain('// Keep provider settings');
-    expect(parse(changed).plugins).toEqual(['other', { package: f.addon, options: { providerID: 'splish', baseURL: 'http://127.0.0.1:8111/v1' } }]);
+    expect(parse(changed).plugins).toEqual(['other', { package: f.addon, options: { providerID: 'splish', baseURL: 'http://127.0.0.1:8111/v1', scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/) } }]);
     expect(await readdir(f.root)).not.toContain('opencode.json');
   });
 
@@ -81,7 +90,7 @@ describe('explicit companion setup', () => {
       const f = await fixture(JSON.stringify({ provider: { splish: { options: { baseURL: 'http://localhost:8000/v1' } } } }));
       const path = join(f.root, 'opencode.jsonc'); await writeFile(path, JSON.stringify(overlay));
       await f.setup.enable();
-      expect(parse(await readFile(path, 'utf8')).plugins[0].options).toEqual({ promptProgress: false });
+      expect(parse(await readFile(path, 'utf8')).plugins[0].options).toEqual({ promptProgress: false, scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/) });
     }
   });
 
@@ -127,7 +136,8 @@ describe('explicit companion setup', () => {
     const config = JSON.stringify({ plugins: [{ package: f.addon, options: { providerID: 'splish', baseURL: 'http://localhost:8000/v1' } }] });
     await writeFile(f.config, config);
     expect((await f.setup.enable()).managed).toBe(true);
-    expect(await readFile(f.config, 'utf8')).toBe(config);
+    expect(parse(await readFile(f.config, 'utf8')).plugins[0]).toEqual({ package: f.addon,
+      options: { providerID: 'splish', baseURL: 'http://localhost:8000/v1', scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/) } });
     expect(await readFile(join(f.addon, 'index.js'), 'utf8')).toBe('// bundled index.js\n');
   });
 
@@ -137,6 +147,37 @@ describe('explicit companion setup', () => {
     await writeFile(f.config, JSON.stringify({ plugins: [f.addon] }));
     expect((await f.setup.disable()).state).toBe('disabled');
     expect(await readFile(join(f.addon, 'package.json'), 'utf8')).toContain(COMPANION_ID);
+  });
+
+  it('changes only the owned config revision when bundled files change and stays byte-stable otherwise', async () => {
+    const f = await fixture('{"plugins":["other"],"setting":{"untouched":true}}');
+    await f.setup.enable();
+    const before = parse(await readFile(f.config, 'utf8'));
+    await writeFile(join(f.bundle, 'index.js'), '// updated helper\n');
+    await f.setup.enable();
+    const updated = await readFile(f.config, 'utf8'), after = parse(updated);
+    expect(after.plugins[1].options.scopeRevision).not.toBe(before.plugins[1].options.scopeRevision);
+    expect({ ...after.plugins[1].options, scopeRevision: undefined }).toEqual({ ...before.plugins[1].options, scopeRevision: undefined });
+    expect(after.plugins[0]).toBe('other'); expect(after.setting).toEqual(before.setting);
+    await f.setup.enable(); expect(await readFile(f.config, 'utf8')).toBe(updated);
+  });
+
+  it('upgrades a string entry without changing its configured package path or adjacent comments', async () => {
+    const f = await fixture();
+    await writeFile(f.config, `{"plugins":["other",/* keep */${JSON.stringify(f.addon)}]}`);
+    await f.setup.enable();
+    const installed = await readFile(f.config, 'utf8');
+    expect(installed).toContain('/* keep */');
+    expect(parse(installed).plugins).toEqual(['other', { package: f.addon, options: { scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/) } }]);
+  });
+
+  it('preserves invalid existing options and leaves installation untouched', async () => {
+    const f = await fixture();
+    const config = JSON.stringify({ plugins: [{ package: f.addon, options: 'user-value' }] });
+    await writeFile(f.config, config);
+    expect((await f.setup.enable()).state).toBe('manual');
+    expect(await readFile(f.config, 'utf8')).toBe(config);
+    expect(await readdir(f.root)).toEqual(['opencode.json']);
   });
 
   it('rolls back installed files on a failed config commit', async () => {
@@ -193,6 +234,12 @@ describe('explicit companion setup', () => {
     expect(await setup.status()).toMatchObject({ state: 'ready', live: false, runtimeVersion: '2.0.25' });
     probe = receipt(at, { updatedAtMs: at, expiresAtMs: at + 15_000 });
     expect((await setup.status()).live).toBe(true);
+    probe = receipt(at, { companionVersion: '3.0.0', updatedAtMs: at, expiresAtMs: at + 15_000 });
+    expect(await setup.status()).toMatchObject({ state: 'pending', live: false,
+      message: 'Installed · waiting for OpenCode to load the updated tracking helper. Your current work can continue.' });
+    await writeFile(join(f.addon, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.0.0' }));
+    expect(await setup.status()).toMatchObject({ state: 'pending', live: false,
+      message: 'Update chat speed to install the current tracking helper.' });
     probe = receipt(at, { runtimeVersion: '2.0.26', supported: false, protocol: 'unsupported' });
     const before = await readFile(f.config, 'utf8');
     expect(await setup.enable()).toMatchObject({ state: 'incompatible', canEnable: false, canDisable: true });

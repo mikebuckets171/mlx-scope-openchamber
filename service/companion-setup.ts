@@ -7,6 +7,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { fileURLToPath } from 'node:url';
 import { parseLocalOrigin, pathsForHome } from './config.ts';
 import { hintFor } from './core/hints.ts';
+import { version as companionVersion } from '../bridge/opencode/package.json';
 
 export const COMPANION_SETUP_PATH = '/v2/companion/setup';
 export const COMPANION_ID = 'mlx-scope-prompt-progress';
@@ -144,11 +145,21 @@ function initialOptions(documents: Document[]): ObjectValue {
   }
   return candidates.size === 1 ? [...candidates.values()][0]! : { promptProgress: false };
 }
-function configText(info: Inspection, enabled: boolean): string {
+function configText(info: Inspection, enabled: boolean, revision?: string): string {
   const current = info.document.file?.text ?? '{\n}\n';
-  if (enabled && info.entry >= 0 || !enabled && info.entry < 0) return current;
+  if (!enabled && info.entry < 0) return current;
+  const formattingOptions = { insertSpaces: !/^\t/m.test(current), tabSize: 2, eol: current.includes('\r\n') ? '\r\n' : '\n' };
   const plugins = info.document.value.plugins as unknown[] | undefined;
-  const value = enabled ? { package: info.addon, options: initialOptions(info.documents) } : undefined;
+  if (enabled && info.entry >= 0) {
+    const entry = plugins![info.entry], configured = object(entry);
+    if (configured?.options !== undefined && !object(configured.options)) return fail('Companion options must be an object before using guided setup. Existing configuration was preserved.');
+    // File watches can stay on the replaced directory's inode. A content revision on
+    // our own entry lets OpenCode's supported config watcher activate just this plugin.
+    if (object(configured?.options)?.scopeRevision === revision) return current;
+    return applyEdits(current, modify(current, typeof entry === 'string' ? ['plugins', info.entry] : ['plugins', info.entry, 'options', 'scopeRevision'],
+      typeof entry === 'string' ? { package: entry, options: { scopeRevision: revision } } : revision, { formattingOptions }));
+  }
+  const value = enabled ? { package: info.addon, options: { ...initialOptions(info.documents), scopeRevision: revision } } : undefined;
   if (plugins) {
     const tree = parseTree(current), array = tree && findNodeAtLocation(tree, ['plugins']);
     if (!array || array.type !== 'array') return fail('The plugin list changed. Try again.');
@@ -171,9 +182,7 @@ function configText(info: Inspection, enabled: boolean): string {
     return applyEdits(current, [{ offset: close, length: 0, content: `${needsComma && end === close ? ',' : ''}${eol}    ${JSON.stringify(value)}${eol}  ` },
       ...needsComma && end !== close ? [{ offset: end, length: 0, content: ',' }] : []]);
   }
-  return applyEdits(current, modify(current, ['plugins'], [value], {
-    formattingOptions: { insertSpaces: !/^\t/m.test(current), tabSize: 2, eol: current.includes('\r\n') ? '\r\n' : '\n' },
-  }));
+  return applyEdits(current, modify(current, ['plugins'], [value], { formattingOptions }));
 }
 async function checkUnchanged(doc: Document): Promise<void> {
   const current = await readFile(doc.path);
@@ -246,18 +255,20 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
   const describe = async (info: Inspection): Promise<CompanionSetupStatus> => {
     const receipt = await probe(), valid = receipt && Number.isFinite(receipt.loadedAtMs) && receipt.loadedAtMs > 0 && receipt.loadedAtMs <= now() + 1_000;
     const runtimeVersion = valid ? receipt.runtimeVersion.slice(0, 40) : null;
-    const companionVersion = valid ? receipt.companionVersion.slice(0, 40) : null, protocol = valid ? receipt.protocol.slice(0, 80) : null;
+    const loadedCompanionVersion = valid ? receipt.companionVersion.slice(0, 40) : null, protocol = valid ? receipt.protocol.slice(0, 80) : null;
     const supported = valid && receipt.supported && receipt.protocol === 'opencode-2.0.25' && receipt.runtimeVersion === '2.0.25';
     const configured = info.entry >= 0, installedAt = typeof info.marker?.installedAtMs === 'number' ? info.marker.installedAtMs : 0;
-    const current = supported && receipt.companionVersion === '3.0.0' && receipt.loadedAtMs >= installedAt;
+    const needsUpdate = configured && json(info.files.get('package.json')?.text ?? '{}').version !== companionVersion;
+    const current = supported && receipt.companionVersion === companionVersion && receipt.loadedAtMs >= installedAt;
     const live = !!(current && receipt.updatedAtMs && receipt.updatedAtMs <= now() + 1_000 && receipt.expiresAtMs && receipt.expiresAtMs > now() && receipt.expiresAtMs - receipt.updatedAtMs <= 15_000);
     const state = valid && !supported ? 'incompatible' : configured ? current ? 'ready' : 'pending' : 'disabled';
     const message = state === 'incompatible' ? 'This OpenCode version is not qualified for chat estimates. Runtime measurements remain available.'
       : state === 'ready' ? live ? 'Chat tracking is connected. Estimates follow the chat you are watching.' : 'Chat tracking is ready for your next local or cloud reply.'
-        : state === 'pending' ? 'Installed · waiting for OpenCode to load chat tracking. Your current work can continue.'
+        : state === 'pending' ? needsUpdate ? 'Update chat speed to install the current tracking helper.'
+          : 'Installed · waiting for OpenCode to load the updated tracking helper. Your current work can continue.'
           : 'Enable delivery-speed estimates for local and cloud chats. Requires OpenCode 2.0.25.';
     return { state, message, configured, managed: info.managed, canEnable: state !== 'incompatible', canDisable: configured || info.managed,
-      runtimeVersion, companionVersion, protocol, live };
+      runtimeVersion, companionVersion: loadedCompanionVersion, protocol, live };
   };
   const errorStatus = (error: unknown): CompanionSetupStatus => ({ state: error instanceof SetupError ? 'manual' : 'error',
     message: error instanceof SetupError ? error.message : 'Companion setup could not finish. Existing configuration was preserved; check local file access and try again.',
@@ -276,7 +287,8 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
         lock = await setupLock(candidate); lockPath = candidate;
         await checkUnchanged(info.document);
         await checkInstallation(info);
-        const text = configText(info, enabled);
+        const revision = files ? hash(JSON.stringify(COMPANION_FILES.map(name => [name, hash(files.get(name)!.text)]))) : undefined;
+        const text = configText(info, enabled, revision);
         if (enabled) {
           await safeParents(dirname(info.addon)); await mkdir(dirname(info.addon), { recursive: true, mode: 0o700 });
           stage = join(dirname(info.addon), `.mlx-scope-stage-${randomUUID()}`); await mkdir(stage, { mode: 0o700 });

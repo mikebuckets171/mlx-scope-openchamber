@@ -82,7 +82,7 @@ average. Neither is presented as the engine's native decode timing. The
 companion subscribes while a visible Scope view requests chat measurements;
 after the last view stops, that request expires within 15 seconds.
 
-Connections checks activation while open. If setup remains pending, it activates the next time OpenCode starts; leave active work running. Scope never restarts
+Connections checks activation while open. On qualified OpenCode 2.0.25, managed updates activate through its normal configuration watcher. Scope records a bundled-file revision on its own plugin entry; other plugin options and JSONC comments remain intact. If setup remains pending, it activates the next time OpenCode starts; leave active work running. Scope never restarts
 OpenCode for you. A startup receipt confirms that the supported companion loaded;
 only a fresh heartbeat confirms a current connection. Unsupported versions keep
 runtime measurements available and withhold chat estimates.

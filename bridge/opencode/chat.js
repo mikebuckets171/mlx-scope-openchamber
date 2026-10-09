@@ -4,8 +4,14 @@ export const WINDOW_MS = 5_000;
 export const MIN_WINDOW_MS = 2_000;
 export const MAX_CHATS = 16;
 export const PROTOCOL = 'opencode-2.0.25';
-export const COMPANION_VERSION = '3.0.0';
+export const COMPANION_VERSION = '3.1.0';
 const MAX_PARTS = 64, MAX_CHARACTERS = 10_000_000, MAX_DELTA = 65_536;
+// These released events do not alter the model call or contain observable output.
+const PENDING_METADATA = new Set(['session.renamed', 'session.metadata.updated', 'session.permissions', 'session.viewed', 'session.usage.updated']);
+const RESET_EVENTS = new Set(['session.model.selected', 'session.agent.selected', 'session.deleted', 'session.moved',
+  'session.compaction.started', 'session.execution.started', 'session.retry.scheduled', 'session.revert.committed']);
+const CANCEL_EVENTS = new Set(['session.execution.interrupted', 'session.execution.failed', 'session.step.failed']);
+const END_EVENTS = new Set(['session.execution.succeeded', 'session.step.streamed', 'session.step.ended']);
 const safe = value => Number.isSafeInteger(value) && value >= 0;
 const id = value => typeof value === 'string' && value.length > 0 && value.length <= 1024;
 const identity = data => ({ sessionKey: key('session', data.sessionID), providerKey: key('provider', data.model.providerID), modelKey: key('model', data.model.id) });
@@ -29,6 +35,18 @@ export function observedEndpoint(value) {
       return endpointKey ? { endpointKey } : null;
     }
     return { endpointKey: key('endpoint', url.origin), destination: 'remote' };
+  } catch { return null; }
+}
+
+/** Qualified native WebSocket handshake metadata only; never read frames or retain URL paths/query credentials. */
+export function observedWebSocketEndpoint(value) {
+  try {
+    const url = new URL(value);
+    if (!['ws:', 'wss:'].includes(url.protocol) || url.username || url.password || url.hash) return null;
+    const local = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
+    if (local && url.search) return null;
+    if (url.hostname === 'localhost') url.hostname = '127.0.0.1';
+    return { endpointKey: key('endpoint', url.origin), ...local ? {} : { destination: 'remote' } };
   } catch { return null; }
 }
 
@@ -62,12 +80,12 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
     for (const [sessionKey, state] of chats) if (!watched.has(state.match) || state.endpointKey && !watched.get(state.match).has(state.destination ?? 'local')) drop(sessionKey);
     for (const [match, route] of routes) if (!watched.has(match) || !watched.get(match).has(route.destination ?? 'local')) routes.delete(match);
   }
-  function authorizeHttp(event) {
-    // Corroborate the actual primary HTTP destination, not a provider name or inferred model alias.
+  function authorize(event, webSocket = false) {
+    // Corroborate a qualified primary transport destination, not a provider name or inferred model alias.
     if (!watched.size || event.kind !== 'primary' || !id(event.sessionID) || !id(event.model?.providerID) || !id(event.model?.id)) return;
     const match = watchKey(identity(event)); if (!watched.has(match)) return;
-    const endpoint = event.request?.method === 'POST' ? observedEndpoint(event.request.url) : null;
-    if (!endpoint || !watched.get(match).has(endpoint.destination ?? 'local') || event.request.signal?.aborted) { routes.delete(match); drop(key('session', event.sessionID)); return; }
+    const endpoint = webSocket ? observedWebSocketEndpoint(event.url) : event.request?.method === 'POST' ? observedEndpoint(event.request.url) : null;
+    if (!endpoint || !watched.get(match).has(endpoint.destination ?? 'local') || !webSocket && event.request?.signal?.aborted) { routes.delete(match); drop(key('session', event.sessionID)); return; }
     if (routes.size >= MAX_CHATS && !routes.has(match)) return;
     const state = chats.get(key('session', event.sessionID));
     if (state?.match === match && !state.endpointKey) {
@@ -79,6 +97,8 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
     if (state?.match === match && (state.endpointKey !== endpoint.endpointKey || state.destination !== endpoint.destination)) drop(key('session', event.sessionID));
     routes.set(match, { ...endpoint, at: now() });
   }
+  const authorizeHttp = event => authorize(event);
+  const authorizeWebSocket = event => authorize(event, true);
   const ratioFor = state => {
     const steps = calibration.get(state.calibrationKey) ?? [];
     return { ratio: steps.length >= 3 ? steps.reduce((n, step) => n + step.characters, 0) / steps.reduce((n, step) => n + step.tokens, 0) : 4,
@@ -119,6 +139,11 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
     const data = input.data, type = input.type, sessionKey = key('session', data.sessionID), time = now();
     // Incoming old envelopes or future/invalid clocks cannot contribute observations.
     if (!safe(input.created) || input.created > time || time - input.created > WINDOW_MS) { drop(sessionKey); return; }
+    if (id(input.id) && (RESET_EVENTS.has(type) || CANCEL_EVENTS.has(type) || END_EVENTS.has(type))) {
+      // Dispatch can fail before any step exists. A later step must observe its own transport proof.
+      // A delayed event from an older call cannot invalidate a newer observed dispatch.
+      for (const [match, route] of routes) if (match.startsWith(`${sessionKey}:`) && route.at <= input.created) routes.delete(match);
+    }
     const state = chats.get(sessionKey);
     if (type === 'session.step.started') {
       drop(sessionKey);
@@ -126,7 +151,7 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
         || !safe(data.started) || data.started > time) return;
       const ident = identity(data), match = watchKey(ident), route = routes.get(match);
       if (!watched.has(match) || route && (!watched.get(match).has(route.destination ?? 'local') || time - route.at > 600_000) || chats.size >= MAX_CHATS) return;
-      routes.delete(match); // One HTTP dispatch proves one step, never a later unobserved route.
+      routes.delete(match); // One transport dispatch proves one step, never a later unobserved route.
       const next = { identity: ident, match, endpointKey: route?.endpointKey, destination: route?.destination,
         calibrationKey: route ? `${ident.providerKey}:${ident.modelKey}:${route.endpointKey}` : undefined,
         assistantKey: key('assistant', data.assistantMessageID), started: data.started,
@@ -134,14 +159,17 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
       chats.set(sessionKey, next); if (route) emit(next, 'waiting'); return;
     }
     if (!state) return;
-    if (!state.endpointKey) { if (!type.startsWith('session.step.')) drop(sessionKey); return; }
+    if (!state.endpointKey) {
+      // Metadata can interleave with dispatch, but output or a lifecycle boundary before proof is not recoverable.
+      if (!id(input.id) || !PENDING_METADATA.has(type)) drop(sessionKey);
+      return;
+    }
     if (!id(input.id)) { drop(sessionKey); return; }
     const eventKey = key('event', input.id);
     if (state.seen.has(eventKey)) return;
     state.seen.add(eventKey); if (state.seen.size > 256) state.seen.delete(state.seen.values().next().value);
-    if (['session.model.selected', 'session.agent.selected', 'session.deleted', 'session.moved', 'session.compaction.started',
-      'session.execution.started', 'session.retry.scheduled', 'session.revert.committed'].includes(type)) { drop(sessionKey); return; }
-    if (['session.execution.interrupted', 'session.execution.failed', 'session.step.failed'].includes(type)) {
+    if (RESET_EVENTS.has(type)) { drop(sessionKey); return; }
+    if (CANCEL_EVENTS.has(type)) {
       resetWindow(state); state.eligible = false; emit(state, 'cancelled'); return;
     }
     if (type === 'session.execution.succeeded') {
@@ -219,7 +247,7 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
     }
     for (const [match, route] of routes) if (time < route.at || time - route.at > 600_000) routes.delete(match);
   }
-  return { setWatched, authorizeHttp, event, tick, clear,
+  return { setWatched, authorizeHttp, authorizeWebSocket, event, tick, clear,
     // Only bounded numeric diagnostics for deterministic tests; never expose stored matching keys here.
     stats: () => ({ chats: chats.size, routes: routes.size, calibrationModels: calibration.size,
       points: [...chats.values()].reduce((n, state) => n + state.points.length, 0) }) };

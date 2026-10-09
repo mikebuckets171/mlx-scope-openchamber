@@ -21,13 +21,13 @@ OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and c
 ## Optional chat delivery estimates
 
 Chat estimates initially support the released **OpenCode 2.0.25** plugin-event protocol. A real isolated 2.0.25 server
-with a synthetic streaming provider exercises waiting, generation, completion, calibration and hidden shutdown in local
-and synthetic remote modes. Compaction and title exclusion are covered separately by plugin-event fixtures. This
+with synthetic streaming providers exercises waiting, generation, completion, calibration and hidden shutdown in local
+and synthetic remote modes. The default OpenAI WebSocket path is qualified with cached connections and a native read-tool continuation. Compaction and title exclusion are covered separately by plugin-event fixtures. This
 checks protocol integration, not inference performance or an actual cloud provider. Unsupported versions disable estimates while all runtime
 adapters continue to operate. Guided setup reports the detected protocol and distinguishes installed/pending from
 a fresh loaded companion. It supports native v2 `providers.<id>.settings` and legacy local provider configuration.
 
-The companion needs observable text/reasoning events, corroborating primary HTTP request metadata and unambiguous usage
+The companion needs observable text/reasoning events, corroborating primary HTTP request or qualified WebSocket handshake metadata and unambiguous usage
 accounting. Tool payloads, auxiliary title/compaction tasks, missing metadata and ambiguous concurrent writers produce
 no chat speed. Local measurements retain exact configured loopback endpoint matching and explicitly labeled Engine
 fallbacks. Cloud delivery is classified from the observed remote request, uses the same labeled estimate and completed

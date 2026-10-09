@@ -66,11 +66,11 @@ basis, timing basis, observation interval, expiry and freshness. It is never mer
 
 Visible frames send hashed session/model matching keys with the selected provider. Configuration metadata identifies
 whether the selected provider has a discovered loopback origin. Local targets retain exact endpoint matching; remote
-targets carry an explicit destination classification and require a matching observed primary HTTP request. Remote
+targets carry an explicit destination classification and require matching observed primary HTTP or qualified WebSocket metadata. Remote
 snapshots omit engine, history and hardware readings and never run a runtime collector. The additive `chatOnly=1`
 query also requests that path explicitly. The service writes a bounded union of watched targets into a private demand
 file (15-second expiry). One
-companion subscription per OpenCode process counts qualified delivery events while demanded and writes bounded
+companion subscription per distinct OpenCode Location counts qualified delivery events while demanded, with a sixteen-location cap. Locations share one process-wide demand poll and writer of bounded
 expiring metadata. The service accepts exactly one matching writer; absent, stale, unsafe, unsupported or ambiguous
 records contribute no chat value. A one-shot view timer removes expired chat readings even if the next poll stalls.
 There is no autonomous service polling loop. Hidden views send no requests; companion event work stops after demand

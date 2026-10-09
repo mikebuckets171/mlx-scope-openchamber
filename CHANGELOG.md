@@ -8,6 +8,8 @@
 - ComfyUI supports basic lifecycle monitoring and an optional passive progress helper; local-video, Qwen image and private telemetry feeds have separate adapters.
 - Primary live numbers use short changed-digit transitions with stable layout, fresh-data gating and Reduce Motion support.
 - Existing LLM measurements, history and captures remain compatible.
+- Cloud chat speed follows OpenCode's default OpenAI WebSocket transport, including reused connections and tool continuations. Separate project event subscriptions share one bounded collector, and first replies refresh visible demand before observation.
+- Chat setup distinguishes an outdated helper from a loaded update. Cancellation and lifecycle boundaries discard unused transport proof before another reply can inherit it.
 
 ## 3.0.0
 

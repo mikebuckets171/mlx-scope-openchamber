@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChatTelemetry, type ChatTarget, type RemoteChatTarget } from './chat-telemetry.ts';
+import { version as companionVersion } from '../bridge/opencode/package.json';
 const homes: string[] = [];
 afterEach(async () => { await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true }))); });
 const at = 100_000, writer = '00000000-2222-4333-8444-555555555555';
@@ -13,7 +14,7 @@ async function fixture() {
   const home = await realpath(await mkdtemp(join(tmpdir(), 'scope-chat-'))); homes.push(home);
   const directory = join(home,'.cache','mlx-scope','chat-telemetry'); await mkdir(directory,{recursive:true,mode:0o700});
   const write = async (value: unknown, name = `${writer}.json`) => writeFile(join(directory,name), JSON.stringify(value),{mode:0o600});
-  const body = { schemaVersion:1, writerID:writer, companionVersion:'3.0.0', protocol:'opencode-2.0.25', runtimeVersion:'2.0.25',
+  const body = { schemaVersion:1, writerID:writer, companionVersion, protocol:'opencode-2.0.25', runtimeVersion:'2.0.25',
     updatedAtMs:at, expiresAtMs:at+15_000, entries:[{...target,measurement}] };
   return { home,directory,write,body };
 }
@@ -28,7 +29,7 @@ test('wrong endpoint, stale or future observations and unknown protocols have no
   const f=await fixture(), telemetry=new ChatTelemetry(f.home,()=>at);
   for (const body of [
     {...f.body,entries:[{...target,endpointKey:'e'.repeat(64),measurement}]},
-    {...f.body,updatedAtMs:at+1}, {...f.body,expiresAtMs:at}, {...f.body,protocol:'future'}, {...f.body,companionVersion:'2.1.6'},
+    {...f.body,updatedAtMs:at+1}, {...f.body,expiresAtMs:at}, {...f.body,protocol:'future'}, {...f.body,companionVersion:'2.1.6'}, {...f.body,companionVersion:'3.0.0'},
     {...f.body,entries:[{...target,measurement:{...measurement,expiresAtMs:at}}]},
   ]) { await f.write(body); expect(await telemetry.observe('11111111',target)).toBeNull(); }
   await telemetry.dispose();
