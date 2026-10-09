@@ -226,7 +226,7 @@ test('Session summary leads with reply speed, keeps warnings visible, and fits i
 
   frame = await status(page, 'state=decode&chat=cloud');
   await expect.poll(() => lastHeight(page)).toBe(await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height));
-  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await expect(frame.locator('.ws-phase')).toHaveText('Cloud chat');
   await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
   expect(await problems(page)).toEqual([]);
   for (const state of ['offline', 'splash-recovering', 'needs-approval', 'prefill', 'idle', 'pressure-critical']) {
@@ -308,7 +308,7 @@ test('Session clears a failed full-panel action when switching to a cloud chat',
   await page.evaluate(() => (window as W).setPreviewSession({
     id: 'cloud-chat', title: 'Cloud chat', busy: false, model: 'cloud-provider/fixture-model',
   }));
-  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await expect(frame.locator('.ws-phase')).toHaveText('Cloud chat');
   await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
   await expect(frame.locator('#ws-action-error')).not.toBeVisible();
   const height = await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height);
@@ -322,12 +322,12 @@ test('a delayed full-panel failure cannot return after switching chats', async (
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
   await expect.poll(() => host(page, w => w.previewSurfaceDeferred?.length)).toBe(1);
   await page.evaluate(() => (window as W).setPreviewSession({ id: 'cloud-chat', busy: false, model: 'cloud-provider/fixture-model' }));
-  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await expect(frame.locator('.ws-phase')).toHaveText('Cloud chat');
   await page.evaluate(() => (window as W).previewSurfaceDeferred.splice(0).forEach((reject: () => void) => reject()));
   // Let the SDK deliver the rejected request and its promise callback before checking the unchanged instrument.
   await frame.locator('#ws').evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(frame.locator('#ws-action-error')).toHaveCount(0);
-  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
+  await expect(frame.locator('.ws-phase')).toHaveText('Cloud chat');
 });
 
 test('the visibility gate engages before the first poll: a display:none frame makes zero requests', async ({ page }) => {

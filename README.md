@@ -8,8 +8,7 @@ MLX Scope keeps honest runtime readings beside your conversation. It observes oM
 llama.cpp `llama-server`, Ollama, vllm-mlx, mlx-lm and standalone Splash through their supported passive APIs, plus the
 Mac they run on. It never sends inference, loads or unloads a model, or starts a runtime. The Session sidebar follows your chat and presents one relevant reading. Optional, clearly labeled chat delivery
 estimates supplement native engine measurements; missing measurements leave no empty rows. Every value identifies
-its source and scope. Live estimates, native throughput and completed-reply averages remain separate. The optional
-companion also observes cloud chat delivery through OpenCode; it never calls a cloud API or reports cloud engine internals.
+its source and scope. Live estimates, native throughput and completed-reply averages remain separate. Cloud speed tracking is not supported in 3.1. Cloud chats remain inactive while local media progress stays available.
 
 | Runtime | Readings |
 | --- | --- |
@@ -42,9 +41,8 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   provider and model. It prefers a matching runtime measurement, then a labeled **Chat · est.** delivery estimate from
   the optional companion, then an explicitly labeled **Engine** fallback. **Chat · matched** is inferred from runtime
   activity, not a server-provided chat identifier. Whole engine watches the selected connection independently.
-  Cloud chats use the same activity and reading layout: **Chat · est.** while streaming, then **Last chat · avg.** when
-  reliable reported usage is available. Without observations they stay quiet. They never borrow a local engine's reading
-  or hardware warnings. Theme-native rows remain readable at increased text size.
+  Cloud chats show **Cloud chat · Speed tracking is for local models.** They never borrow a local engine's reading
+  or hardware warnings. Media progress remains available. Theme-native rows remain readable at increased text size.
   The section samples only while visible and uses lighter Mac probes than the full panel.
 - **Rail panel and full page.** **Live** and **History** remain available at every width. Live leads with the same activity,
   reading and scope menu as the sidebar, with available supporting facts in a separate **Engine** group and a visible

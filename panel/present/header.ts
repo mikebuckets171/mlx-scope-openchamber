@@ -23,12 +23,7 @@ export const presentHeader = (s: ScopeInput): HeaderView => {
   const connection = chatOnly ? null : connName(snapshot.connection);
   if (s.paused) return { ...base, phase: 'Paused', connection, data: { ...base.data, phase: snapshot.runtime.phase } };
   if (s.frame || !s.fresh) return { ...base, phase: s.frame || s.stale ? 'Reconnecting' : 'Refreshing', connection, data: { ...base.data, phase: 'reconnecting', stale: true } };
-  if (chatOnly) {
-    const chat = snapshot.chat && snapshot.chat.observedAtMs <= s.now && snapshot.chat.expiresAtMs > s.now ? snapshot.chat : null;
-    const phase = chat ? { generating: 'Generating', reasoning: 'Reasoning', tool: 'Using tools', waiting: 'Waiting', complete: 'Complete', cancelled: 'Stopped' }[chat.phase]
-      : s.chatActivity === 'busy' ? 'Working' : 'Ready';
-    return { ...base, phase, connection, data: { ...base.data, phase: chat?.phase ?? 'idle' } };
-  }
+  if (chatOnly) return { ...base, phase: 'Cloud chat', connection, data: { ...base.data, phase: 'idle' } };
   const phase = status.state === 'recovering' || status.reason === 'status_stale' ? 'reconnecting' : status.state === 'failing' ? 'offline'
     : status.state === 'detecting' || status.state === 'unconfigured' ? 'detecting' : snapshot.runtime.phase;
   return { ...base, phase: phaseLabel(snapshot), connection, data: { ...base.data, phase, stale: status.state === 'failing' } };

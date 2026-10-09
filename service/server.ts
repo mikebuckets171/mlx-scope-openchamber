@@ -193,15 +193,13 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
         const selectedChat = { ...query, chatOnly: true as const };
         const reading = chatOnlyReading(query.provider!, serverNow);
         const view = lease.observe(query.frame, query.surface, monotonic());
-        const chat = await Promise.resolve().then(() => sources.chat?.(selectedChat, reading) ?? null).catch(() => null);
-        const responseNow = now();
-        // Busy remote chats need observations during bootstrap, including when another view holds the presentation
-        // lease. This path never collects runtime/host data and cannot put remote estimates into engine history.
-        const presentationLease = query.chatBusy ? { ...view, yielded: false } : view;
+        // Release this frame's earlier local demand. Cloud speed is outside 3.1 support.
+        await Promise.resolve().then(() => sources.chat?.(selectedChat, reading)).catch(() => {});
+        const chat = null, responseNow = now();
         json(response, 200, withMedia(composeSnapshot({ reading, host: null, chat, service, serverNow: responseNow,
           completions: { instance: service.instance, cursor: 0, reset: query.since !== undefined && query.since > 0, items: [] },
           alerts: { alerts: [], alertLog: [] }, lease: view, marksHead: 0, query: selectedChat,
-          nextPollMs: snapshotPollMs({ reading, host: null, lease: presentationLease, query: selectedChat, chat, serverNow: responseNow }) })));
+          nextPollMs: 30_000 })));
         return;
       }
       marks.record(query.marks, serverNow);

@@ -31,7 +31,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   const snapshot = input.snapshot, next = input.next, measurementScope = input.measurementScope ?? 'chat';
   const engine = measurementScope === 'engine';
   const nonLocal = !engine && input.chatIsLocal === false;
-  const speeds: SpeedsView = nonLocal ? { phase: input.chatActivity === 'busy' ? 'Working' : 'Ready', model: null,
+  const speeds: SpeedsView = nonLocal ? { phase: 'Cloud chat', model: null,
     speeds: [], averageTitle: '', averageNote: '', source: 'Chat delivery' } : presentSpeeds(input);
   const frame = input.reading.body === null ? input.reading.reason : null;
   const fresh = snapshot !== null && input.fresh !== false && !input.paused && !frame;
@@ -39,7 +39,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   const candidate = snapshot?.chat;
   const observedChat = candidate && candidate.observedAtMs <= input.now && candidate.expiresAtMs > input.now ? candidate : null;
   const retained = input.lastChat?.freshness === 'last' && input.lastChat.observedAtMs <= input.now && input.chatActivity === 'idle' ? input.lastChat : null;
-  const chat = !engine && fresh ? observedChat ?? retained : null;
+  const chat = !engine && !nonLocal && fresh ? observedChat ?? retained : null;
   const readingPrompt = usable && snapshot.runtime.phase === 'prefill' && (!chat || chat.phase === 'waiting');
   const chatStopped = chat && (['tool', 'cancelled', 'complete'].includes(chat.phase) || chat.phase === 'waiting' && !readingPrompt);
   const matched = !engine && input.attribution.kind !== 'server-wide' && snapshot?.connection.runtime !== 'splash';
@@ -126,6 +126,6 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   // Missing readings leave the activity area's geometry intact without inventing a measurement row.
   return { measurementScope, measurement, support, speeds, progress,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
-    note: nonLocal ? null : note, alert,
+    note: nonLocal && !frame && !input.paused ? 'Speed tracking is for local models.' : note, alert,
     cancelMeasurement: !nonLocal && (next?.kind === 'armed' || next?.kind === 'measuring') };
 };

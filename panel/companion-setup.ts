@@ -16,7 +16,7 @@ export function parseCompanionSetup(value: unknown): CompanionSetupStatus | null
   return v as unknown as CompanionSetupStatus;
 }
 export const companionSetupMarkup = (): string => html`<div class="companion-setup" data-companion-setup>
-  <p class="insight-note">Estimates delivery speed for local and cloud chats from streamed text and observable reasoning on your computer. Scope never saves chat content.</p>
+  <p class="insight-note">Estimates delivery speed for local chats from streamed text and observable reasoning on your computer. Scope never saves chat content.</p>
   <p class="insight-note" data-companion-status role="status">Checking chat speed…</p>
   <div class="insight-actions"><button type="button" class="btn" data-companion-action="enable" hidden>Enable chat speed</button><button type="button" class="btn quiet" data-companion-action="disable" hidden>Disable and remove</button><button type="button" class="btn quiet" data-companion-action="check">Check status</button></div>
   <details class="setup-versions"><summary>Compatibility &amp; privacy</summary><p class="insight-note">Enable installs a small companion through OpenCode plugins. It preserves existing plugins and provider settings. No active chat is restarted.</p><p class="insight-note" data-companion-version hidden></p></details>

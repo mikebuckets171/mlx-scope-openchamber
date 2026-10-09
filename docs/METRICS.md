@@ -15,10 +15,8 @@ first available reading in this order:
 3. A fresh runtime reading labeled **Engine**. This fallback covers activity on the selected engine and never silently
    becomes a chat measurement.
 
-Cloud chats use only the companion's delivery observations. A live **Chat · est.** includes network delivery and provider
-buffering, so it cannot be treated as the cloud engine's internal generation throughput. Remote observations require an
-observed primary HTTP request and exact chat/provider/model matching. The remote path makes no runtime, cloud API, or
-hardware requests and has no Engine fallback. Missing observations leave the activity and controls in place.
+Cloud speed tracking is not supported in 3.1. Cloud chats have no delivery estimate or Engine fallback.
+They create no chat-observation demand and make no runtime, cloud API, or hardware requests. Local media monitoring remains available.
 
 When a chat output event arrives before the runtime's next poll, a previous prompt-reading rate cannot appear as
 generation or reasoning speed. Scope uses a valid chat estimate or waits for a compatible engine reading.

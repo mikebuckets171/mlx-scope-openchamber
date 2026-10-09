@@ -179,6 +179,7 @@ test('completed chat facts never borrow output or first-token timing from an eng
         observation: { startedAtMs: MOCK_NOW - 3_000, endedAtMs: MOCK_NOW }, freshness: 'last' };
     }, { chatIsLocal }));
     const markup = liveMarkup(view, new Set()).markup, visible = markup.split('id="measurement-details"')[0]!;
+    if (!chatIsLocal) { expect(visible).not.toContain('id="completed-facts"'); expect(visible).toContain('Speed tracking is for local models.'); continue; }
     expect(visible).toContain('id="completed-facts" data-count="1"');
     expect(visible).toContain('Last chat result');
     expect(visible).toContain('<time>Finished just now</time>');

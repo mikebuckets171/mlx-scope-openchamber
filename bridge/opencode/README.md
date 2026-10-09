@@ -2,11 +2,13 @@
 
 The 3.1 companion adds demand-gated HTTP and WebSocket chat delivery observations on **OpenCode 2.0.25** and retains the existing Splash prompt-progress observer. Unsupported OpenCode versions disable chat estimates while native runtime monitoring remains available. The plugin ID remains `mlx-scope-prompt-progress` to update existing installations in place.
 
+**3.1 scope:** local chat delivery only. Remote transport fixtures are retained for development, but cloud speed is not a supported feature.
+
 The Splash observer enables Splash's `return_progress` option on existing streaming requests. It observes the same HTTP response, without changing the model route, starting a proxy, or submitting a prompt. Scope can then show **Prompt progress** from `processed / total`; the completed portion includes cached prompt tokens. Native oMLX metrics do not require the companion.
 
-Chat delivery estimates can observe proven loopback providers, including oMLX, and cloud replies using the supported
-OpenCode event protocol. They measure delivery through OpenCode, including network buffering, rather than remote engine
-internals. Cloud observation never adds an API request or changes a provider's request or response.
+Chat delivery estimates support proven loopback providers, including oMLX, using the supported
+OpenCode event protocol. They measure delivery through OpenCode, including network buffering, rather than native engine
+throughput. It adds no inference requests.
 
 Add this directory to OpenCode's existing `plugins` list; keep the other entries:
 
@@ -72,7 +74,7 @@ Primary Splash 1.3 evidence: installed `server/server.py` validates `return_prog
 
 ## Chat delivery telemetry (3.1)
 
-Use Scope's deliberate Enable action to install the bundled companion at the stable global `addons/mlx-scope-prompt-progress` directory, retaining existing plugins and JSONC comments. Managed updates atomically replace the bundle and change only the entry's owned `options.scopeRevision` fingerprint, so OpenCode's normal configuration watcher can load the new generation even when file watches remain on the previous directory. Repeating Enable with an unchanged bundle preserves configuration bytes. The optional `promptProgress: false` setting disables Splash HTTP modification without disabling chat observation. Setup must never restart a running inference session automatically. The current stream cannot be recovered retroactively when monitoring becomes visible midway through a reply. A local chat can use its labeled engine fallback until a newly observed primary step; a cloud chat waits without an engine fallback.
+Use Scope's deliberate Enable action to install the bundled companion at the stable global `addons/mlx-scope-prompt-progress` directory, retaining existing plugins and JSONC comments. Managed updates atomically replace the bundle and change only the entry's owned `options.scopeRevision` fingerprint, so OpenCode's normal configuration watcher can load the new generation even when file watches remain on the previous directory. Repeating Enable with an unchanged bundle preserves configuration bytes. The optional `promptProgress: false` setting disables Splash HTTP modification without disabling chat observation. Setup must never restart a running inference session automatically. The current stream cannot be recovered retroactively when monitoring becomes visible midway through a reply. A local chat can use its labeled engine fallback until a newly observed primary step; cloud tracking is disabled in 3.1 and creates no observation demand.
 
 The observer uses the supported `ctx.event.subscribe({ signal })` API. OpenCode events are Location-scoped, so instances at the same directory/workspace share one subscription; distinct locations have separate subscriptions, bounded to sixteen active locations. They share one process-wide demand-file poll and telemetry writer. Subscriptions exist only while at least one matching visible Scope view has a valid lease.
 

@@ -1,6 +1,6 @@
 # Configuration
 
-Start with **This chat**: Scope follows the provider and model of the chat open in OpenChamber. Open **Connections** to see readiness, enable optional chat speed or media progress, or choose a connection for Whole engine monitoring. Native runtime measurements do not require the chat helper. Cloud delivery estimates do.
+Start with **This chat**: Scope follows the provider and model of the chat open in OpenChamber. Open **Connections** to see readiness, enable optional chat speed or media progress, or choose a connection for Whole engine monitoring. Native runtime measurements do not require the chat helper. Cloud speed tracking is not supported in 3.1; media monitoring remains available during cloud chats.
 
 Helper installation never restarts OpenCode or a generation backend. “Installed” means files are present; “Ready” means the expected runtime helper answered or supplied its qualified load receipt. Media setup and custom local connections are described in [Media](MEDIA.md).
 

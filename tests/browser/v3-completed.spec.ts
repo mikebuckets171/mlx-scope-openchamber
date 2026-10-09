@@ -88,7 +88,7 @@ for (const surface of ['status', 'page', 'compact']) for (const scope of ['chat'
   });
 }
 
-for (const chat of ['local', 'cloud']) {
+for (const chat of ['local']) {
   test(`completed ${chat} chat shows step timing without borrowing runtime facts`, async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 1100 });
     await page.goto(`/v2?surface=page&state=decode&chat=${chat}&poll=500`);
@@ -97,7 +97,7 @@ for (const chat of ['local', 'cloud']) {
     await frame.locator('html').evaluate(e => { (e as HTMLElement).style.fontSize = '32px'; });
     await page.evaluate(() => {
       const now = Date.now();
-      (window as any).setPreviewSession({ id: 'fixture-chat', busy: false, model: new URLSearchParams(location.search).get('chat') === 'cloud' ? 'cloud-provider/fixture-model' : 'omlx/Example-27B-4bit' });
+      (window as any).setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' });
       (window as any).setPreviewPatch({ chat: { scope: 'chat', basis: 'reported-output', timingBasis: 'completed-step',
         phase: 'complete', tokensPerSecond: 7.2, observedAtMs: now, expiresAtMs: now + 5_000,
         observation: { startedAtMs: now - 3_000, endedAtMs: now }, freshness: 'last' } });
@@ -114,7 +114,6 @@ for (const chat of ['local', 'cloud']) {
     await expect(facts).not.toContainText('First token');
     await expect(frame.locator('#engine-facts')).toHaveCount(0);
     expect(await frame.locator('#scope').evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
-    if (chat === 'cloud') await expect(frame.locator('#engine-trend, #measurement-details, .machine-summary')).toHaveCount(0);
     expect(await page.evaluate(() => (window as any).previewUnexpectedSends)).toBe(0);
   });
 }
@@ -153,7 +152,7 @@ for (const surface of ['status', 'page', 'compact']) {
 }
 
 
-for (const surface of ['status', 'page']) for (const chat of ['local', 'cloud']) {
+for (const surface of ['status', 'page']) for (const chat of ['local']) {
   test(`idle completed ${chat} result survives telemetry expiry on ${surface} and clears on a new reply`, async ({ page }) => {
     await page.clock.install();
     await page.goto(`/v2?surface=${surface}&state=idle&chat=${chat}&poll=500`);
@@ -161,7 +160,7 @@ for (const surface of ['status', 'page']) for (const chat of ['local', 'cloud'])
     await expect(frame.locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toBeVisible();
     await page.evaluate(() => {
       const w = window as any, now = Date.now();
-      w.setPreviewSession({ id: 'fixture-chat', busy: false, model: new URLSearchParams(location.search).get('chat') === 'cloud' ? 'cloud-provider/fixture-model' : 'omlx/Example-27B-4bit' });
+      w.setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' });
       w.setPreviewPatch({ chat: { scope: 'chat', basis: 'reported-output', timingBasis: 'completed-step', phase: 'complete',
         tokensPerSecond: 7.2, observedAtMs: now, expiresAtMs: now + 5_000,
         observation: { startedAtMs: now - 3_000, endedAtMs: now }, freshness: 'last' } });
@@ -180,7 +179,7 @@ for (const surface of ['status', 'page']) for (const chat of ['local', 'cloud'])
     }
     await page.evaluate(() => {
       const w = window as any; w.previewHold = true;
-      w.setPreviewSession({ id: 'fixture-chat', busy: true, model: new URLSearchParams(location.search).get('chat') === 'cloud' ? 'cloud-provider/fixture-model' : 'omlx/Example-27B-4bit' });
+      w.setPreviewSession({ id: 'fixture-chat', busy: true, model: 'omlx/Example-27B-4bit' });
     });
     await expect(frame.locator('#rate')).toHaveCount(0);
     await expect(frame.locator('#completed-facts')).toHaveCount(0);
@@ -191,7 +190,8 @@ for (const surface of ['status', 'page']) for (const chat of ['local', 'cloud'])
 for (const surface of ['status', 'page']) {
   test(`an in-flight completed result cannot return after a new reply starts on ${surface}`, async ({ page }) => {
     await page.clock.install();
-    await page.goto(`/v2?surface=${surface}&state=idle&chat=cloud&poll=500`);
+    await page.goto(`/v2?surface=${surface}&state=idle&chat=local&poll=500`);
+    await page.evaluate(() => (window as any).setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' }));
     const frame = page.frameLocator('iframe');
     await page.evaluate(() => {
       const now = Date.now();
@@ -206,7 +206,7 @@ for (const surface of ['status', 'page']) {
     await expect.poll(() => page.evaluate(() => (window as any).previewDeferred.length)).toBeGreaterThan(0);
     await page.evaluate(() => {
       const w = window as any;
-      w.setPreviewSession({ id: 'fixture-chat', busy: true, model: 'cloud-provider/fixture-model' });
+      w.setPreviewSession({ id: 'fixture-chat', busy: true, model: 'omlx/Example-27B-4bit' });
     });
     await expect(frame.locator('#rate')).toHaveCount(0);
     await page.evaluate(() => {
@@ -216,7 +216,7 @@ for (const surface of ['status', 'page']) {
     await page.clock.fastForward(600);
     await expect(frame.locator('#rate')).toHaveCount(0);
     await expect(frame.locator('#completed-facts')).toHaveCount(0);
-    await expect(frame.locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toHaveText('Working');
+    await expect(frame.locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toHaveText('Waiting');
     expect(await page.evaluate(() => (window as any).previewUnexpectedSends)).toBe(0);
   });
 }
@@ -225,7 +225,8 @@ for (const surface of ['status', 'page']) {
 for (const surface of ['status', 'page']) for (const oldPhase of ['generating', 'complete']) {
   test(`lifecycle start clears an old ${oldPhase} chat reading on ${surface} before a held poll responds`, async ({ page }) => {
     await page.clock.install();
-    await page.goto(`/v2?surface=${surface}&state=idle&chat=cloud&poll=500`);
+    await page.goto(`/v2?surface=${surface}&state=idle&chat=local&poll=500`);
+    await page.evaluate(() => (window as any).setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' }));
     const frame = page.frameLocator('iframe');
     await page.evaluate(phase => {
       const now = Date.now(), complete = phase === 'complete';
@@ -247,7 +248,8 @@ for (const surface of ['status', 'page']) for (const oldPhase of ['generating', 
 for (const surface of ['status', 'page']) {
   test(`a late busy hint preserves the newer completed step after lifecycle start on ${surface}`, async ({ page }) => {
     await page.clock.install();
-    await page.goto(`/v2?surface=${surface}&state=idle&chat=cloud&poll=500`);
+    await page.goto(`/v2?surface=${surface}&state=idle&chat=local&poll=500`);
+    await page.evaluate(() => (window as any).setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' }));
     const frame = page.frameLocator('iframe'), phase = surface === 'status' ? '.ws-phase' : '.instrument-phase';
     await page.evaluate(() => {
       const now = Date.now();
@@ -272,14 +274,14 @@ for (const surface of ['status', 'page']) {
     // Its completed packet arrived, but the lifecycle window is still open.
     await expect(frame.locator(phase)).toHaveText('Waiting');
     await page.clock.fastForward(1_000);
-    await page.evaluate(() => (window as any).setPreviewSession({ id: 'fixture-chat', busy: true, model: 'cloud-provider/fixture-model' }));
+    await page.evaluate(() => (window as any).setPreviewSession({ id: 'fixture-chat', busy: true, model: 'omlx/Example-27B-4bit' }));
     await page.clock.fastForward(600);
     await expect(frame.locator('#rate')).toHaveCount(0);
     await page.evaluate(() => (window as any).setPreviewPatch({ chat: null }));
     await page.clock.fastForward(6_500);
     await page.evaluate(() => {
       const w = window as any; w.sendPreviewLifecycle('completed');
-      w.setPreviewSession({ id: 'fixture-chat', busy: false, model: 'cloud-provider/fixture-model' });
+      w.setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' });
     });
     await expect(frame.locator('#rate')).toHaveText('9.8');
     await expect(frame.locator(surface === 'status' ? '.ws-measurement' : '.instrument-primary')).toHaveAttribute('data-live', 'false');
@@ -288,7 +290,7 @@ for (const surface of ['status', 'page']) {
   });
 
   test(`hidden ${surface} lifecycle callbacks make no runtime requests`, async ({ page }) => {
-    await page.goto(`/v2?surface=${surface}&state=idle&chat=cloud&frame=hidden`);
+    await page.goto(`/v2?surface=${surface}&state=idle&chat=local&frame=hidden`);
     await expect(page.frameLocator('iframe').locator('#scope')).toBeAttached();
     await page.evaluate(() => (window as any).sendPreviewLifecycle('started'));
     await page.waitForTimeout(600);

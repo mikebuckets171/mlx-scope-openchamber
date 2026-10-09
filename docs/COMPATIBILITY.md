@@ -20,22 +20,23 @@ OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and c
 
 ## Optional chat delivery estimates
 
-Chat estimates initially support the released **OpenCode 2.0.25** plugin-event protocol. A real isolated 2.0.25 server
-with synthetic streaming providers exercises waiting, generation, completion, calibration and hidden shutdown in local
-and synthetic remote modes. The default OpenAI WebSocket path is qualified with cached connections and a native read-tool continuation. Compaction and title exclusion are covered separately by plugin-event fixtures. This
-checks protocol integration, not inference performance or an actual cloud provider. Unsupported versions disable estimates while all runtime
-adapters continue to operate. Guided setup reports the detected protocol and distinguishes installed/pending from
-a fresh loaded companion. It supports native v2 `providers.<id>.settings` and legacy local provider configuration.
+Local chat estimates support the released **OpenCode 2.0.25** plugin-event protocol. An isolated 2.0.25 server with
+synthetic streaming providers exercises waiting, generation, completion, calibration and hidden shutdown. Unsupported
+versions disable estimates while runtime adapters continue to operate. Guided setup distinguishes installed/pending
+from a fresh loaded companion and supports native v2 and legacy local provider configuration.
 
-Managed updates are qualified against the real 2.0.25 configuration watcher while an existing synthetic response finishes. The server remains running and the request is not duplicated. The reproducible developer check is `node bridge/opencode/protocol-hot-reload-smoke.mjs /absolute/path/to/opencode /absolute/path/to/previous/companion`; it copies that previous bundle into an isolated test directory and never changes the live installation.
+Managed updates preserve JSONC comments, unrelated options and plugins. The reproducible developer check is
+`node bridge/opencode/protocol-hot-reload-smoke.mjs /absolute/path/to/opencode /absolute/path/to/previous/companion`;
+it uses an isolated server and verifies that a synthetic response completes during an update without duplication or restart.
 
-The companion needs observable text/reasoning events, corroborating primary HTTP request or qualified WebSocket handshake metadata and unambiguous usage
-accounting. Tool payloads, auxiliary title/compaction tasks, missing metadata and ambiguous concurrent writers produce
-no chat speed. Local measurements retain exact configured loopback endpoint matching and explicitly labeled Engine
-fallbacks. Cloud delivery is classified from the observed remote request, uses the same labeled estimate and completed
-average, and never probes the provider's API or falls back to a local engine. Remote provider-specific buffering and hidden
-reasoning remain limitations; observable delivery is not native cloud engine throughput. Cloud protocol/transport fixtures
-do not establish every provider's compatibility or real inference overhead.
+**Cloud speed tracking is not supported in 3.1.** Earlier transport fixtures demonstrated protocol behavior but did not
+establish reliable delivery readings in the installed host. Cloud chats remain inactive, create no chat-observation demand,
+and never borrow local engine measurements. Media monitoring remains available. Experimental transport fixtures are
+retained for development; they are not a supported cloud feature.
+
+Local estimates require observable text/reasoning events, corroborating primary transport metadata and unambiguous usage.
+Tool payloads, title/compaction tasks, missing metadata and ambiguous concurrent writers produce no chat speed.
+Configured loopback endpoint matching and explicitly labeled Engine fallbacks remain unchanged.
 
 ## Runtimes
 

@@ -142,7 +142,7 @@ export class ConnectionsView {
     this.node('connection-choice-note').textContent = this.metadata === 'unavailable'
       ? 'Local connection discovery is unavailable. Check Scope’s service under Advanced, then reopen Connections.'
       : this.choices.length ? `${this.choices.length} local ${this.choices.length === 1 ? 'connection' : 'connections'} found. This chat chooses its matching server automatically.`
-      : this.metadata === 'ready' ? 'No local model server was found in your OpenCode configuration. Cloud chat speed and media tools work independently.'
+      : this.metadata === 'ready' ? 'No local model server was found in your OpenCode configuration. Media tools work independently of local model servers.'
       : 'Scope follows this chat. Checking which local servers are configured…';
   }
   refresh(host: Pick<HostClient, 'serviceRequest'>): Promise<void> {
