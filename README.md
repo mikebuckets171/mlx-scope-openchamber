@@ -73,6 +73,12 @@ The full Live view shows the useful signal directly and keeps deeper measurement
 
 ![MLX Scope 3.0 full Live view with activity first, a labeled speed, Engine facts and a compatible Engine trend](docs/3.0/assets/live-light.png)
 
+Media keeps measured phase progress separate from chat speed. These 3.1 screenshots use synthetic jobs.
+
+![MLX Scope Media showing a phase-local sampling measurement](docs/3.1/assets/media-light.png)
+
+[Connections and guided setup](docs/3.1/assets/connections-light.png) bring runtime, chat and media readiness together.
+
 ## Prompt progress for standalone Splash
 
 Splash's normal status readings provide speed but do not provide the current prompt's total size. The optional

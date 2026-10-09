@@ -156,7 +156,7 @@ export class ScopeApp {
     if (status?.state === 'ready') return s.chatIsLocal === false ? html`<p class="coverage-note">Chat speed is ready. Your next streamed reply will show its estimated delivery speed.</p>` : '';
     if (status?.state === 'pending') return html`<div class="setup-hint"><p>${status.message}</p><button class="btn quiet" type="button" data-action="chat-setup">View setup</button></div>`;
     if (s.chatIsLocal !== false && s.snapshot?.runtime.request?.decodeTps != null) return '';
-    return html`<div class="setup-hint"><div><h3>${s.chatIsLocal === false ? 'See this chat’s delivery speed' : 'Track speed for this chat'}</h3><p>${status?.state === 'incompatible' ? status.message : 'Optional chat tracking adds labeled delivery estimates for local and cloud models.'}</p></div><button class="btn quiet" type="button" data-action="chat-setup">${status?.canEnable ? 'Enable chat speed' : 'Chat speed setup'}</button></div>`;
+    return html`<div class="setup-hint"><div><h3>${s.chatIsLocal === false ? 'See this chat’s delivery speed' : 'Track speed for this chat'}</h3><p>${status?.state === 'incompatible' ? status.message : 'Optional chat tracking adds labeled delivery estimates for local and cloud models.'}</p></div><button class="btn quiet" type="button" data-action="chat-setup">${status?.canEnable ? 'Set up chat speed' : 'Chat speed setup'}</button></div>`;
   }
   private syncMotion(): void {
     const s = this.input(), chat = this.p.session(), snapshot = s.snapshot;
