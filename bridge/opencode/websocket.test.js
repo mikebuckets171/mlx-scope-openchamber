@@ -165,6 +165,22 @@ test('a new companion generation never reuses an older live observer holder', as
   assert.equal(shared[Symbol.for('mlx-scope.prompt-progress.v1')], old, 'old generation cleanup remains its own responsibility');
 });
 
+test('managed revisions isolate observers even when the package version is unchanged', async () => {
+  const shared = {}; let observers = 0, closed = 0;
+  const plugin = makePlugin({ shared, storeFactory: () => ({ async close() {} }),
+    observerFactory: () => { observers++; return { async attach() { return () => {}; }, async close() { closed++; } }; } });
+  const context = revision => ({ app: { version: '2.0.25' }, location: { directory: '/fixture' },
+    options: { promptProgress: false, scopeRevision: revision }, event: { subscribe() {} },
+    session: { async hook() { return { dispose() {} }; } } });
+  const first = await plugin.setup(context('a'.repeat(64)));
+  const same = await plugin.setup(context('a'.repeat(64)));
+  const replacement = await plugin.setup(context('b'.repeat(64)));
+  assert.equal(observers, 2);
+  await first(); assert.equal(closed, 0);
+  await same(); assert.equal(closed, 1);
+  await replacement(); assert.equal(closed, 2);
+});
+
 test('aborted dispatch before step output cannot lend socket proof to a later step', async () => {
   const h = await harness();
   try {

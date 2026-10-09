@@ -30,6 +30,8 @@ export function createChatObserver({ directory = CHAT_DIRECTORY, now = Date.now,
     runtimeVersion: typeof ctx.app?.version === 'string' && /^\d+\.\d+\.\d+(?:[-.\w]*)?$/.test(ctx.app.version) ? ctx.app.version.slice(0, 80) : 'unknown',
     loadedAtMs: now(), supported: ctx.app?.version === '2.0.25' && typeof ctx.event?.subscribe === 'function' });
   let loadedInfo;
+  const counters = () => ({ primary: 0, primarySession: 0, primaryMatch: 0, events: 0, steps: 0, deltas: 0, lastEventAtMs: 0, lastPrimaryAtMs: 0 });
+  const bump = (value, name) => { value[name] = Math.min(1_000_000, value[name] + 1); };
   function stop(location) {
     location.controller?.abort(); location.controller = undefined; location.client = undefined;
     location.tracker?.clear();
@@ -40,6 +42,11 @@ export function createChatObserver({ directory = CHAT_DIRECTORY, now = Date.now,
       try {
         for await (const event of client.event.subscribe({ signal: current.signal })) {
           if (current.signal.aborted || location.controller !== current) break;
+          if (typeof event?.data?.sessionID === 'string' && location.watched.some(item => item.sessionKey === key('session', event.data.sessionID))) {
+            bump(location.counters, 'events'); location.counters.lastEventAtMs = now();
+            if (event.type === 'session.step.started') bump(location.counters, 'steps');
+            if (event.type === 'session.text.delta' || event.type === 'session.reasoning.delta') bump(location.counters, 'deltas');
+          }
           location.tracker.event(event);
         }
       } catch { /* Subscription failures never escape into inference; next demand tick retries. */ }
@@ -55,7 +62,8 @@ export function createChatObserver({ directory = CHAT_DIRECTORY, now = Date.now,
       .filter(location => [...location.clients].some(ctx => info(ctx).supported))
       .sort((a, b) => b.priority - a.priority).slice(0, MAX_CHATS) : []);
     for (const location of locations.values()) {
-      if (!selected.has(location)) { stop(location); continue; }
+      location.watched = demand;
+      if (!selected.has(location)) { stop(location); location.counters = counters(); continue; }
       const client = [...location.clients].find(ctx => info(ctx).supported);
       location.tracker ??= createChatTracker({ now, publish: value => store.update(value), remove: session => store.remove(session) });
       location.tracker.setWatched(demand); location.tracker.tick();
@@ -65,7 +73,9 @@ export function createChatObserver({ directory = CHAT_DIRECTORY, now = Date.now,
       }
     }
     if (selected.size && now() - lastHeartbeat >= 5_000) {
-      lastHeartbeat = now(); await heartbeat({ ...loadedInfo, updatedAtMs: now(), expiresAtMs: now() + 15_000 }).catch(() => {});
+      lastHeartbeat = now(); await heartbeat({ ...loadedInfo, updatedAtMs: now(), expiresAtMs: now() + 15_000,
+        diagnostics: { locations: locations.size, watched: demand.length, subscriptions: [...selected].filter(item => item.controller).length,
+          observers: [...selected].map(item => ({ ...item.counters, ...item.tracker.stats() })) } }).catch(() => {});
     }
     await store?.flush();
   }
@@ -81,14 +91,26 @@ export function createChatObserver({ directory = CHAT_DIRECTORY, now = Date.now,
     if (event?.kind === 'primary') location.priority = now();
     // A visible view may publish demand immediately before dispatch, before the periodic poll.
     // Await any prior read, then refresh now. Never delay inference for observer failures.
-    try { if (flight) await flight; await tick(); location.tracker?.[method](event); } catch { /* passive observer */ }
+    try {
+      if (flight) await flight; await tick();
+      if (location.watched.length) {
+        const value = location.counters; bump(value, 'primary'); value.lastPrimaryAtMs = now();
+        if (typeof event.sessionID === 'string') {
+          const sessionKey = key('session', event.sessionID), matching = location.watched.filter(item => item.sessionKey === sessionKey);
+          if (matching.length) bump(value, 'primarySession');
+          if (typeof event.model?.providerID === 'string' && typeof event.model?.id === 'string' && matching.some(item =>
+            item.providerKey === key('provider', event.model.providerID) && item.modelKey === key('model', event.model.id))) bump(value, 'primaryMatch');
+        }
+      }
+      location.tracker?.[method](event);
+    } catch { /* passive observer */ }
   }
   return {
     async attach(ctx) {
       if (closed) throw new Error('Closed observer');
       const id = locationKey(ctx);
       let location = locations.get(id);
-      if (!location) { location = { clients: new Set(), priority: 0 }; locations.set(id, location); }
+      if (!location) { location = { clients: new Set(), priority: 0, watched: [], counters: counters() }; locations.set(id, location); }
       location.clients.add(ctx); clients.set(ctx, location);
       const detach = () => {
         clients.delete(ctx); location.clients.delete(ctx);

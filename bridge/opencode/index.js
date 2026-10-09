@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createStore, key } from './store.js';
 import { observeStream } from './stream.js';
 
-const SHARED = Symbol.for(`mlx-scope.prompt-progress.${COMPANION_VERSION}.${PROTOCOL}`);
+const sharedKey = revision => Symbol.for(`mlx-scope.prompt-progress.${COMPANION_VERSION}.${PROTOCOL}.${typeof revision === 'string' && /^[a-f0-9]{64}$/.test(revision) ? revision : 'unmanaged'}`);
 const PATHS = new Set(['/v1/chat/completions', '/v1/responses', '/v1/messages']);
 const KINDS = new Set(['primary', 'compaction', 'title', 'generate']);
 const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
@@ -55,6 +55,7 @@ export function makePlugin({ storeFactory = createStore, observerFactory = creat
   return {
     id: 'mlx-scope-prompt-progress',
     async setup(ctx) {
+      const SHARED = sharedKey(ctx.options?.scopeRevision);
       const config = ctx.options?.promptProgress === false ? null : options(ctx.options), active = new Map(), prepared = new WeakSet();
       const holder = shared[SHARED] ??= { store: storeFactory({ warn }), refs: 0 };
       holder.refs += 1;
