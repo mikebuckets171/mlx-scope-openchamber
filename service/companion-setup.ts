@@ -153,8 +153,8 @@ function configText(info: Inspection, enabled: boolean, revision?: string): stri
   if (enabled && info.entry >= 0) {
     const entry = plugins![info.entry], configured = object(entry);
     if (configured?.options !== undefined && !object(configured.options)) return fail('Companion options must be an object before using guided setup. Existing configuration was preserved.');
-    // File watches can stay on the replaced directory's inode. A content revision on
-    // our own entry lets OpenCode's supported config watcher activate just this plugin.
+    // Renamed files trigger the reload; the content revision on our own entry keeps the old
+    // and new plugin instances' shared state apart and marks the change in the config.
     if (object(configured?.options)?.scopeRevision === revision) return current;
     return applyEdits(current, modify(current, typeof entry === 'string' ? ['plugins', info.entry] : ['plugins', info.entry, 'options', 'scopeRevision'],
       typeof entry === 'string' ? { package: entry, options: { scopeRevision: revision } } : revision, { formattingOptions }));
@@ -201,6 +201,31 @@ async function removeFlat(directory: string): Promise<void> {
   for (const name of await readdir(directory)) await unlink(join(directory, name));
   await rmdir(directory);
 }
+// Dependencies before the entry point, the marker last: a reload between renames never sees a newer entry over older modules.
+const replaceOrder = (name: string): number => name === OWNER ? 3 : name === 'package.json' ? 2 : name === 'index.js' ? 1 : 0;
+/**
+ * OpenCode 2.0.25 reloads a plugin when a loaded file is replaced by rename; an in-place write, or a directory swapped
+ * underneath its watches, is not observed. Each changed file is staged beside its target and renamed over it, so the
+ * addon directory keeps its identity. Unchanged files are left alone. `replaced` records each committed name for rollback.
+ */
+async function replaceFiles(directory: string, files: Map<string, File>, previous: Map<string, File>, replaced: string[]): Promise<void> {
+  const changed = [...files].filter(([name, file]) => previous.get(name)?.text !== file.text || previous.get(name)?.mode !== file.mode)
+    .sort(([a], [b]) => replaceOrder(a) - replaceOrder(b));
+  const staged: Array<[string, string]> = [];
+  try {
+    for (const [name, file] of changed) {
+      const temporary = join(directory, `.mlx-scope-update-${randomUUID()}.tmp`); staged.push([name, temporary]);
+      await writeFile(temporary, file.text, { flag: 'wx', mode: file.mode });
+    }
+    for (const [name, temporary] of staged) { await rename(temporary, join(directory, name)); replaced.push(name); }
+  } finally { for (const [, temporary] of staged) await unlink(temporary).catch(() => {}); }
+}
+/** Restores replaced files to their earlier bytes (by the same rename) and removes files this setup added. */
+async function restoreFiles(directory: string, replaced: string[], previous: Map<string, File>): Promise<void> {
+  const earlier = new Map(replaced.flatMap(name => previous.has(name) ? [[name, previous.get(name)!] as const] : []));
+  await replaceFiles(directory, earlier, new Map(), []);
+  for (const name of replaced) if (!previous.has(name)) await unlink(join(directory, name)).catch(() => {});
+}
 async function checkInstallation(info: Inspection): Promise<void> {
   const names = await readdir(info.addon).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
   if (names.length !== info.files.size || names.some(name => !info.files.has(name))) fail('The companion installation changed during setup. Try again.');
@@ -232,14 +257,15 @@ async function setupLock(path: string): Promise<Awaited<ReturnType<typeof open>>
 }
 async function prepareBundle(options: CompanionSetupOptions, info: Inspection, at: number): Promise<Map<string, File>> {
   if (!isAbsolute(options.bundleDirectory)) fail('The companion bundle path is unavailable.');
-  if (info.managed) for (const name of COMPANION_FILES) {
-    const previous = info.files.get(name), digest = object(info.marker?.files)?.[name];
-    if (previous && digest && hash(previous.text) !== digest) fail('Companion files were edited after installation. Keep those changes elsewhere before updating through Scope.');
-  }
   const files = new Map(info.files);
   for (const name of COMPANION_FILES) {
     const file = await readFile(join(options.bundleDirectory, name)); if (!file) fail('The installed MLX Scope package is missing companion files. Reinstall MLX Scope.');
     files.set(name, { text: file!.text, mode: 0o600 });
+  }
+  if (info.managed) for (const name of COMPANION_FILES) {
+    const previous = info.files.get(name), digest = object(info.marker?.files)?.[name];
+    // A file that already holds this bundle's bytes is an interrupted update finishing, not a user edit.
+    if (previous && digest && hash(previous.text) !== digest && previous.text !== files.get(name)!.text) fail('Companion files were edited after installation. Keep those changes elsewhere before updating through Scope.');
   }
   if (json(files.get('package.json')!.text).name !== COMPANION_ID) fail('The bundled companion has an unexpected identity.');
   const unchanged = info.managed && COMPANION_FILES.every(name => info.files.get(name)?.text === files.get(name)?.text);
@@ -252,21 +278,32 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
   const now = options.now ?? Date.now;
   let work: Promise<unknown> = Promise.resolve();
   const probe = async (): Promise<CompanionProbe | null> => { try { return await options.probe?.() ?? null; } catch { return null; } };
+  /** A managed installation recorded with other bytes than this bundle needs the guided update, even at the same version. */
+  const outdated = async (info: Inspection): Promise<boolean> => {
+    const owned = object(info.marker?.files);
+    if (!info.managed || !owned) return false;
+    for (const name of COMPANION_FILES) {
+      const file = await readFile(join(options.bundleDirectory, name)).catch(() => null);
+      if (!file || owned[name] !== hash(file.text)) return true;
+    }
+    return false;
+  };
   const describe = async (info: Inspection): Promise<CompanionSetupStatus> => {
     const receipt = await probe(), valid = receipt && Number.isFinite(receipt.loadedAtMs) && receipt.loadedAtMs > 0 && receipt.loadedAtMs <= now() + 1_000;
     const runtimeVersion = valid ? receipt.runtimeVersion.slice(0, 40) : null;
     const loadedCompanionVersion = valid ? receipt.companionVersion.slice(0, 40) : null, protocol = valid ? receipt.protocol.slice(0, 80) : null;
     const supported = valid && receipt.supported && receipt.protocol === 'opencode-2.0.25' && receipt.runtimeVersion === '2.0.25';
     const configured = info.entry >= 0, installedAt = typeof info.marker?.installedAtMs === 'number' ? info.marker.installedAtMs : 0;
-    const needsUpdate = configured && json(info.files.get('package.json')?.text ?? '{}').version !== companionVersion;
-    const current = supported && receipt.companionVersion === companionVersion && receipt.loadedAtMs >= installedAt;
+    const stale = configured && await outdated(info);
+    const needsUpdate = configured && (stale || json(info.files.get('package.json')?.text ?? '{}').version !== companionVersion);
+    const current = supported && !stale && receipt.companionVersion === companionVersion && receipt.loadedAtMs >= installedAt;
     const live = !!(current && receipt.updatedAtMs && receipt.updatedAtMs <= now() + 1_000 && receipt.expiresAtMs && receipt.expiresAtMs > now() && receipt.expiresAtMs - receipt.updatedAtMs <= 15_000);
     const state = valid && !supported ? 'incompatible' : configured ? current ? 'ready' : 'pending' : 'disabled';
     const message = state === 'incompatible' ? 'This OpenCode version is not qualified for chat estimates. Runtime measurements remain available.'
-      : state === 'ready' ? live ? 'Chat tracking is connected. Estimates follow the local chat you are watching.' : 'Chat tracking is ready for your next local reply.'
+      : state === 'ready' ? live ? 'Chat tracking is connected. Estimates follow the chat you are watching.' : 'Chat tracking is ready for your next reply.'
         : state === 'pending' ? needsUpdate ? 'Update chat speed to install the current tracking helper.'
           : 'Installed · waiting for OpenCode to load the updated tracking helper. Your current work can continue.'
-          : 'Enable delivery-speed estimates for local chats. Requires OpenCode 2.0.25.';
+          : 'Enable delivery-speed estimates for local and cloud chats. Requires OpenCode 2.0.25.';
     return { state, message, configured, managed: info.managed, canEnable: state !== 'incompatible', canDisable: configured || info.managed,
       runtimeVersion, companionVersion: loadedCompanionVersion, protocol, live };
   };
@@ -277,7 +314,8 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
   const change = (enabled: boolean): Promise<CompanionSetupStatus> => {
     const task = work.catch(() => {}).then(async () => {
       let lock: Awaited<ReturnType<typeof open>> | undefined, lockPath: string | undefined;
-      let stage: string | undefined, backup: string | undefined, swapped = false, configCommitted = false, info: Inspection | undefined;
+      let created = false, configCommitted = false, info: Inspection | undefined;
+      const replaced: string[] = [];
       try {
         info = await inspect(options);
         if (enabled && (await describe(info)).state === 'incompatible') return describe(info);
@@ -291,15 +329,12 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
         const text = configText(info, enabled, revision);
         if (enabled) {
           await safeParents(dirname(info.addon)); await mkdir(dirname(info.addon), { recursive: true, mode: 0o700 });
-          stage = join(dirname(info.addon), `.mlx-scope-stage-${randomUUID()}`); await mkdir(stage, { mode: 0o700 });
-          for (const [name, file] of files!) await writeFile(join(stage, name), file.text, { flag: 'wx', mode: file.mode });
-          if (info.files.size) { backup = join(dirname(info.addon), `.mlx-scope-backup-${randomUUID()}`); await rename(info.addon, backup); }
-          await rename(stage, info.addon); stage = undefined; swapped = true;
+          created = await mkdir(info.addon, { mode: 0o700 }).then(() => true, error => { if (error.code === 'EEXIST') return false; throw error; });
+          await safeParents(info.addon);
+          await replaceFiles(info.addon, files!, info.files, replaced);
           await options.beforeConfigCommit?.();
           await commitConfig(info.document, text);
           configCommitted = true;
-          swapped = false;
-          if (backup) { const old = backup; backup = undefined; await removeFlat(old); }
         } else {
           await options.beforeConfigCommit?.(); await commitConfig(info.document, text); configCommitted = true;
           // Modified or unowned files survive removal. A manual legacy install is disabled, never deleted.
@@ -318,13 +353,12 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
           message: result.state === 'manual' ? 'Companion disabled. Your modified files were preserved; move them before reinstalling through Scope.'
             : 'Companion disabled. OpenCode applies the configuration change normally; runtime measurements remain available.' } : result;
       } catch (error) {
-        if (swapped && info) {
-          await removeFlat(info.addon).catch(() => {});
-          if (backup) { await rename(backup, info.addon); backup = undefined; }
-        } else if (backup && info) { await rename(backup, info.addon); backup = undefined; }
+        if (enabled && info && !configCommitted) {
+          if (created) await removeFlat(info.addon).catch(() => {});
+          else await restoreFiles(info.addon, replaced, info.files).catch(() => {});
+        }
         return configCommitted ? { ...errorStatus(error), message: 'Companion configuration was updated, but installation cleanup could not finish. Check local file access, then check status before trying again.' } : errorStatus(error);
       } finally {
-        if (stage) await removeFlat(stage).catch(() => {});
         await lock?.close(); if (lockPath) await unlink(lockPath).catch(() => {});
       }
     });

@@ -189,6 +189,10 @@ describe('explicit companion setup', () => {
     expect(await readFile(f.config, 'utf8')).toBe(oldConfig);
     expect(await readFile(join(f.addon, 'index.js'), 'utf8')).toBe(oldEntry);
     expect((await readdir(join(f.root, 'addons')))).toEqual([COMPANION_ID]);
+    expect((await readdir(f.addon)).sort()).toEqual([...COMPANION_FILES, '.mlx-scope-owner.json'].sort());
+    expect((await f.setup.status()).managed).toBe(true);
+    expect((await f.setup.enable()).state).toBe('pending');
+    expect(await readFile(join(f.addon, 'index.js'), 'utf8')).toBe('// new package');
     expect(await readdir(f.root)).not.toContain('.mlx-scope-setup.lock');
   });
 
@@ -231,7 +235,7 @@ describe('explicit companion setup', () => {
     await f.setup.enable();
     let probe = receipt(at);
     const setup = createCompanionSetup({ ...f.options, now: () => at + 100, probe: async () => probe });
-    expect(await setup.status()).toMatchObject({ state: 'ready', live: false, runtimeVersion: '2.0.25', message: 'Chat tracking is ready for your next local reply.' });
+    expect(await setup.status()).toMatchObject({ state: 'ready', live: false, runtimeVersion: '2.0.25', message: 'Chat tracking is ready for your next reply.' });
     probe = receipt(at, { updatedAtMs: at, expiresAtMs: at + 15_000 });
     expect((await setup.status()).live).toBe(true);
     probe = receipt(at, { companionVersion: '3.0.0', updatedAtMs: at, expiresAtMs: at + 15_000 });
@@ -244,6 +248,53 @@ describe('explicit companion setup', () => {
     const before = await readFile(f.config, 'utf8');
     expect(await setup.enable()).toMatchObject({ state: 'incompatible', canEnable: false, canDisable: true });
     expect(await readFile(f.config, 'utf8')).toBe(before);
+  });
+
+  it('replaces each changed file by rename in the same directory; unchanged files and no-op updates stay untouched', async () => {
+    const f = await fixture('{}'); await f.setup.enable();
+    const names = [...COMPANION_FILES, '.mlx-scope-owner.json'];
+    const inodes = async () => Object.fromEntries(await Promise.all(['.', ...names].map(async name => [name, (await stat(join(f.addon, name))).ino])));
+    const before = await inodes(), config = await readFile(f.config, 'utf8');
+    await f.setup.enable();
+    expect(await inodes()).toEqual(before); expect(await readFile(f.config, 'utf8')).toBe(config);
+    await writeFile(join(f.bundle, 'chat.js'), '// updated tracker\n');
+    await f.setup.enable();
+    const after = await inodes();
+    // OpenCode 2.0.25 observes a rename over a loaded file; the directory itself is never swapped.
+    expect(after['.']).toBe(before['.']);
+    expect(after['chat.js']).not.toBe(before['chat.js']);
+    expect(after['.mlx-scope-owner.json']).not.toBe(before['.mlx-scope-owner.json']);
+    for (const name of COMPANION_FILES.filter(name => name !== 'chat.js')) expect(after[name]).toBe(before[name]);
+    expect(await readFile(join(f.addon, 'chat.js'), 'utf8')).toBe('// updated tracker\n');
+    expect((await stat(join(f.addon, 'chat.js'))).mode & 0o777).toBe(0o600);
+    expect((await readdir(f.addon)).sort()).toEqual(names.sort());
+  });
+
+  it('finishes an interrupted update of the same bundle instead of reporting a user edit', async () => {
+    const f = await fixture('{}'); await f.setup.enable();
+    await writeFile(join(f.bundle, 'chat.js'), '// updated tracker\n');
+    // The rename landed but the marker did not: the file already holds the bundled bytes.
+    await writeFile(join(f.addon, 'chat.js'), '// updated tracker\n');
+    expect((await f.setup.enable()).state).toBe('pending');
+    await writeFile(join(f.bundle, 'chat.js'), '// a later tracker\n');
+    expect((await f.setup.enable()).state).toBe('pending');
+    expect(await readFile(join(f.addon, 'chat.js'), 'utf8')).toBe('// a later tracker\n');
+  });
+
+  it('offers the guided update when bundled bytes change at the same package version', async () => {
+    let at = 10_000; const f = await fixture('{}', { now: () => at });
+    await f.setup.enable(); at += 100;
+    let probe = receipt(at);
+    const setup = createCompanionSetup({ ...f.options, now: () => at, probe: async () => probe });
+    expect((await setup.status()).state).toBe('ready');
+    await writeFile(join(f.bundle, 'demand.js'), '// same version, new bytes\n');
+    expect(await setup.status()).toMatchObject({ state: 'pending', configured: true, canEnable: true,
+      message: 'Update chat speed to install the current tracking helper.' });
+    at += 100;
+    expect(await setup.enable()).toMatchObject({ state: 'pending',
+      message: 'Installed · waiting for OpenCode to load the updated tracking helper. Your current work can continue.' });
+    at += 100; probe = receipt(at);
+    expect((await setup.status()).state).toBe('ready');
   });
 
   it('serializes enable clicks and never duplicates the entry', async () => {

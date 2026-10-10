@@ -157,7 +157,9 @@ export type RuntimeConnectionConfig = {
   runtime: Runtime | null;
   config: OmlxConfig;
 };
-export type RuntimeConnections = { connections: RuntimeConnectionConfig[]; error: string | null; issue: ConfigIssue; configStatus?: ConfigStatus; authStatus?: ConfigStatus };
+export type RuntimeConnections = { connections: RuntimeConnectionConfig[]; error: string | null; issue: ConfigIssue; configStatus?: ConfigStatus; authStatus?: ConfigStatus;
+  /** Every provider's declared loopback endpoint, including providers the eight-entry chooser has no room for. */
+  declared?: ReadonlyMap<string, URL> };
 
 /** Canonicalize localhost without DNS; credentials never leave numeric loopback. */
 export const parseLocalOrigin = (value: unknown): URL | null => {
@@ -269,7 +271,7 @@ export const resolveRuntimeConnections = async ({ env = process.env, home = env.
       return has(values, field);
     })?.path ?? paths.openCode;
   };
-  const connections: RuntimeConnectionConfig[] = [];
+  const connections: RuntimeConnectionConfig[] = [], declared = new Map<string, URL>();
   const add = async (id: string, provider: JsonObject, source: ConfigSource, layout: ProviderLayout, rawBase: unknown, runtime: Runtime | null): Promise<void> => {
     const values = layout === 'v2' ? asObject(provider.settings) : asObject(provider.options);
     const base = await expand(rawBase, sourceFor(id, layout, 'baseURL'));
@@ -305,15 +307,15 @@ export const resolveRuntimeConnections = async ({ env = process.env, home = env.
   } else {
     const entries = [...providers].sort(([a], [b]) => Number(b === selected) - Number(a === selected) || Number(b === 'omlx') - Number(a === 'omlx'));
     for (const [id, entry] of entries.slice(0, 64)) {
-      if (connections.length >= 8) break;
       if (!id || id.length > 120 || /[\u0000-\u001f\u007f]/.test(id)) continue;
       const { provider, layout } = entry;
       const values = layout === 'v2' ? asObject(provider.settings) : asObject(provider.options);
       if (!has(values, 'baseURL')) continue;
       const base = await expand(values?.baseURL, sourceFor(id, layout, 'baseURL'));
-      const hint = hintFor(id, provider.name);
+      const local = parseLocalOrigin(base), hint = hintFor(id, provider.name);
+      if (local) declared.set(id, local);
       // Only configured local targets and explicitly named runtime failures enter the chooser.
-      if (!parseLocalOrigin(base) && hint === null) continue;
+      if (connections.length >= 8 || !local && hint === null) continue;
       await add(id, provider, 'opencode', layout, values?.baseURL, hint);
     }
     if (!connections.some(item => item.runtime === 'omlx') && connections.length < 8) {
@@ -324,8 +326,9 @@ export const resolveRuntimeConnections = async ({ env = process.env, home = env.
       }
     }
   }
+  for (const item of connections) if (item.config.baseURL && !declared.has(item.id)) declared.set(item.id, item.config.baseURL);
   const issue: ConfigIssue = connections.length ? 'none' : native.status === 'malformed' ? 'malformed_config' : native.status === 'unreadable' ? 'unreadable_config' : 'missing_endpoint';
-  return { connections, issue, error: issueText(issue), configStatus, authStatus };
+  return { connections, issue, error: issueText(issue), configStatus, authStatus, declared };
 };
 
 /** The oMLX client also supports direct use without the multi-runtime router. */

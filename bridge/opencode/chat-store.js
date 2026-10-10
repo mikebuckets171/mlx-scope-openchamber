@@ -29,12 +29,14 @@ export async function atomicPrivateJSON(directory, file, value) {
     await handle.close(); handle = undefined; await rename(temp, join(directory, file));
   } finally { await handle?.close().catch(() => {}); await unlink(temp).catch(() => {}); }
 }
-export async function readPrivateJSON(directory, file, maxBytes = 16_384) {
+/** `rejected` hears why an existing file was refused, so a caller can tell "not private" apart from "absent". */
+export async function readPrivateJSON(directory, file, maxBytes = 16_384, rejected = () => {}) {
   await privateDirectory(directory);
   const handle = await open(join(directory, file), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const info = await handle.stat();
-    if (!info.isFile() || info.uid !== process.getuid?.() || (info.mode & 0o077) !== 0 || info.size > maxBytes) return null;
+    const reason = !info.isFile() ? 'type' : info.uid !== process.getuid?.() ? 'owner' : (info.mode & 0o077) !== 0 ? 'permissions' : info.size > maxBytes ? 'size' : null;
+    if (reason) { rejected(reason); return null; }
     // A fixed-size read also bounds memory if another process replaces/grows the file concurrently.
     const buffer = Buffer.alloc(maxBytes + 1), result = await handle.read(buffer, 0, buffer.length, 0);
     return result.bytesRead > maxBytes ? null : JSON.parse(buffer.subarray(0, result.bytesRead).toString('utf8'));

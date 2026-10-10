@@ -122,11 +122,11 @@ try {
       }
       assert.ok(active,'old helper observed actual synthetic stream before update');
       assert.equal(completedStreams,0,'hot reload begins while fixture stream is active');
-      const stage=join(base,'updated-companion');await mkdir(stage);
-      for(const name of companionFiles) await copyFile(join(bundleBridge,name),join(stage,name));
-      await rename(bridge,join(base,'previous-companion'));await rename(stage,bridge);
-      // Directory replacement keeps existing file watches on the old directory inode.
-      // Update only the managed plugin option through the supported config watcher.
+      // As guided setup does: each file is staged beside its target and renamed over it, because 2.0.25
+      // reloads a plugin on a rename over a loaded file, not on an in-place write. The directory stays put.
+      for(const name of companionFiles){const temporary=join(bridge,`.mlx-scope-update-${name}.tmp`);
+        await copyFile(join(bundleBridge,name),temporary);await rename(temporary,join(bridge,name));}
+      // The managed entry's revision moves with the files, written by rename like setup's config commit.
       const configPath=join(base,'config/opencode/opencode.json');
       const nextConfig=JSON.parse(await readFile(configPath,'utf8'));
       nextConfig.plugins[0].options.scopeRevision='fixture-new';

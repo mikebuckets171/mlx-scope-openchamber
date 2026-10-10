@@ -201,11 +201,59 @@ test('pending proof cannot cross lifecycle boundaries or reconstruct unobserved 
     'step.failed', 'step.streamed', 'step.ended', 'text.started', 'reasoning.started', 'tool.input.started']) {
     const h = harness({ remote: true });
     h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
-    h.send(type, { ordinal: 0 }); h.authorize(); h.part(); h.delta(); h.advance(2000); h.delta();
-    assert.equal(h.measurement, undefined, type); assert.equal(h.tracker.stats().chats, 0, type);
+    h.send(type, { ordinal: 0 }); assert.equal(h.tracker.stats().chats, 0, type);
+    const before = h.time; h.advance(100); h.authorize();
+    // The later dispatch observes only its own call: output published before it is never attributed to it.
+    h.delta('a'.repeat(400), 'text', 0, { created: before });
+    assert.equal(h.measurement.phase, 'waiting', type); assert.equal(h.measurement.tokensPerSecond, undefined, type);
+    h.part(); h.delta(); h.advance(2000); h.delta();
+    assert.equal(h.measurement.tokensPerSecond, 5, type);
   }
-  const h = harness({ remote: true }); h.authorize(); h.part(); h.delta(); h.advance(2000); h.delta();
-  assert.equal(h.measurement, undefined, 'HTTP proof without an observed step boundary is insufficient');
+});
+
+test('a dispatch proves its own call when step.started is lost in a subscription restart', () => {
+  const h = harness({ remote: true }); h.authorize();
+  // Never dark: the qualified dispatch is visible before any output.
+  assert.equal(h.measurement.phase, 'waiting'); assert.equal(h.measurement.tokensPerSecond, undefined);
+  h.part(); h.delta(); h.advance(2000); h.delta();
+  assert.equal(h.measurement.tokensPerSecond, 5); assert.equal(h.measurement.timingBasis, 'delivery-window');
+  assert.equal(h.saved.get(ident().sessionKey).destination, 'remote');
+  assert.equal(h.tracker.stats().routes, 0, 'the bound dispatch cannot prove a later step');
+  // Without the step boundary there is no completed-step average and nothing calibrates.
+  complete(h, { tokens: 20 });
+  assert.equal(h.measurement.phase, 'complete'); assert.equal(h.measurement.tokensPerSecond, undefined);
+  assert.equal(h.tracker.stats().calibrationModels, 0);
+  // A later step announced without its own observed dispatch stays unproven.
+  h.advance(1000); h.send('step.started', { started: h.time, assistantMessageID: 'next-reply', model: { providerID: 'local', id: 'private-model' } });
+  h.send('text.started', { ordinal: 0, assistantMessageID: 'next-reply' });
+  h.delta(); assert.equal(h.measurement, undefined); assert.equal(h.tracker.stats().chats, 0);
+});
+
+test('step.started after the dispatch upgrades the seeded state to a full step', () => {
+  const h = harness(); h.authorize(); assert.equal(h.measurement.phase, 'waiting');
+  h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
+  h.part(); h.delta(); h.advance(2000); h.delta(); assert.equal(h.measurement.tokensPerSecond, 5);
+  complete(h, { chars: 80, tokens: 20 });
+  assert.equal(h.measurement.basis, 'reported-output'); assert.equal(h.measurement.tokensPerSecond, 20 / 2.1);
+  assert.equal(h.tracker.stats().calibrationModels, 1);
+});
+
+test('a seeded state binds to one reply and ignores lifecycle events published before its dispatch', () => {
+  const h = harness({ remote: true }), earlier = h.time; h.advance(500); h.authorize();
+  h.send('execution.interrupted', {}, { created: earlier }); h.send('step.ended', { finish: 'stop', tokens: { output: 9, reasoning: 0 } }, { created: earlier });
+  assert.equal(h.measurement.phase, 'waiting');
+  h.part(); h.delta(); h.advance(2000); h.delta(); assert.equal(h.measurement.tokensPerSecond, 5);
+  h.send('text.delta', { ordinal: 0, delta: 'x', assistantMessageID: 'another-reply' });
+  assert.equal(h.measurement, undefined, 'a second reply cannot extend the bound observation');
+});
+
+test('a dispatch during a live step keeps that step, its tail and its calibration', () => {
+  const h = harness(); h.start(); h.part(); h.delta(); h.advance(1000); h.delta();
+  h.authorize(); h.advance(1000); h.delta(); assert.equal(h.measurement.tokensPerSecond, 10);
+  complete(h, { chars: 120, tokens: 30 }); assert.equal(h.measurement.basis, 'reported-output');
+  assert.equal(h.tracker.stats().calibrationModels, 1);
+  // The settled step yields to the next observed dispatch.
+  h.advance(100); h.authorize(); assert.equal(h.measurement.phase, 'waiting'); assert.equal(h.measurement.basis, 'estimated-characters');
 });
 
 test('a lifecycle boundary before step announcement invalidates unused HTTP or WebSocket proof', () => {
@@ -249,7 +297,8 @@ test('remote calibration stays endpoint-specific and destination changes reset l
   }
   h.start(); h.part(); h.delta(); h.advance(2000); h.delta(); assert.equal(h.measurement.basis, 'calibrated-characters');
   h.authorize({ request: new Request('https://other.example/v1/chat/completions', { method: 'POST' }) });
-  assert.equal(h.measurement, undefined);
+  assert.equal(h.measurement.tokensPerSecond, undefined); assert.equal(h.measurement.phase, 'waiting');
+  assert.equal(h.saved.get(ident().sessionKey).endpointKey, key('endpoint', 'https://other.example'));
   h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
   h.part(); h.delta(); h.advance(2000); h.delta(); assert.equal(h.measurement.basis, 'estimated-characters');
   assert.equal(h.saved.get(ident().sessionKey).endpointKey, key('endpoint', 'https://other.example'));
@@ -336,6 +385,29 @@ test('observer shares one subscription, aborts hidden work, handles reconnect an
   const unknown = createChatObserver({ now: () => now, intervalMs: 100_000, storeFactory: memory,
     readDemand: async () => demand(now), heartbeat: async value => heartbeats.push(value) });
   await unknown.attach(makeContext('2.0.26')); assert.equal(subscriptions, 2); assert.equal(heartbeats.at(-1).supported, false); await unknown.close();
+});
+
+test('a demand file refused by the private-mode gate is reported once, unlike absent demand', async () => {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), 'scope-demand-'))), warnings = [];
+  let now = Date.now(), subscriptions = 0;
+  const ctx = { app: { version: '2.0.25' }, event: { subscribe({ signal }) {
+    subscriptions++;
+    return { async *[Symbol.asyncIterator]() { await new Promise(resolve => signal.aborted ? resolve() : signal.addEventListener('abort', resolve, { once: true })); } };
+  } } };
+  const observer = createChatObserver({ directory, now: () => now, intervalMs: 100_000, warn: message => warnings.push(message),
+    storeFactory: () => ({ update() {}, remove() {}, async flush() {}, async close() {} }), heartbeat: async () => {} });
+  try {
+    await observer.attach(ctx); await observer.tick();
+    assert.deepEqual(warnings, [], 'no demand file is the normal idle state');
+    const file = join(directory, 'demand.json');
+    await writeFile(file, JSON.stringify(demand(now))); await chmod(file, 0o644);
+    await observer.tick(); await observer.tick();
+    assert.equal(subscriptions, 0); assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /not private to this account/);
+    assert.ok(!warnings[0].includes(directory) && !warnings[0].includes(ident().sessionKey));
+    await chmod(file, 0o600); await observer.tick();
+    assert.equal(subscriptions, 1); assert.equal(warnings.length, 1);
+  } finally { await observer.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test('promptProgress false leaves chat observer available without installing Splash hooks', async () => {

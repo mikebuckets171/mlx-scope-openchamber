@@ -71,6 +71,7 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
   const drop = sessionKey => { chats.delete(sessionKey); remove(sessionKey); };
   const resetWindow = state => { state.points = []; state.firstAt = undefined; state.lastDelta = undefined; };
   const clear = () => { for (const sessionKey of chats.keys()) drop(sessionKey); routes.clear(); watched.clear(); };
+  const settled = state => state.stale || ['complete', 'cancelled', 'tool'].includes(state.phase);
   function setWatched(items) {
     watched.clear();
     for (const item of items.slice(0, MAX_CHATS)) {
@@ -95,7 +96,16 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
     }
     // A second primary dispatch to another destination cannot reuse the previous step's delivery window.
     if (state?.match === match && (state.endpointKey !== endpoint.endpointKey || state.destination !== endpoint.destination)) drop(key('session', event.sessionID));
-    routes.set(match, { ...endpoint, at: now() });
+    const at = now(), current = chats.get(key('session', event.sessionID));
+    routes.set(match, { ...endpoint, at });
+    // The dispatch itself proves this call. If its step.started is lost (a subscription can restart as demand
+    // arrives), output after the dispatch is still this call's. step.started, when it arrives, rebuilds the
+    // state from the same route; a live step keeps its own state, so its tail and calibration are not cut off.
+    if (current && !settled(current) || !current && chats.size >= MAX_CHATS) return;
+    const ident = identity(event), next = { identity: ident, match, endpointKey: endpoint.endpointKey, destination: endpoint.destination,
+      calibrationKey: `${ident.providerKey}:${ident.modelKey}:${endpoint.endpointKey}`, dispatchedAt: at, assistantKey: undefined,
+      seen: new Set(), parts: new Map(), total: 0, text: 0, reasoning: 0, points: [], eligible: false, updated: at };
+    chats.set(key('session', event.sessionID), next); emit(next, 'waiting');
   }
   const authorizeHttp = event => authorize(event);
   const authorizeWebSocket = event => authorize(event, true);
@@ -165,6 +175,8 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
       return;
     }
     if (!id(input.id)) { drop(sessionKey); return; }
+    // A state seeded by a dispatch never takes events published before that dispatch: they belong to an earlier call.
+    if (state.dispatchedAt !== undefined && input.created < state.dispatchedAt) return;
     const eventKey = key('event', input.id);
     if (state.seen.has(eventKey)) return;
     state.seen.add(eventKey); if (state.seen.size > 256) state.seen.delete(state.seen.values().next().value);
@@ -177,6 +189,11 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
       return;
     }
     if (state.phase === 'cancelled' || state.phase === 'complete') return;
+    if (state.assistantKey === undefined && id(data.assistantMessageID)) {
+      // A dispatch-seeded state binds to the first reply after its dispatch; then its route cannot prove a later step.
+      state.assistantKey = key('assistant', data.assistantMessageID);
+      if (routes.get(state.match)?.at === state.dispatchedAt) routes.delete(state.match);
+    }
     if (data.assistantMessageID !== undefined && (!id(data.assistantMessageID) || key('assistant', data.assistantMessageID) !== state.assistantKey)) { drop(sessionKey); return; }
     if (type.startsWith('session.tool.')) {
       state.eligible = false; resetWindow(state); emit(state, type === 'session.tool.success' || type === 'session.tool.failed' ? 'waiting' : 'tool'); return;

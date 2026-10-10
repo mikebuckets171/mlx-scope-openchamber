@@ -17,14 +17,19 @@ export function parseDemand(value, now = Date.now()) {
   return watched;
 }
 
+const REFUSALS = { permissions: 'not private to this account', owner: 'owned by another account', type: 'not a regular file',
+  size: 'too large', access: 'unreadable' };
 const locationKey = ctx => typeof ctx.location?.directory === 'string'
   ? key('location', `${ctx.location.directory}\0${ctx.location.workspaceID ?? ''}`) : 'legacy-test-context';
 
 /** One demand poll/store per process; public event subscriptions are shared per qualified OpenCode Location. */
 export function createChatObserver({ directory = CHAT_DIRECTORY, now = Date.now, warn = () => {},
-  storeFactory = createChatStore, readDemand = () => readPrivateJSON(directory, 'demand.json'),
+  storeFactory = createChatStore, readDemand = rejected => readPrivateJSON(directory, 'demand.json', undefined, rejected),
   heartbeat = value => atomicPrivateJSON(directory, 'heartbeat.json', value), intervalMs = 1_000 } = {}) {
-  const clients = new Map(), locations = new Map(); let store, timer, flight, closed = false, lastHeartbeat = -Infinity;
+  const clients = new Map(), locations = new Map(); let store, timer, flight, closed = false, lastHeartbeat = -Infinity, refused = false;
+  // A refused demand file looks like "no demand" to tracking. Say so once in the host log; never name paths or contents.
+  const rejected = reason => { if (refused) return; refused = true;
+    warn(`MLX Scope chat tracking ignored its demand file (${REFUSALS[reason] ?? REFUSALS.access}); chat estimates stay off until Scope rewrites it.`); };
   const info = ctx => ({ schemaVersion: 1, companionVersion: COMPANION_VERSION,
     protocol: ctx.app?.version === '2.0.25' ? PROTOCOL : 'unsupported',
     runtimeVersion: typeof ctx.app?.version === 'string' && /^\d+\.\d+\.\d+(?:[-.\w]*)?$/.test(ctx.app.version) ? ctx.app.version.slice(0, 80) : 'unknown',
@@ -50,7 +55,11 @@ export function createChatObserver({ directory = CHAT_DIRECTORY, now = Date.now,
   }
   async function collect() {
     if (closed || clients.size === 0) return;
-    const demand = parseDemand(await readDemand().catch(() => null), now());
+    const demand = parseDemand(await readDemand(rejected).catch(error => {
+      // Absence is the normal idle state; any other failure leaves tracking off just as silently, so report it once.
+      if (error?.code !== 'ENOENT') rejected(error?.message === 'Unsafe cache permissions' ? 'permissions' : 'access');
+      return null;
+    }), now());
     const selected = new Set(demand.length ? [...locations.values()]
       .filter(location => [...location.clients].some(ctx => info(ctx).supported))
       .sort((a, b) => b.priority - a.priority).slice(0, MAX_CHATS) : []);

@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test';
 import { parseLocalOrigin, pathsForHome, resolveRuntimeConnections } from './config.ts';
+import { RuntimeClient } from './runtime-client.ts';
+import { chatKey } from '../src/contract/chat-key.ts';
 
 const home = '/tmp/scope-connections';
 const paths = pathsForHome(home);
@@ -248,4 +250,21 @@ test('native IPv6 loopback settings retain the correct origin and matching key',
   const result = await resolve({}, {}, { [paths.omlx]: JSON.stringify({ server: { host: '::1', port: 8000 }, auth: { api_key: 'native-fixture' } }) });
   expect(result.connections[0]?.config.baseURL?.href).toBe('http://[::1]:8000/');
   expect(result.connections[0]?.config.apiKey).toBe('native-fixture');
+});
+
+test('chat locality follows each declared loopback endpoint, including key-free providers past the eight-entry chooser', async () => {
+  const local = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`local-${i}`, { options: { baseURL: `http://localhost:${9000 + i}/v1` } }]));
+  const result = await resolve({ provider: { ...local, cloud: { options: { baseURL: 'https://api.example.test/v1', apiKey: 'cloud-only-fixture' } } } });
+  expect(result.connections).toHaveLength(8);
+  expect(result.connections.some(item => item.id === 'local-9')).toBe(false);
+  expect(result.declared?.get('local-9')?.origin).toBe('http://127.0.0.1:9009');
+  expect(result.declared?.has('cloud')).toBe(false);
+  const client = new RuntimeClient({ readConfig: async () => result });
+  try {
+    expect(await client.companionTarget('local-9')).toEqual({ providerKey: chatKey('provider', 'local-9'), endpointKey: chatKey('endpoint', 'http://127.0.0.1:9009') });
+    expect(await client.companionTarget('local-0')).toEqual({ providerKey: chatKey('provider', 'local-0'), endpointKey: chatKey('endpoint', 'http://127.0.0.1:9000') });
+    expect(await client.companionTarget('cloud')).toBeNull();
+    expect(await client.companionTarget('unknown')).toBeNull();
+  } finally { client.dispose(); }
+  expect(JSON.stringify(result)).not.toContain('cloud-only-fixture');
 });
