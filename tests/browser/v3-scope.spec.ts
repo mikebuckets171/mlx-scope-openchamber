@@ -48,7 +48,7 @@ test('scope choice persists across reload, keeps Whole engine independent, and f
   const frame = page.frameLocator('iframe'), scope = frame.getByRole('combobox', { name: 'Measurement scope' });
   await expect(scope).toHaveValue('chat');
   await scope.selectOption('engine');
-  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('pref.v2')!).measurementScope)).toBe('engine');
+  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('pref.v2') ?? '{}').measurementScope)).toBe('engine');
   await expect.poll(async () => (await newest(page))?.chat).toBeUndefined();
   expect((await newest(page))?.chatBusy).toBeUndefined();
   await page.reload();

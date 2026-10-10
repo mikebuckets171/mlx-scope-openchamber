@@ -28,7 +28,7 @@ for (const savedScope of [null, 'chat', 'engine'] as const) {
     await expect(frame.locator('#connection-provider')).toHaveValue('saved-local');
     await expect(frame.locator('#connection-runtime')).toHaveValue('splash');
     await frame.locator('#connection-apply').click();
-    await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('pref.v2')!).measurementScope)).toBe('engine');
+    await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('pref.v2') ?? '{}').measurementScope)).toBe('engine');
     await expect.poll(() => latestQuery(page)).toMatchObject({ provider: 'saved-local', runtime: 'splash' });
     expect((await latestQuery(page))?.chat).toBeUndefined();
 
@@ -40,7 +40,7 @@ for (const savedScope of [null, 'chat', 'engine'] as const) {
     await frame.locator('#connection-provider').selectOption('omlx');
     await frame.locator('#connection-runtime').selectOption('');
     await frame.locator('#connection-apply').click();
-    await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('pref.v2')!).measurementScope)).toBe('engine');
+    await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('pref.v2') ?? '{}').measurementScope)).toBe('engine');
     await expect.poll(() => latestQuery(page)).toMatchObject({ provider: 'omlx' });
     expect((await latestQuery(page))?.chat).toBeUndefined();
   });
