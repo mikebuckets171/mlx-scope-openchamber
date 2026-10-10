@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.2.3
+
+- The Session sidebar no longer leaves a blank block at rest. With a local engine idle, it shows the engine's overall average speed (dimmed and labelled **Engine · overall avg.**, never live) and what the engine holds, such as model or GPU memory and its typical first-token time, so the section keeps the same height when a reply starts. With nothing true to show — a cloud chat at rest, no model loaded, or paused — the empty rows fold away. During a reply the layout is unchanged.
+
 ## 3.2.2
 
 - llama-swap: a provider that points at llama-swap is now read through it. Scope follows the model llama-swap reports as ready and reads that model's own server, named for example **Splash via llama-swap**; a starting model shows **Loading** and an unloaded one **No model loaded**. Scope only reads llama-swap's `/running` list, never asks it to load or swap a model, and never sends the provider's key to the model server. A swapped model starts a new engine generation. Previously such a connection showed as an unsupported server with no engine readings.

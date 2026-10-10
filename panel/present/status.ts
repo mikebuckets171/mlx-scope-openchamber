@@ -44,6 +44,8 @@ export interface StatusSectionInput {
   sessionModel?: string | null;
   chatActivity?: 'idle' | 'busy' | null;
   lastChat?: ChatMeasurement | null;
+  /** The sidebar and compact glance: at rest, show the engine's own record instead of empty rows. */
+  restingFacts?: boolean;
 }
 export interface StatusRow { label: string; value: string; basis: string | null }
 export type DotTone = 'live' | 'prefill' | 'warn' | 'bad' | 'idle';

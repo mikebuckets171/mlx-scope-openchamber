@@ -12,7 +12,7 @@ export const scopeMenuMarkup = (scope: 'chat' | 'engine'): Raw => html`<select c
 
 export const sessionMarkup = (view: SessionSectionView, actionError: string | null = null, compact = false): Raw => {
   const measurement = view.measurement, alert = view.alert;
-  return html`<div class="ws ws-session" id="ws" data-presentation="session" data-mode="summary">
+  return html`<div class="ws ws-session" id="ws" data-presentation="session" data-mode="summary" data-resting="${String(view.resting)}">
     <div class="ws-activity">
       <div class="ws-line ws-heading ws-context"><span class="ws-phase" data-tone="${view.tone}" data-crossfade>${view.phase}</span>${scopeMenuMarkup(view.measurementScope)}</div>
       ${measurement ? html`<div class="ws-line ws-measurement" data-live="${String(measurement.live)}" data-basis="${measurement.basis}" data-arrive title="${measurement.detail}"><span class="ws-reading" aria-hidden="true"><strong id="${READOUT_ID[measurement.kind]}" aria-hidden="true" data-roll-value="${measurement.kind === 'speed' ? compactRate(measurement.text) : measurement.text}" data-roll-context="${view.phase}/${view.measurementScope}/${measurement.basis}/${measurement.label}">${digitMarkup(measurement.kind === 'speed' ? compactRate(measurement.text) : measurement.text)}</strong>${measurement.unit ? html` <span aria-hidden="true">${measurement.unit}</span>` : ''}</span><span class="sr-only measurement-accessible">${measurement.text}${measurement.unit ? ' tokens per second' : ''}</span><span class="ws-label" data-crossfade>${measurement.label}</span><span class="sr-only basis">${measurement.detail}</span></div>` : ''}
