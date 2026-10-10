@@ -249,8 +249,10 @@ for (const surface of ['status', 'page']) {
   test(`a late busy hint preserves the newer completed step after lifecycle start on ${surface}`, async ({ page }) => {
     await page.clock.install();
     await page.goto(`/v2?surface=${surface}&state=idle&chat=local&poll=500`);
-    await page.evaluate(() => (window as any).setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' }));
     const frame = page.frameLocator('iframe'), phase = surface === 'status' ? '.ws-phase' : '.instrument-phase';
+    // The idle session must reach a mounted panel; an update sent before it subscribes is not replayed.
+    await expect(frame.locator(phase)).toBeVisible();
+    await page.evaluate(() => (window as any).setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' }));
     await page.evaluate(() => {
       const now = Date.now();
       (window as any).setPreviewPatch({ chat: { scope: 'chat', basis: 'reported-output', timingBasis: 'completed-step', phase: 'complete',
