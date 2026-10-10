@@ -120,6 +120,8 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .ws-measurement { grid-row: 2; min-height: 0; align-content: start; flex-wrap: wrap; gap: 0 8px; }
 .ws-support { grid-row: 3; min-height: 0; color: var(--scope-muted); font-size: max(11px, .6875rem); overflow-wrap: anywhere; }
 .ws-activity > :is(.ws-note, .ws-warning, .ws-action-error) { grid-row: 3; }
+/* At rest with nothing to show, the reserved reading rows fold away instead of leaving a blank block. */
+.ws[data-resting="true"] .ws-activity { grid-template-rows: max(24px, 1.5rem); }
 /* A held previous value is dimmed and labelled, never styled as live. */
 .ws-held, .instrument-held { color: var(--scope-muted); opacity: .78; }
 .instrument-held { margin-top: 4px; font-size: max(11px, .6875rem); }

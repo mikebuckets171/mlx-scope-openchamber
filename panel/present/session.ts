@@ -3,7 +3,7 @@ import type { Basis } from '../../src/contract/capabilities.ts';
 import { sameModel } from '../attribution/join.ts';
 import { prefillReading } from '../progress.ts';
 import { alertCopy, APPROVAL, RESTART, statusGlanceNote } from './copy.ts';
-import { ago, dur, kt, mmss, tps } from './format.ts';
+import { ago, dur, kt, mmss, size, tps } from './format.ts';
 import { visibleAlerts } from './parts.ts';
 import { presentSpeeds, type SpeedsView } from './speeds.ts';
 import type { StatusSectionInput } from './status.ts';
@@ -22,11 +22,15 @@ export interface SessionSectionView {
   progress: { text: string; detail: string; basis: Basis } | null;
   /** The previous completed average, dimmed below a live reading until a new one replaces it. Never live. */
   held: { text: string; detail: string } | null;
+  /** At rest with nothing true to show: the glance folds its empty rows instead of leaving a blank block. */
+  resting: boolean;
   note: string | null;
   alert: { label: string; value: string; severity: Severity; more: number } | null;
   cancelMeasurement: boolean;
 }
 const positive = (value: number | null | undefined): value is number => value != null && Number.isFinite(value) && value > 0;
+/** Phases where nothing is happening; anything mid-turn keeps its reserved rows so the glance never jumps during a reply. */
+const RESTING = new Set(['Idle', 'Ready', 'No model loaded', 'Connected', 'Paused']);
 /** Whole seconds, rounded down: an elapsed time never runs ahead of the clock. */
 const elapsedText = (ms: number): string => (ms < 60_000 ? `${Math.floor(ms / 1_000)} s` : dur(Math.floor(ms / 1_000) * 1_000)).replace(/ /g, '\u00a0');
 type SessionSectionInput = Omit<StatusSectionInput, 'turn' | 'vsUsual' | 'sparkline' | 'expanded' | 'tipDismissed'> & Partial<StatusSectionInput>;
@@ -146,10 +150,28 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     && last.completion.basis !== 'last-observed' && last.completion.finishedAt <= input.now
     ? { text: `Last ${!engine && last.label.kind !== 'server-wide' && snapshot!.connection.runtime !== 'splash' ? 'reply' : 'engine reply'} · ${tps(last.completion.decodeTps)} tok/s · ${ago(last.completion.finishedAt, input.now)}`,
       detail: 'The previous completed average, held until a new one replaces it. Not a live reading.' } : null;
+  // At rest the glance keeps its shape with the engine's own record — its overall average and what it holds — instead
+  // of empty rows. It is labelled and never live, needs a fresh local reading, and a cloud chat never borrows it.
+  // Local engine notes never describe a cloud chat; a frame problem still does.
+  const shownNote = nonLocal && !frame ? null : note;
+  const atRest = RESTING.has(phase) && !alert && !cancelled && !frame && !shownNote;
+  let restingSupport: SessionSectionView['support'] = null;
+  if (input.restingFacts && atRest && usable && !measurement && !support) {
+    const server = snapshot.runtime.server, memory = snapshot.runtime.memory, caps = snapshot.capabilities;
+    const average = server.averages?.decodeTps, averaged = caps['server.averages'];
+    if (positive(average) && averaged) measurement = { label: 'Engine · overall avg.', text: tps(average), unit: 'tok/s', basis: averaged.basis,
+      live: false, kind: 'speed', detail: `Average generation speed across all requests · ${speeds.averageNote}. Not a live reading.` };
+    const bytes = memory.modelBytes ?? memory.metalBytes, bytesCap = caps[memory.modelBytes != null ? 'server.memory.model' : 'server.memory.metal'];
+    const firstToken = server.histograms?.ttftMs?.p50, latency = caps['server.latency'];
+    const facts = [bytes != null && bytesCap ? `${size(bytes)} ${memory.modelBytes != null ? 'model' : 'GPU'} memory` : null,
+      firstToken != null && latency ? `first token ${dur(firstToken)}` : null].filter((fact): fact is string => fact !== null);
+    if (facts.length) restingSupport = { text: facts.join(' · '), detail: 'What the engine holds now and its typical first-token time across recent requests.' };
+  }
+  const shownSupport = support ?? restingSupport;
   // Missing readings leave the activity area's geometry intact without inventing a measurement row.
-  return { measurementScope, measurement, support, speeds, progress, held,
+  return { measurementScope, measurement, support: shownSupport, speeds, progress, held,
+    resting: atRest && !measurement && !shownSupport && !held,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
-    // Local engine notes never describe a cloud chat; a frame problem still does.
-    note: nonLocal && !frame ? null : note, alert,
+    note: shownNote, alert,
     cancelMeasurement: !nonLocal && (next?.kind === 'armed' || next?.kind === 'measuring') };
 };

@@ -463,3 +463,34 @@ test('the previous completed average is held, dimmed and labelled, below a live 
   // Another model's reply is never held for this chat.
   expect(presentSessionSection({ ...input, sessionModel: 'other-model' }).held).toBeNull();
 });
+
+test('at rest the glance shows the engine’s own record instead of empty rows, labelled and never live', () => {
+  const rest = (extra: Partial<StatusSectionInput> = {}, patch: (body: Record<string, any>) => void = () => {}) => presentSessionSection(inputOf('idle', { restingFacts: true,
+    chatActivity: 'idle', last: null, measurementScope: 'engine', ...extra }, body => {
+    body.runtime.server.averages = { decodeTps: 35.73, prefillTps: 284.2 }; body.capabilities['server.averages'] = { scope: 'server', basis: 'reported' };
+    body.runtime.memory = { metalBytes: 25_663_782_912 }; body.capabilities['server.memory.metal'] = { scope: 'server', basis: 'reported' };
+    delete body.capabilities['server.memory.model'];
+    body.runtime.server.histograms = { ttftMs: { p50: 410, p95: 900, n: 64, window: 'native-last-4096' } }; body.capabilities['server.latency'] = { scope: 'server', basis: 'derived' };
+    patch(body);
+  }));
+  const view = rest();
+  expect(view).toMatchObject({ phase: 'Idle', resting: false, support: { text: '23.9 GiB GPU memory · first token 0.41 s' },
+    measurement: { label: 'Engine · overall avg.', text: '35.7', unit: 'tok/s', live: false, kind: 'speed' } });
+  const markup = sessionMarkup(view).markup;
+  expect(markup).toContain('data-live="false"'); expect(markup).toContain('data-resting="false"');
+  // The same rest in This chat scope is the labelled engine fallback for a local chat.
+  expect(rest({ measurementScope: 'chat' }).measurement?.label).toBe('Engine · overall avg.');
+  // The full panel keeps its own hero; only the sidebar and compact glance opt in.
+  expect(rest({ restingFacts: false }).measurement).toBeNull();
+  // A reply in progress keeps its reserved rows and never shows the resting record.
+  expect(rest({ chatActivity: 'busy', measurementScope: 'chat' })).toMatchObject({ resting: false, measurement: null });
+  // A cloud chat never borrows a local engine's record; with nothing true to show, the rows fold away.
+  const cloud = rest({ chatIsLocal: false, measurementScope: 'chat' });
+  expect(cloud).toMatchObject({ phase: 'Ready', measurement: null, support: null, resting: true });
+  expect(sessionMarkup(cloud).markup).toContain('data-resting="true"');
+  // An engine that reports none of it folds too; stale or paused readings never fill the rows.
+  expect(rest({}, body => { delete body.capabilities['server.averages']; delete body.capabilities['server.memory.metal']; delete body.capabilities['server.latency']; }))
+    .toMatchObject({ measurement: null, support: null, resting: true });
+  expect(rest({ paused: true })).toMatchObject({ phase: 'Paused', measurement: null, resting: true });
+  expect(rest({ fresh: false })).toMatchObject({ measurement: null, resting: false });
+});
