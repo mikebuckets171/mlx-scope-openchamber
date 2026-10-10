@@ -65,6 +65,7 @@ unsupported fields stay out of the views.
 | Ollama | [0.40.0](https://github.com/ollama/ollama/tree/v0.40.0-rc0) | Fixture only | Residency |
 | vllm-mlx | [0.5.0](https://github.com/waybarrios/vllm-mlx/tree/b064502055a68aaf94c6c58f9c0d749e0bd4f8cb) | Source review and synthetic fixtures | Per request, server-wide |
 | mlx-lm | [0.31.3](https://github.com/ml-explore/mlx-lm/tree/ed1fca4cef15a824c5f1702c80f70b4cffc8e4dd) | Source review and synthetic fixtures | Inventory |
+| llama-swap (in front of any of the above) | v263 | Synthetic `/running` fixtures; recognized and read live on the owner's Mac with no model loaded | As the model server it fronts |
 | macOS host | macOS 27 on Apple Silicon | Fixture for every probe; `vm_stat` and `sysctl` also run live in the macOS checks; `ioreg`, `notifyutil`, `lsof`, `footprint` and macmon live in Stage 12 | Host |
 
 ## oMLX
@@ -177,6 +178,22 @@ is withheld. A reply is recorded when the only busy slot goes idle. Server rates
 from `/metrics` token counters divided by their own seconds counters (derived). Those counters move only when a request
 completes, so a zero change mid-request means "no rate yet", and the windowed throughput gauges are never used. Router
 mode is not supported.
+
+## llama-swap
+
+[llama-swap](https://github.com/mostlygeek/llama-swap) answers on the provider's port and starts, stops and swaps the
+model servers behind it. When a connection's server is not otherwise readable, Scope asks llama-swap's `GET /running`
+once; if it answers, Scope follows the one model listed as `ready` and reads that model's own loopback server (its
+`proxy` address) with the usual adapter, so a Splash model is read exactly like standalone Splash. The connection keeps
+its OpenCode identity, so This chat matching and the chat companion are unchanged, and it is named, for example,
+**Splash via llama-swap**.
+
+Scope only reads `GET /running`, then the model server. It never calls llama-swap's `/upstream/…` routes or anything
+else that would start, stop or swap a model, and never sends the provider's key to the model server. A model that is
+starting shows **Loading**; with nothing running Scope shows **No model loaded**, and llama-swap starts a model on the
+next chat request as usual. A swapped model is a new engine generation, so readings never continue across models. A
+backend that is not a numeric-loopback HTTP address is never read, and when several models are ready Scope follows the
+provider's configured model or reads none.
 
 ## Ollama
 

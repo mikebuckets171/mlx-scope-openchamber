@@ -20,6 +20,7 @@ export const connName = (connection: Named | null): string => {
   if (!connection) return 'Local server';
   if (connection.runtime === 'lmstudio' && connection.engine === 'splash') return connection.host === 'bionic' ? 'Splash via Bionic' : 'Splash via LM Studio';
   if (connection.host === 'bionic') return 'Bionic';
+  if (connection.host === 'llama-swap' && connection.runtime) return `${RT[connection.runtime]} via llama-swap`;
   // "Automatic" names the choice, not the runtime; once one is detected, say which.
   return connection.id === 'auto' && connection.runtime ? RT[connection.runtime] : connection.label;
 };

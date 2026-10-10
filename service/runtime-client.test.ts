@@ -63,7 +63,8 @@ test('rapid selection changes cannot evict active reads and exceed the collectio
   expect(requests).toBe(8);
   release(); await Promise.all(pending);
   await client.read({ provider: 'local-0', runtime: 'vllm-mlx' });
-  expect(requests).toBe(9);
+  // The unreadable reply is checked once for llama-swap (GET /running) before the slot settles on it.
+  expect(requests).toBe(10);
 });
 
 test('selected providers keep separate credentials, caches, and backoff; the key never enters a reading', async () => {
@@ -135,7 +136,8 @@ test('generic OpenAI model lists do not masquerade as a runtime; an explicit mlx
   const selected = await client.read({ provider: 'local', runtime: 'mlx-lm' });
   expect(selected).toMatchObject({ status: { state: 'ready' }, runtime: { phase: 'unknown', request: null, server: { active: null } },
     meta: { connection: { runtime: 'mlx-lm', detection: { basis: 'explicit', confidence: 'high' } } } });
-  expect(calls).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting', '/api/v1/models', '/status', '/v1/models', '/health', '/v1/models']);
+  // An unrecognized server is asked once whether it is llama-swap; it is not, and is never asked again.
+  expect(calls).toEqual(['/health', '/props', '/api/version', '/lmstudio-greeting', '/api/v1/models', '/status', '/v1/models', '/running', '/health', '/v1/models']);
 });
 
 test('auto-detects a standalone Splash server by its status contract', async () => {

@@ -13,6 +13,7 @@ import { HttpFailure, type FetchImplementation } from './http.ts';
 import type { Exec } from './lib/argv.ts';
 import { requestReply, requestText } from './lib/http-text.ts';
 import { chatKey } from '../src/contract/chat-key.ts';
+import { swapState, type SwapBackend } from './core/llama-swap.ts';
 
 /** What a frame asked for: an explicit runtime is never switched away from, and an empty provider is Automatic (1.6). */
 export interface ReadSelection { provider?: string; runtime?: RuntimeKind | null }
@@ -51,6 +52,8 @@ type SlotContext = {
   generationKey: string | undefined;
   adapterContext: AdapterContextV2 | null;   // the adapter's own context: /v2/usage reuses oMLX's admin login through it
   deadline: number;                          // this collection's budget; the adapter outlives one collection
+  swap: boolean | null;                      // the connection is llama-swap; null until its first answer decides
+  upstream: SwapBackend | null;              // llama-swap's ready model server, which the adapter reads instead
 };
 type Collected = { reading: AdapterReadingV2; tier: Tier; detail: boolean };
 
@@ -160,7 +163,7 @@ export class RuntimeClient {
     const key = `${choice.id}\0${explicit ?? 'auto'}`;
     const fingerprint = JSON.stringify([choice.config.baseURL.href, choice.config.apiKey, choice.config.preferredModel, choice.runtime, explicit]);
     const slot = this.scheduler.claim(key, fingerprint, () => ({ choice, explicit, runtime: explicit ?? choice.runtime, detection, adapter: null,
-      identityAt: this.monotonic(), changed: null, generationKey: undefined, adapterContext: null, deadline: 0 }));
+      identityAt: this.monotonic(), changed: null, generationKey: undefined, adapterContext: null, deadline: 0, swap: null, upstream: null }));
     // All eight slots are mid-read: this one waits its turn (1.6 "Earlier connection reads are finishing").
     if (!slot) return this.unslotted(connection, failing('runtime_unreachable', { port, deferred: true }), port);
     const context = slot.context, described = context.runtime ? descriptorOf(this.descriptors, context.runtime) : null;
@@ -188,16 +191,21 @@ export class RuntimeClient {
     const identity = {
       ...reading.identity.version ? { version: reading.identity.version } : {},
       engine: reading.identity.engine ?? (runtime === 'splash' || splashModels ? 'splash' as const : null),
-      host: reading.identity.host ?? (runtime === 'lmstudio' && (splashModels || /bionic/i.test(`${choice.id} ${choice.label}`)) ? 'bionic' as const : null),
+      host: reading.identity.host ?? (context.swap ? 'llama-swap' as const
+        : runtime === 'lmstudio' && (splashModels || /bionic/i.test(`${choice.id} ${choice.label}`)) ? 'bionic' as const : null),
     };
     const connection: ConnectionV2 = { ...base, runtime, generation: slot.generation, detection: context.detection, ...identity };
     return { ...reading, status, identity, meta: { connection, port, slot: slot.key, failures: failuresOf(slot.state),
       idleMs: Math.max(0, this.monotonic() - slot.activeAt), cadenceMs } };
   }
 
-  /** GETs on the connection's origin within this collection's deadline; the key goes everywhere but `/health` (1.6). */
-  private getters(slot: Slot<SlotContext, Collected>): { get: RuntimeGet; getText: RuntimeGetText } {
-    const context = slot.context, base = context.choice.config.baseURL!, key = context.choice.config.apiKey;
+  /**
+   * GETs on the connection's origin within this collection's deadline; the key goes everywhere but `/health` (1.6). Behind
+   * llama-swap they go to its ready model's loopback server instead, without the provider's key; `front` reads llama-swap.
+   */
+  private getters(slot: Slot<SlotContext, Collected>, front = false): { get: RuntimeGet; getText: RuntimeGetText } {
+    const context = slot.context, upstream = front ? null : context.upstream;
+    const base = upstream?.origin ?? context.choice.config.baseURL!, key = upstream ? null : context.choice.config.apiKey;
     const target = (path: string): { url: URL; timeoutMs: number; init: RequestInit } => {
       const url = new URL(path, base), remaining = context.deadline - this.monotonic();
       // Paths only: an absolute or protocol-relative URL could leave the loopback origin with the key.
@@ -215,7 +223,7 @@ export class RuntimeClient {
   private create(slot: Slot<SlotContext, Collected>, runtime: RuntimeKind): AdapterV2 {
     const context = slot.context, described = descriptorOf(this.descriptors, runtime);
     if (!described) throw new UnknownRuntime();
-    const adapterContext: AdapterContextV2 = { connection: { id: context.choice.id, port: urlPort(context.choice.config.baseURL)! }, ...this.getters(slot),
+    const adapterContext: AdapterContextV2 = { connection: { id: context.choice.id, port: urlPort(context.upstream?.origin ?? context.choice.config.baseURL)! }, ...this.getters(slot),
       config: context.choice.config, fetchImpl: this.fetchImpl, exec: this.exec, now: this.now, monotonic: this.monotonic,
       timeoutMs: this.timeout, budgetMs: this.budget };
     context.adapterContext = adapterContext;
@@ -239,11 +247,57 @@ export class RuntimeClient {
     this.scheduler.bump(slot);
   }
 
+  /**
+   * llama-swap (service/core/llama-swap.ts). Once a connection is known to be llama-swap, each collection reads its
+   * `/running` list and follows the one ready model server. A swapped model is a new generation,
+   * so its readings never continue the previous model's. Without a ready model there is nothing to read: Scope says the
+   * model is loading or not loaded and never starts one. Returns a reading only when the adapter must not run.
+   */
+  private async followSwap(slot: Slot<SlotContext, Collected>): Promise<AdapterReadingV2 | null> {
+    const context = slot.context;
+    if (!context.swap) return null;
+    const state = swapState(await this.getters(slot, true).get('/running'), context.choice.config.preferredModel);
+    if (state?.kind === 'ready') {
+      const previous = context.upstream, next = state.backend;
+      if (!previous || previous.origin.href !== next.origin.href || previous.model !== next.model) this.retarget(slot, next);
+      return null;
+    }
+    this.retarget(slot, null);
+    const reading = synthetic(this.now(), state?.kind === 'loading' ? { state: 'degraded', reason: 'loading', params: {} }
+      : state?.kind === 'idle' ? { state: 'ready', reason: null, params: {} } : { state: 'degraded', reason: 'unsupported_contract', params: {} });
+    reading.runtime.phase = state?.kind === 'loading' ? 'loading' : state?.kind === 'idle' ? 'not-loaded' : 'unknown';
+    return reading;
+  }
+  /** Points the slot at another llama-swap model server (or none): a fresh adapter, detection and generation. */
+  private retarget(slot: Slot<SlotContext, Collected>, upstream: SwapBackend | null): void {
+    const context = slot.context, previous = context.upstream;
+    if (!previous && !upstream) return;
+    context.adapter?.dispose();
+    Object.assign(context, { upstream, adapter: null, adapterContext: null, runtime: context.explicit ?? context.choice.runtime, changed: null, generationKey: undefined });
+    if (previous) this.scheduler.bump(slot);
+  }
+
+  /**
+   * A server Scope cannot read may be llama-swap in front of one it can. Only then is llama-swap's `/running` asked, once
+   * per connection; when it answers, the same collection reads again through it.
+   */
   private async collect(slot: Slot<SlotContext, Collected>, request: ReadRequest): Promise<Collected> {
+    const first = await this.collectOnce(slot, request), reason = first.reading.status.reason, context = slot.context;
+    if (context.swap !== null || reason !== 'unsupported_contract' && reason !== 'unsupported_runtime') return first;
+    const reply = await this.getters(slot, true).get('/running').catch(() => null);
+    context.swap = !!reply && swapState(reply, context.choice.config.preferredModel) !== null;
+    return context.swap ? this.collectOnce(slot, request) : first;
+  }
+
+  private async collectOnce(slot: Slot<SlotContext, Collected>, request: ReadRequest): Promise<Collected> {
     const context = slot.context, done = (reading: AdapterReadingV2): Collected => ({ reading, tier: request.tier, detail: request.detail });
     context.deadline = this.monotonic() + this.budget;
-    const { get } = this.getters(slot);
     let reading: AdapterReadingV2;
+    try {
+      const swapped = await this.followSwap(slot);
+      if (swapped) return done(swapped);
+    } catch { return done(synthetic(this.now(), failing('runtime_unreachable'))); }
+    const { get } = this.getters(slot);
     try {
       // A change already reported is refreshed by the identity interval, not by every unsupported reading.
       if (slot.redetect) { slot.redetect = false; if (!context.changed) await this.redetect(slot, get); }
