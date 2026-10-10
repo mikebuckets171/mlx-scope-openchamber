@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.2.0 — release candidate
+## 3.2.0
 
 - Restores cloud chat speed: the companion observes cloud delivery through the native OpenCode transport (qualified WebSocket handshake on OpenCode 2.0.25) and the panel presents it as **Cloud · est.** — network and provider buffering included; never the engine's native throughput, and never borrowed from or into local engine readings.
 - OpenCode SDK 2.0.4 floor: unsupported or future runtime generations disable cloud estimates with a one-line reason instead of deferring the whole feature.
@@ -17,7 +17,7 @@
 - Chat locality follows the provider's declared loopback endpoint, including key-free providers and providers beyond the eight-entry connection list.
 - Local engine measurements, history records, captures and media monitoring keep their data and measurement semantics; only their presentation changed.
 
-## 3.1.0 — release candidate
+### Also new since 3.0.0 (the 3.1 candidate was not released separately)
 
 - Unified Connections explains detected sources and provides managed chat/media tracking setup with explicit readiness.
 - Optional Media monitoring shows current-chat jobs first, phase-local measured progress, waiting states, freshness and exact supported cancellation.
@@ -25,7 +25,6 @@
 - ComfyUI supports basic lifecycle monitoring and an optional passive progress helper; local-video, Qwen image and private telemetry feeds have separate adapters.
 - Primary live numbers use short changed-digit transitions with stable layout, fresh-data gating and Reduce Motion support.
 - Existing LLM measurements, history and captures remain compatible.
-- Cloud speed tracking is outside 3.1 support. Cloud chats show a clear inactive state without setup prompts, chat telemetry demand, or local-engine fallback; media monitoring remains available.
 - Chat setup distinguishes an outdated helper from a loaded update. Cancellation and lifecycle boundaries discard unused transport proof before another reply can inherit it.
 
 ## 3.0.0
