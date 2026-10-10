@@ -18,6 +18,7 @@ export const connectionName = (runtime: RuntimeKind | null | undefined, link?: P
     if (link?.engine === 'splash') return link.host === 'bionic' ? 'Splash via Bionic' : 'Splash via LM Studio';
     if (link?.host === 'bionic') return 'Bionic';
   }
+  if (runtime && link?.host === 'llama-swap') return `${runtimeNames[runtime].replace(/ \(.*\)$/, '')} via llama-swap`;
   return runtime ? runtimeNames[runtime] : 'Local server';
 };
 

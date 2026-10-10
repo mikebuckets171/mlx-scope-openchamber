@@ -19,7 +19,7 @@ export type Choice = { id: string; label: string; runtime: RuntimeKind | null };
 export interface Link {
   selected: string | null; label: string | null; runtime: RuntimeKind | null; generation: string | number | null;
   choices: Choice[]; diagnostic: V1Diagnostic; coverage: Coverage | null;
-  engine: 'splash' | null; host: 'bionic' | null;
+  engine: 'splash' | null; host: 'bionic' | 'llama-swap' | null;
 }
 export interface SplashStats { ready: boolean; decodeTps: number | null; completed: number | null; failed: number | null; metalBytes: number | null; metalPeakBytes: number | null }
 export interface Resident { model: string; phase: ReadingPhase; active: number | null; queued: number | null; bytes: number | null; tps: number | null; prefillFraction: number | null; stale: boolean }

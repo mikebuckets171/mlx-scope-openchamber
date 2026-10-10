@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.2.2
+
+- llama-swap: a provider that points at llama-swap is now read through it. Scope follows the model llama-swap reports as ready and reads that model's own server, named for example **Splash via llama-swap**; a starting model shows **Loading** and an unloaded one **No model loaded**. Scope only reads llama-swap's `/running` list, never asks it to load or swap a model, and never sends the provider's key to the model server. A swapped model starts a new engine generation. Previously such a connection showed as an unsupported server with no engine readings.
+
 ## 3.2.1
 
 - Media: when a Qwen image job is correlated with a ComfyUI prompt that is already running while the image job still reports an earlier state, the job now shows ComfyUI's current lifecycle, phase and progress instead of the stale state. A finished or cancelling image job keeps its own state. The chat companion is unchanged (3.2.0).

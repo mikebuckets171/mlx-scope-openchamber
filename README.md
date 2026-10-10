@@ -2,11 +2,9 @@
 
 Lightweight chat and local media monitoring for OpenChamber.
 
-**3.1 release candidate:** the media and setup improvements below are in the candidate branch. The latest public release remains 3.0.0 until 3.1 is published.
-
 MLX Scope keeps honest runtime readings beside your conversation. It observes oMLX, Splash in Bionic, LM Studio,
-llama.cpp `llama-server`, Ollama, vllm-mlx, mlx-lm and standalone Splash through their supported passive APIs, plus the
-Mac they run on. It never sends inference, loads or unloads a model, or starts a runtime. The Session sidebar follows your chat and presents one relevant reading. Optional, clearly labeled chat delivery
+llama.cpp `llama-server`, Ollama, vllm-mlx, mlx-lm and standalone Splash through their supported passive APIs, directly or
+behind llama-swap, plus the Mac they run on. It never sends inference, loads or unloads a model, or starts a runtime. The Session sidebar follows your chat and presents one relevant reading. Optional, clearly labeled chat delivery
 estimates supplement native engine measurements; missing measurements leave no empty rows. Every value identifies
 its source and scope. Live estimates, native throughput and completed-reply averages remain separate. Cloud chats receive the same delivery estimates on qualified OpenCode runtimes, labelled **Cloud · est.**; they include network and provider buffering and never borrow a local engine's reading. Local media progress stays available in all cases.
 
@@ -19,6 +17,7 @@ its source and scope. Live estimates, native throughput and completed-reply aver
 | **Ollama** | Which models are resident, their GPU-resident size as Ollama reports it, and when each unloads. Ollama reports residency only |
 | **vllm-mlx** | Reported request activity, queue, output and speed; prefill and reuse where the engine exposes usable data |
 | **mlx-lm** | Server availability and the available model catalogue |
+| **llama-swap** (in front of any of the above) | The ready model's own server, read as that runtime (for example **Splash via llama-swap**); **Loading** while a model starts and **No model loaded** when none runs. Scope never asks llama-swap to load or swap a model |
 | **Splish / Splash (standalone)** | Real prompt progress with the optional OpenCode companion, plus separate recent prefill and generation speeds across all requests in the main view and Session widget; each stage's actual 2–5-second observation interval and average since engine start in the full view; loaded model and context, idle/generating/recovering state, typical and slow first-token and between-token times from Splash itself, completed/failed counters, vision chips, and GPU (Metal) memory now/peak |
 
 On macOS, every runtime also gets host readings: CPU, memory, swap, the kernel's memory pressure level, the GPU

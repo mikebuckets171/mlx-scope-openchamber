@@ -46,7 +46,7 @@ export interface ConnectionV2 {
   runtime: RuntimeKind | null;
   version?: string;                          // runtime version when reported, e.g. '0.7.0rc1'
   engine?: 'splash' | null;                  // an LM Studio-compatible host serving Splash models
-  host?: 'bionic' | null;
+  host?: 'bionic' | 'llama-swap' | null;   // 'llama-swap': read through llama-swap's ready model server
   generation: number;                        // +1 on connection change, re-detection, or an LM Studio model state change
   choices: Array<{ id: string; label: string; runtime: RuntimeKind | null }>;   // ≤ 8
   detection: { basis: typeof DETECTION_BASES[number]; confidence: typeof CONFIDENCES[number]; probe?: typeof PROBES[number] };
@@ -275,7 +275,7 @@ const connection = (value: unknown): ConnectionV2 | null => {
   return defined({
     id, label: name, runtime: runtimeKind(item.runtime),
     version: typeof item.version === 'string' && /^[A-Za-z0-9._+-]{1,40}$/.test(item.version) ? item.version : undefined,
-    engine: item.engine === 'splash' ? 'splash' as const : undefined, host: item.host === 'bionic' ? 'bionic' as const : undefined,
+    engine: item.engine === 'splash' ? 'splash' as const : undefined, host: item.host === 'bionic' || item.host === 'llama-swap' ? item.host as 'bionic' | 'llama-swap' : undefined,
     generation, choices: list(item.choices, LIMITS.choices, choice),
     detection: defined({ basis: detectionBasis, confidence, probe: opt(oneOf(PROBES)(detection?.probe)) }),
   });
