@@ -15,10 +15,7 @@ first available reading in this order:
 3. A fresh runtime reading labeled **Engine**. This fallback covers activity on the selected engine and never silently
    becomes a chat measurement.
 
-Cloud chats use only the companion's delivery observations. A live **Chat · est.** includes network delivery and provider
-buffering, so it cannot be treated as the cloud engine's internal generation throughput. Remote observations require an
-observed primary HTTP request and exact chat/provider/model matching. The remote path makes no runtime, cloud API, or
-hardware requests and has no Engine fallback. Missing observations leave the activity and controls in place.
+Cloud chats receive a delivery estimate when the chat helper is qualified for the OpenCode runtime. The figure is labelled **Cloud · est.**, includes network and provider buffering, and is a separate measurement from the engine's native throughput; it never falls back to a local engine's reading, and a cloud step interrupted before completion yields no completed-step average. Unsupported or future runtimes disable the estimate and name the reason. Cloud chats make no runtime, cloud API, or hardware requests of their own. Local media monitoring remains available.
 
 When a chat output event arrives before the runtime's next poll, a previous prompt-reading rate cannot appear as
 generation or reasoning speed. Scope uses a valid chat estimate or waits for a compatible engine reading.
@@ -49,7 +46,8 @@ calibrates from character and reported-token totals across the latest ten compar
 **est.** in the displayed label. Observable reasoning counts toward delivery; tool payloads, title generation,
 compaction, and ambiguous output-token accounting do not.
 
-A **Last chat · avg.** uses reported output tokens divided by observed completed-step duration. That duration includes
+A **Last chat · avg.** (for a cloud chat, **Last cloud · avg.**) uses reported output tokens divided by observed
+completed-step duration. That duration includes
 waiting before delivery, so the result is neither a live delivery-window rate nor native engine throughput. Very short
 or ambiguous replies can finish without a rate. Tool use, cancellation, stream gaps, and identity changes reset live
 estimates. Expired, future, paused, and stale observations cannot appear live. The snapshot extension records scope,

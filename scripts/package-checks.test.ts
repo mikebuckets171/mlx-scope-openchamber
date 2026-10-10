@@ -29,7 +29,7 @@ describe('the 2.0 manifest (plan §6 with the G1/S2 amendments)', () => {
       'contributes.capabilities must be absent (S2: sessions dropped)',
       'contributes.statusSection must be {"entry":"panel/index.html","title":"MLX Scope","height":72}',
       'contributes.commands must be exactly [{"name":"scope","description":"Attach a private MLX Scope diagnostics summary"}]',
-      'service exec must be exactly the 10 G1 entries, in order',
+      'service exec must be exactly the 11 G1 entries, in order',
     ]);
   });
   test('ships the background entry and bundle, and the extracted tokens', () => {
@@ -62,8 +62,8 @@ describe('two-way exec match', () => {
 });
 
 describe('bundles and pages', () => {
-  test('service progress allowance preserves the panel and background ceilings', () => {
-    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 272_000, 'service/main.js': 210_000, 'background/main.js': 25_000 });
+  test('media feature allowance preserves finite ceilings and the background budget', () => {
+    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 312_000, 'service/main.js': 250_000, 'background/main.js': 25_000 });
   });
   test('the background page declares exactly the panel CSP', () => {
     const panel = cspOf(read('panel/index.html'));

@@ -80,7 +80,8 @@ test('extreme rates fit and retain their full accessible value; keyboard focus s
   await page.goto('/v2?surface=status&state=splash-extreme&theme=light');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-reading')).toHaveText('2.3M tok/s');
-  await expect(frame.locator('.ws-reading')).toHaveAttribute('aria-label', '2,340,000 tokens per second');
+  await expect(frame.locator('.ws-reading')).toHaveAttribute('aria-hidden', 'true');
+  await expect(frame.locator('.measurement-accessible')).toHaveText('2,340,000 tokens per second');
   expect(await frame.locator('.ws-measurement').ariaSnapshot()).toContain('2,340,000 tokens per second');
   const child = page.frames().find(frame => frame !== page.mainFrame())!;
   const backdrop = await page.evaluate(() => [getComputedStyle(document.documentElement).backgroundColor, getComputedStyle(document.body).backgroundColor]);
@@ -97,15 +98,18 @@ test('extreme rates fit and retain their full accessible value; keyboard focus s
 });
 
 test('oMLX progress takes precedence while reading and stale input clears the measurement', async ({ page }) => {
+  await page.clock.install();
   await page.goto('/v2?surface=status&state=prefill&theme=light');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-reading')).toHaveText('64%');
   await expect(frame.locator('.ws-measurement .ws-label')).toContainText('prompt');
   await expect(frame.locator('#ws')).not.toContainText('185');
   await page.evaluate(() => (window as any).setPreviewState('splash-prefill'));
+  await page.clock.runFor(6_000);
   await expect(frame.locator('.ws-reading')).toHaveText('612 tok/s');
   await expect(frame.locator('#ws')).not.toContainText('Unavailable');
   await page.evaluate(() => (window as any).setPreviewState('splash-stale'));
+  await page.clock.runFor(6_000);
   await expect(frame.locator('.ws-phase')).toHaveText('Waiting for update');
   await expect(frame.locator('.ws-measurement')).toHaveCount(0);
   await expect(frame.locator('#ws')).not.toContainText('Status stale');

@@ -1,5 +1,36 @@
 # Changelog
 
+## 3.2.1
+
+- Media: when a Qwen image job is correlated with a ComfyUI prompt that is already running while the image job still reports an earlier state, the job now shows ComfyUI's current lifecycle, phase and progress instead of the stale state. A finished or cancelling image job keeps its own state. The chat companion is unchanged (3.2.0).
+
+## 3.2.0
+
+- Restores cloud chat speed: the companion observes cloud delivery through the native OpenCode transport (qualified WebSocket handshake on OpenCode 2.0.25) and the panel presents it as **Cloud · est.** — network and provider buffering included; never the engine's native throughput, and never borrowed from or into local engine readings.
+- OpenCode SDK 2.0.4 floor: unsupported or future runtime generations disable cloud estimates with a one-line reason instead of deferring the whole feature.
+- A cloud step interrupted before completion yields no completed-step average; the gap is documented in COMPATIBILITY.md and covered by bridge unit tests.
+- Protocol smokes stage their isolated companion outside `node_modules` and canonicalize the temporary base, fixing silent plugin-loading and symlink refusals that left both smokes unusable; the WebSocket smoke now passes end-to-end against the real runtime binary.
+- One column of truth: the page reads This chat and its engine, then Media only while it has jobs; History, Captures and Server & Mac details are secondary views reached from the column's foot, each with Back. The Live/Media/History tabs are gone.
+- The instrument never goes dark: while a prompt is read without reported progress or rate, or a reply waits for its first output, the hero holds this reply's elapsed time (the engine's own request clock when reported, otherwise the observed turn start). The previous completed average stays below a live local reading, dimmed and labelled. Nothing is simulated.
+- Truth-locked motion: blocks fade in once on arrival, the mark beats once per fresh measurement (keyed to the reading's own sample time), changed phases and labels crossfade, and a reading that stops being live fades to its held colour. Nothing loops; hidden or paused views and Reduce Motion animate nothing.
+- Media rings no longer display a number; the phase percentage is text beside the ring. Rings draw in on arrival, ease between reported values, drain on cancellation and never spin; indeterminate work shows a still, dotted track.
+- Media jobs can show a finish time as clock time ("finishes around H:MM", "finishes any moment"), measured from at least two producer-timestamped reports of the current phase and only when the source declares that phase final (feed producers via `finalPhase`); it is held as "last estimate" when stale and becomes "finished H:MM" at completion. ComfyUI, Qwen image and local video declare no final phase, so they show no estimate rather than a guess.
+- A reply whose step announcement is lost while tracking starts (demand arriving as the reply begins) is still observed: the qualified dispatch seeds the observation of its own call, never of an earlier or later one, and without the announcement it reports no completed-step average and trains no calibration.
+- Guided updates replace each changed companion file by rename in place, the change OpenCode 2.0.25 reloads on; unchanged files are untouched. Setup offers the update whenever the installed files differ from the bundle, even at the same package version, and finishes an interrupted update instead of reporting it as a user edit.
+- The companion reports once in the OpenCode log when it ignores a demand file that is not private to the account, instead of looking exactly like no demand.
+- Chat locality follows the provider's declared loopback endpoint, including key-free providers and providers beyond the eight-entry connection list.
+- Local engine measurements, history records, captures and media monitoring keep their data and measurement semantics; only their presentation changed.
+
+### Also new since 3.0.0 (the 3.1 candidate was not released separately)
+
+- Unified Connections explains detected sources and provides managed chat/media tracking setup with explicit readiness.
+- Optional Media monitoring shows current-chat jobs first, phase-local measured progress, waiting states, freshness and exact supported cancellation.
+- Circular media indicators show measured phase percentages, retain a clearly labelled last report when telemetry ages, and stop motion on stale or hidden views.
+- ComfyUI supports basic lifecycle monitoring and an optional passive progress helper; local-video, Qwen image and private telemetry feeds have separate adapters.
+- Primary live numbers use short changed-digit transitions with stable layout, fresh-data gating and Reduce Motion support.
+- Existing LLM measurements, history and captures remain compatible.
+- Chat setup distinguishes an outdated helper from a loaded update. Cancellation and lifecycle boundaries discard unused transport proof before another reply can inherit it.
+
 ## 3.0.0
 
 - A fresh activity-first interface keeps one relevant measurement in a stable position, with Open MLX Scope in the sidebar.

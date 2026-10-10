@@ -1,11 +1,29 @@
 import type { HostClient } from '@openchamber/sdk';
 import { RUNTIMES, runtimeKind as runtimeValue, runtimeNames, type RuntimeKind } from '../src/contract/runtime.ts';
+import { isConnectionId, label, obj } from '../src/contract/guards.ts';
+import { unavailableForHostError } from './host-errors.ts';
 import type { Choice, Link } from './present/reading.ts';
+
+export const parseConnections = (value: unknown): { state: 'ready' | 'unavailable'; choices: Choice[] } | null => {
+  const raw = obj(value);
+  if (raw?.schemaVersion !== 1 || !['ready', 'unavailable'].includes(String(raw.state)) || !Array.isArray(raw.choices) || raw.choices.length > 8) return null;
+  const choices: Choice[] = [];
+  for (const value of raw.choices) {
+    const choice = obj(value), name = label(choice?.label, 120), runtime = runtimeValue(choice?.runtime);
+    if (!choice || !isConnectionId(choice.id) || !name || choice.runtime !== null && !runtime) return null;
+    choices.push({ id: choice.id, label: name, runtime });
+  }
+  return { state: raw.state as 'ready' | 'unavailable', choices };
+};
 
 const STORAGE_KEY = 'connection.selection';
 /** The saved choice (1.6 shape, kept): an empty provider is Automatic, a null runtime is automatic detection. */
 export type RuntimeSelection = { provider: string; runtime: RuntimeKind | null };
-export const connectionsMarkup = `<section id="connection-setup" class="connection-setup" aria-labelledby="connection-setup-title" hidden><div class="section-heading"><h2 id="connection-setup-title">Monitor a local server</h2><button id="connection-close" type="button" aria-label="Close connection setup">Close</button></div><p class="insight-note">Uses existing local OpenCode connections. This only changes what MLX Scope observes.</p><div id="connection-fields"><label for="connection-provider">Connection</label><select id="connection-provider"><option value="">Automatic</option></select><label for="connection-runtime">Server type</label><select id="connection-runtime"><option value="">Automatic detection</option>${RUNTIMES.map(runtime => `<option value="${runtime}">${runtimeNames[runtime]}</option>`).join('')}</select><p id="connection-choice-note" class="insight-note">Choose a configured connection, or keep automatic detection.</p><div class="insight-actions"><button id="connection-apply" type="button">Use connection</button></div></div><p class="insight-note">Set up server addresses and keys in OpenCode. Scope uses those settings.</p></section>`;
+export const connectionsMarkup = `<section id="connection-setup" class="connection-setup" aria-labelledby="connection-setup-title" hidden><div class="section-heading"><h2 id="connection-setup-title" tabindex="-1">Connections</h2><button id="connection-close" type="button" aria-label="Close connections">Close</button></div><p class="insight-note">Scope follows this chat automatically and observes your existing local tools.</p>
+<section class="setup-group" aria-labelledby="runtime-setup-title"><h3 id="runtime-setup-title">Local model servers</h3><p id="connection-choice-note" class="insight-note">Looking for your configured local connections…</p><details id="runtime-connection-details"><summary>Choose a whole-engine connection</summary><div id="connection-fields"><label for="connection-provider">Connection</label><select id="connection-provider"><option value="">Automatic</option></select><label for="connection-runtime">Server type</label><select id="connection-runtime"><option value="">Automatic detection</option>${RUNTIMES.map(runtime => `<option value="${runtime}">${runtimeNames[runtime]}</option>`).join('')}</select><div class="insight-actions"><button id="connection-apply" type="button">Use connection</button></div></div><p class="insight-note">Scope uses server addresses and credentials already configured in OpenCode.</p></details></section>
+<section class="setup-group" id="companion-details" aria-labelledby="companion-title"><h3 id="companion-title" tabindex="-1">Chat speed</h3><div id="companion-setup"></div></section>
+<section class="setup-group" aria-labelledby="media-setup-title"><h3 id="media-setup-title">Images &amp; video</h3><div id="media-setup"></div></section>
+<details class="connection-help" id="connection-help"><summary>Advanced &amp; diagnostics</summary><p id="connection-result" role="status">Check MLX Scope’s connection to OpenChamber.</p><div class="insight-actions"><button id="check-connection" type="button">Check MLX Scope</button><button id="connection-guide" type="button">Setup guide</button></div><div id="media-advanced"></div></details></section>`;
 
 /** Omit the runtime suffix when the label already names it, and never tag a Bionic provider as "LM Studio". */
 export const choiceLabel = (choice: Pick<Choice, 'label' | 'runtime'>): string => {
@@ -40,12 +58,18 @@ export const readSelection = async (storage: HostClient['storage']): Promise<Rec
 export class ConnectionsView {
   selection: RuntimeSelection = {provider:'', runtime:null};
   private choices: Choice[] = [];
+  private metadata: 'ready' | 'unavailable' | null = null;
+  private inspecting: Promise<void> | null = null;
+  private disposed = false;
   private revision = 0;
   private pending: Promise<void> = Promise.resolve();
   private readonly provider: HTMLSelectElement;
   private readonly runtime: HTMLSelectElement;
   private readonly setup: HTMLElement;
   private readonly trigger: HTMLButtonElement;
+  onOpen: () => void = () => {};
+  onVisibility: (open: boolean) => void = () => {};
+  get isOpen(): boolean { return !this.setup.hidden; }
   constructor(private readonly root: HTMLElement, private readonly storage: HostClient['storage'],
     private readonly change: () => void, private readonly status: (message: string) => void) {
     this.provider = this.node('connection-provider') as HTMLSelectElement;
@@ -108,14 +132,36 @@ export class ConnectionsView {
   }
   update(info: Pick<Link, 'choices'> | null): void {
     if (!info) return;
-    if (JSON.stringify(info.choices) !== JSON.stringify(this.choices)) {
-      this.choices = info.choices;
-      this.paintChoices();
+    // A chat-only response intentionally omits local choices; it cannot erase discovered configuration.
+    if ((info.choices.length || this.metadata === null) && JSON.stringify(info.choices) !== JSON.stringify(this.choices)) {
+      this.choices = info.choices; this.paintChoices();
     }
-    this.node('connection-choice-note').textContent = info.choices.length
-      ? 'Automatic detection recognises oMLX, Bionic and LM Studio (including Splash models), standalone Splash, llama-server, Ollama, mlx-lm, and vllm-mlx. Using Splash in Bionic? Keep Automatic.'
-      : 'No local connection was found. Add a local provider in OpenCode, then refresh MLX Scope. The setup guide lists supported configuration.';
+    this.describe();
   }
+  private describe(): void {
+    this.node('connection-choice-note').textContent = this.metadata === 'unavailable'
+      ? 'Local connection discovery is unavailable. Check Scope’s service under Advanced, then reopen Connections.'
+      : this.choices.length ? `${this.choices.length} local ${this.choices.length === 1 ? 'connection' : 'connections'} found. This chat chooses its matching server automatically.`
+      : this.metadata === 'ready' ? 'No local model server was found in your OpenCode configuration. Cloud chat speed and media tools work independently.'
+      : 'Scope follows this chat. Checking which local servers are configured…';
+  }
+  refresh(host: Pick<HostClient, 'serviceRequest'>): Promise<void> {
+    if (this.inspecting) return this.inspecting;
+    this.inspecting = (async () => {
+      try {
+        const response = await host.serviceRequest({ method: 'GET', path: '/v2/connections' });
+        if (this.disposed) return;
+        const value = response.status === 200 ? parseConnections(JSON.parse(response.body)) : null;
+        if (!value) { this.metadata = 'unavailable'; this.describe(); return; }
+        this.metadata = value.state;
+        if (value.state === 'ready') { this.choices = value.choices; this.paintChoices(); }
+        this.describe();
+      } catch (error) { if (!this.disposed) { this.metadata = 'unavailable'; this.node('connection-choice-note').textContent = unavailableForHostError(error).message; } }
+      finally { this.inspecting = null; }
+    })();
+    return this.inspecting;
+  }
+  dispose(): void { this.disposed = true; }
   private paintChoices(): void {
     const selected = this.setup.hidden ? this.selection.provider : this.provider.value;
     const entries = [{id:'',label:'Automatic',runtime:null}, ...this.choices];
@@ -131,10 +177,11 @@ export class ConnectionsView {
     if (open) {
       this.paintChoices(); this.provider.value = this.selection.provider;
       this.runtime.value = this.selection.runtime ?? '';
+      this.onOpen();
     }
-    this.setup.hidden = !open; this.trigger.setAttribute('aria-expanded', String(open));
+    this.setup.hidden = !open; this.onVisibility(open); this.trigger.setAttribute('aria-expanded', String(open));
     // The trigger lives in the ⋯ menu, which closes once an action is chosen; return focus to the menu button then.
     const visibleTrigger = this.trigger.checkVisibility() ? this.trigger : this.root.querySelector<HTMLElement>('#monitor-menu > summary') ?? this.trigger;
-    if (focus) (open ? this.provider : visibleTrigger).focus({preventScroll:true});
+    if (focus) (open ? this.node('connection-setup-title') : visibleTrigger).focus({preventScroll:true});
   }
 }

@@ -9,7 +9,7 @@ share it yourself: Copy, Add to chat draft, Copy baseline summary, or a `/scope`
 The service reads the configuration and credential sources listed in [Configuration](docs/CONFIGURATION.md), including
 referenced credential files and environment variables. It never reads OpenChamber's own settings file. Credentials and
 raw API responses stay service-side. The views receive allowlisted measurements, bounded model labels, and connection
-choices. They do not receive prompts, completions, credentials, request identifiers or process IDs. Absolute model
+choices. They do not receive prompts, completions, credentials, LLM request identifiers or process IDs. Media views additionally receive bounded backend job IDs and hashed ownership matching identifiers. Absolute model
 paths are reduced to names before display. Monitoring does not rewrite configuration. The optional companion setup
 changes OpenCode configuration only after an explicit Enable or Disable action, preserving other plugins and comments.
 
@@ -47,9 +47,9 @@ For chat delivery estimates, the companion subscribes to OpenCode 2.0.25's suppo
 visible Scope view requests them. Text and observable reasoning deltas are counted transiently in memory; their
 content is never written, logged, or sent to Scope. Tool payloads, title generation, compaction, and ambiguous usage
 accounting are excluded. Calibration keeps at most ten comparable character/token totals in memory, never content.
-The same observer can count cloud replies already streamed through OpenCode. Scope makes no cloud API requests and
-needs no additional cloud credentials. Primary-request metadata is inspected only to classify the destination and hash
-its origin; the URL, query parameters, headers and request body are never persisted by chat delivery monitoring. The
+Cloud speed tracking is disabled in 3.1. Cloud views do not request chat observations. Primary transport metadata is
+used to match a watched local session and model; unrelated requests are ignored. The URL, query parameters, headers
+and request body are never persisted by chat delivery monitoring. WebSocket frames and headers are not inspected. The
 existing Splash prompt-progress observer remains restricted to its configured loopback endpoint.
 
 Private `~/.cache/mlx-scope/chat-telemetry/` files contain bounded counters, timing, freshness, protocol versions and
@@ -180,3 +180,11 @@ installation and extension management belong to OpenChamber.
 
 Review screenshots and copied reports before sharing. Never attach auth files, raw server responses, or private
 conversations to a public issue.
+
+## Optional media monitoring
+
+Media adapters read existing local job APIs or bounded files only while a relevant Scope view is visible. Raw backend records may contain prompts and file paths; the service selects only job identifiers, a neutral job name, type, lifecycle/phase, measured counters and units, times, freshness and supported control capabilities. It does not forward prompts, references, previews, output files, raw errors or credentials. Ownership is correlated with hashed matching identifiers; hashes are not anonymization. Media data never enters LLM history or exported diagnostics.
+
+The optional ComfyUI helper answers a token-authenticated loopback GET on the existing ComfyUI server. It snapshots bounded existing progress state without a watcher, WebSocket takeover, telemetry file, model call or workflow change. Its managed token and ownership receipt are private local files. Source configuration lives in `~/.config/mlx-scope/media.json`; secrets remain server-side. Setup changes occur only after a deliberate action and preserve unrelated configuration.
+
+Cancellation is a separate explicit action directed at one observed job through its supported owner. Scope does not perform broad process kills, global interrupts or automatic retries. Existing completion notifications are unaffected.

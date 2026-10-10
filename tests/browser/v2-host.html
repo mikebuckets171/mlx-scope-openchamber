@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>MLX Scope · 2.0 fixture host</title><style>html,body{margin:0;background:#10151b;font:11px -apple-system,sans-serif}aside{height:24px;display:grid;place-items:center;background:#203044;color:#c4d6e9}iframe{display:block;width:100%;height:calc(100vh - 24px);border:0}iframe.status{width:280px;height:120px;margin:0}</style></head>
-<body><aside>2.0 fixture host · approved mock states · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script src="/v2-states.js"></script><script>
+<body><aside>2.0 fixture host · approved mock states · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script src="/v2-states.js"></script><script src="/media-fixtures.js"></script><script>
 // Emulates OpenChamber 2.0.4 for the 2.0 panel: surfaces panel/page/status, setHeight (clamped 24–320 on status),
 // setBadge and toast recorders, whole-namespace storage in sessionStorage, the session feed, and `/v2/snapshot` answered
 // from the G2 mock's v2 states with the `since` cursor honoured. Bodies are sent as strings, like the real host (S1).
@@ -142,6 +142,13 @@ window.addEventListener('message', event => {
   }
   if (m.type === 'prompt' || m.type === 'generate' || m.type === 'start-session') { window.previewUnexpectedSends += 1; return; }
   if (m.type !== 'service-request') return;
+  window.previewAllRequests = (window.previewAllRequests || 0) + 1;
+  const auxiliary = window.ScopeMediaFixtures?.respond(m);
+  if (auxiliary) {
+    if (window.previewHold || (m.payload.path === '/v2/media' && window.previewMediaHold)) return;
+    if (window.previewError || window.previewTransportError || state === 'needs-approval') { post({type:'result',id:m.id,ok:false,code:window.previewError || window.previewTransportError || 'NO_SERVICE',error:'Fixture host unavailable'}); return; }
+    post({type:'result',id:m.id,ok:true,payload:auxiliary}); return;
+  }
   const query = m.payload.query || {};
   window.previewQueries.push(query); window.previewRequests += 1;
   if (window.previewHold) return;

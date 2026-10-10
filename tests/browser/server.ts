@@ -20,6 +20,9 @@ const converter = await convert.outputs[0].text();
 const states = await Bun.build({ entrypoints: [join(import.meta.dir, 'v2-states-entry.ts')], format: 'iife', target: 'browser' });
 if (!states.success || !states.outputs[0]) throw new AggregateError(states.logs, 'Could not bundle the mock states for the 2.0 fixture host.');
 const statesScript = await states.outputs[0].text();
+const media = await Bun.build({ entrypoints: [join(import.meta.dir, 'media-fixtures.ts')], format: 'iife', target: 'browser' });
+if (!media.success || !media.outputs[0]) throw new AggregateError(media.logs, 'Could not bundle media fixtures.');
+const mediaScript = await media.outputs[0].text();
 // History's isolated fixtures use the same complete stylesheet as the product.
 const history = await Bun.build({ entrypoints: [join(import.meta.dir, 'history-entry.ts')], format: 'iife', target: 'browser' });
 if (!history.success || !history.outputs[0]) throw new AggregateError(history.logs, 'Could not bundle the History preview.');
@@ -28,6 +31,7 @@ const server = Bun.serve({
   hostname: '127.0.0.1', port,
   fetch(request) {
     const pathname = new URL(request.url).pathname;
+    if (pathname === '/media-fixtures.js') return new Response(mediaScript, { headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/javascript; charset=utf-8' } });
     if (pathname === '/convert-v1.js') return new Response(converter, { headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/javascript; charset=utf-8' } });
     if (pathname === '/v2-states.js') return new Response(statesScript, { headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/javascript; charset=utf-8' } });
     if (pathname === '/history.js') return new Response(historyScript, { headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/javascript; charset=utf-8' } });

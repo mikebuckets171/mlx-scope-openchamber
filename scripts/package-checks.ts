@@ -1,16 +1,19 @@
 // Pure checks behind scripts/verify-package.ts (plan §6 and §8.1), unit-tested in package-checks.test.ts.
 
-/** The G1 exec freeze (SPIKES "Frozen permission set"): exactly these ten, in this order. */
+/** Approved runtime probes plus the optional, exact job-scoped local-video cancellation command. */
 export const EXEC_G1 = [
   '/usr/bin/vm_stat', '/usr/sbin/sysctl', '/usr/sbin/ioreg', '/usr/bin/notifyutil', '/usr/sbin/lsof', '/usr/bin/footprint',
   '~/.lmstudio/bin/lms', '~/.cache/lm-studio/bin/lms', '/opt/homebrew/bin/macmon', '/usr/local/bin/macmon',
+  '~/.config/opencode/bin/local-video',
 ] as const;
 /** Bytes, 1 KB = 1,000 (the stricter reading of plan §6). */
 // The theme-native layout and Session widget allow 2 KB above the original 2.0 view budget; probes stay unchanged.
 // 3.0 adds selected-chat matching/setup UI, bounded companion transport and reversible JSONC setup;
 // no new dependencies or executables. Allow 8 KB more guest code and 30 KB more service code.
+// 3.1 adds bounded media adapters, reversible helper setup, Media/Connections views and digit motion.
+// The measured candidate adds about 27 KB of guest code and 30 KB of service code, with no new dependencies.
 // Bundle size is a packaging ceiling, distinct from the unchanged CPU/RSS acceptance budgets.
-export const BUNDLE_CEILINGS = { 'panel/main.js': 272_000, 'service/main.js': 210_000, 'background/main.js': 25_000 } as const;
+export const BUNDLE_CEILINGS = { 'panel/main.js': 312_000, 'service/main.js': 250_000, 'background/main.js': 25_000 } as const;
 export const GUEST_BUNDLES = ['panel/main.js', 'background/main.js'] as const;
 export const COMMAND = { name: 'scope', description: 'Attach a private MLX Scope diagnostics summary' } as const;
 export const STATUS_SECTION = { entry: 'panel/index.html', title: 'MLX Scope', height: 72 } as const;

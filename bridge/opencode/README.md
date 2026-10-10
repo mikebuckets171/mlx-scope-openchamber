@@ -1,12 +1,18 @@
 # Optional OpenCode companion
 
-The 3.0 companion adds demand-gated chat delivery observations on **OpenCode 2.0.25** and retains the existing Splash prompt-progress observer. Unsupported OpenCode versions disable chat estimates while native runtime monitoring remains available. The plugin ID remains `mlx-scope-prompt-progress` to update existing installations in place.
+The 3.2 companion observes demand-gated HTTP and WebSocket chat delivery on **OpenCode 2.0.25**, for local and cloud
+chats alike, and retains the existing Splash prompt-progress observer. Unsupported OpenCode versions disable chat
+estimates while native runtime monitoring remains available. The plugin ID remains `mlx-scope-prompt-progress` to
+update existing installations in place.
+
+**3.2 scope:** local and cloud chat delivery. A cloud reading is delivery observed through OpenCode, including network
+and provider buffering; it is never engine throughput, and a cloud chat never borrows a local engine measurement.
 
 The Splash observer enables Splash's `return_progress` option on existing streaming requests. It observes the same HTTP response, without changing the model route, starting a proxy, or submitting a prompt. Scope can then show **Prompt progress** from `processed / total`; the completed portion includes cached prompt tokens. Native oMLX metrics do not require the companion.
 
-Chat delivery estimates can observe proven loopback providers, including oMLX, and cloud replies using the supported
-OpenCode event protocol. They measure delivery through OpenCode, including network buffering, rather than remote engine
-internals. Cloud observation never adds an API request or changes a provider's request or response.
+Chat delivery estimates support proven loopback providers, including oMLX, using the supported
+OpenCode event protocol. They measure delivery through OpenCode, including network buffering, rather than native engine
+throughput. It adds no inference requests.
 
 Add this directory to OpenCode's existing `plugins` list; keep the other entries:
 
@@ -70,11 +76,13 @@ Run `node --test bridge/opencode/*.test.js` from the repository root. Tests cove
 Primary Splash 1.3 evidence: installed `server/server.py` validates `return_progress` with `stream: true` (lines 141–149) and emits `prompt_progress` SSE (lines 1381–1391); `server/backend.py` constructs `{total, cache, processed, time_ms}` from the engine progress event (lines 716–725). `server/runtime.py` validates monotonic progress inside prefill (lines 262–280).
 
 
-## Chat delivery telemetry (3.0)
+## Chat delivery telemetry (3.2)
 
-Use Scope's deliberate Enable action to install the bundled companion at the stable global `addons/mlx-scope-prompt-progress` directory, retaining existing plugins and JSONC comments. The optional `promptProgress: false` setting disables Splash HTTP modification without disabling chat observation. Setup must never restart a running inference session automatically. The current stream cannot be recovered retroactively when monitoring becomes visible midway through a reply. A local chat can use its labeled engine fallback until a newly observed primary step; a cloud chat waits without an engine fallback.
+Use Scope's deliberate Enable action to install the bundled companion at the stable global `addons/mlx-scope-prompt-progress` directory, retaining existing plugins and JSONC comments. Managed updates stage each changed file beside its target and rename it into place; unchanged files and the directory itself are left alone. OpenCode 2.0.25 reloads a plugin when a loaded file is replaced by rename, not after an in-place write. The entry's owned `options.scopeRevision` fingerprint changes with the files and keeps the old and new generations' process state apart. Status compares the installed file fingerprints with the bundle, so an update is offered even when the package version is unchanged. Repeating Enable with an unchanged bundle writes nothing. The optional `promptProgress: false` setting disables Splash HTTP modification without disabling chat observation. Setup must never restart a running inference session automatically. The current stream cannot be recovered retroactively when monitoring becomes visible midway through a reply. A local chat can use its labeled engine fallback until a newly observed primary step. A cloud chat is observed only while Scope's selected-chat view requests remote demand; its estimate includes network and buffering and is never engine throughput.
 
-The observer uses the supported `ctx.event.subscribe({ signal })` API, with one subscription and one demand-file poll per process across loaded plugin locations. The event subscription exists only while at least one matching visible Scope view has a valid lease. Its `http.request` hook reads only primary POST request metadata to corroborate an HTTP(S) destination before counting a step. Local targets require a literal loopback origin; remote targets require an observed non-loopback origin. It never changes those requests. The separate existing Splash HTTP observer still only adds `return_progress` for its explicitly configured provider.
+The observer uses the supported `ctx.event.subscribe({ signal })` API. OpenCode events are Location-scoped, so instances at the same directory/workspace share one subscription; distinct locations have separate subscriptions, bounded to sixteen active locations. They share one process-wide demand-file poll and telemetry writer. Subscriptions exist only while at least one matching visible Scope view has a valid lease.
+
+The `http.request` hook reads primary POST request metadata. The qualified `experimental.ws.handshake` hook reads primary session/model/destination metadata on every model call, including cached WebSocket reuse. It does not read or change headers, socket frames, requests, responses, or the socket. This covers OpenCode 2.0.25's default OpenAI WebSocket transport. Local targets require a literal loopback origin; remote targets require an observed non-loopback origin. Each step needs its own corroborated destination. A primary dispatch refreshes demand before authorizing observation, so the first reply does not depend on the periodic poll's timing. The dispatch also seeds the observation of its own call: a `session.step.started` lost while a subscription restarts (demand arriving as a reply begins) cannot hide that reply, and a step announcement that does arrive upgrades it to a full step. A dispatch-seeded observation binds to the first reply published after the dispatch, ignores everything published before it, proves no later step, and without its step announcement reports no completed-step average and trains no calibration. The separate existing Splash HTTP observer still only adds `return_progress` for its explicitly configured provider.
 
 Protocol qualification is exact for **2.0.25**. The released schema uses `session.step.started`, `session.step.streamed`, `session.step.ended`, `session.text.*`, `session.reasoning.*`, `session.tool.*`, and `session.execution.*`, with the envelope's numeric `created` timestamp and ordinal text/reasoning parts. These are different from old `session.next.*` events; old payloads are not interpreted as current telemetry. Public primary sources inspected for this implementation:
 
@@ -82,8 +90,10 @@ Protocol qualification is exact for **2.0.25**. The released schema uses `sessio
 - [2.0.25 public session-event schema](https://github.com/anomalyco/opencode/blob/v2.0.25/packages/schema/src/session-event.ts)
 - [2.0.25 event envelope](https://github.com/anomalyco/opencode/blob/v2.0.25/packages/schema/src/event.ts)
 - [2.0.25 token usage normalization](https://github.com/anomalyco/opencode/blob/v2.0.25/packages/core/src/session/usage.ts)
+- [2.0.25 native request hooks](https://github.com/anomalyco/opencode/blob/v2.0.25/packages/core/src/session/model-request.ts)
+- [2.0.25 WebSocket transport and connection reuse](https://github.com/anomalyco/opencode/blob/v2.0.25/packages/core/src/session/model-transport.ts)
 
-Live estimates count Unicode code points from observable text and reasoning deltas over a rolling five-second interval, requiring two seconds of observation. They begin at four characters per token. After three eligible steps, calibration uses the summed characters and reported tokens from the latest ten comparable steps for the same provider, model, and endpoint. It stays an estimate. Calibration requires complete observed parts, a streamed response boundary, unambiguous separate visible-output/reasoning counts, and no tool activity or missed/gapped output. Reasoning tokens without observable reasoning, tool payloads, title generation, compaction, auxiliary generation, replayed frames, and incompatible lifecycle events cannot train calibration. Calibration is bounded and lives only in process memory.
+Live estimates count Unicode code points from observable text and reasoning deltas over a rolling five-second interval, requiring two seconds of observation. They begin at four characters per token. After three eligible steps, calibration uses the summed characters and reported tokens from the latest ten comparable steps for the same provider, model, and endpoint. HTTP(S) and WS(S) origins have separate calibration. It stays an estimate. Calibration requires complete observed parts, a streamed response boundary, unambiguous separate visible-output/reasoning counts, and no tool activity or missed/gapped output. Reasoning tokens without observable reasoning, tool payloads, title generation, compaction, auxiliary generation, replayed frames, and incompatible lifecycle events cannot train calibration. Calibration is bounded and lives only in process memory.
 
 Completed-step averages use reported output plus reasoning tokens over dispatch-to-streamed time, including prompt processing. They are labeled `reported-output` / `completed-step`, never native engine decode speed. Short completed steps may therefore have a final average even when their live stream never met the two-second minimum. Cancellation immediately removes live speed; a five-second gap clears the rolling window. A completed last reading expires after fifteen seconds.
 
@@ -103,12 +113,12 @@ type ChatDemand = {
 };
 ```
 
-Only matching watched sessions are tracked. Hashes use the existing key scheme above, adding kind `provider` / exact provider ID. The companion checks demand once per second. On expiration it aborts its subscription, clears observations and route proofs, and removes its writer file. No event sampling or telemetry writes continue while hidden. One fixed startup heartbeat is written to `heartbeat.json`:
+Only matching watched sessions are tracked. A demand file that is not private to the account, not a regular file, or oversized is ignored exactly like absent demand; the companion says so once in the OpenCode log, without paths or contents. Hashes use the existing key scheme above, adding kind `provider` / exact provider ID. The companion checks demand once per second. On expiration it aborts all event subscriptions, clears observations and route proofs, and removes its writer file. No event sampling or telemetry writes continue while hidden. One fixed startup heartbeat is written to `heartbeat.json`:
 
 ```ts
 type CompanionHeartbeat = {
   schemaVersion: 1;
-  companionVersion: '3.0.0';
+  companionVersion: '3.2.0';
   protocol: 'opencode-2.0.25' | 'unsupported';
   runtimeVersion: string;
   loadedAtMs: number;
@@ -126,7 +136,7 @@ Each process also owns `<writerUUID>.json`, updated at most every 200 ms during 
 type ChatTelemetryFile = {
   schemaVersion: 1;
   writerID: string;
-  companionVersion: '3.0.0';
+  companionVersion: '3.2.0';
   protocol: 'opencode-2.0.25';
   runtimeVersion: '2.0.25';
   updatedAtMs: number;
@@ -152,9 +162,11 @@ type ChatTelemetryFile = {
 
 Only `generating`/`reasoning` may carry a live rate; `complete` may carry a last completed-step average. Quiet/cancelled states have no rate. Readers must reject symlinks, wrong owners/permissions, future/expired documents, unsupported protocols, excessive entries, and files larger than 64 KiB; scan at most 256 directory entries and accept at most sixteen fresh valid writers, ignoring expired crash remnants. Local readings require exactly one matching session/provider/model and configured endpoint, with no remote classification. Remote readings require exactly one matching session/provider/model and remote classification with a valid observed endpoint hash. Multiple matching endpoints or writers are ambiguous and produce no reading. Calibration remains specific to the observed endpoint. Use each observation's own expiry rather than the writer expiry to decide freshness. Matching hashes are local transport metadata and must never enter exported diagnostics. Conversation text, reasoning, tool content, credentials, raw model/session identifiers, and provider URLs are never written by chat telemetry.
 
-Tests cover the released event shapes, minimum window, bounded rolling samples, Unicode splits, concurrent selected chats, gaps, cancellation, retries, tool exclusions, completion timing, calibration eligibility/limits, demand expiry, shared subscriptions, unsupported versions, private files, and prompt-progress opt-out. The existing Splash byte-preservation and backpressure tests remain unchanged.
+Tests cover the released event shapes, minimum window, bounded rolling samples, Unicode splits, concurrent selected chats in separate locations, first-dispatch demand, HTTP/WebSocket matching, gaps, cancellation before and after step announcement, retries, tool exclusions, completion timing, calibration eligibility/limits, demand expiry, shared subscriptions, unsupported versions, private files, and prompt-progress opt-out. The existing Splash byte-preservation and backpressure tests remain unchanged.
 
 
 To qualify the actual released runtime with a local synthetic SSE provider, run `node bridge/opencode/protocol-smoke.mjs /absolute/path/to/opencode`. Add `--remote` to exercise remote destination matching. In that mode the production observer sees a synthetic non-loopback `.invalid` URL before a test-only supported HTTP hook routes the request to the loopback receiver. Neither mode contacts a cloud provider. This optional smoke test uses isolated configuration/data/cache directories, submits four fixture replies only to its own loopback server, verifies exact matching, three-step calibration and completed-step averages, verifies hidden writes stop, and removes its test processes/data. It does not use a real model or change the live OpenCode installation.
 
-For isolated companion overhead, run `node bridge/opencode/overhead.mjs /absolute/evidence/directory`. It compares three alternating enabled/disabled pairs with four concurrent synthetic chats, reports process CPU/RSS and file/subscription bounds, and checks that demand expiry stops event delivery and telemetry writes. These measurements include the companion's Node harness, not the entire OpenCode process or real inference. The separate `scripts/measure-chat-overhead.mjs` probe measures service reads and demand writes against one fresh private fixture. Neither short probe establishes real-inference slowdown or long-duration stability. The [3.0 release receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/3.0/RELEASE.md) records those qualification limits and the maintainer's soak waiver.
+Run `node bridge/opencode/protocol-ws-smoke.mjs /absolute/path/to/opencode` to qualify the released OpenAI default WebSocket path. A test-only routing hook sends synthetic calls to its own loopback socket. It verifies one cached connection, per-call metadata, continuation after a native read tool, live estimates, calibration, completion and hidden shutdown. It makes no real model or cloud request and leaves the live configuration unchanged.
+
+For isolated companion overhead, run `node bridge/opencode/overhead.mjs /absolute/evidence/directory`. It compares three alternating enabled/disabled pairs with four concurrent synthetic chats in two distinct locations, reports process CPU/RSS and file/subscription bounds, and checks that demand expiry stops event delivery and telemetry writes. These measurements include the companion's Node harness, not the entire OpenCode process or real inference. The separate `scripts/measure-chat-overhead.mjs` probe measures service reads and demand writes against one fresh private fixture. Neither short probe establishes real-inference slowdown or long-duration stability.

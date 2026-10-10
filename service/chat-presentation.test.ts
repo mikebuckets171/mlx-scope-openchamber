@@ -10,6 +10,7 @@ import type { RuntimeConnectionConfig } from './config.ts';
 import type { DescriptorV2 } from './core/adapter-v2.ts';
 import { RuntimeClient } from './runtime-client.ts';
 import { createScopeServer } from './server.ts';
+import { version as companionVersion } from '../bridge/opencode/package.json';
 
 test('fresh chat followers retain speed across five-second expiry boundaries without duplicate collections or hidden work', async () => {
   const start = 1_790_690_700_000;
@@ -38,7 +39,7 @@ test('fresh chat followers retain speed across five-second expiry boundaries wit
     observedAtMs: now, expiresAtMs: now + 5_000, observation: { startedAtMs: now - 3_000, endedAtMs: now }, freshness: 'live' });
   const writer = '00000000-2222-4333-8444-555555555555';
   const publish = async (phase: ChatMeasurement['phase'] = 'generating') => writeFile(join(directory, `${writer}.json`), JSON.stringify({
-    schemaVersion: 1, writerID: writer, companionVersion: '3.0.0', protocol: 'opencode-2.0.25', runtimeVersion: '2.0.25',
+    schemaVersion: 1, writerID: writer, companionVersion, protocol: 'opencode-2.0.25', runtimeVersion: '2.0.25',
     updatedAtMs: now, expiresAtMs: now + 15_000, entries: targets.map(target => ({ ...target, measurement: measurement(phase) })),
   }), { mode: 0o600 });
   const server = createScopeServer('test-token', {

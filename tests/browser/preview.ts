@@ -1,5 +1,11 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 
+
+// 3.2 has one column and secondary views with Back; these replace the 3.1 Live/History tabs.
+const toColumn = async (frame: FrameLocator): Promise<void> => {
+  for (const name of ['Back to History', 'Back']) { const back = frame.getByRole('button', { name, exact: true }); if (await back.isVisible()) await back.click(); }
+};
+const toHistory = async (frame: FrameLocator): Promise<void> => { await toColumn(frame); await frame.getByRole('button', { name: 'History', exact: true }).click(); };
 // The 2.0 panel on the synthetic 1.x host (tests/browser/host.html, bodies converted by the real v1 → v2 bridge):
 // startup and transport, visibility and pause, stalls, preferences, sharing, connection help and theme changes. The G2
 // mock states themselves are in ui-core.spec.ts on the 2.0 fixture host.
@@ -89,7 +95,7 @@ test('relay srcdoc transport renders packaged assets, follows theme changes and 
   await expect(frame.locator('html')).toHaveCSS('background-color', 'rgb(16, 21, 27)');
   await page.evaluate(() => (window as W).setPreviewTheme('light'));
   await expect(frame.locator('html')).toHaveCSS('background-color', 'rgb(247, 249, 251)');
-  await frame.getByRole('tab', { name: 'Live', exact: true }).click();
+  await toColumn(frame);
   await frame.locator('#pause').click();
   await expect(frame.locator('#paused-note')).toHaveText('Nothing is read while paused, so no reply is recorded.');
   const before = await requests(page);

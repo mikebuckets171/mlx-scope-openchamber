@@ -1,3 +1,4 @@
+import { digitMarkup } from '../digit-roll.ts';
 import { DISCLOSURE_ARROW } from '../disclosure.ts';
 import { BASIS_WORD, tip } from '../../present/parts.ts';
 import { dur, kt } from '../../present/format.ts';
@@ -6,7 +7,7 @@ import type { HeroView, LiveView, MacRow, MacView, NextView, ReplyView, Tile } f
 import type { ChartView } from '../chart.ts';
 import { html, flag, type Part, type Raw } from '../html.ts';
 import { averagesMarkup, compactRate, speedsMarkup } from './speeds.ts';
-import { scopeMenuMarkup } from './session.ts';
+import { READOUT_ID, scopeMenuMarkup } from './session.ts';
 import { callouts, chip, ICON, meter, pct100, tipParts, val, type Open } from './parts.ts';
 
 // Activity, speed and available engine context share one flat instrument.
@@ -50,16 +51,17 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open, mac: MacVie
     ['Output', result.outputTokens, kt, 'reported'],
     [result.timing === 'step' ? 'Step duration' : 'Duration', result.durationMs, dur, 'derived'],
     ['First token', result.ttftMs, dur, reading!.basis],
-  ] as const).flatMap(([label, value, format, basis]) => value == null ? [] : [{ label, value: format(value), detail: label === 'Output' ? 'tokens' : '', meter: null, basis }]) : fallback.length ? fallback.slice(0, 3) : reading?.live && !prefill ? list.filter(tile => tile.label === 'Output' || tile.label === 'Elapsed') : [];
+  ] as const).flatMap(([label, value, format, basis]) => value == null ? [] : [{ label, value: format(value), detail: label === 'Output' ? 'tokens' : '', meter: null, basis }]) : fallback.length ? fallback.slice(0, 3) : reading?.live && !prefill ? list.filter(tile => tile.label === 'Output' || tile.label === 'Elapsed' && reading.kind !== 'elapsed') : [];
   if (reading?.live && !prefill && h.firstToken && facts.length < 3) facts.push({ label: 'First token', value: h.firstToken.strong!, detail: '', meter: null, basis: h.firstToken.basis });
   const quiet = !reading && !facts.length && (instrument.phase === 'Ready' || instrument.phase === 'Idle');
   const remaining = list.filter(tile => !facts.includes(tile));
   const notes = html`${instrument.note && !instrument.alert ? html`<p class="coverage-note">${instrument.note}</p>` : ''}${h.body?.kind === 'word' && !reading && h.speeds.source !== 'Splash' ? html`<p class="coverage-note">${h.body.unit}${h.body.note ? html` · ${val(h.body.note)}` : ''}</p>` : ''}${h.body?.kind === 'paused' ? html`<p class="coverage-note" id="paused-note">${h.body.note}</p>` : ''}`;
-  return html`<section class="hero-card" id="hero" aria-label="Activity and speed">
-    <div class="instrument-heading"><h2 class="instrument-phase" data-tone="${instrument.tone}">${instrument.phase}</h2>${scopeMenuMarkup(instrument.measurementScope)}</div>
+  return html`<section class="hero-card" id="hero" aria-label="Activity and speed" data-arrive>
+    <div class="instrument-heading"><h2 class="instrument-phase" data-tone="${instrument.tone}" data-crossfade>${instrument.phase}</h2>${scopeMenuMarkup(instrument.measurementScope)}</div>
     <div class="instrument-readout" data-measured="${String(reading !== null)}" data-quiet="${String(quiet)}">
       <div class="instrument-measure">
-      ${reading ? html`<div class="instrument-primary" data-live="${String(reading.live)}" data-basis="${reading.basis}"><div class="speed-value"><strong id="${reading.kind === 'progress' ? 'prefill-percent' : 'rate'}">${reading.kind === 'speed' ? compactRate(reading.text) : reading.text}</strong>${reading.unit ? html`<span>${reading.unit}</span>` : ''}<div class="instrument-source">${reading.label}${measurementTip!.btn}<span class="sr-only basis">${reading.unit ? `${reading.text} tokens per second. ` : ''}${reading.detail}</span></div></div></div>` : ''}
+      ${reading ? html`<div class="instrument-primary" data-live="${String(reading.live)}" data-basis="${reading.basis}" data-arrive><div class="speed-value"><span class="sr-only">${reading.text}${reading.unit ? ' tokens per second' : ''}</span><strong id="${READOUT_ID[reading.kind]}" aria-hidden="true" data-roll-value="${reading.kind === 'speed' ? compactRate(reading.text) : reading.text}" data-roll-context="${instrument.phase}/${instrument.measurementScope}/${reading.basis}/${reading.label}">${digitMarkup(reading.kind === 'speed' ? compactRate(reading.text) : reading.text)}</strong>${reading.unit ? html`<span aria-hidden="true">${reading.unit}</span>` : ''}<div class="instrument-source" data-crossfade>${reading.label}${measurementTip!.btn}<span class="sr-only basis">${reading.detail}</span></div></div></div>` : ''}
+      ${instrument.held ? html`<p class="instrument-held" data-held="true" data-arrive title="${instrument.held.detail}">${instrument.held.text}</p>` : ''}
       ${result && instrument.support ? html`<p class="coverage-note"><time>${instrument.support.text}</time></p>` : ''}${notes}${measurementTip?.pop ?? ''}
       </div>
       <div class="instrument-evidence">${prefill ? html`<div class="instrument-prefill" id="prefill-progress"><div class="progress-track" role="progressbar" aria-label="Prompt progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${prefill.fraction * 100}"><span style="width:${pct100(prefill.fraction)}"></span></div>${prefill.counts ? html`<p class="coverage-note">Engine · ${prefill.counts}</p>` : ''}${prefill.eta ? html`<p class="coverage-note" data-basis="estimate">About ${prefill.eta} left · <span class="basis">Server estimate</span></p>` : ''}</div>` : tiles(facts, result?.label ?? 'Engine')}</div>
@@ -70,7 +72,7 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open, mac: MacVie
     ${remaining.length || h.context ? html`<details class="reading-details" id="request-details"${flag('open', open.has('request-details'))}><summary>Request details${DISCLOSURE_ARROW}</summary>${h.context ? html`<div class="context-headroom" id="context-headroom"><div class="context-line"><span class="title-row">Context used ${c!.btn}</span><span data-basis="${h.context.basis}"><strong>${h.context.used}</strong>${h.context.basis !== 'reported' ? html` <small class="basis">${BASIS_WORD[h.context.basis]}</small>` : ''}</span></div>${c!.pop}${meter(h.context.fraction)}</div>` : ''}${tiles(remaining)}</details>` : ''}
     ${h.reply && !h.reply.empty ? html`<details class="reading-details" id="last-reply"${flag('open', open.has('last-reply'))}><summary>Last reply${DISCLOSURE_ARROW}</summary>${replyStrip(h.reply, open, h.title)}</details>` : ''}${machineSummary(mac)}
     </div></details>${nextRow(h.reply?.next ?? null, open)}</div>`}
-  </section>`;
+  </section>${h.chatOnly ? html`<p class="coverage-note cloud-scope">Cloud speed is delivery observed through OpenCode, including network and provider buffering. Not engine throughput.</p>` : ''}`;
 };
 const tiles = (list: readonly Tile[], primary: string | null = null): Raw | string => list.length ? html`<div class="metrics${primary ? ' engine-facts' : ''}" id="${primary ? primary === 'Engine' ? 'engine-facts' : 'completed-facts' : 'metrics'}" data-count="${list.length}" aria-label="${primary ?? 'Engine request'}">${primary ? html`<span class="engine-facts-heading">${primary}</span>` : ''}${list.map(tile =>
   html`<div${tile.label === 'First token' ? html` id="first-token"` : ''}><span class="metric-label">${tile.label}</span><strong data-basis="${tile.basis ?? 'reported'}">${tile.value}</strong>${tile.detail ? html`<span class="metric-detail">${tile.detail}</span>` : ''}${tile.basis && tile.basis !== 'reported' ? html`<span class="basis">${BASIS_WORD[tile.basis]}</span>` : ''}${tile.meter === null ? '' : meter(tile.meter)}</div>`)}</div>` : '';

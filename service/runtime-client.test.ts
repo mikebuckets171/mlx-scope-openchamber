@@ -23,6 +23,17 @@ const INVENTORY: DescriptorV2 = { id: 'lmstudio', hints: () => false, detect: []
   } }) };
 const descriptors = [INVENTORY, ...DESCRIPTORS.filter(item => item.id !== 'lmstudio')];
 
+test('connection metadata is available for cloud setup without any runtime or command work', async () => {
+  let configs = 0, probes = 0, commands = 0;
+  const client = new RuntimeClient({ readConfig: async () => { configs++; return configuration(connection('studio', 'lmstudio', 8000, 'private-key')); },
+    fetchImpl: async () => { probes++; throw new Error('No probe expected'); }, exec: async () => { commands++; return null; } });
+  const [a,b] = await Promise.all([client.connections(),client.connections()]);
+  expect(a).toEqual({schemaVersion:1,state:'ready',choices:[{id:'studio',label:'studio',runtime:'lmstudio'}]});expect(a).toEqual(b);
+  expect([configs,probes,commands]).toEqual([1,0,0]);expect(JSON.stringify(a)).not.toContain('private-key');
+  const failed = new RuntimeClient({readConfig:async()=>{throw new Error('private-config-path');}});
+  expect(await failed.connections()).toEqual({schemaVersion:1,state:'unavailable',choices:[]});client.dispose();failed.dispose();
+});
+
 test('parallel views coalesce inventory reads and do no autonomous work', async () => {
   let now = 1000, reads = 0, requests = 0;
   const client = new RuntimeClient({ now: () => now, descriptors, readConfig: async () => { reads++; return configuration(connection('studio', 'lmstudio')); },

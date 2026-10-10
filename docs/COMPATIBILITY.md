@@ -2,12 +2,11 @@
 
 ## Host
 
-MLX Scope 3.0 requires **OpenChamber 2.0.4 or newer** (`engines.openchamber` `>=2.0.4`) and pins
+MLX Scope 3.1 requires **OpenChamber 2.0.4 or newer** (`engines.openchamber` `>=2.0.4`) and pins
 [SDK 2.0.4](https://github.com/openchamber/openchamber/tree/main/packages/sdk), which keeps manifest API 1 and wire v1.
 It uses the panel, the full page, a Work Status section (`statusSection`, OpenChamber 2.0.1+), a `/scope` slash command
 answered by a background entry, the session-menu action, badges, toasts, host-managed storage and a local service.
-The inherited 2.0.4 qualification remains the compatibility floor; 2.0.2 showed a black status surface. The 3.0
-release also requires an installed OpenChamber 2.2.0 check, recorded in the release receipt. Desktop and
+The inherited 2.0.4 qualification remains the compatibility floor; 2.0.2 showed a black status surface. The 3.1 candidate retains this SDK floor and is checked in the installed OpenChamber 2.2.0 host. Desktop and
 web clients expose these surfaces; mobile and VS Code clients load no extensions. Runtime and Mac readings belong to the
 OpenChamber server's computer.
 
@@ -21,20 +20,33 @@ OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and c
 
 ## Optional chat delivery estimates
 
-Chat estimates initially support the released **OpenCode 2.0.25** plugin-event protocol. A real isolated 2.0.25 server
-with a synthetic streaming provider exercises waiting, generation, completion, calibration and hidden shutdown in local
-and synthetic remote modes. Compaction and title exclusion are covered separately by plugin-event fixtures. This
-checks protocol integration, not inference performance or an actual cloud provider. Unsupported versions disable estimates while all runtime
-adapters continue to operate. Guided setup reports the detected protocol and distinguishes installed/pending from
-a fresh loaded companion. It supports native v2 `providers.<id>.settings` and legacy local provider configuration.
+Chat estimates support the released **OpenCode 2.0.25** plugin-event protocol for local and cloud chats alike. An
+isolated 2.0.25 server with synthetic streaming providers exercises waiting, generation, completion, calibration and
+hidden shutdown over both transports. Unsupported versions disable estimates while runtime adapters continue to
+operate. Guided setup distinguishes installed/pending from a fresh loaded companion and supports native v2 and legacy
+local provider configuration.
 
-The companion needs observable text/reasoning events, corroborating primary HTTP request metadata and unambiguous usage
-accounting. Tool payloads, auxiliary title/compaction tasks, missing metadata and ambiguous concurrent writers produce
-no chat speed. Local measurements retain exact configured loopback endpoint matching and explicitly labeled Engine
-fallbacks. Cloud delivery is classified from the observed remote request, uses the same labeled estimate and completed
-average, and never probes the provider's API or falls back to a local engine. Remote provider-specific buffering and hidden
-reasoning remain limitations; observable delivery is not native cloud engine throughput. Cloud protocol/transport fixtures
-do not establish every provider's compatibility or real inference overhead.
+**Cloud is supported since 3.2.** OpenCode 2.0.25's built-in `openai` provider defaults to WebSocket transport, so the
+companion observes the qualified `experimental.ws.handshake` hook and matches the declared provider origin as a remote
+destination. A cloud reading is **delivery observed through OpenCode** — it includes network and provider buffering —
+and is never engine throughput. Cloud chats create chat-observation demand for their own selected session only, never
+collect LLM runtime or hardware data, and never borrow a local engine measurement or local endpoint. Media monitoring
+and every runtime adapter keep working during cloud chats.
+
+`node bridge/opencode/protocol-ws-smoke.mjs /absolute/path/to/opencode` verifies that path end to end against the
+installed binary with a synthetic provider rerouted to loopback: request start, live delivery timing, three- and
+four-step calibration, a completed-step average, one reused native WebSocket, a native tool continuation, and hidden
+shutdown with telemetry writes stopped. The remote HTTP variant is `node bridge/opencode/protocol-smoke.mjs
+/absolute/path/to/opencode --remote`. Interrupting a live cloud step on the installed host produced no readable
+delivery state, so the protocol smoke claims nothing about cancellation; the companion test suite covers it.
+
+Managed updates preserve JSONC comments, unrelated options and plugins. The reproducible developer check is
+`node bridge/opencode/protocol-hot-reload-smoke.mjs /absolute/path/to/opencode /absolute/path/to/previous/companion`;
+it uses an isolated server and verifies that a synthetic response completes during an update without duplication or restart.
+
+Local estimates require observable text/reasoning events, corroborating primary transport metadata and unambiguous usage.
+Tool payloads, title/compaction tasks, missing metadata and ambiguous concurrent writers produce no chat speed.
+Configured loopback endpoint matching and explicitly labeled Engine fallbacks remain unchanged.
 
 ## Runtimes
 
@@ -195,3 +207,9 @@ OpenChamber 2 runs OpenCode 2 and reads native local provider definitions from `
 recognizes those alongside the v1 `provider.<id>.options` form. OpenCode 2's connected credentials are stored in
 private database storage. Scope does not inspect that database and cannot promise access to credentials available only
 through `/connect`. Project-only provider definitions remain outside Scope's discovery boundary.
+
+## Media monitoring in 3.1
+
+ComfyUI basic monitoring uses existing lifecycle APIs. Detailed node-local progress is initially qualified for ComfyUI 0.38.0 with Scope’s optional helper. Other versions keep basic monitoring; unknown nodes use indeterminate progress or generic units. Cancellation is enabled only on a qualified job-scoped API.
+
+The local-video adapter recognizes the existing standard OpenCode video queue; custom queue directories are read-only unless their scoped cancellation owner is separately supported. Qwen image tracking requires the producer’s metadata/control integration. Other tools can publish the documented private [Media telemetry contract](MEDIA.md). Supporting a generator’s telemetry does not imply that Scope installs, launches or controls generation for it.

@@ -6,9 +6,9 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chatKey } from '../src/contract/chat-key.ts';
-import type { ChatMeasurement } from '../src/contract/chat.ts';
+import { CHAT_SCOPE, type ChatMeasurement } from '../src/contract/chat.ts';
 import type { SnapshotV2 } from '../src/contract/snapshot.ts';
-import { version } from '../package.json';
+import { version } from '../bridge/opencode/package.json';
 import { createChatDestination, createChatSource } from './chat-source.ts';
 import { ChatTelemetry, type ChatTarget } from './chat-telemetry.ts';
 import { chatOnlyReading, createScopeServer, type Sources } from './server.ts';
@@ -23,7 +23,7 @@ afterEach(async () => {
   await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true })));
 });
 
-const measurement = (at = NOW, rate = 42): ChatMeasurement => ({ scope: 'chat', basis: 'estimated-characters',
+const measurement = (at = NOW, rate = 42): ChatMeasurement => ({ scope: CHAT_SCOPE, basis: 'estimated-characters',
   timingBasis: 'delivery-window', phase: 'generating', tokensPerSecond: rate, freshness: 'live', observedAtMs: at,
   expiresAtMs: at + 5_000, observation: { startedAtMs: at - 2_500, endedAtMs: at } });
 const query = (provider = 'cloud', session = 'remote-session', model = 'remote-model', extra = '') =>
@@ -128,6 +128,26 @@ test('remote demand hashes only the exact selected provider/session/model and ne
   expect(localTargets).toBe(0); expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
 });
 
+test('cloud views present every observed delivery phase under the chat scope and republish remote demand', async () => {
+  const f = await transportFixture(); let localTargets = 0;
+  const source = createChatSource(f.transport, { companionTarget: async () => { localTargets++; throw Error('local config'); } });
+  const g = guarded(source), request = await launch(g.sources, f.clock);
+  for (const phase of ['generating', 'reasoning', 'complete', 'cancelled'] as const) {
+    const observed: ChatMeasurement = { ...measurement(), phase, ...phase === 'complete'
+      ? { basis: 'reported-output', timingBasis: 'completed-step', freshness: 'last', expiresAtMs: f.clock.now + 15_000 }
+      : phase === 'cancelled' ? { tokensPerSecond: undefined } : {} };
+    await f.write([{ ...f.remote, measurement: observed }]);
+    const value = await request(query('cloud', 'remote-session', 'remote-model', '&chatBusy=1'));
+    // Delivery observed through OpenCode, never an engine reading; identity and origin never reach the wire.
+    expect(value.chat).toEqual(observed); expect(value.chat?.scope).toBe(CHAT_SCOPE);
+    expect(value.nextPollMs).toBe(1000); expect(JSON.stringify(value.chat)).not.toMatch(/session|model|endpoint|invalidsi/);
+    const demand = JSON.parse(await readFile(join(f.directory, 'demand.json'), 'utf8'));
+    expect(demand.watched).toEqual([{ sessionKey: f.remote.sessionKey, modelKey: f.remote.modelKey,
+      providerKey: f.remote.providerKey, destination: 'remote' }]);
+  }
+  expect(localTargets).toBe(0); expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
+});
+
 test('remote freshness, cancellation, missing writers and unqualified companions always clear live speed', async () => {
   const f = await transportFixture(), g = guarded(createChatSource(f.transport, { companionTarget: async () => null }));
   const request = await launch(g.sources, f.clock);
@@ -137,6 +157,7 @@ test('remote freshness, cancellation, missing writers and unqualified companions
   const cancelled: ChatMeasurement = { ...measurement(f.clock.now), phase: 'cancelled', tokensPerSecond: undefined };
   await f.write([{ ...f.remote, measurement: cancelled }]);
   expect((await request(query())).chat).toEqual(cancelled);
+  // Unsupported companion generations disable estimates without breaking the surrounding snapshot.
   for (const overrides of [{ companionVersion: '2.1.6' }, { protocol: 'opencode-future' }, { runtimeVersion: '2.0.26' }]) {
     await f.write([{ ...f.remote, measurement: measurement(f.clock.now) }], overrides);
     expect((await request(query())).chat).toBeUndefined();
@@ -153,6 +174,16 @@ test('a visible remote chat retains active cadence while another page owns the p
   expect(value.lease.leader).toBe(false); expect(value.nextPollMs).toBe(1000);
   observed = measurement(); value = await request(query()); expect(value.nextPollMs).toBe(1000);
   expect((await request(query().replace('surface=status', 'surface=panel'))).nextPollMs).toBe(500);
+  expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
+});
+
+test('a cloud view presents a delivery observation from any source without collecting runtime, host or engine data', async () => {
+  const g = guarded(async () => measurement()), request = await launch(g.sources);
+  for (const surface of ['status', 'panel', 'page']) {
+    const value = await request(query().replace('surface=status', `surface=${surface}`));
+    expect(value.chat).toEqual(measurement()); expect(value.chat?.scope).toBe(CHAT_SCOPE);
+    expect(value.connection.runtime).toBeNull(); expect(value.host).toBeNull(); expect(value.capabilities).toEqual({});
+  }
   expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
 });
 

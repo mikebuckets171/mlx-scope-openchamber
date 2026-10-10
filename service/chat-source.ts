@@ -11,6 +11,8 @@ export const createChatDestination = (client: Pick<RuntimeClient, 'companionTarg
 export const createChatSource = (chat: Pick<ChatTelemetry, 'observe'>,
   client: Pick<RuntimeClient, 'companionTarget'>): NonNullable<Sources['chat']> => async (query, reading) => {
   if (!query.frame || query.surface === 'background') return null;
+  // A selected cloud chat observes only its own delivery through OpenCode. It never reads local runtime state,
+  // borrows a local endpoint or reuses a local engine measurement; the companion corroborates the remote origin.
   if (query.chatOnly && query.chat && query.chatModel && query.provider)
     return chat.observe(query.frame, { sessionKey: query.chat, modelKey: query.chatModel,
       providerKey: chatKey('provider', query.provider), destination: 'remote' });

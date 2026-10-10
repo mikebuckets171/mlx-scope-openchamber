@@ -1,5 +1,6 @@
+import { key } from './store.js';
 import { CHAT_DIRECTORY, HASH, readPrivateJSON, atomicPrivateJSON, createChatStore } from './chat-store.js';
-import { COMPANION_VERSION, PROTOCOL, createChatTracker } from './chat.js';
+import { COMPANION_VERSION, PROTOCOL, MAX_CHATS, createChatTracker } from './chat.js';
 
 export function parseDemand(value, now = Date.now()) {
   if (!value || value.schemaVersion !== 1 || !Number.isSafeInteger(value.updatedAtMs) || !Number.isSafeInteger(value.expiresAtMs)
@@ -16,68 +17,108 @@ export function parseDemand(value, now = Date.now()) {
   return watched;
 }
 
-/** One demand poll and at most one public subscription per OpenCode process, across plugin locations. */
+const REFUSALS = { permissions: 'not private to this account', owner: 'owned by another account', type: 'not a regular file',
+  size: 'too large', access: 'unreadable' };
+const locationKey = ctx => typeof ctx.location?.directory === 'string'
+  ? key('location', `${ctx.location.directory}\0${ctx.location.workspaceID ?? ''}`) : 'legacy-test-context';
+
+/** One demand poll/store per process; public event subscriptions are shared per qualified OpenCode Location. */
 export function createChatObserver({ directory = CHAT_DIRECTORY, now = Date.now, warn = () => {},
-  storeFactory = createChatStore, readDemand = () => readPrivateJSON(directory, 'demand.json'),
+  storeFactory = createChatStore, readDemand = rejected => readPrivateJSON(directory, 'demand.json', undefined, rejected),
   heartbeat = value => atomicPrivateJSON(directory, 'heartbeat.json', value), intervalMs = 1_000 } = {}) {
-  const clients = new Map(); let store, tracker, timer, running = false, closed = false, controller, subscriptionClient, lastHeartbeat = -Infinity;
+  const clients = new Map(), locations = new Map(); let store, timer, flight, closed = false, lastHeartbeat = -Infinity, refused = false;
+  // A refused demand file looks like "no demand" to tracking. Say so once in the host log; never name paths or contents.
+  const rejected = reason => { if (refused) return; refused = true;
+    warn(`MLX Scope chat tracking ignored its demand file (${REFUSALS[reason] ?? REFUSALS.access}); chat estimates stay off until Scope rewrites it.`); };
   const info = ctx => ({ schemaVersion: 1, companionVersion: COMPANION_VERSION,
     protocol: ctx.app?.version === '2.0.25' ? PROTOCOL : 'unsupported',
     runtimeVersion: typeof ctx.app?.version === 'string' && /^\d+\.\d+\.\d+(?:[-.\w]*)?$/.test(ctx.app.version) ? ctx.app.version.slice(0, 80) : 'unknown',
     loadedAtMs: now(), supported: ctx.app?.version === '2.0.25' && typeof ctx.event?.subscribe === 'function' });
   let loadedInfo;
-  function stop() {
-    controller?.abort(); controller = undefined; subscriptionClient = undefined;
-    tracker?.clear();
+  function stop(location) {
+    location.controller?.abort(); location.controller = undefined; location.client = undefined;
+    location.tracker?.clear();
   }
-  function subscribe(client) {
-    const current = new AbortController(); controller = current; subscriptionClient = client;
+  function subscribe(location, client) {
+    const current = new AbortController(); location.controller = current; location.client = client;
     void (async () => {
       try {
         for await (const event of client.event.subscribe({ signal: current.signal })) {
-          if (current.signal.aborted || controller !== current) break;
-          tracker.event(event);
+          if (current.signal.aborted || location.controller !== current) break;
+          location.tracker.event(event);
         }
       } catch { /* Subscription failures never escape into inference; next demand tick retries. */ }
       finally {
-        if (controller === current) { controller = undefined; subscriptionClient = undefined; tracker.clear(); }
+        if (location.controller === current) { location.controller = undefined; location.client = undefined; location.tracker.clear(); }
       }
     })();
   }
-  async function tick() {
-    if (running || closed || clients.size === 0) return;
-    running = true;
-    try {
-      const demand = parseDemand(await readDemand().catch(() => null), now());
-      const client = [...clients.values()].find(ctx => info(ctx).supported);
-      if (!demand.length || !client) { stop(); await store?.flush(); return; }
-      tracker.setWatched(demand); tracker.tick();
-      if (!controller || !clients.has(subscriptionClient)) {
-        if (controller) stop();
-        tracker.setWatched(demand); subscribe(client);
+  async function collect() {
+    if (closed || clients.size === 0) return;
+    const demand = parseDemand(await readDemand(rejected).catch(error => {
+      // Absence is the normal idle state; any other failure leaves tracking off just as silently, so report it once.
+      if (error?.code !== 'ENOENT') rejected(error?.message === 'Unsafe cache permissions' ? 'permissions' : 'access');
+      return null;
+    }), now());
+    const selected = new Set(demand.length ? [...locations.values()]
+      .filter(location => [...location.clients].some(ctx => info(ctx).supported))
+      .sort((a, b) => b.priority - a.priority).slice(0, MAX_CHATS) : []);
+    for (const location of locations.values()) {
+      if (!selected.has(location)) { stop(location); continue; }
+      const client = [...location.clients].find(ctx => info(ctx).supported);
+      location.tracker ??= createChatTracker({ now, publish: value => store.update(value), remove: session => store.remove(session) });
+      location.tracker.setWatched(demand); location.tracker.tick();
+      if (!location.controller || !location.clients.has(location.client)) {
+        if (location.controller) stop(location);
+        location.tracker.setWatched(demand); subscribe(location, client);
       }
-      if (now() - lastHeartbeat >= 5_000) {
-        lastHeartbeat = now(); await heartbeat({ ...loadedInfo, updatedAtMs: now(), expiresAtMs: now() + 15_000 }).catch(() => {});
-      }
-      await store.flush();
-    } finally { running = false; }
+    }
+    if (selected.size && now() - lastHeartbeat >= 5_000) {
+      lastHeartbeat = now(); await heartbeat({ ...loadedInfo, updatedAtMs: now(), expiresAtMs: now() + 15_000 }).catch(() => {});
+    }
+    await store?.flush();
+  }
+  function tick() {
+    if (flight) return flight;
+    const current = collect().finally(() => { if (flight === current) flight = undefined; });
+    flight = current; return current;
+  }
+  async function authorize(method, event, ctx) {
+    if (closed || event?.kind !== 'primary') return;
+    const location = clients.get(ctx) ?? (ctx === undefined ? locations.values().next().value : undefined);
+    if (!location || ![...location.clients].some(client => info(client).supported)) return;
+    if (event?.kind === 'primary') location.priority = now();
+    // A visible view may publish demand immediately before dispatch, before the periodic poll.
+    // Await any prior read, then refresh now. Never delay inference for observer failures.
+    try { if (flight) await flight; await tick(); location.tracker?.[method](event); } catch { /* passive observer */ }
   }
   return {
     async attach(ctx) {
       if (closed) throw new Error('Closed observer');
-      clients.set(ctx, ctx);
-      if (!store) {
-        loadedInfo = info(ctx);
-        store = storeFactory({ directory, now, warn, runtimeVersion: loadedInfo.runtimeVersion });
-        tracker = createChatTracker({ now, publish: value => store.update(value), remove: key => store.remove(key) });
-        await heartbeat(loadedInfo).catch(() => {});
-        timer = setInterval(() => void tick().catch(() => {}), intervalMs); timer.unref?.();
-      }
-      await tick();
-      return () => { clients.delete(ctx); if (subscriptionClient === ctx) stop(); };
+      const id = locationKey(ctx);
+      let location = locations.get(id);
+      if (!location) { location = { clients: new Set(), priority: 0 }; locations.set(id, location); }
+      location.clients.add(ctx); clients.set(ctx, location);
+      const detach = () => {
+        clients.delete(ctx); location.clients.delete(ctx);
+        if (location.client === ctx) stop(location);
+        if (!location.clients.size) { stop(location); locations.delete(id); }
+      };
+      try {
+        if (!store) {
+          loadedInfo = info(ctx);
+          store = storeFactory({ directory, now, warn, runtimeVersion: loadedInfo.runtimeVersion });
+          await heartbeat(loadedInfo).catch(() => {});
+          timer = setInterval(() => void tick().catch(() => {}), intervalMs); timer.unref?.();
+        }
+        await tick();
+        return detach;
+      } catch (error) { detach(); throw error; }
     },
-    authorizeHttp(event) { tracker?.authorizeHttp(event); },
+    authorizeHttp(event, ctx) { return authorize('authorizeHttp', event, ctx); },
+    authorizeWebSocket(event, ctx) { return authorize('authorizeWebSocket', event, ctx); },
     tick,
-    async close() { closed = true; clearInterval(timer); stop(); clients.clear(); await store?.close(); },
+    async close() { closed = true; clearInterval(timer); if (flight) await flight.catch(() => {});
+      for (const location of locations.values()) stop(location); clients.clear(); locations.clear(); await store?.close(); },
   };
 }

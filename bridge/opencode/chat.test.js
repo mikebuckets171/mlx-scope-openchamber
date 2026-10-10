@@ -157,6 +157,129 @@ test('remote observations require deliberate remote demand and the actual primar
   }
 });
 
+test('primary WebSocket handshakes prove a watched remote step in either public event order', () => {
+  for (const first of ['handshake', 'step']) {
+    const h = harness({ remote: true });
+    const handshake = () => h.tracker.authorizeWebSocket({ sessionID: 'ses_private', model: { providerID: 'local', id: 'private-model' }, kind: 'primary',
+      url: 'wss://cloud.example/private?api_key=PRIVATE', headers: { Authorization: 'PRIVATE' } });
+    const step = () => h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
+    if (first === 'handshake') { handshake(); step(); } else { step(); handshake(); }
+    h.part(); h.delta(); h.advance(2000); h.delta();
+    assert.equal(h.measurement.tokensPerSecond, 5, first);
+    assert.equal(h.saved.get(ident().sessionKey).endpointKey, key('endpoint', 'wss://cloud.example'));
+    assert.equal(h.saved.get(ident().sessionKey).destination, 'remote');
+    assert.ok(!JSON.stringify([...h.saved.values()]).match(/PRIVATE|cloud\.example|api_key|private-model/));
+  }
+});
+
+test('WebSocket proof rejects auxiliary, unwatched, unsafe, non-WebSocket, or mismatched destinations', () => {
+  for (const change of [{ kind: 'title' }, { kind: 'compaction' }, { kind: 'generate' }, { sessionID: 'other' },
+    { model: { providerID: 'other', id: 'private-model' } }, { url: 'https://cloud.example/v1' },
+    { url: 'wss://user:PRIVATE@cloud.example/v1' }, { url: 'wss://cloud.example/v1#PRIVATE' }, { url: 'ws://127.0.0.1:8000/v1' }]) {
+    const h = harness({ remote: true });
+    h.tracker.authorizeWebSocket({ sessionID: 'ses_private', model: { providerID: 'local', id: 'private-model' }, kind: 'primary', url: 'wss://cloud.example/v1', ...change });
+    h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
+    h.part(); h.delta(); h.advance(2000); h.delta();
+    assert.equal(h.measurement, undefined, JSON.stringify(change));
+  }
+});
+
+test('harmless released metadata events preserve a pending step without publishing or retaining their content', () => {
+  const h = harness({ remote: true });
+  h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
+  for (const type of ['renamed', 'metadata.updated', 'permissions', 'viewed', 'usage.updated']) {
+    h.send(type, { title: 'PRIVATE TITLE', metadata: { private: 'PRIVATE CONTENT' } });
+    assert.equal(h.measurement, undefined); assert.equal(h.tracker.stats().chats, 1, type);
+  }
+  h.authorize(); h.part(); h.delta(); h.advance(2000); h.delta();
+  assert.equal(h.measurement.tokensPerSecond, 5);
+  assert.ok(!JSON.stringify([...h.saved.values()]).includes('PRIVATE'));
+});
+
+test('pending proof cannot cross lifecycle boundaries or reconstruct unobserved output', () => {
+  for (const type of ['model.selected', 'execution.started', 'execution.interrupted', 'execution.failed', 'execution.succeeded',
+    'step.failed', 'step.streamed', 'step.ended', 'text.started', 'reasoning.started', 'tool.input.started']) {
+    const h = harness({ remote: true });
+    h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
+    h.send(type, { ordinal: 0 }); assert.equal(h.tracker.stats().chats, 0, type);
+    const before = h.time; h.advance(100); h.authorize();
+    // The later dispatch observes only its own call: output published before it is never attributed to it.
+    h.delta('a'.repeat(400), 'text', 0, { created: before });
+    assert.equal(h.measurement.phase, 'waiting', type); assert.equal(h.measurement.tokensPerSecond, undefined, type);
+    h.part(); h.delta(); h.advance(2000); h.delta();
+    assert.equal(h.measurement.tokensPerSecond, 5, type);
+  }
+});
+
+test('a dispatch proves its own call when step.started is lost in a subscription restart', () => {
+  const h = harness({ remote: true }); h.authorize();
+  // Never dark: the qualified dispatch is visible before any output.
+  assert.equal(h.measurement.phase, 'waiting'); assert.equal(h.measurement.tokensPerSecond, undefined);
+  h.part(); h.delta(); h.advance(2000); h.delta();
+  assert.equal(h.measurement.tokensPerSecond, 5); assert.equal(h.measurement.timingBasis, 'delivery-window');
+  assert.equal(h.saved.get(ident().sessionKey).destination, 'remote');
+  assert.equal(h.tracker.stats().routes, 0, 'the bound dispatch cannot prove a later step');
+  // Without the step boundary there is no completed-step average and nothing calibrates.
+  complete(h, { tokens: 20 });
+  assert.equal(h.measurement.phase, 'complete'); assert.equal(h.measurement.tokensPerSecond, undefined);
+  assert.equal(h.tracker.stats().calibrationModels, 0);
+  // A later step announced without its own observed dispatch stays unproven.
+  h.advance(1000); h.send('step.started', { started: h.time, assistantMessageID: 'next-reply', model: { providerID: 'local', id: 'private-model' } });
+  h.send('text.started', { ordinal: 0, assistantMessageID: 'next-reply' });
+  h.delta(); assert.equal(h.measurement, undefined); assert.equal(h.tracker.stats().chats, 0);
+});
+
+test('step.started after the dispatch upgrades the seeded state to a full step', () => {
+  const h = harness(); h.authorize(); assert.equal(h.measurement.phase, 'waiting');
+  h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
+  h.part(); h.delta(); h.advance(2000); h.delta(); assert.equal(h.measurement.tokensPerSecond, 5);
+  complete(h, { chars: 80, tokens: 20 });
+  assert.equal(h.measurement.basis, 'reported-output'); assert.equal(h.measurement.tokensPerSecond, 20 / 2.1);
+  assert.equal(h.tracker.stats().calibrationModels, 1);
+});
+
+test('a seeded state binds to one reply and ignores lifecycle events published before its dispatch', () => {
+  const h = harness({ remote: true }), earlier = h.time; h.advance(500); h.authorize();
+  h.send('execution.interrupted', {}, { created: earlier }); h.send('step.ended', { finish: 'stop', tokens: { output: 9, reasoning: 0 } }, { created: earlier });
+  assert.equal(h.measurement.phase, 'waiting');
+  h.part(); h.delta(); h.advance(2000); h.delta(); assert.equal(h.measurement.tokensPerSecond, 5);
+  h.send('text.delta', { ordinal: 0, delta: 'x', assistantMessageID: 'another-reply' });
+  assert.equal(h.measurement, undefined, 'a second reply cannot extend the bound observation');
+});
+
+test('a dispatch during a live step keeps that step, its tail and its calibration', () => {
+  const h = harness(); h.start(); h.part(); h.delta(); h.advance(1000); h.delta();
+  h.authorize(); h.advance(1000); h.delta(); assert.equal(h.measurement.tokensPerSecond, 10);
+  complete(h, { chars: 120, tokens: 30 }); assert.equal(h.measurement.basis, 'reported-output');
+  assert.equal(h.tracker.stats().calibrationModels, 1);
+  // The settled step yields to the next observed dispatch.
+  h.advance(100); h.authorize(); assert.equal(h.measurement.phase, 'waiting'); assert.equal(h.measurement.basis, 'estimated-characters');
+});
+
+test('a lifecycle boundary before step announcement invalidates unused HTTP or WebSocket proof', () => {
+  for (const transport of ['http', 'websocket']) for (const type of ['execution.interrupted', 'execution.failed', 'execution.succeeded',
+    'execution.started', 'retry.scheduled', 'model.selected', 'agent.selected', 'deleted', 'moved', 'compaction.started',
+    'revert.committed', 'step.failed', 'step.ended', 'step.streamed']) {
+    const h = harness({ remote: true });
+    if (transport === 'http') h.authorize();
+    else h.tracker.authorizeWebSocket({ sessionID: 'ses_private', model: { providerID: 'local', id: 'private-model' }, kind: 'primary', url: 'wss://cloud.example/v1' });
+    assert.equal(h.tracker.stats().routes, 1);
+    h.send(type); assert.equal(h.tracker.stats().routes, 0, `${transport}: ${type}`);
+    h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
+    h.part(); h.delta(); h.advance(2000); h.delta();
+    assert.equal(h.measurement, undefined, `${transport}: ${type}`);
+  }
+});
+
+test('an older delivered boundary does not discard newer dispatch proof', () => {
+  const h = harness({ remote: true }), previous = h.time;
+  h.advance(1000); h.authorize(); h.send('execution.interrupted', {}, { created: previous });
+  assert.equal(h.tracker.stats().routes, 1);
+  h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
+  h.part(); h.delta(); h.advance(2000); h.delta();
+  assert.equal(h.measurement.tokensPerSecond, 5);
+});
+
 test('remote endpoint classification never retains URL paths, query credentials, or headers', () => {
   const remote = observedEndpoint('https://cloud.example/custom/private-path?api_key=PRIVATE');
   assert.deepEqual(remote, { destination: 'remote', endpointKey: key('endpoint', 'https://cloud.example') });
@@ -174,7 +297,8 @@ test('remote calibration stays endpoint-specific and destination changes reset l
   }
   h.start(); h.part(); h.delta(); h.advance(2000); h.delta(); assert.equal(h.measurement.basis, 'calibrated-characters');
   h.authorize({ request: new Request('https://other.example/v1/chat/completions', { method: 'POST' }) });
-  assert.equal(h.measurement, undefined);
+  assert.equal(h.measurement.tokensPerSecond, undefined); assert.equal(h.measurement.phase, 'waiting');
+  assert.equal(h.saved.get(ident().sessionKey).endpointKey, key('endpoint', 'https://other.example'));
   h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
   h.part(); h.delta(); h.advance(2000); h.delta(); assert.equal(h.measurement.basis, 'estimated-characters');
   assert.equal(h.saved.get(ident().sessionKey).endpointKey, key('endpoint', 'https://other.example'));
@@ -263,12 +387,36 @@ test('observer shares one subscription, aborts hidden work, handles reconnect an
   await unknown.attach(makeContext('2.0.26')); assert.equal(subscriptions, 2); assert.equal(heartbeats.at(-1).supported, false); await unknown.close();
 });
 
+test('a demand file refused by the private-mode gate is reported once, unlike absent demand', async () => {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), 'scope-demand-'))), warnings = [];
+  let now = Date.now(), subscriptions = 0;
+  const ctx = { app: { version: '2.0.25' }, event: { subscribe({ signal }) {
+    subscriptions++;
+    return { async *[Symbol.asyncIterator]() { await new Promise(resolve => signal.aborted ? resolve() : signal.addEventListener('abort', resolve, { once: true })); } };
+  } } };
+  const observer = createChatObserver({ directory, now: () => now, intervalMs: 100_000, warn: message => warnings.push(message),
+    storeFactory: () => ({ update() {}, remove() {}, async flush() {}, async close() {} }), heartbeat: async () => {} });
+  try {
+    await observer.attach(ctx); await observer.tick();
+    assert.deepEqual(warnings, [], 'no demand file is the normal idle state');
+    const file = join(directory, 'demand.json');
+    await writeFile(file, JSON.stringify(demand(now))); await chmod(file, 0o644);
+    await observer.tick(); await observer.tick();
+    assert.equal(subscriptions, 0); assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /not private to this account/);
+    assert.ok(!warnings[0].includes(directory) && !warnings[0].includes(ident().sessionKey));
+    await chmod(file, 0o600); await observer.tick();
+    assert.equal(subscriptions, 1); assert.equal(warnings.length, 1);
+  } finally { await observer.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test('promptProgress false leaves chat observer available without installing Splash hooks', async () => {
   const hooks = [], attached = []; let closes = 0;
   const shared = {}, store = { async close() {} };
-  const plugin = makePlugin({ shared, storeFactory: () => store, observerFactory: () => ({ attach: async ctx => { attached.push(ctx); return () => {}; }, authorizeHttp() {}, async close() { closes++; } }) });
+  const plugin = makePlugin({ shared, storeFactory: () => store, observerFactory: () => ({ attach: async ctx => { attached.push(ctx); return () => {}; }, authorizeHttp() {}, authorizeWebSocket() {}, async close() { closes++; } }) });
   const context = { options: { promptProgress: false }, app: { version: '2.0.25' }, event: { subscribe() {} }, session: { async hook(name, fn, filter) { hooks.push({ name, filter }); } } };
-  const dispose = await plugin.setup(context); assert.equal(attached.length, 1); assert.deepEqual(hooks, [{ name: 'http.request', filter: undefined }]);
+  const dispose = await plugin.setup(context); assert.equal(attached.length, 1); assert.deepEqual(hooks, [
+    { name: 'http.request', filter: undefined }, { name: 'experimental.ws.handshake', filter: undefined }]);
   await dispose(); assert.equal(closes, 1);
 });
 

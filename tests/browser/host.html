@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>MLX Scope · synthetic preview</title><style>html,body{margin:0;background:#10151b;font:11px -apple-system,sans-serif}aside{height:24px;display:grid;place-items:center;background:#203044;color:#c4d6e9}iframe{display:block;width:100%;height:calc(100vh - 24px);border:0}</style></head>
-<body><aside>Synthetic preview · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script src="/convert-v1.js"></script><script>
+<body><aside>Synthetic preview · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script src="/convert-v1.js"></script><script src="/media-fixtures.js"></script><script>
 const frame = document.querySelector('iframe');
 const params = new URLSearchParams(location.search);
 // A hidden rail tab: the frame mounts inside display:none and must not poll until shown.
@@ -146,6 +146,13 @@ if(m.type === 'hello') {
   }
   if(m.type === 'prompt' || m.type === 'generate' || m.type === 'start-session') window.previewUnexpectedSends += 1;
   if(m.type !== 'service-request') return;
+  window.previewAllRequests = (window.previewAllRequests || 0) + 1;
+  const auxiliary = window.ScopeMediaFixtures?.respond(m);
+  if (auxiliary) {
+    if (window.previewHold || (m.payload.path === '/v2/media' && window.previewMediaHold)) return;
+    if (window.previewError || window.previewTransportError || state === 'needs-approval') { post({type:'result',id:m.id,ok:false,code:window.previewError || window.previewTransportError || 'NO_SERVICE',error:'Fixture host unavailable'}); return; }
+    post({type:'result',id:m.id,ok:true,payload:auxiliary}); return;
+  }
   const selection = m.payload.query || {};
   window.previewRequests += 1;
   // History routes, as the 2.0 service answers them for a preview it never watched: one gap, and no oMLX records.

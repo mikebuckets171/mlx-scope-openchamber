@@ -1,5 +1,7 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 
+// 3.2 restores cloud delivery estimates through the qualified OpenCode 2.0.25 handshake. They are labelled
+// Cloud · est., keep a stable layout through every phase, expire on time and never borrow a local engine reading.
 type Phase = 'generating' | 'reasoning' | 'tool' | 'waiting' | 'complete' | 'cancelled';
 const phase = (page: Page, value: Phase, rate?: number) => page.evaluate(({ value, rate }) => {
   const now = Date.now();
@@ -15,21 +17,24 @@ const anchor = (frame: FrameLocator, selector: string) => frame.locator(selector
 });
 
 for (const surface of ['status', 'page']) for (const theme of ['light', 'obsidian']) {
-  test(`cloud activity and delivery stay quiet and labeled on ${surface} in ${theme}`, async ({ page }) => {
+  test(`cloud activity and delivery stay quiet and labelled on ${surface} in ${theme}, with media still available`, async ({ page }) => {
     await page.setViewportSize({ width: surface === 'status' ? 280 : 1160, height: 950 });
-    await page.goto(`/v2?surface=${surface}&state=pressure&chat=cloud&theme=${theme}&poll=500`);
+    await page.goto(`/v2?surface=${surface}&state=pressure&chat=cloud&theme=${theme}&poll=500&media=active`);
     const frame = page.frameLocator('iframe'), activity = surface === 'status' ? '.ws-phase' : '.instrument-phase';
+    const source = surface === 'status' ? '.ws-label' : '.instrument-source';
     await expect(frame.locator(activity)).toHaveText('Ready');
     await expect(frame.locator('#rate')).toHaveCount(0);
     await expect(frame.locator(surface === 'status' ? '#ws' : '#panel-live')).not.toContainText('Memory pressure');
+    await expect(frame.locator('#scope')).not.toContainText('Speed tracking is for local models.');
     await phase(page, 'generating', 17.8);
     await expect(frame.locator('#rate')).toHaveText('17.8');
     await expect(frame.locator(activity)).toHaveText('Generating');
+    await expect(frame.locator(source)).toContainText('Cloud · est.');
     if (surface === 'page') {
+      await expect(frame.locator('.cloud-scope')).toHaveText('Cloud speed is delivery observed through OpenCode, including network and provider buffering. Not engine throughput.');
       await expect(frame.locator('#phase')).toHaveText('Generating');
       await expect(frame.locator('#connection')).toBeHidden();
     }
-    await expect(frame.locator(surface === 'status' ? '.ws-label' : '.instrument-source')).toContainText('Chat · est.');
     const stable = await anchor(frame, surface === 'status' ? '.ws-actions' : '#hero');
     for (const [value, label, rate] of [
       ['reasoning', 'Reasoning', 18.2], ['tool', 'Using tools', undefined], ['waiting', 'Waiting', undefined],
@@ -39,12 +44,18 @@ for (const surface of ['status', 'page']) for (const theme of ['light', 'obsidia
       await expect(frame.locator(activity)).toHaveText(label);
       if (rate === undefined) await expect(frame.locator('#rate')).toHaveCount(0);
       else await expect(frame.locator('#rate')).toHaveText(String(rate));
-      if (value === 'complete') await expect(frame.locator(surface === 'status' ? '.ws-label' : '.instrument-source')).toContainText('Last chat · avg.');
+      if (value === 'complete') await expect(frame.locator(source)).toContainText('Last cloud · avg.');
       expect(await anchor(frame, surface === 'status' ? '.ws-actions' : '#hero')).toEqual(stable);
     }
     if (surface === 'page') {
       await expect(frame.locator('#measurement-details')).toHaveCount(0);
       await expect(frame.locator('#engine-trend, .machine-summary, #reply-strip')).toHaveCount(0);
+    }
+    // Media stays available during a cloud chat: the glance in the sidebar, the column's Media block on the page.
+    if (surface === 'status') await expect(frame.locator('.media-glance')).toBeVisible();
+    else {
+      await expect(frame.locator('#view-media')).toBeVisible();
+      await expect(frame.getByRole('progressbar', { name: 'Sampling progress · this phase only' })).toHaveAttribute('aria-valuenow', '40');
     }
     expect(await page.evaluate(() => (window as any).previewUnexpectedSends)).toBe(0);
   });

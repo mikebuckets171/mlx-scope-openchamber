@@ -1,5 +1,11 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 
+
+// 3.2 has one column and secondary views with Back; these replace the 3.1 Live/History tabs.
+const toColumn = async (frame: FrameLocator): Promise<void> => {
+  for (const name of ['Back to History', 'Back']) { const back = frame.getByRole('button', { name, exact: true }); if (await back.isVisible()) await back.click(); }
+};
+const toHistory = async (frame: FrameLocator): Promise<void> => { await toColumn(frame); await frame.getByRole('button', { name: 'History', exact: true }).click(); };
 // Connection selection on the synthetic 1.x host: what is stored, what each poll asks for, and that a switch never
 // shows the previous connection's readings. Runtime coverage per connection is honest: nothing reported, nothing shown.
 type W = Window & Record<string, any>;
@@ -16,13 +22,14 @@ const open = async (page: Page, query = '') => {
 const selection = async (page: Page) => { const { provider, runtime } = await page.evaluate(() => (window as W).previewQueries.at(-1)); return { provider, runtime }; };
 const choose = async (page: Page, provider: string, runtime = '') => {
   const frame = page.frameLocator('iframe');
-  await menu(frame, '#connection-change');
+  await frame.locator('#connection-change').click();
+  if (!await frame.locator('#runtime-connection-details').evaluate(element => (element as HTMLDetailsElement).open)) await frame.locator('#runtime-connection-details > summary').click();
   await frame.getByLabel('Connection', { exact: true }).selectOption(provider);
   await frame.getByLabel('Server type', { exact: true }).selectOption(runtime);
   await frame.getByRole('button', { name: 'Use connection', exact: true }).click();
 };
 const server = async (frame: FrameLocator) => frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
-const live = async (frame: FrameLocator) => frame.getByRole('tab', { name: 'Live', exact: true }).click();
+const live = async (frame: FrameLocator) => toColumn(frame);
 
 test('a chosen connection is stored without credentials, sent with each poll, and survives reload', async ({ page }) => {
   const frame = await open(page);
@@ -106,17 +113,17 @@ test('Splash in Bionic is named, keeps its last reply exact, and lists its Splas
   await expect(frame.locator('[data-key="server-catalog"] .chip[data-tone="accent"]')).toHaveCount(5);
   await menu(frame, '#connection-change');
   await expect(frame.getByLabel('Connection', { exact: true }).locator('option[value="bionic"]')).toHaveText('Splash (Bionic)');
-  await expect(frame.locator('#connection-choice-note')).toContainText('Using Splash in Bionic? Keep Automatic.');
+  await expect(frame.locator('#connection-choice-note')).toContainText('This chat chooses its matching server automatically.');
 });
 
-test('connection setup closes on Escape back to the menu button, and a custom provider takes an explicit runtime', async ({ page }) => {
+test('connection setup closes on Escape back to Connections, and a custom provider takes an explicit runtime', async ({ page }) => {
   const frame = await open(page);
   await openMenu(frame);
   await frame.locator('#connection-change').focus(); await frame.locator('#connection-change').press('Enter');
   await expect(frame.locator('#connection-setup')).toBeVisible();
-  await frame.getByLabel('Connection', { exact: true }).press('Escape');
+  await frame.locator('#connection-setup-title').press('Escape');
   await expect(frame.locator('#connection-setup')).toBeHidden();
-  await expect(frame.locator('#monitor-menu > summary')).toBeFocused();
+  await expect(frame.locator('#connection-change')).toBeFocused();
   await choose(page, 'custom', 'lmstudio');
   await expect(frame.locator('#connection')).toHaveText('Custom local');
   expect(await selection(page)).toEqual({ provider: 'custom', runtime: 'lmstudio' });
@@ -133,7 +140,7 @@ test('a storage failure keeps the chosen connection usable; a missing setup poin
   await frame.locator('#measurement-details > summary').click();
   await expect(frame.locator('.machine-summary')).toBeVisible();
   await callout.getByRole('button', { name: 'Connection…' }).click();
-  await expect(frame.getByLabel('Connection', { exact: true })).toBeFocused();
+  await expect(frame.locator('#connection-setup-title')).toBeFocused();
 });
 
 test('switching while paused keeps the pause and discards the previous connection\'s readings', async ({ page }) => {

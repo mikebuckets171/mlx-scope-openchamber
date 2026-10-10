@@ -1,3 +1,5 @@
+import { MediaController } from './media/controller.ts';
+import { mountMediaSetup } from './media/setup.ts';
 import { connectHost, type HostReadyContext } from '@openchamber/sdk';
 import { applyHostReady } from './sdk-theme.ts';
 import { version } from '../package.json';
@@ -40,7 +42,8 @@ const host = connectHost();
 const client = new SnapshotClient(host);
 let monitor: Monitor | null = null, pipeline: Pipeline | null = null, render = (): void => {}, disposeSurface = (): void => {};
 let reportPreferenceFailure = (): void => {};
-const visibility = new Visibility(document, window, () => monitor?.sync());
+const mediaJobs = new MediaController(host, () => { if (state.mounted) render(); }, () => client.now());
+const visibility = new Visibility(document, window, () => { monitor?.sync(); if (state.mounted) render(); });
 const prefs = new PrefsV2(host.storage), preferences = new Preferences(host.storage);
 const follow = new FollowChat();
 const resetSelection = (): void => {
@@ -80,6 +83,7 @@ const monitorFor = (pipeline: Pipeline, tier: 'glance' | 'full', floorMs: number
   since: frame => pipeline.since(frame),
   received: (reading, fresh, cadenceMs) => {
     update(reading.link);
+    if (typeof reading.body?.mediaEnabled === 'boolean') mediaJobs.setEnabled(reading.body.mediaEnabled);
     if (reading.body) pipeline.received(reading.body, fresh, visibility.visible, cadenceMs); else pipeline.failed();
   },
   live: live => pipeline.setVisible(live), hidden: () => pipeline.hidden(), render: () => render(), refreshed,
@@ -91,13 +95,13 @@ const mountStatus = async (ready: HostReadyContext): Promise<void> => {
   let selection: Record<string, string> | undefined = await readSelection(host.storage);
   root.innerHTML = '<main class="scope" id="scope" data-surface="status" aria-label="MLX Scope"></main>';
   const pipeline = pipelineFor('status');
-  const app = new StatusApp({ root: root.querySelector<HTMLElement>('#scope')!, host, state, client, pipeline, prefs, visible: () => visibility.visible }, ready.session);
+  const app = new StatusApp({ root: root.querySelector<HTMLElement>('#scope')!, host, state, client, pipeline, prefs, mediaJobs, visible: () => visibility.visible }, ready.session);
   app.onMeasurementScope = changeMeasurementScope;
   reportPreferenceFailure = () => app.reportPreferenceFailure();
   render = () => app.render();
   monitor = monitorFor(pipeline, 'glance', 5_000, () => selection, () => {}, () => {});
   preferences.load((key, value) => { if (key === 'efficient') state.efficient = value; }).catch(() => {});
-  disposeSurface = () => { app.dispose(); pipeline.dispose(); };
+  disposeSurface = () => { app.dispose(); pipeline.dispose(); mediaJobs.dispose(); };
   void readSelection(host.storage).then(next => { selection = next; });
   state.mounted = true;
   clearTimeout(readyDeadline);
@@ -126,20 +130,21 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
     void prefs.set({ measurementScope: 'engine' }).catch(() => { if (!state.disposed) reportPreferenceFailure(); });
     resetSelection();
   }, actionStatus);
-  const app = new ScopeApp({ shell, host, state, client, pipeline, version, connections, prefs, visible: () => visibility.visible, status: actionStatus });
+  const app = new ScopeApp({ shell, host, state, client, pipeline, version, connections, prefs, mediaJobs, session: () => follow.session, companion: () => companion?.status ?? null, visible: () => visibility.visible, status: actionStatus });
   app.onMeasurementScope = changeMeasurementScope;
   render = () => app.render();
   monitor = monitorFor(pipeline, 'full', 3_000, () => connections.query(), link => connections.update(link),
     () => { refresh.disabled = state.userPaused; refresh.removeAttribute('aria-busy'); });
   app.onRefreshNeeded = () => monitor!.poller.refresh();
   const help = new ConnectionHelp(shell, host, version);
-  const companion = mountCompanionSetup(node('companion-setup'), host);
-  const companionDetails = node('companion-details') as HTMLDetailsElement;
-  companionDetails.addEventListener('toggle', () => { if (companionDetails.open) void companion.refresh(); else companionDetails.hidden = true; });
-  node('chat-setup').addEventListener('click', () => {
-    companionDetails.hidden = false; companionDetails.open = true; companionDetails.scrollIntoView({ block: 'nearest' });
-    companionDetails.querySelector('summary')?.focus();
-  });
+  const companion = mountCompanionSetup(node('companion-setup'), host, () => { if (state.mounted) render(); });
+  const mediaSetup = mountMediaSetup(node('media-setup'), node('media-advanced'), host, status => { mediaJobs.setEnabled(status.enabled !== false); void mediaJobs.refresh(); if (state.mounted) render(); });
+  let setupRead = false;
+  const checkSetup = (): void => { if (!visibility.visible) return; setupRead = true; void connections.refresh(host); void companion.refresh(); void mediaSetup.refresh(); };
+  connections.onOpen = checkSetup;
+  connections.onVisibility = open => { companion.setVisible(open && visibility.visible); mediaSetup.setVisible(open && visibility.visible); if (state.mounted) render(); };
+  const renderApp = render;
+  render = () => { renderApp(); const open = connections.isOpen && visibility.visible; companion.setVisible(open); mediaSetup.setVisible(open); if (!setupRead && visibility.visible) checkSetup(); };
   const sharing = new SharingControls(node('share-actions'), host, () => measurementReport(state.latest, state.lastHost,
     state.userPaused ? true : state.awaitingFresh || state.stale ? 'refreshing' : false, version, client.now(), state.lastRequest), actionStatus);
 
@@ -189,7 +194,7 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
   menu.addEventListener('keydown', event => { if (event.key === 'Escape' && menu.open) { menu.open = false; summary.focus(); } });
   const outside = (event: PointerEvent): void => { if (menu.open && !menu.contains(event.target as Node)) menu.open = false; };
   document.addEventListener('pointerdown', outside, true);
-  disposeSurface = () => { app.dispose(); pipeline.dispose(); sharing.dispose(); help.dispose(); companion.dispose(); document.removeEventListener('pointerdown', outside, true); };
+  disposeSurface = () => { app.dispose(); pipeline.dispose(); sharing.dispose(); help.dispose(); connections.dispose(); companion.dispose(); mediaSetup.dispose(); mediaJobs.dispose(); document.removeEventListener('pointerdown', outside, true); };
 
   await Promise.all([preferences.load(applyPreference), prefs.load().then(showToasts), connections.load()]);
   if (state.disposed) return;
@@ -223,7 +228,7 @@ host.onReady(ready => {
   (ready.surface === 'status' ? mountStatus(ready) : mountScope(ready)).catch(() => showStartupFailure());
 });
 window.addEventListener('pagehide', event => {
-  pipeline?.hidden();
+  pipeline?.hidden(); mediaJobs.sync(false);
   monitor?.poller.stop(); monitor?.clearFreshness(); state.signal.break(); state.generation += 1;
   state.interrupted = true; state.awaitingFresh = true;
   if (!event.persisted) {

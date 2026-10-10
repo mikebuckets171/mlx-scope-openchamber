@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChatTelemetry } from './chat-telemetry.ts';
+import { version as companionVersion } from '../bridge/opencode/package.json';
 
 test('writer freshness is checked after asynchronous IO while truly future data stays rejected', async () => {
   const home = await realpath(await mkdtemp(join(tmpdir(), 'scope-chat-clock-')));
@@ -13,7 +14,7 @@ test('writer freshness is checked after asynchronous IO while truly future data 
   const measurement = { scope: 'chat', basis: 'estimated-characters', timingBasis: 'delivery-window', phase: 'generating',
     tokensPerSecond: 42, observedAtMs: now + 1, expiresAtMs: now + 5_001,
     observation: { startedAtMs: now - 2_999, endedAtMs: now + 1 }, freshness: 'live' } as const;
-  const body = { schemaVersion: 1, writerID, companionVersion: '3.0.0', protocol: 'opencode-2.0.25', runtimeVersion: '2.0.25',
+  const body = { schemaVersion: 1, writerID, companionVersion, protocol: 'opencode-2.0.25', runtimeVersion: '2.0.25',
     updatedAtMs: now + 1, expiresAtMs: now + 15_001, entries: [{ ...target, measurement }] };
   const telemetry = new ChatTelemetry(home, () => now);
   try {

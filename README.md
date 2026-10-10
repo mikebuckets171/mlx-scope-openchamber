@@ -1,13 +1,14 @@
 # MLX Scope
 
-Lightweight model monitoring for OpenChamber.
+Lightweight chat and local media monitoring for OpenChamber.
+
+**3.1 release candidate:** the media and setup improvements below are in the candidate branch. The latest public release remains 3.0.0 until 3.1 is published.
 
 MLX Scope keeps honest runtime readings beside your conversation. It observes oMLX, Splash in Bionic, LM Studio,
 llama.cpp `llama-server`, Ollama, vllm-mlx, mlx-lm and standalone Splash through their supported passive APIs, plus the
 Mac they run on. It never sends inference, loads or unloads a model, or starts a runtime. The Session sidebar follows your chat and presents one relevant reading. Optional, clearly labeled chat delivery
 estimates supplement native engine measurements; missing measurements leave no empty rows. Every value identifies
-its source and scope. Live estimates, native throughput and completed-reply averages remain separate. The optional
-companion also observes cloud chat delivery through OpenCode; it never calls a cloud API or reports cloud engine internals.
+its source and scope. Live estimates, native throughput and completed-reply averages remain separate. Cloud chats receive the same delivery estimates on qualified OpenCode runtimes, labelled **Cloud · est.**; they include network and provider buffering and never borrow a local engine's reading. Local media progress stays available in all cases.
 
 | Runtime | Readings |
 | --- | --- |
@@ -40,16 +41,17 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   provider and model. It prefers a matching runtime measurement, then a labeled **Chat · est.** delivery estimate from
   the optional companion, then an explicitly labeled **Engine** fallback. **Chat · matched** is inferred from runtime
   activity, not a server-provided chat identifier. Whole engine watches the selected connection independently.
-  Cloud chats use the same activity and reading layout: **Chat · est.** while streaming, then **Last chat · avg.** when
-  reliable reported usage is available. Without observations they stay quiet. They never borrow a local engine's reading
-  or hardware warnings. Theme-native rows remain readable at increased text size.
+  Cloud chats show a delivery estimate labelled **Cloud · est.** on qualified runtimes. They never borrow a local engine's reading
+  or hardware warnings. Media progress remains available. Theme-native rows remain readable at increased text size.
   The section samples only while visible and uses lighter Mac probes than the full panel.
-- **Rail panel and full page.** **Live** and **History** remain available at every width. Live leads with the same activity,
-  reading and scope menu as the sidebar, with available supporting facts in a separate **Engine** group and a visible
-  **Engine trend** when compatible samples exist. Prompt progress shows supported counts and an available server estimate.
-  Completed results retain their own available output, duration and first-token facts; chat step timing stays distinct.
-  **Measurement details** groups deeper engine readings, request details and the last reply; engine charts never mix in
-  chat estimates. **Server & Mac details** opens diagnostics with **Back to Live**.
+- **Rail panel and full page.** One column at every width: This chat leads with the same activity, reading and scope
+  menu as the sidebar, with available supporting facts in a separate **Engine** group and a visible **Engine trend** when
+  compatible samples exist; **Media** joins the column only while jobs are running or recently finished. The reading never
+  goes dark: prompt progress shows supported counts, otherwise the reply's elapsed time, and the previous completed average
+  stays below a live reading, dimmed and labelled. Completed results retain their own available output, duration and
+  first-token facts; chat step timing stays distinct. **Measurement details** groups deeper engine readings, request
+  details and the last reply; engine charts never mix in chat estimates. The column's foot opens **History** and
+  **Server & Mac details**, each with **Back**.
   History retains recent replies, trends, insights, alerts, and storage. **Captures** opens from History with
   **Back to History**, a **Reply / Timed window** selector, and saved captures. Active recordings remain cancellable
   while you navigate. Resizing preserves your selected destination. Open the rail from the Session action or the full
@@ -71,6 +73,12 @@ The full Live view shows the useful signal directly and keeps deeper measurement
 
 ![MLX Scope 3.0 full Live view with activity first, a labeled speed, Engine facts and a compatible Engine trend](docs/3.0/assets/live-light.png)
 
+Media keeps measured phase progress separate from chat speed. These 3.1 screenshots use synthetic jobs.
+
+![MLX Scope Media showing a phase-local sampling measurement](docs/3.1/assets/media-light.png)
+
+[Connections and guided setup](docs/3.1/assets/connections-light.png) bring runtime, chat and media readiness together.
+
 ## Prompt progress for standalone Splash
 
 Splash's normal status readings provide speed but do not provide the current prompt's total size. The optional
@@ -78,9 +86,9 @@ Splash's normal status readings provide speed but do not provide the current pro
 With it installed, **Prompt progress** shows the portion read, including tokens reused from cache. Both the Session
 section and the full view show the percentage. It clears when the response starts, stops, or becomes uncertain.
 
-The companion is bundled and does not activate automatically. Open **More → Chat estimates…** for detected
-compatibility and a deliberate **Enable** action, or follow the [manual setup](bridge/opencode/README.md). Setup preserves
-existing plugins and JSONC comments and provides **Disable / Remove**. It never restarts an active inference session.
+The companion is bundled and does not activate automatically. Open **Connections → Enable chat speed** for detected
+compatibility and a deliberate setup action, or follow the [manual setup](bridge/opencode/README.md). Setup preserves
+existing plugins and JSONC comments and provides **Disable and remove**. It never restarts an active inference session.
 Chat delivery estimates initially qualify OpenCode **2.0.25** only; other versions retain ordinary runtime monitoring.
 The existing Splash HTTP observer remains separate. New replies acquire observations after activation; an already
 running reply cannot acquire them retroactively.
@@ -160,48 +168,19 @@ them at a time, and a sent chip stays in the chat's session record like any atta
 
 ## Install
 
-**Requirements**
-- **OpenChamber 2.0.4 or newer**, desktop or web client. 2.0.4 is the only host 2.0 is qualified on; OpenChamber refuses
-  a 2.0 install on an older host as too old. Extensions are not available in the mobile or VS Code clients.
-- **OpenChamber 1.24.x–2.0.3:** install the 1.6 line instead. It takes security and correctness fixes only:
+OpenChamber 2.0.4 or newer is required. The extension uses the 2.0.4 SDK and is exercised in OpenChamber 2.2.0. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
 
-  ```text
-  https://github.com/mikebuckets171/mlx-scope-openchamber#legacy/1.6.x
-  ```
+1. Open **Settings → Extensions** in OpenChamber and add this repository, or install the named ZIP from [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest).
+2. Review OpenChamber’s local-service permissions. The ZIP contains built JavaScript and needs no build toolchain.
+3. Open **MLX Scope** from the Session sidebar. **This chat** follows the selected chat automatically.
 
-  The `legacy/1.6.x` branch is published with the 2.0.0 release (owner gate G7).
-- Runtimes must run on the same computer as the OpenChamber server. Mac readings need macOS on Apple Silicon.
+Scope discovers supported existing connections. Native readings start immediately when available. **Connections** shows what is connected and gives one action for additional tracking: **Enable chat speed** or **Enable detailed media progress**. Installation and readiness are separate; a helper waiting for its owning application to start is labelled accordingly. Scope never restarts an application or generates test work.
 
-**Steps**
-1. Open **Settings → Extensions** in OpenChamber.
-2. Add this repository and review the extension's local-service permissions (listed below):
+The column shows chat and engine readings, then **Media** while local image/video jobs are active or recently finished. **History** retains existing observations and captures. In the compact Session section, this chat’s media job comes first, with a count of other jobs. A ring shows the measured progress of the named phase and the percentage is written beside it; an older reading says **Last reported** and stays still. A source that declares its final phase adds a finish time such as **finishes around 9:41 PM**. [Media support and setup](docs/MEDIA.md) explains supported sources and progress units.
 
-   ```text
-   https://github.com/mikebuckets171/mlx-scope-openchamber
-   ```
+Use Connections → Advanced only when automatic discovery cannot identify a custom installation. Existing provider credentials stay in their owning configuration. Enterprise deployments may require the administrator to allowlist this repository.
 
-Alternatively, install the named versioned `mlx-scope-openchamber-3.0.0.zip` from
-[Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest), or the supplied local package. Use the named install package, not
-GitHub's generated source archives. The ZIP includes built JavaScript; installing it needs no build toolchain.
-
-MLX Scope discovers existing local OpenCode provider connections, including custom provider names. Keep **Automatic**,
-or choose **⋯ → Connection** to select a connection and runtime. Endpoints and credentials stay in the existing provider
-configuration; MLX Scope never edits them. See [Configuration](docs/CONFIGURATION.md) if no connection appears.
-
-**Enterprise mode.** When OpenChamber runs in enterprise mode, extensions with a local service install only from
-allowlisted repositories. Ask your administrator to allowlist this repository before you install or update (verified in
-Stage 12).
-
-### Updating from 1.6
-
-Updating asks for one new approval. OpenChamber's dialog lists every entry again, not only the new ones, and shows `~/`
-paths as written. Until you approve, Scope shows what it needs and why instead of readings. Your 1.6 saved observations
-are copied into Captures and the originals are kept, so rolling back still shows them. If a view says the service is
-still the previous version, pause MLX Scope and resume it in Settings → Extensions.
-
-**Something wrong after updating?** See the
-[rollback runbook](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/2.0/ROLLBACK.md): fixes ship as
-2.0.x updates, and the severe case is the legacy pin above.
+Updates preserve existing preferences, observations and captures. OpenChamber may request approval again when a release adds an executable permission; 3.1 adds only exact job cancellation through the optional existing local-video command. If extension/service versions differ after an update, reload the extension in Settings → Extensions; generation backends remain independent.
 
 ### What Scope asks you to approve and why
 
@@ -218,6 +197,7 @@ still the previous version, pause MLX Scope and resume it in Settings → Extens
 | `~/.cache/lm-studio/bin/lms` | The same three commands | The same, for LM Studio's older install location |
 | `/opt/homebrew/bin/macmon` | `macmon pipe -i 1000` | Optional chip power estimate, only if you installed macmon with Homebrew. Scope never installs it |
 | `/usr/local/bin/macmon` | The same | The same, for a macmon installed under `/usr/local` |
+| `~/.config/opencode/bin/local-video` | `local-video cancel <job-id>` | Only after explicit confirmation to cancel one observed job in the standard local-video queue |
 
 - **Not requested:** any capability, including the `sessions` permission, which would let Scope list projects,
   worktrees and chats. Per-chat labels use only what OpenChamber gives every extension about the open chat.
@@ -227,8 +207,7 @@ still the previous version, pause MLX Scope and resume it in Settings → Extens
   service, so this list is Scope's promise, enforced in its own code; see [Security](SECURITY.md).
 - `lms` runs only from the two locations above. An LM Studio home moved with `~/.lmstudio-home-pointer` keeps its
   inventory view, without live activity.
-- This list does not change within 2.0.x, so an update never asks again. The exact dialog on OpenChamber 2.0.4 is
-  verified in Stage 12.
+- Permission changes are shown by OpenChamber when updating. Scope cannot approve its own service.
 
 ## What the readings mean
 
@@ -244,7 +223,7 @@ arrives, it shows processing without inventing prefill progress.
 Captures are observations, not controlled benchmarks or proof that a request finished successfully. Prompts, cache
 states, and competing workloads can change a comparison. [Metric definitions](docs/METRICS.md) explain the limits.
 
-## Lightweight and read-only
+## Lightweight passive monitoring
 
 Vanilla TypeScript, the official OpenChamber SDK, and a host-managed local service. No UI framework, chart library,
 inference requests, or separate daemon. The service reads a runtime only when a visible view asks, shares one reading
@@ -253,7 +232,7 @@ after the last view closes the service makes no requests and runs no commands. H
 storage are bounded.
 
 The approved service runs under the OpenChamber user account and reads local configuration, runtime APIs, and fixed
-macOS diagnostic commands. Read-only behavior is a code boundary, not an operating-system sandbox. There is no analytics
+macOS diagnostic commands. Monitoring is passive; managed setup and exact media cancellation require deliberate actions. These boundaries are enforced in code, not an operating-system sandbox. There is no analytics
 service. See [Privacy](PRIVACY.md) and [Security](SECURITY.md).
 
 ## Project status

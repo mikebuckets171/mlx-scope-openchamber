@@ -5,9 +5,9 @@ JavaScript. There is no separate daemon or runtime SDK to install.
 
 | Part | Source | Bundle | What it is |
 |---|---|---|---|
-| Views | `panel/` | `panel/main.js` (≤ 272 KB) | One bundle for the rail panel, the full page and the Work Status section; `ctx.surface` picks the renderer |
+| Views | `panel/` | `panel/main.js` (≤ 304 KB) | One bundle for the rail panel, the full page and the Work Status section; `ctx.surface` picks the renderer |
 | `/scope` | `background/` | `background/main.js` (≤ 25 KB) | The background entry: answers the slash command, nothing else |
-| Service | `service/` | `service/main.js` (≤ 210 KB) | Node service the host starts on demand; reads runtimes and the Mac |
+| Service | `service/` | `service/main.js` (≤ 244 KB) | Node service the host starts on demand; reads runtimes and the Mac |
 | Contract | `src/contract/` | (in each bundle) | Wire contract v2 (`docs/design/2.0-contract.md`): types, allowlist parsers, reason codes |
 
 ## Pipeline
@@ -66,11 +66,11 @@ basis, timing basis, observation interval, expiry and freshness. It is never mer
 
 Visible frames send hashed session/model matching keys with the selected provider. Configuration metadata identifies
 whether the selected provider has a discovered loopback origin. Local targets retain exact endpoint matching; remote
-targets carry an explicit destination classification and require a matching observed primary HTTP request. Remote
+targets carry an explicit destination classification and require matching observed primary HTTP or qualified WebSocket metadata. Remote
 snapshots omit engine, history and hardware readings and never run a runtime collector. The additive `chatOnly=1`
 query also requests that path explicitly. The service writes a bounded union of watched targets into a private demand
 file (15-second expiry). One
-companion subscription per OpenCode process counts qualified delivery events while demanded and writes bounded
+companion subscription per distinct OpenCode Location counts qualified delivery events while demanded, with a sixteen-location cap. Locations share one process-wide demand poll and writer of bounded
 expiring metadata. The service accepts exactly one matching writer; absent, stale, unsafe, unsupported or ambiguous
 records contribute no chat value. A one-shot view timer removes expired chat readings even if the next poll stalls.
 There is no autonomous service polling loop. Hidden views send no requests; companion event work stops after demand
@@ -78,9 +78,7 @@ expires. The demand watcher itself checks only the private file once per second.
 
 The optional setup route reads compatibility on GET and changes managed local files only on explicit authenticated
 POST Enable/Disable. JSONC edits preserve comments and unrelated plugins; writes are atomic with rollback. It never
-restarts the host or inference. Existing runtime permissions and command paths are unchanged. Bundle ceilings increase
-by 8 KB for the panel and 30 KB for the service to cover guided setup, safe local transport and identifier hashing;
-the CPU/RSS and hidden-view budgets are unchanged.
+restarts the host or inference. The 3.0 chat setup preserved runtime command permissions. In 3.1, the command list adds only the optional exact local-video cancellation path. Bundle ceilings cover media adapters and setup; the CPU/RSS and hidden-view budgets are unchanged.
 
 ## Probe tiers and cadence
 
@@ -89,7 +87,7 @@ Every exec uses an absolute path from `service/lib/argv.ts`, no shell, and a val
 | Probe | Full tier (panel, page): idle / active | Glance tier (Work Status) |
 |---|---|---|
 | `vm_stat` + `sysctl -i vm.swapusage kern.memorystatus_vm_pressure_level iogpu.wired_limit_mb` | 10 s | 10 s |
-| `ioreg -r -d 1 -w 0 -c IOAccelerator` (128 KiB cap) | 15 s / 5 s | 15 s |
+| `ioreg -r -d 1 -w 0 -c IOAccelerator` (128 KiB cap) | 15 s / 5 s | — |
 | `notifyutil -g com.apple.system.thermalpressurelevel` | 60 s | 60 s |
 | `lsof -nP -iTCP:<port> -sTCP:LISTEN -t` (oMLX listener) | on a generation change, then every 120 s | — |
 | `footprint -p <pid>` (oMLX only) | 30 s / 10 s | — |
@@ -98,6 +96,10 @@ Every exec uses an absolute path from `service/lib/argv.ts`, no shell, and a val
 | LM Studio liveness | `GET /lmstudio-greeting` (no spawn) | same |
 | `lms log stream -s server --json --port <port>`, `macmon pipe -i 1000` | streamed, bounded lines, stopped 60 s after the last read | — |
 | **Spawns per minute** | **≤ 24 idle / ≤ 36 active** | **≤ 18** |
+
+The Session sidebar collects memory pressure and thermal warnings. GPU diagnostics run only for the full tier;
+glance may reuse an existing fresh GPU reading but never refreshes it. Media snapshots and their bounded JSON bodies
+are shared across simultaneous views.
 
 | Runtime work | Limit |
 |---|---|
@@ -155,4 +157,15 @@ no view, active (500 ms polls while the runtime generates), idle (2 s polls) and
 percentage of one core, sampled RSS, request and spawn counts, and snapshot latency, and checks the budgets from
 `docs/2.0/SPIKES.md` S13: no-view CPU, idle and active CPU, service RSS, the spawn budgets above, zero requests and spawns
 with no view, and children gone within 65 s of the last read. Work Status and macmon phases and renderer CPU have
-separate probes. See the [3.0 verification receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/3.0/RELEASE.md) for current measurements and their scope.
+separate probes. See the [3.0 verification receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/3.0/RELEASE.md) for the prior release’s baseline measurements and their scope.
+
+
+## Media collection and motion
+
+Media uses its own versioned contract and `/v2/media` route on the authenticated host service. Each configured source has one collection in flight and a two-second shared cache across visible frames. Full snapshots share in-flight composition and a short cache bounded by observation freshness. There are no autonomous media polling timers. A hidden frame stops requests; disabling media stops discovery and collection. Enabled views with no detected source retry discovery after 30 seconds so a newly started supported backend becomes available. Completed video records are cached for up to 30 seconds; directory changes and active-job moves trigger an immediate refresh, while content edits to an existing terminal record are revalidated within that bound.
+
+Adapters normalize ComfyUI jobs, a private local-video queue, the authenticated Qwen image bridge, or an expiring private file feed. Responses contain only bounded job identifiers, hashed ownership, lifecycle, phase-local counters and timings. Media never enters throughput trends, captured LLM comparisons or baselines. Cancellation is an explicit source/job action that rechecks the supported backend mechanism and reports pending acknowledgement.
+
+The optional ComfyUI helper reads its qualified registry only when requested. Connections manages version-qualified installation and rollback, verifies live readiness separately, and leaves activation pending ordinary application startup. It adds no producer hooks or background collection. See [Media](MEDIA.md) for the public integration contract.
+
+The guest digit controller animates changed glyphs directly between two valid received values for 160 ms. Context or phase changes reset it. It exposes one accessible value, observes Reduce Motion, and cancels animation on stale data, terminal states or hidden surfaces. Historical and elapsed-time labels never animate. Circular media indicators ease only inside a stable job, phase/node and counter format. Indeterminate arcs move only during freshly observed work. Retained percentages use separate historical fields, are labelled Last reported, and remain still.

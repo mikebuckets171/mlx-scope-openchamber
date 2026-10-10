@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "kind": "companion-cpu-only-fixture",
+  "helperVersion": "3.1.0",
+  "protocol": "opencode-2.0.25",
+  "workload": {
+    "concurrentChats": 4,
+    "distinctLocations": 2,
+    "deltasPerSecond": 40,
+    "alternatingPairs": 3
+  },
+  "companionFiles": {
+    "package.json": "823f33ea95f43b6f44d510941dcd722f72210c31952072e9433e784f0e06c19e",
+    "index.js": "3f5d39eaef549b8ea7a8edfa59938b64db384fb886a90566e19d916c7962d9c4",
+    "store.js": "3dd1e68ec4f8263c58f71619c0312fc3143f3cc3bf01685e3b150909bf58b053",
+    "stream.js": "2b0bfbda6a170c369560306522942383039d93ef7de665113d796a11041d6f55",
+    "chat.js": "b7b0696b89ec7d836634bd6a2505393e0c752c05b7cd36d97c7a3bda069da756",
+    "demand.js": "a018eb7324685dfe306ad8574f0e98027c9c0003d6b53d51fd7a3afe13b0fbd1",
+    "chat-store.js": "8e3bf1755a1fdab4952e3f5f173c9ce7837b75aa5ea307f4f8e3ce0ec9770af1"
+  },
+  "results": {
+    "runs": 6,
+    "pairs": 3,
+    "phases": {
+      "idle": {
+        "medianEnabledCPUPercentOneCore": 0.08898425600525542,
+        "medianDisabledCPUPercentOneCore": 0.0364463915521116,
+        "medianPairedIncrementalCPUPercentOneCore": 0.04409283182351017,
+        "pairedIncrementalCPUPercentOneCore": [
+          0.07373187225707423,
+          0.04409283182351017,
+          0.042794097688765645
+        ],
+        "medianPairedPeakRSSDifferenceMiB": 6.1875
+      },
+      "visible": {
+        "medianEnabledCPUPercentOneCore": 1.5208071440301034,
+        "medianDisabledCPUPercentOneCore": 0.35557763183655855,
+        "medianPairedIncrementalCPUPercentOneCore": 1.1983595042345014,
+        "pairedIncrementalCPUPercentOneCore": [
+          1.0665746312753108,
+          1.1983595042345014,
+          1.229998910417189
+        ],
+        "medianPairedPeakRSSDifferenceMiB": 6.96875
+      },
+      "hidden": {
+        "medianEnabledCPUPercentOneCore": 0.2617511344030915,
+        "medianDisabledCPUPercentOneCore": 0.13722102063570454,
+        "medianPairedIncrementalCPUPercentOneCore": 0.12453011376738696,
+        "pairedIncrementalCPUPercentOneCore": [
+          0.10139864192126505,
+          0.13989161760996643,
+          0.12453011376738696
+        ],
+        "medianPairedPeakRSSDifferenceMiB": 7.546875
+      }
+    },
+    "maxWriterBytes": 2833,
+    "oneWriterPerProcess": true,
+    "fourLiveChatsObserved": true,
+    "twoSubscriptions": true,
+    "hiddenWorkStopped": true,
+    "sourceStillMatches": true
+  },
+  "qualification": {
+    "defaultOpenAIWebSocket": {
+      "modelCalls": 6,
+      "cachedConnections": 1,
+      "nativeReadToolContinuation": true,
+      "liveAndCalibratedReadings": true,
+      "hiddenWritesStopped": true
+    },
+    "managedConfigWatcherUpdate": {
+      "previousVersion": "3.0.0",
+      "currentVersion": "3.1.0",
+      "activeSyntheticStreamCompleted": true,
+      "duplicateRequests": 0,
+      "serverRestarted": false
+    }
+  },
+  "limits": [
+    "CPU/RSS compare isolated Node fixture workers, not the complete OpenCode process.",
+    "No real model, provider request, GPU generation, or inference slowdown measurement.",
+    "Hot update qualifies supported configuration-watcher activation; an already-running step is not reconstructed retroactively."
+  ]
+}

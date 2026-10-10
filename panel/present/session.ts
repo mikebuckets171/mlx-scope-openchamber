@@ -11,7 +11,7 @@ import type { StatusSectionInput } from './status.ts';
 /** One relevant measurement, with its scope always visible beside the number. */
 export interface SessionMeasurement {
   label: string; text: string; unit: string | null; basis: Basis;
-  detail: string; live: boolean; kind: 'speed' | 'progress';
+  detail: string; live: boolean; kind: 'speed' | 'progress' | 'elapsed';
   result?: { label: string; outputTokens?: number; durationMs?: number; ttftMs?: number; timing: 'request' | 'step' };
 }
 export interface SessionSectionView {
@@ -20,11 +20,15 @@ export interface SessionSectionView {
   support: { text: string; detail: string; basis?: Basis } | null;
   speeds: SpeedsView;
   progress: { text: string; detail: string; basis: Basis } | null;
+  /** The previous completed average, dimmed below a live reading until a new one replaces it. Never live. */
+  held: { text: string; detail: string } | null;
   note: string | null;
   alert: { label: string; value: string; severity: Severity; more: number } | null;
   cancelMeasurement: boolean;
 }
 const positive = (value: number | null | undefined): value is number => value != null && Number.isFinite(value) && value > 0;
+/** Whole seconds, rounded down: an elapsed time never runs ahead of the clock. */
+const elapsedText = (ms: number): string => (ms < 60_000 ? `${Math.floor(ms / 1_000)} s` : dur(Math.floor(ms / 1_000) * 1_000)).replace(/ /g, '\u00a0');
 type SessionSectionInput = Omit<StatusSectionInput, 'turn' | 'vsUsual' | 'sparkline' | 'expanded' | 'tipDismissed'> & Partial<StatusSectionInput>;
 
 export const presentSessionSection = (input: SessionSectionInput): SessionSectionView => {
@@ -39,6 +43,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   const candidate = snapshot?.chat;
   const observedChat = candidate && candidate.observedAtMs <= input.now && candidate.expiresAtMs > input.now ? candidate : null;
   const retained = input.lastChat?.freshness === 'last' && input.lastChat.observedAtMs <= input.now && input.chatActivity === 'idle' ? input.lastChat : null;
+  // Cloud delivery is its own scope: it is shown as a cloud estimate and never borrows a local engine reading.
   const chat = !engine && fresh ? observedChat ?? retained : null;
   const readingPrompt = usable && snapshot.runtime.phase === 'prefill' && (!chat || chat.phase === 'waiting');
   const chatStopped = chat && (['tool', 'cancelled', 'complete'].includes(chat.phase) || chat.phase === 'waiting' && !readingPrompt);
@@ -63,7 +68,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     measurement = { label: source, text: activeSpeed.value!, unit: 'tok/s', basis: activeSpeed.basis,
       detail: `${sourceDetail} ${activeSpeed.detail}`, live: true, kind: 'speed' };
   } else if (chat?.freshness === 'live' && ['generating', 'reasoning'].includes(chat.phase) && positive(chat.tokensPerSecond)) {
-    measurement = { label: 'Chat · est.', text: tps(chat.tokensPerSecond), unit: 'tok/s', basis: 'estimate', live: true, kind: 'speed',
+    measurement = { label: nonLocal ? 'Cloud · est.' : 'Chat · est.', text: tps(chat.tokensPerSecond), unit: 'tok/s', basis: 'estimate', live: true, kind: 'speed',
       detail: `Estimated delivery over ${dur(chat.observation.endedAtMs - chat.observation.startedAtMs)}${chat.basis === 'calibrated-characters' ? ' · calibrated from reported output' : ' · four characters per token'}. Includes observable reasoning${nonLocal ? ', network delivery and provider buffering' : ''}.` };
   } else if (usable && !chatStopped && activeSpeed?.value !== null && activeSpeed) {
     measurement = { label: 'Engine', text: activeSpeed.value!, unit: 'tok/s', basis: activeSpeed.basis,
@@ -73,9 +78,9 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     phase = readingPrompt ? 'Reading prompt' : chat.phase === 'complete' && input.chatActivity === 'busy' ? 'Waiting'
       : { generating: 'Generating', reasoning: 'Reasoning', tool: 'Using tools', waiting: 'Waiting', complete: 'Complete', cancelled: 'Stopped' }[chat.phase];
     if (chat.phase === 'complete' && input.chatActivity !== 'busy' && positive(chat.tokensPerSecond)) {
-      measurement = { label: 'Last chat · avg.', text: tps(chat.tokensPerSecond), unit: 'tok/s', basis: 'derived', live: false, kind: 'speed',
+      measurement = { label: nonLocal ? 'Last cloud · avg.' : 'Last chat · avg.', text: tps(chat.tokensPerSecond), unit: 'tok/s', basis: 'derived', live: false, kind: 'speed',
         detail: `Reported output tokens divided by observed step duration, including waiting before delivery${nonLocal ? '; cloud engine timing is unknown' : ''}.`,
-        result: { label: 'Last chat result', durationMs: chat.observation.endedAtMs - chat.observation.startedAtMs, timing: 'step' } };
+        result: { label: nonLocal ? 'Last cloud result' : 'Last chat result', durationMs: chat.observation.endedAtMs - chat.observation.startedAtMs, timing: 'step' } };
       age = ago(chat.observedAtMs, input.now);
     }
   }
@@ -94,6 +99,18 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
         outputTokens: last.completion.outputTokens, ttftMs: last.completion.ttftMs,
         ...last.completion.startedAt !== null ? { durationMs: last.completion.finishedAt - last.completion.startedAt } : {} } };
     age = ago(last.completion.finishedAt, input.now);
+  }
+  // Never dark: while the prompt is read, or the reply waits for its first output, and nothing better is measured, the
+  // hero holds this reply's elapsed time. It comes from the engine's own request clock when it reports one, else from
+  // the chat's observed turn start; a turn joined mid-way has no known start, so nothing is shown. Never a simulated %.
+  const awaitingOutput = readingPrompt || !engine && chat?.phase === 'waiting' && input.chatActivity === 'busy';
+  if (!measurement && !cancelled && awaitingOutput && fresh) {
+    const request = snapshot.runtime.request, engineClock = readingPrompt && request?.elapsedMs != null ? snapshot.capabilities['request.elapsed'] : undefined;
+    const turn = !engine && input.window?.endedAt === null && input.window.startedAt !== null && input.window.startedAt <= input.now ? input.window.startedAt : null;
+    if (engineClock && request!.elapsedMs! >= 0) measurement = { label: `${source} · prompt · elapsed`, text: elapsedText(request!.elapsedMs!), unit: null,
+      basis: engineClock.basis, live: true, kind: 'elapsed', detail: 'Time since the engine started this request. Prompt progress is not reported.' };
+    else if (turn !== null) measurement = { label: `This reply · elapsed`, text: elapsedText(input.now - turn), unit: null, basis: 'observed', live: true,
+      kind: 'elapsed', detail: readingPrompt ? 'Time since this reply started. The engine does not report prompt progress.' : 'Time since this reply started, waiting for its first output.' };
   }
   if (cancelled && !engine) { measurement = null; phase = 'Stopped'; }
   else if (!engine && input.chatActivity === 'busy' && usable && !chat && snapshot.runtime.phase === 'idle') phase = 'Waiting';
@@ -123,9 +140,16 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     : output && request?.ttftMs != null && snapshot!.capabilities['request.ttft'] ? { text: `${prefix}First token ${dur(request.ttftMs)}`, detail: 'Time to first token for this engine request.', basis: snapshot!.capabilities['request.ttft']!.basis }
     : output && request?.outputTokens != null ? { text: `${prefix}${kt(request.outputTokens)} tokens out`, detail: 'Output so far for this engine request.', basis: snapshot!.capabilities['request.tokens']?.basis }
     : usable && !chatStopped && snapshot.runtime.server.active! > 1 ? { text: `Engine · ${snapshot.runtime.server.active} active`, detail: 'Concurrent requests reported by this engine.' } : null;
+  // Held below a live reading: the previous completed average of this local chat's model. A cloud chat never borrows
+  // a local engine's reply, and a value is never held across a model change or cancellation.
+  const held = !nonLocal && fresh && !alert && !cancelled && measurement?.live && last && lastMatches && positive(last.completion.decodeTps)
+    && last.completion.basis !== 'last-observed' && last.completion.finishedAt <= input.now
+    ? { text: `Last ${!engine && last.label.kind !== 'server-wide' && snapshot!.connection.runtime !== 'splash' ? 'reply' : 'engine reply'} · ${tps(last.completion.decodeTps)} tok/s · ${ago(last.completion.finishedAt, input.now)}`,
+      detail: 'The previous completed average, held until a new one replaces it. Not a live reading.' } : null;
   // Missing readings leave the activity area's geometry intact without inventing a measurement row.
-  return { measurementScope, measurement, support, speeds, progress,
+  return { measurementScope, measurement, support, speeds, progress, held,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
-    note: nonLocal ? null : note, alert,
+    // Local engine notes never describe a cloud chat; a frame problem still does.
+    note: nonLocal && !frame ? null : note, alert,
     cancelMeasurement: !nonLocal && (next?.kind === 'armed' || next?.kind === 'measuring') };
 };

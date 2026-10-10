@@ -5,7 +5,11 @@ import { assertBodyLimit } from '../src/contract/guards.ts';
 import type { HostV2 } from '../src/contract/host.ts';
 import { isBadQuery, parseSnapshotQuery, parseTrendQuery, parseUsageQuery, type SnapshotQuery, type TrendQuery, type UsageQuery } from '../src/contract/query.ts';
 import type { ChatMeasurement } from '../src/contract/chat.ts';
+import type { ConnectionV2 } from '../src/contract/snapshot.ts';
+import { mediaId, type MediaCancelResultV1, type MediaSnapshotV1 } from '../src/contract/media.ts';
+import { parseMediaSetupAction, type MediaSetupStatus } from '../src/contract/media-setup.ts';
 import type { CompanionSetupStatus } from './companion-setup.ts';
+import { MediaSetupError } from './media/setup.ts';
 import type { TrendV2 } from '../src/contract/trend.ts';
 import type { UsageV2 } from '../src/contract/usage.ts';
 import { healthBody, NOT_FOUND_BODY, RETIRED_BODY, RETIRED_STATUS, ROUTES } from '../src/contract/version.ts';
@@ -19,10 +23,13 @@ import type { HistoryReading, SnapshotHistory, RecordContext } from './history/h
 import { busy, type ReadRequest, type ReadSelection, type RuntimeReading } from './runtime-client.ts';
 
 export type Sources = {
+  connections?: () => Promise<{schemaVersion:1;state:'ready'|'unavailable';choices:ConnectionV2['choices']}>;
   /** Resolve selected-chat locality from configuration only, before any runtime/host collection. */
   chatDestination?: (query: SnapshotQuery) => Promise<'local' | 'remote'>;
   chat?: (query: SnapshotQuery, reading: RuntimeReading) => Promise<ChatMeasurement | null>;
   companionSetup?: { status(): Promise<CompanionSetupStatus>; enable(): Promise<CompanionSetupStatus>; disable(): Promise<CompanionSetupStatus> };
+  media?: { readonly enabled?: boolean; snapshot(): Promise<MediaSnapshotV1>; cancel(sourceId: string, jobId: string): Promise<MediaCancelResultV1> };
+  mediaSetup?: { status(): Promise<MediaSetupStatus>; action(input: unknown): Promise<MediaSetupStatus> };
   read: (selection?: ReadSelection, request?: ReadRequest) => Promise<RuntimeReading>;
   /** Host readings for this request's tier (svc-host's HostSampler.sample). */
   host?: (context: HostContext) => Promise<HostV2 | null>;
@@ -44,7 +51,9 @@ export type ServerOptions = { version?: string; instance?: string; now?: () => n
 /** Every body is checked against the SDK response limit before a header is written. */
 export const encode = (body: unknown): string => assertBodyLimit(body);
 const json = (response: http.ServerResponse, status: number, body: unknown): void => {
-  const text = encode(body);
+  jsonText(response, status, encode(body));
+};
+const jsonText = (response: http.ServerResponse, status: number, text: string): void => {
   response.writeHead(status, { 'Cache-Control': 'no-store', 'Content-Type': 'application/json; charset=utf-8', 'X-Content-Type-Options': 'nosniff' });
   response.end(text);
 };
@@ -86,7 +95,7 @@ export const hostContextOf = (tier: HostContext['tier'], { status, runtime, meta
   omlxPort: meta.connection.runtime === 'omlx' && (status.state === 'ready' || status.state === 'degraded') ? meta.port ?? null : null,
 });
 
-/** Exact route allowlist. Only the explicit companion setup POST can change local configuration. */
+/** Exact authenticated route allowlist. Writes require an explicit setup or scoped cancellation POST. */
 export const createScopeServer = (token: string, sources: Sources, options: ServerOptions = {}): http.Server => {
   if (!token) throw new Error('A service token is required.');
   // Equal-length digests make the comparison constant-time whatever the header holds.
@@ -94,11 +103,57 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
   const service = { version: options.version ?? packageVersion, instance: options.instance ?? randomBytes(4).toString('hex') };
   const now = options.now ?? Date.now, monotonic = options.monotonic ?? (() => performance.now());
   const lease = new Lease(), marks = new Marks(), verdicts = new Verdicts();
+  // Media snapshots are immutable shared collection results. Freshness/configuration changes yield a new object.
+  // Weak keys keep this wire cache bounded by the snapshots still held by the collection or active requests.
+  const mediaBodies = new WeakMap<MediaSnapshotV1, string>();
+  const withMedia = <T extends object>(body: T): T & { mediaEnabled?: boolean } => sources.media?.enabled === undefined ? body : { ...body, mediaEnabled: sources.media.enabled };
   return http.createServer((request, response) => {
     const handle = async (): Promise<void> => {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1');
       const header = request.headers.authorization;
       if (typeof header !== 'string' || !timingSafeEqual(digest(header), expected)) { json(response, 401, { error: 'unauthorized' }); return; }
+      if (url.pathname === '/v2/connections') {
+        if (request.method !== 'GET') { json(response, 405, { error: 'method_not_allowed' }); return; }
+        if (url.search) { json(response, 400, { error: 'bad_request' }); return; }
+        if (!sources.connections) { json(response, 501, NOT_IMPLEMENTED); return; }
+        json(response, 200, await sources.connections()); return;
+      }
+      if (url.pathname === '/v2/media' || url.pathname === '/v2/media/cancel' || url.pathname === '/v2/media/setup') {
+        if (url.search) { json(response, 400, { error: 'bad_request' }); return; }
+        if (url.pathname === '/v2/media') {
+          if (request.method !== 'GET') { json(response, 405, { error: 'method_not_allowed' }); return; }
+          if (!sources.media) { json(response, 501, NOT_IMPLEMENTED); return; }
+          const snapshot = await sources.media.snapshot();
+          let text = mediaBodies.get(snapshot);
+          if (text === undefined) { text = encode(snapshot); mediaBodies.set(snapshot, text); }
+          jsonText(response, 200, text); return;
+        }
+        if (url.pathname === '/v2/media/setup' && request.method === 'GET') {
+          if (!sources.mediaSetup) { json(response, 501, NOT_IMPLEMENTED); return; }
+          try { json(response, 200, await sources.mediaSetup.status()); }
+          catch (error) { if (error instanceof MediaSetupError) json(response, 400, { error: 'setup_failed', message: error.message }); else throw error; }
+          return;
+        }
+        if (request.method !== 'POST') { json(response, 405, { error: 'method_not_allowed' }); return; }
+        if (request.headers['content-type']?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') { json(response, 415, { error: 'unsupported_media_type' }); return; }
+        let body = '', oversized = false;
+        for await (const chunk of request) { if (body.length + chunk.length > 4096) { oversized = true; break; } body += chunk; }
+        if (oversized) { json(response, 413, { error: 'body_too_large' }); return; }
+        let input: unknown; try { input = JSON.parse(body); } catch { json(response, 400, { error: 'bad_request' }); return; }
+        if (url.pathname === '/v2/media/setup') {
+          if (!sources.mediaSetup) { json(response, 501, NOT_IMPLEMENTED); return; }
+          const action = parseMediaSetupAction(input);
+          if (!action) { json(response, 400, { error: 'bad_request' }); return; }
+          try { json(response, 200, await sources.mediaSetup.action(action)); }
+          catch (error) { if (error instanceof MediaSetupError) json(response, 400, { error: 'setup_failed', message: error.message }); else throw error; }
+          return;
+        }
+        const item = input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : null;
+        const sourceId = mediaId(item?.sourceId), jobId = mediaId(item?.jobId);
+        if (!item || !sourceId || !jobId || Object.keys(item).some(key => key !== 'sourceId' && key !== 'jobId')) { json(response, 400, { error: 'bad_request' }); return; }
+        if (!sources.media) { json(response, 501, NOT_IMPLEMENTED); return; }
+        json(response, 200, await sources.media.cancel(sourceId, jobId)); return;
+      }
       if (url.pathname === '/v2/companion/setup' && sources.companionSetup) {
         if (request.method === 'GET') { json(response, 200, await sources.companionSetup.status()); return; }
         if (request.method !== 'POST') { json(response, 405, { error: 'method_not_allowed' }); return; }
@@ -143,10 +198,10 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
         // Busy remote chats need observations during bootstrap, including when another view holds the presentation
         // lease. This path never collects runtime/host data and cannot put remote estimates into engine history.
         const presentationLease = query.chatBusy ? { ...view, yielded: false } : view;
-        json(response, 200, composeSnapshot({ reading, host: null, chat, service, serverNow: responseNow,
+        json(response, 200, withMedia(composeSnapshot({ reading, host: null, chat, service, serverNow: responseNow,
           completions: { instance: service.instance, cursor: 0, reset: query.since !== undefined && query.since > 0, items: [] },
           alerts: { alerts: [], alertLog: [] }, lease: view, marksHead: 0, query: selectedChat,
-          nextPollMs: snapshotPollMs({ reading, host: null, lease: presentationLease, query: selectedChat, chat, serverNow: responseNow }) }));
+          nextPollMs: snapshotPollMs({ reading, host: null, lease: presentationLease, query: selectedChat, chat, serverNow: responseNow }) })));
         return;
       }
       marks.record(query.marks, serverNow);
@@ -173,12 +228,12 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
           selection: { ...query.provider !== undefined ? { provider: query.provider } : {}, ...query.runtime ? { runtime: query.runtime } : {} } });
         parts = sources.history.snapshot(key, { since: query.since, leader: view.leader, now: serverNow, verdict: seq => verdicts.get(seq) });
       }
-      json(response, 200, composeSnapshot({
+      json(response, 200, withMedia(composeSnapshot({
         reading, host, completions: parts.completions, alerts: { alerts: parts.alerts, alertLog: parts.alertLog },
         // Sources may observe a newer writer while runtime/host IO is pending. Stamp the response after those reads,
         // so a valid fresh chat observation is never rejected as future-dated against request-start time.
         service, serverNow: now(), lease: view, marksHead: marks.head, query, nextPollMs: nonLocal ? Math.max(pollMs, 10_000) : pollMs, chat,
-      }));
+      })));
     };
     void handle().catch(() => { if (!response.headersSent) json(response, 503, { error: 'service_unavailable' }); else response.end(); });
   });

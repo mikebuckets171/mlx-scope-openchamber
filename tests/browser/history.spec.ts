@@ -455,7 +455,7 @@ test('monitoring keeps running on the saved captures tab (the 1.6 suspend is gon
   await page.goto('/?state=decode');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#phase')).toHaveText('Generating');
-  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await frame.getByRole('button', { name: 'History', exact: true }).click();
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
   const requests = () => page.evaluate(() => (window as unknown as { previewRequests: number }).previewRequests);
   const before = await requests();

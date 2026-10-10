@@ -40,7 +40,7 @@ test('every mock state passes the mock\'s checks on Live and Server at 320 (dark
     if (await frame.locator('[data-action="open-server"]').isVisible()) {
       await frame.locator('[data-action="open-server"]').click();
       expect(await problems(page), `${state} server`).toEqual([]);
-      await frame.locator('#tab-live').click();
+      await frame.getByRole('button', { name: 'Back', exact: true }).click();
     }
     expect(await problems(page, true), `${state} live, every ⓘ open`).toEqual([]);
   }
@@ -57,35 +57,29 @@ test('every mock state passes the checks in light at 320, at 430, and on the 1,1
   expect(errors).toEqual([]);
 });
 
-test('Live and History are the only primary destinations and resizing preserves selection', async ({ page }) => {
+test('one column at every width: no workspace tabs, and an open History view survives resizing', async ({ page }) => {
   const frame = await load(page, 'surface=page&state=decode', 1160);
-  await expect(frame.getByRole('tab')).toHaveText(['Live', 'History']);
+  await expect(frame.getByRole('tab')).toHaveCount(0);
+  await expect(frame.locator('#view-live')).toBeVisible();
   await expect(frame.locator('#view-history')).toBeHidden();
-  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await frame.getByRole('button', { name: 'History', exact: true }).click();
   for (const width of [430, 320, 1160]) {
     await page.setViewportSize({ width, height: 900 });
-    await expect(frame.getByRole('tab')).toHaveText(['Live', 'History']);
-    await expect(frame.getByRole('tab', { name: 'History', exact: true })).toHaveAttribute('aria-selected', 'true');
     await expect(frame.locator('#view-history')).toBeVisible();
     await expect(frame.locator('#view-live')).toBeHidden();
   }
 });
 
-test('tabs: keyboard navigation with roving tabindex, and monitoring keeps running on every tab', async ({ page }) => {
+test('the keyboard reaches History from the column foot, Back returns focus, and monitoring keeps running', async ({ page }) => {
   const frame = await load(page, 'state=decode');
-  await frame.getByRole('tab', { name: 'Live', exact: true }).focus();
-  for (const name of ['History', 'Live', 'History']) {
-    await page.keyboard.press('ArrowRight');
-    await expect(frame.getByRole('tab', { name, exact: true })).toBeFocused();
-    await expect(frame.getByRole('tab', { name, exact: true })).toHaveAttribute('aria-selected', 'true');
-    await expect(frame.locator(`#panel-${name.toLowerCase()}`)).toBeVisible();
-  }
+  const history = frame.getByRole('button', { name: 'History', exact: true });
+  await history.focus(); await page.keyboard.press('Enter');
+  await expect(frame.locator('#history-title')).toBeFocused();
   const before = await host(page, w => w.previewRequests);
   await expect.poll(() => host(page, w => w.previewRequests)).toBeGreaterThan(before + 1);
-  await page.keyboard.press('Home');
-  await expect(frame.getByRole('tab', { name: 'Live', exact: true })).toBeFocused();
-  await page.keyboard.press('End');
-  await expect(frame.getByRole('tab', { name: 'History', exact: true })).toBeFocused();
+  await frame.getByRole('button', { name: 'Back', exact: true }).focus(); await page.keyboard.press('Enter');
+  await expect(history).toBeFocused();
+  await expect(frame.locator('#view-live')).toBeVisible();
 });
 
 test('secondary views return to their parent and server-only reads stop outside diagnostics', async ({ page }) => {
@@ -94,7 +88,7 @@ test('secondary views return to their parent and server-only reads stop outside 
   await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
   await expect(frame.locator('#panel-server')).toBeVisible();
   await expect(frame.locator('#server-title')).toBeFocused();
-  await expect(frame.getByRole('tab', { name: 'Live', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(frame.locator('#panel-live')).toBeHidden();
   await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBe('server');
   await page.setViewportSize({ width: 320, height: 900 });
   await expect(frame.locator('#panel-server')).toBeVisible();
@@ -105,21 +99,21 @@ test('secondary views return to their parent and server-only reads stop outside 
   await frame.getByRole('button', { name: 'Expand', exact: true }).click();
   await expect(frame.locator('#panel-server')).toBeVisible();
   await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBe('server');
-  await frame.getByRole('button', { name: 'Back to Live', exact: true }).click();
+  await frame.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(frame.locator('#view-live')).toBeVisible();
-  await expect(frame.getByRole('tab', { name: 'Live', exact: true })).toBeFocused();
+  await expect(frame.getByRole('button', { name: 'Server & Mac details', exact: true })).toBeFocused();
   await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBeUndefined();
-  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await frame.getByRole('button', { name: 'History', exact: true }).click();
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
   await expect(frame.locator('#panel-captures')).toBeVisible();
   await expect(frame.locator('#captures-title')).toBeFocused();
-  await expect(frame.getByRole('tab', { name: 'History', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(frame.locator('#panel-history')).toBeHidden();
   const before = await host(page, w => w.previewRequests);
   await expect.poll(() => host(page, w => w.previewRequests)).toBeGreaterThan(before + 1);
   expect((await host(page, w => w.previewQueries)).at(-1).detail).toBeUndefined();
   await frame.getByRole('button', { name: 'Back to History', exact: true }).click();
   await expect(frame.locator('#view-history')).toBeVisible();
-  await expect(frame.getByRole('tab', { name: 'History', exact: true })).toBeFocused();
+  await expect(frame.locator('#history-title')).toBeFocused();
   await expect(frame.locator('#panel-captures')).toBeHidden();
 });
 
@@ -165,10 +159,10 @@ test('callouts: the most severe message first, the rest behind "N more"', async 
   expect(tone).toMatch(/#ee8992|238, 137, 146/i);
 });
 
-test('needs approval (NO_SERVICE) and version skew replace the tabs with their S11 cards', async ({ page }) => {
+test('needs approval (NO_SERVICE) and version skew replace the column with their S11 cards', async ({ page }) => {
   let frame = await load(page, 'state=needs-approval');
   await expect(frame.locator('#approval-card h2')).toHaveText('MLX Scope needs one approval');
-  await expect(frame.locator('#workspace-nav')).toBeHidden();
+  await expect(frame.locator('#panels')).toBeHidden();
   await expect(frame.locator('#phase')).toHaveText('Needs approval');
   await expect(frame.locator('#approval-card')).not.toContainText(/sessions|project names|chat titles/i);
   frame = await load(page, 'state=contract-mismatch');
@@ -177,12 +171,12 @@ test('needs approval (NO_SERVICE) and version skew replace the tabs with their S
   await expect(frame.locator('#phase')).toHaveText('Needs restart');
 });
 
-test('Compact shows one relevant reading, at most 200 px, and Expand returns to the tabs', async ({ page }) => {
+test('Compact shows one relevant reading, at most 200 px, and Expand returns to the column', async ({ page }) => {
   const frame = await load(page, 'state=pressure');
   await frame.locator('#monitor-menu > summary').click();
   await frame.locator('#compact').click();
   await expect(frame.locator('#compact-glance .ws')).toBeVisible();
-  await expect(frame.locator('#workspace-nav')).toBeHidden();
+  await expect(frame.locator('#panels')).toBeHidden();
   const compactSize = await frame.locator('#scope').evaluate(el => Object.fromEntries([el, ...Array.from(el.querySelectorAll('.masthead, #compact-glance, #ws'))].map(node => [node.id || node.className, {
     height: node.getBoundingClientRect().height, scroll: node.scrollHeight, padding: getComputedStyle(node).padding, margin: getComputedStyle(node).margin,
   }])));
@@ -190,7 +184,7 @@ test('Compact shows one relevant reading, at most 200 px, and Expand returns to 
   await expect(frame.locator('#compact-glance .ws-warning')).toContainText('Memory pressure');
   expect(await problems(page)).toEqual([]);
   await frame.getByRole('button', { name: 'Expand' }).click();
-  await expect(frame.locator('#workspace-nav')).toBeVisible();
+  await expect(frame.locator('#panel-live')).toBeVisible();
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('view.compact'))).toBe('false');
 });
 

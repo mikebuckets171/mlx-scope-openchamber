@@ -33,6 +33,7 @@ export interface SnapshotV2 {
   lease: LeaseV2;
   nextPollMs: number;
   chat?: ChatMeasurement | null;              // 3.0 optional selected-chat delivery observation
+  mediaEnabled?: boolean;                    // Cached setting only; snapshot reads never collect media.
 }
 export interface StatusV2 { state: StatusState; reason: StatusReason | null; params: ReasonParams; sinceAt?: number }
 
@@ -313,6 +314,7 @@ export const parseSnapshotV2 = (value: unknown): SnapshotV2 | null => {
     capabilities: parseCapabilities(item.capabilities), runtime: parsedRuntime, host, completions, marksHead,
     alerts: parseAlerts(item.alerts), alertLog: parseAlertLog(item.alertLog), lease: parsedLease, nextPollMs,
     chat: item.chat === undefined ? undefined : parseChatMeasurement(item.chat, serverNow),
+    mediaEnabled: opt(bool(item.mediaEnabled)),
   });
   withhold(snapshot);
   return snapshot;

@@ -47,7 +47,7 @@ function source() {
 }
 
 async function worker(enabled, directory, companionDirectory) {
-  const events = source(), hooks = [[], []], disposals = []; let generation = 0, serial = 0, emitted = 0, deltas = 0;
+  const events = [source(), source()], hooks = [new Map(), new Map()], disposals = []; let generation = 0, serial = 0, emitted = 0, deltas = 0;
   let phase = 'setup'; process.send({ type: 'phase', phase });
   if (enabled) {
     const { makePlugin } = await import(pathToFileURL(join(companionDirectory, 'index.js')).href),
@@ -55,21 +55,23 @@ async function worker(enabled, directory, companionDirectory) {
       { createStore } = await import(pathToFileURL(join(companionDirectory, 'store.js')).href);
     const plugin = makePlugin({ shared: {}, observerFactory: () => createChatObserver({ directory }),
       storeFactory: () => createStore({ directory: join(directory, 'progress') }) });
-    for (let location = 0; location < 2; location++) disposals.push(await plugin.setup({ app: { version: '2.0.25' }, options: { promptProgress: false },
-      event: events, session: { hook: async (name, callback) => { if (name === 'http.request') hooks[location].push(callback); return { dispose() {} }; } } }));
+    for (let location = 0; location < 2; location++) disposals.push(await plugin.setup({ app: { version: '2.0.25' }, options: { promptProgress: false }, location: { directory: `/fixture/project-${location}` },
+      event: events[location], session: { hook: async (name, callback) => { hooks[location].set(name, callback); return { dispose() {} }; } } }));
   }
   const emit = (i, type, data = {}) => {
-    emitted++; events.publish({ id: `evt_${++serial}`, type: `session.${type}`, created: Date.now(),
+    emitted++; events[i % 2].publish({ id: `evt_${++serial}`, type: `session.${type}`, created: Date.now(),
       data: { sessionID: `ses_fixture_${i}`, assistantMessageID: `msg_fixture_${i}_${generation}`, ...data } });
   };
   let counts = Array(CHATS).fill(0), roundTicks = 0;
-  function begin() {
+  async function begin() {
     generation++; roundTicks = 0; counts = Array(CHATS).fill(0);
     for (let i = 0; i < CHATS; i++) {
       const request = { kind: 'primary', sessionID: `ses_fixture_${i}`, model: { providerID: 'fixture', id: 'fixture' },
         request: new Request(i % 2 ? 'https://fixture.invalid/v1/chat/completions' : 'http://127.0.0.1:7777/v1/chat/completions',
           { method: 'POST' }) };
-      for (const callback of hooks[i % 2]) callback(request);
+      const websocket = i % 2 === 1;
+      const callback = hooks[i % 2].get(websocket ? 'experimental.ws.handshake' : 'http.request');
+      await callback?.(websocket ? { kind: request.kind, sessionID: request.sessionID, model: request.model, url: 'wss://fixture.invalid/v1/responses' } : request);
       emit(i, 'step.started', { started: Date.now(), model: request.model }); emit(i, 'text.started', { ordinal: 0 });
     }
   }
@@ -80,17 +82,22 @@ async function worker(enabled, directory, companionDirectory) {
       emit(i, 'step.ended', { finish: 'stop', tokens: { output: counts[i] * content.length / 4, reasoning: 0 } });
     }
   }
-  function produce() {
-    if (roundTicks === 40) { finish(); begin(); }
-    for (let i = 0; i < CHATS; i++) { counts[i]++; deltas++; emit(i, 'text.delta', { ordinal: 0, delta: content }); }
-    roundTicks++;
+  let producing = false;
+  async function produce() {
+    if (producing) return; producing = true;
+    try {
+      if (roundTicks === 40) { finish(); await begin(); }
+      for (let i = 0; i < CHATS; i++) { counts[i]++; deltas++; emit(i, 'text.delta', { ordinal: 0, delta: content }); }
+      roundTicks++;
+    } finally { producing = false; }
   }
+  const eventStats = () => events.map(item => item.stats()).reduce((total, item) => { for (const key in item) total[key] = (total[key] ?? 0) + item[key]; return total; }, {});
   const measure = async (name, duration) => {
     phase = name; process.send({ type: 'phase', phase });
-    const at = performance.now(), startCPU = process.cpuUsage(), before = events.stats(), emittedStart = emitted, deltaStart = deltas;
+    const at = performance.now(), startCPU = process.cpuUsage(), before = eventStats(), emittedStart = emitted, deltaStart = deltas;
     const rss = [process.memoryUsage().rss], timer = setInterval(() => rss.push(process.memoryUsage().rss), 500);
     await pause(duration); clearInterval(timer); rss.push(process.memoryUsage().rss);
-    const cpu = process.cpuUsage(startCPU), elapsedMs = performance.now() - at, after = events.stats();
+    const cpu = process.cpuUsage(startCPU), elapsedMs = performance.now() - at, after = eventStats();
     const result = { phase, wallMs: elapsedMs, cpuMs: (cpu.user + cpu.system) / 1000,
       cpuPercentOneCore: (cpu.user + cpu.system) / elapsedMs / 10, userCPUms: cpu.user / 1000, systemCPUms: cpu.system / 1000,
       rssBytes: rss, maxRSSBytes: process.resourceUsage().maxRSS * 1024,
@@ -101,14 +108,14 @@ async function worker(enabled, directory, companionDirectory) {
   let producer, renew;
   try {
     await pause(1000); const idle = await measure('idle', IDLE_MS);
-    await demand(directory); await pause(1300); begin();
-    producer = setInterval(produce, DELTA_MS); renew = setInterval(() => void demand(directory), 5000);
+    await demand(directory); await begin();
+    producer = setInterval(() => void produce(), DELTA_MS); renew = setInterval(() => void demand(directory), 5000);
     const visible = await measure('visible', VISIBLE_MS); clearInterval(renew);
     // Simulate a view that disappears without explicit cleanup: its final short lease expires naturally.
     await demand(directory, 1000); phase = 'expiry-settle'; process.send({ type: 'phase', phase }); await pause(2300);
     const hidden = await measure('hidden', HIDDEN_MS); clearInterval(producer);
     assert.equal(hidden.activeSubscriptions, 0); assert.equal(hidden.deliveredEvents, 0);
-    if (enabled) { assert.equal(visible.maxSubscriptions, 1); assert.ok(visible.deliveredEvents > 300); }
+    if (enabled) { assert.equal(visible.maxSubscriptions, 2); assert.ok(visible.deliveredEvents > 300); }
     process.send({ type: 'result', result: { enabled, idle, visible, hidden } });
   } finally { clearInterval(producer); clearInterval(renew); for (const dispose of disposals) await dispose(); process.disconnect(); }
 }
@@ -127,7 +134,7 @@ if (process.argv[2] === '--worker') {
     assert.deepEqual(await companionDigests(companionDirectory), measuredDigests, 'Freeze the companion before measuring.');
     const directory = await mkdtemp(join(output, '.companion-overhead-')); await chmod(directory, 0o700);
     let phase = 'setup', result, maxWriterBytes = 0, maxWriters = 0, maxDirectoryBytes = 0, samples = 0;
-    const files = new Map(), changes = {}, warnings = [];
+    const files = new Map(), changes = {}, warnings = [], liveSessions = new Set();
     const child = fork(file, ['--worker', enabled ? 'on' : 'off', directory, companionDirectory], { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
     child.stderr.on('data', chunk => { if (warnings.length < 10) warnings.push(String(chunk).slice(0, 500)); });
     let scanning = false;
@@ -140,7 +147,12 @@ if (process.argv[2] === '--worker') {
           let info; try { info = await stat(join(directory, name)); } catch { continue; }
           if (!info.isFile()) continue;
           bytes += info.size;
-          if (UUID_FILE.test(name)) { writers++; maxWriterBytes = Math.max(maxWriterBytes, info.size); }
+          if (UUID_FILE.test(name)) {
+            writers++; maxWriterBytes = Math.max(maxWriterBytes, info.size);
+            try { const document = JSON.parse(await readFile(join(directory, name), 'utf8'));
+              for (const entry of document.entries ?? []) if (entry.measurement?.freshness === 'live' && entry.measurement?.tokensPerSecond > 0) liveSessions.add(entry.sessionKey);
+            } catch { /* Atomic writer replacement may race this independent measurement sample. */ }
+          }
           const previous = files.get(name), stamp = `${info.mtimeMs}:${info.size}`;
           if (stamp !== previous) { files.set(name, stamp); changes[phase] ??= { writerChanges: 0, heartbeatChanges: 0 };
             changes[phase][name === 'heartbeat.json' ? 'heartbeatChanges' : 'writerChanges']++; }
@@ -158,8 +170,8 @@ if (process.argv[2] === '--worker') {
     try {
       assert.equal(exit.code, 0, JSON.stringify({ exit, warnings })); assert.ok(result);
       assert.equal(changes.hidden?.writerChanges ?? 0, 0); assert.equal(changes.hidden?.heartbeatChanges ?? 0, 0);
-      if (enabled) { assert.equal(maxWriters, 1); assert.ok(maxWriterBytes < 65_536); }
-      const record = { pair, ...result, filesystem: { samples, maxWriters, maxWriterBytes, maxDirectoryBytes, changes }, warnings };
+      if (enabled) { assert.equal(maxWriters, 1); assert.ok(maxWriterBytes < 65_536); assert.equal(liveSessions.size, CHATS, 'every location/chat produced a live reading'); }
+      const record = { pair, ...result, filesystem: { samples, maxWriters, maxWriterBytes, maxDirectoryBytes, liveChatsObserved: liveSessions.size, changes }, warnings };
       runs.push(record); console.log(JSON.stringify({ pair, enabled, idleCPU: result.idle.cpuPercentOneCore,
         visibleCPU: result.visible.cpuPercentOneCore, hiddenCPU: result.hidden.cpuPercentOneCore, maxWriterBytes }));
       assert.deepEqual(await companionDigests(companionDirectory), measuredDigests, 'Companion changed during measurement.');
@@ -169,7 +181,7 @@ if (process.argv[2] === '--worker') {
         method: { chats: CHATS, localChats: 2, remoteChats: 2, deltaCadenceMs: DELTA_MS, locations: 2,
           phasesMs: { idle: IDLE_MS, visible: VISIBLE_MS, hidden: HIDDEN_MS },
           attribution: 'isolated Node worker process; enabled-minus-disabled incremental companion including event subscription and filesystem work; not whole OpenCode',
-          runtimeProtocol: 'released OpenCode 2.0.25 shapes, separately qualified by protocol-smoke.mjs' }, runs }, null, 2));
+          runtimeProtocol: 'released OpenCode 2.0.25 shapes; HTTP and WebSocket requests awaited before output, with two location-scoped subscriptions; qualified separately by protocol-smoke.mjs and protocol-ws-smoke.mjs' }, runs }, null, 2));
     } finally { await rm(directory, { recursive: true, force: true }); }
   }
 }

@@ -1,4 +1,11 @@
-import type { HostClient } from '@openchamber/sdk';
+import type { CompanionSetupStatus } from '../../service/companion-setup.ts';
+import type { MediaController } from '../media/controller.ts';
+import { mediaMarkup, mediaGlanceMarkup } from '../media/view.ts';
+import { orderedMediaJobs } from '../media/present.ts';
+import { mediaTerminal } from '../../src/contract/media.ts';
+import { DigitRoll } from './digit-roll.ts';
+import { beatKey, Motion } from './motion.ts';
+import type { HostClient, SessionSnapshot } from '@openchamber/sdk';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { ConnectionsView } from '../connections-view.ts';
 import { CaptureStore } from '../captures/store.ts';
@@ -17,29 +24,37 @@ import { presentSessionSection } from '../present/session.ts';
 import type { Pipeline } from '../state/pipeline.ts';
 import type { ScopeState } from '../state/scope-state.ts';
 import { html, morph } from './html.ts';
-import { frameCardMarkup, renderHeader, TABS, tabsMarkup } from './shell.ts';
+import { frameCardMarkup, renderHeader } from './shell.ts';
 import { liveMarkup, macCard, nextRow } from './views/live.ts';
 import { capturesView, readLegacyCaptures } from './views/captures.ts';
 import { historyView } from './views/history.ts';
 import { mountSafely } from './views/registry.ts';
 import { serverMarkup } from './views/server.ts';
 import { sessionMarkup, scopeMenuMarkup } from './views/session.ts';
-import { primaryTab, type Tab, type ViewHandle } from './views/types.ts';
+import type { Tab, ViewHandle } from './views/types.ts';
 
-// Live and History keep the same navigation at every width. Server and Captures are secondary workspaces;
-// the internal active view still controls extra server reads and view visibility. Polls patch views in place.
+// One column of truth at every width: This chat and its engine, then Media while it has jobs. History, Captures and
+// Server & Mac details are secondary views with Back; the active view still controls extra server reads and view
+// visibility. Polls patch views in place.
+
+/** Media joins the column only in its own states: running jobs, a notice, or a job that finished in the last 15 min. */
+const RECENT_MEDIA_MS = 15 * 60_000;
 
 export interface AppParts {
   shell: HTMLElement; host: HostClient; state: ScopeState; client: SnapshotClient; pipeline: Pipeline; version: string;
-  connections: ConnectionsView; prefs: PrefsV2; visible: () => boolean; status: (message: string) => void;
+  session: () => SessionSnapshot | null; mediaJobs: MediaController; companion: () => CompanionSetupStatus | null; connections: ConnectionsView; prefs: PrefsV2; visible: () => boolean; status: (message: string) => void;
 }
 export class ScopeApp {
   private wide = false;
+  private readonly digits: DigitRoll;
+  private readonly motion: Motion;
   private readonly views = new Map<'history' | 'captures', { host: HTMLElement; handle: ViewHandle }>();
   private readonly media = typeof matchMedia === 'function' ? matchMedia('(min-width: 900px)') : null;
   private readonly node = (id: string): HTMLElement => this.p.shell.querySelector<HTMLElement>(`#${id}`)!;
   constructor(private readonly p: AppParts) {
     const shell = p.shell;
+    this.digits = new DigitRoll(shell);
+    this.motion = new Motion(shell);
     shell.addEventListener('click', this.onClick);
     shell.addEventListener('change', this.onChange);
     shell.addEventListener('keydown', this.onKey);
@@ -49,7 +64,7 @@ export class ScopeApp {
   }
   private readonly onLayout = (): void => {
     this.wide = this.p.state.surface === 'page' && (this.media?.matches ?? false);
-    this.p.shell.dataset.layout = this.wide ? 'wide' : 'tabs';
+    this.p.shell.dataset.layout = this.wide ? 'wide' : 'column';
     this.render();
   };
 
@@ -76,7 +91,13 @@ export class ScopeApp {
   render(): void {
     const { state } = this.p;
     if (state.disposed || !state.mounted) return;
+    this.p.shell.dataset.mediaMotion = String(this.p.visible() && !state.userPaused && !this.p.connections.isOpen);
     const s = this.input(), card = frameCard(s), open = state.open, compact = state.compact && !this.wide && !card;
+    this.p.mediaJobs.sync(this.p.visible() && !state.userPaused && !card && !this.p.connections.isOpen && (state.tab === 'live' || compact));
+    // The column carries its own Media block; the glance summarizes media only where the column is not shown.
+    const mediaGlance = this.node('media-glance'), column = !compact && !card && state.tab === 'live';
+    mediaGlance.hidden = !!card || column;
+    morph(mediaGlance, card || column ? '' : mediaGlanceMarkup(this.p.mediaJobs, this.p.session()?.id ?? null, s.now, false));
     const chatOnly = s.measurementScope !== 'engine' && s.chatIsLocal === false;
     state.serverDetailsVisible = state.tab === 'server' && !compact && !card && !chatOnly;
     renderHeader(this.p.shell, presentHeader(s));
@@ -85,8 +106,9 @@ export class ScopeApp {
     this.p.shell.dataset.compact = String(compact);
     const cardHost = this.node('frame-card');
     morph(cardHost, card ? frameCardMarkup(card) : '');
-    this.node('workspace-nav').hidden = !!card || compact;
-    this.node('panels').hidden = !!card || compact;
+    cardHost.hidden = this.p.connections.isOpen;
+    this.node('freshness').parentElement!.hidden = this.p.connections.isOpen;
+    this.node('panels').hidden = !!card || compact || this.p.connections.isOpen;
     this.node('next-activity').hidden = true;
     // A timed window belongs to this frame, even when Compact or another workspace is visible.
     this.view('captures', this.node('captures-content'), s.snapshot);
@@ -96,26 +118,22 @@ export class ScopeApp {
     morph(timedHost, showTimed ? html`<div class="next-row"><span class="pulse" aria-hidden="true"></span><span>${timed}</span><button class="btn quiet" type="button" data-action="window-cancel">Cancel</button></div>` : '');
     const glance = this.node('compact-glance');
     glance.hidden = !compact;
+    if (this.p.connections.isOpen) { glance.hidden = true; timedHost.hidden = true; mediaGlance.hidden = true; this.digits.reset(); this.motion.reset(); return; }
     if (compact) {
       morph(glance, sessionMarkup(presentSessionSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution,
         chatIsLocal: s.chatIsLocal ?? null, fresh: s.fresh, paused: s.paused, next: s.next, window: s.window,
         efficient: state.efficient, measurementScope: s.measurementScope, sessionModel: s.sessionModel, chatActivity: s.chatActivity, lastChat: s.lastChat,
         last: s.last && { completion: s.last.completion, label: s.last.label } }), null, true));
-      return;
+      this.syncMotion(); return;
     }
-    if (card) return;
-    const active = state.tab, primary = primaryTab(active), live = presentLive(s, this.extra(s));
-    const action = this.node('workspace-action');
-    action.hidden = active === 'server' || active === 'captures' || active === 'live' && chatOnly;
-    morph(action, active === 'live'
-      ? html`<button class="btn quiet" type="button" data-action="open-server">Server &amp; Mac details</button>`
-      : active === 'history' ? html`<button class="btn quiet" type="button" data-action="open-captures">Captures</button>` : '');
-    morph(this.node('tablist'), tabsMarkup(TABS, primary));
-    for (const [tab] of TABS) this.node(`panel-${tab}`).hidden = tab !== primary;
-    this.node('view-live').hidden = active !== 'live';
-    this.node('view-history').hidden = active !== 'history';
+    if (card) { this.syncMotion(); return; }
+    const active = state.tab, live = presentLive(s, this.extra(s));
+    this.node('panel-live').hidden = active !== 'live';
+    this.node('panel-history').hidden = active !== 'history';
     this.node('panel-server').hidden = active !== 'server';
     this.node('panel-captures').hidden = active !== 'captures';
+    // A cloud chat has no local server to detail.
+    this.node('open-server').hidden = chatOnly;
     // These stateless views are rebuilt from the snapshot; remove hidden copies of their shared disclosure ids.
     if (active !== 'live') morph(this.node('view-live'), '');
     if (active !== 'server') morph(this.node('panel-server'), '');
@@ -124,12 +142,34 @@ export class ScopeApp {
     const showActivity = (active === 'history' || active === 'server') && (next?.kind === 'armed' || next?.kind === 'measuring');
     activity.hidden = !showActivity;
     morph(activity, showActivity ? nextRow(next, open) : '');
+    const mediaBlock = this.node('view-media'), media = this.p.mediaJobs, sessionId = this.p.session()?.id ?? null;
+    const mediaPresent = active === 'live' && (!!media.error || !!media.actionError || orderedMediaJobs(media.snapshot, sessionId)
+      .some(job => !mediaTerminal(job.state) || job.finishedAtMs !== undefined && s.now - job.finishedAtMs < RECENT_MEDIA_MS));
+    mediaBlock.hidden = !mediaPresent;
+    if (mediaPresent) mediaBlock.dataset.arrive = ''; else delete mediaBlock.dataset.arrive;
+    morph(mediaBlock, mediaPresent ? mediaMarkup(media, sessionId, s.now) : '');
     if (active === 'live') {
-      morph(this.node('view-live'), s.snapshot || s.frame ? liveMarkup(live, open) : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
+      morph(this.node('view-live'), s.snapshot || s.frame ? html`${liveMarkup(live, open)}${this.chatSetupHint()}` : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
     }
-    if (active === 'server') morph(this.node('panel-server'), html`<div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-live">Back to Live</button><h2 id="server-title" tabindex="-1">Server &amp; Mac details</h2></div>${serverMarkup(presentServer(s.snapshot, s.now, this.extra(s), s.fresh && !s.paused), open)}${macCard(presentMac(s), open)}`);
+    if (active === 'server') morph(this.node('panel-server'), html`<div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-live">Back</button><h2 id="server-title" tabindex="-1">Server &amp; Mac details</h2></div>${serverMarkup(presentServer(s.snapshot, s.now, this.extra(s), s.fresh && !s.paused), open)}${macCard(presentMac(s), open)}`);
     if (active === 'history') this.view('history', this.node('view-history'), s.snapshot);
+    this.syncMotion();
   }
+  private chatSetupHint() {
+    const s = this.input(), status = this.p.companion();
+    if (s.measurementScope === 'engine' || s.snapshot?.chat || s.paused || s.frame || !s.fresh) return '';
+    if (status?.state === 'ready') return s.chatIsLocal === false ? html`<p class="coverage-note">Chat speed is ready. Your next streamed reply will show its estimated delivery speed.</p>` : '';
+    if (status?.state === 'pending') return html`<div class="setup-hint"><p>${status.message}</p><button class="btn quiet" type="button" data-action="chat-setup">View setup</button></div>`;
+    if (s.chatIsLocal !== false && s.snapshot?.runtime.request?.decodeTps != null) return '';
+    // A cloud chat has no engine reading to fall back on: without the helper, say why there is no estimate.
+    return html`<div class="setup-hint" data-arrive><div><h3>${s.chatIsLocal === false ? 'See this chat’s delivery speed' : 'Track speed for this chat'}</h3><p>${status?.state === 'incompatible' ? status.message : 'Optional chat tracking adds labeled delivery estimates for local and cloud models.'}</p></div><button class="btn quiet" type="button" data-action="chat-setup">${status?.canEnable ? 'Set up chat speed' : 'Chat speed setup'}</button></div>`;
+  }
+  private syncMotion(): void {
+    const s = this.input(), chat = this.p.session(), snapshot = s.snapshot;
+    this.digits.sync(`${this.p.state.generation}/${chat?.id ?? ''}/${chat?.model ?? ''}/${snapshot?.connection.id ?? ''}/${snapshot?.connection.generation ?? ''}/${snapshot?.runtime.phase ?? ''}/${s.window?.startedAt ?? ''}/${snapshot?.chat?.phase ?? ''}`, this.p.visible() && s.fresh && !s.paused && this.p.state.tab === 'live');
+    this.motion.sync(this.p.visible() && !s.paused && !this.p.connections.isOpen, s.fresh && !s.paused ? beatKey(this.p.shell, snapshot) : null);
+  }
+  visibilityChanged(): void { this.render(); }
   /**
    * History and Captures are ui-history's views, given this frame's one Ledger, its Next reply control and the poll's
    * selection (INTERFACES §4.4). Mounted once into a stable host that moves between layouts; Captures is mounted from
@@ -163,12 +203,14 @@ export class ScopeApp {
   }
 
   private select(tab: Tab, focus: boolean): void {
-    const { state } = this.p;
-    if (state.tab === tab) return;
+    const { state } = this.p, previous = state.tab;
+    if (previous === tab) return;
     state.tab = tab;
     this.render();
     if (tab === 'history' || tab === 'captures') this.views.get(tab)?.handle.activate?.();
-    if (focus) this.node(tab === 'server' ? 'server-title' : tab === 'captures' ? 'captures-title' : `tab-${tab}`).focus({ preventScroll: true });
+    // Back to the column returns focus to the foot action that left it.
+    if (focus) (tab === 'live' ? this.p.shell.querySelector<HTMLElement>(`#column-foot [data-action="open-${previous === 'captures' ? 'history' : previous}"]`)
+      : this.p.shell.querySelector<HTMLElement>(`#${tab}-title`))?.focus({ preventScroll: true });
     // The Server tab asks the service for its extra reads (detail=server); poll now rather than at the next tick.
     if (tab === 'server') void this.onRefreshNeeded();
   }
@@ -189,17 +231,32 @@ export class ScopeApp {
     this.render();
   }
   private readonly onClick = (event: MouseEvent): void => {
-    const target = event.target as HTMLElement, tab = target.closest<HTMLElement>('[role="tab"]');
-    if (tab?.dataset.tab) { this.select(tab.dataset.tab as Tab, false); return; }
+    const target = event.target as HTMLElement;
     const disclose = target.closest<HTMLElement>('[data-disclose]');
     if (disclose) { this.disclose(disclose); return; }
     // History and Captures have their own delegated controls and share only the frame-owned controller.
     if (target.closest('.view-host')) return;
+    const media = target.closest<HTMLElement>('[data-media-action]');
+    if (media) {
+      const key = media.dataset.job!, action = media.dataset.mediaAction;
+      if (action === 'cancel') { this.p.mediaJobs.requestCancel(key); this.p.shell.querySelector<HTMLElement>('[data-media-action="dismiss"]')?.focus(); }
+      else if (action === 'confirm') void this.p.mediaJobs.cancel(key);
+      else if (action === 'dismiss') this.p.mediaJobs.dismissCancel();
+      return;
+    }
     const action = target.closest<HTMLElement>('[data-action]')?.dataset.action;
     if (action) this.act(action);
   };
   private act(action: string): void {
     const { pipeline, state, connections } = this.p;
+    if (action === 'open-media') {
+      this.select('live', false);
+      const block = this.node('view-media');
+      if (!block.hidden) { block.scrollIntoView({ block: 'nearest' }); block.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true }); }
+      return;
+    }
+    if (action === 'open-history') { this.select('history', true); return; }
+    if (action === 'chat-setup') { connections.openSetup(); this.node('companion-title').focus({ preventScroll: true }); this.node('companion-title').scrollIntoView({ block: 'nearest' }); return; }
     if (action === 'open-server') { this.select('server', true); return; }
     if (action === 'open-captures') { this.select('captures', true); return; }
     if (action === 'back-live') { this.select('live', true); return; }
@@ -212,7 +269,8 @@ export class ScopeApp {
     else if (action === 'window-cancel') {
       this.views.get('captures')?.handle.cancelCapture?.();
       this.p.status('Timed recording stopped. The partial recording is available in Captures.');
-      const focus = state.compact && !this.wide ? this.p.shell.querySelector<HTMLElement>('#monitor-menu > summary') : this.node(`tab-${primaryTab(state.tab)}`);
+      const focus = state.compact && !this.wide ? this.p.shell.querySelector<HTMLElement>('#monitor-menu > summary')
+        : state.tab === 'live' ? this.p.shell.querySelector<HTMLElement>('#column-foot button') : this.p.shell.querySelector<HTMLElement>(`#${state.tab}-title`);
       focus?.focus({ preventScroll: true });
     }
     else if (action === 'next-save') void this.saveNext();
@@ -229,20 +287,13 @@ export class ScopeApp {
     } catch { this.p.status('Could not save this reply to Captures. It is still shown here.'); }
   }
   private readonly onKey = (event: KeyboardEvent): void => {
-    const target = event.target as HTMLElement;
     if (event.key === 'Escape') {
       const open = Array.from(this.p.state.open).find(id => id.startsWith('pop-'));
       if (!open) return;
       this.p.state.open.delete(open);
       this.render();
       this.p.shell.querySelector<HTMLElement>(`[aria-controls="${open}"]`)?.focus({ preventScroll: true });
-      return;
     }
-    if (target.getAttribute('role') !== 'tab' || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    const tabs = TABS.map(([id]) => id), index = tabs.indexOf(primaryTab(this.p.state.tab));
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length;
-    this.select(tabs[next]!, true);
   };
   /** <details> the reader opens or closes (Mac details, the approval list) keep that state across polls. */
   private readonly onToggle = (event: Event): void => {
@@ -252,6 +303,8 @@ export class ScopeApp {
   };
   /** Views other tracks mounted are told the frame is going away. */
   dispose(): void {
+    this.digits.dispose(); this.motion.dispose();
+    this.p.shell.removeEventListener('click', this.onClick); this.p.shell.removeEventListener('keydown', this.onKey); this.p.shell.removeEventListener('toggle', this.onToggle, true);
     this.p.shell.removeEventListener('change', this.onChange);
     this.media?.removeEventListener('change', this.onLayout);
     for (const { handle } of this.views.values()) try { handle.dispose(); } catch { /* see view() */ }

@@ -1,9 +1,10 @@
 import { createChatObserver } from './demand.js';
+import { COMPANION_VERSION, PROTOCOL } from './chat.js';
 import { randomUUID } from 'node:crypto';
 import { createStore, key } from './store.js';
 import { observeStream } from './stream.js';
 
-const SHARED = Symbol.for('mlx-scope.prompt-progress.v1');
+const sharedKey = revision => Symbol.for(`mlx-scope.prompt-progress.${COMPANION_VERSION}.${PROTOCOL}.${typeof revision === 'string' && /^[a-f0-9]{64}$/.test(revision) ? revision : 'unmanaged'}`);
 const PATHS = new Set(['/v1/chat/completions', '/v1/responses', '/v1/messages']);
 const KINDS = new Set(['primary', 'compaction', 'title', 'generate']);
 const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
@@ -54,41 +55,56 @@ export function makePlugin({ storeFactory = createStore, observerFactory = creat
   return {
     id: 'mlx-scope-prompt-progress',
     async setup(ctx) {
+      const SHARED = sharedKey(ctx.options?.scopeRevision);
       const config = ctx.options?.promptProgress === false ? null : options(ctx.options), active = new Map(), prepared = new WeakSet();
       const holder = shared[SHARED] ??= { store: storeFactory({ warn }), refs: 0 };
       holder.refs += 1;
       const store = holder.store;
       let detach;
       const registrations = [];
-      if (ctx.app && ctx.event?.subscribe) {
-        holder.chat ??= observerFactory({ warn });
-        detach = await holder.chat.attach(ctx);
-        registrations.push(await ctx.session.hook('http.request', event => holder.chat.authorizeHttp(event)));
-      }
-      if (config) {
-        registrations.push(await ctx.session.hook('http.request', async event => {
-          if (!eligible(event, config) || event.request.signal.aborted) return;
-          const body = await jsonBody(event.request);
-          if (!body || body.stream !== true || event.request.signal.aborted) return;
-          const headers = new Headers(event.request.headers); headers.delete('content-length');
-          event.request = new Request(event.request, { headers, body: JSON.stringify({ ...body, return_progress: true }) });
-          prepared.add(event.request);
-        }, { providerID: config.providerID }));
-        registrations.push(await ctx.session.hook('http.response', event => {
-          if (!eligible(event, config) || !prepared.has(event.request)) return;
-          const requestID = randomUUID();
-          const metadata = { requestID, sessionKey: key('session', event.sessionID), providerID: config.providerID,
-            endpointKey: config.endpointKey, modelKey: key('model', event.model.id), kind: event.kind };
-          event.response = observeStream(event.response, { metadata, store, signal: event.request.signal,
-            onObserver: finish => active.set(requestID, finish), onClose: () => active.delete(requestID) });
-        }, { providerID: config.providerID }));
-      }
-      return async () => {
-        detach?.();
-        for (const registration of registrations) await registration?.dispose?.();
-        for (const close of active.values()) close();
-        if (--holder.refs === 0) { delete shared[SHARED]; await holder.chat?.close(); await store.close(); }
+      let released = false;
+      const teardown = async () => {
+        if (released) return; released = true;
+        try { detach?.(); } catch { /* Release remaining resources even if a host disposer fails. */ }
+        for (const registration of registrations) try { await registration?.dispose?.(); } catch { /* passive cleanup */ }
+        for (const close of active.values()) try { close(); } catch { /* passive cleanup */ }
+        if (--holder.refs === 0) {
+          if (shared[SHARED] === holder) delete shared[SHARED];
+          try { await holder.chat?.close(); } finally { await store.close(); }
+        }
       };
+      try {
+        if (ctx.app && ctx.event?.subscribe) {
+          holder.chat ??= observerFactory({ warn });
+          detach = await holder.chat.attach(ctx);
+          registrations.push(await ctx.session.hook('http.request', event => holder.chat.authorizeHttp(event, ctx)));
+          // Released 2.0.25 invokes this metadata hook for every model call, including socket reuse.
+          // Observe the destination only; frames, headers and the socket itself remain untouched.
+          if (ctx.app.version === '2.0.25') registrations.push(await ctx.session.hook('experimental.ws.handshake', event => holder.chat.authorizeWebSocket(event, ctx)));
+        }
+        if (config) {
+          registrations.push(await ctx.session.hook('http.request', async event => {
+            if (!eligible(event, config) || event.request.signal.aborted) return;
+            const body = await jsonBody(event.request);
+            if (!body || body.stream !== true || event.request.signal.aborted) return;
+            const headers = new Headers(event.request.headers); headers.delete('content-length');
+            event.request = new Request(event.request, { headers, body: JSON.stringify({ ...body, return_progress: true }) });
+            prepared.add(event.request);
+          }, { providerID: config.providerID }));
+          registrations.push(await ctx.session.hook('http.response', event => {
+            if (!eligible(event, config) || !prepared.has(event.request)) return;
+            const requestID = randomUUID();
+            const metadata = { requestID, sessionKey: key('session', event.sessionID), providerID: config.providerID,
+              endpointKey: config.endpointKey, modelKey: key('model', event.model.id), kind: event.kind };
+            event.response = observeStream(event.response, { metadata, store, signal: event.request.signal,
+              onObserver: finish => active.set(requestID, finish), onClose: () => active.delete(requestID) });
+          }, { providerID: config.providerID }));
+        }
+        return teardown;
+      } catch (error) {
+        try { await teardown(); } catch { /* Preserve the setup failure after releasing owned resources. */ }
+        throw error;
+      }
     },
   };
 }
