@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.2.0 — release candidate
+
+- Restores cloud chat speed: the companion observes cloud delivery through the native OpenCode transport (qualified WebSocket handshake on OpenCode 2.0.25) and the panel presents it as **Cloud · est.** — network and provider buffering included; never the engine's native throughput, and never borrowed from or into local engine readings.
+- OpenCode SDK 2.0.4 floor: unsupported or future runtime generations disable cloud estimates with a one-line reason instead of deferring the whole feature.
+- A cloud step interrupted before completion yields no completed-step average; the gap is documented in COMPATIBILITY.md and covered by bridge unit tests.
+- Protocol smokes stage their isolated companion outside `node_modules` and canonicalize the temporary base, fixing silent plugin-loading and symlink refusals that left both smokes unusable; the WebSocket smoke now passes end-to-end against the real runtime binary.
+- Local engine measurements, media monitoring, history and the 3.1 sidebar remain unchanged in behavior.
+
 ## 3.1.0 — release candidate
 
 - Unified Connections explains detected sources and provides managed chat/media tracking setup with explicit readiness.

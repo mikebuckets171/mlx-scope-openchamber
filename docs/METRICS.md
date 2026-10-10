@@ -15,8 +15,7 @@ first available reading in this order:
 3. A fresh runtime reading labeled **Engine**. This fallback covers activity on the selected engine and never silently
    becomes a chat measurement.
 
-Cloud speed tracking is not supported in 3.1. Cloud chats have no delivery estimate or Engine fallback.
-They create no chat-observation demand and make no runtime, cloud API, or hardware requests. Local media monitoring remains available.
+Cloud chats receive a delivery estimate when the chat helper is qualified for the OpenCode runtime. The figure is labelled **Cloud · est.**, includes network and provider buffering, and is a separate measurement from the engine's native throughput; it never falls back to a local engine's reading, and a cloud step interrupted before completion yields no completed-step average. Unsupported or future runtimes disable the estimate and name the reason. Cloud chats make no runtime, cloud API, or hardware requests of their own. Local media monitoring remains available.
 
 When a chat output event arrives before the runtime's next poll, a previous prompt-reading rate cannot appear as
 generation or reasoning speed. Scope uses a valid chat estimate or waits for a compatible engine reading.

@@ -118,7 +118,7 @@ Only matching watched sessions are tracked. Hashes use the existing key scheme a
 ```ts
 type CompanionHeartbeat = {
   schemaVersion: 1;
-  companionVersion: '3.1.0';
+  companionVersion: '3.2.0';
   protocol: 'opencode-2.0.25' | 'unsupported';
   runtimeVersion: string;
   loadedAtMs: number;
@@ -136,7 +136,7 @@ Each process also owns `<writerUUID>.json`, updated at most every 200 ms during 
 type ChatTelemetryFile = {
   schemaVersion: 1;
   writerID: string;
-  companionVersion: '3.1.0';
+  companionVersion: '3.2.0';
   protocol: 'opencode-2.0.25';
   runtimeVersion: '2.0.25';
   updatedAtMs: number;

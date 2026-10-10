@@ -135,14 +135,14 @@ try {
       for(let poll=0;poll<80&&!activated;poll++){
         await pause(100);
         const receipt=JSON.parse(await readFile(join(base,'telemetry/heartbeat.json'),'utf8'));
-        activated=receipt.companionVersion==='3.1.0'&&receipt.loadedAtMs>heartbeat.loadedAtMs;
+        activated=receipt.companionVersion==='3.2.0'&&receipt.loadedAtMs>heartbeat.loadedAtMs;
       }
       assert.ok(activated,'source watcher activated updated helper');
       for(let poll=0;poll<60&&completedStreams<1;poll++)await pause(100);
       assert.equal(completedStreams,1,'existing response completed through update');
       assert.equal(fixtureRequests,1,'update did not duplicate the request');
       assert.equal(child.pid,beforePid);assert.equal(child.exitCode,null);assert.equal(child.signalCode,null);
-      console.log(JSON.stringify({hotReload:'pass',serverRestarted:false,existingSyntheticStreamCompleted:true,duplicateRequests:0,loadedCompanion:'3.1.0'}));
+      console.log(JSON.stringify({hotReload:'pass',serverRestarted:false,existingSyntheticStreamCompleted:true,duplicateRequests:0,loadedCompanion:'3.2.0'}));
       await pause(600);continue;
     }
     const seen = [];
