@@ -2,10 +2,11 @@
 // Starts an isolated released OpenCode process and a synthetic loopback SSE provider. No real model is used.
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import net from 'node:net';
-import { dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { key } from './store.js';
 import { atomicPrivateJSON } from './chat-store.js';
@@ -15,9 +16,11 @@ if (!binary) throw new Error('Pass the absolute path to an OpenCode 2.0.25 binar
 const remote = process.argv.includes('--remote');
 const remoteBase = 'http://scope-protocol-fixture.invalid/v1';
 assert.equal(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim(), 'opencode v2.0.25');
-const bridge = dirname(fileURLToPath(import.meta.url)), repo = resolve(bridge, '../..');
-const cache = join(repo, 'node_modules', '.cache'); await mkdir(cache, { recursive: true });
-const base = await mkdtemp(join(cache, 'scope-protocol-'));
+const bridge = dirname(fileURLToPath(import.meta.url));
+// The isolated plugin must not live under a node_modules ancestor: OpenCode excludes those local sources and
+// would silently load nothing. The temporary root is canonicalized because the companion refuses to write
+// through a symlinked ancestor, and the system temporary directory is one on macOS.
+const base = await realpath(await mkdtemp(join(tmpdir(), 'scope-protocol-')));
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 let child, fixture, logs = '', fixtureRequests = 0;
 try {

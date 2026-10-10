@@ -1,8 +1,12 @@
 # Optional OpenCode companion
 
-The 3.1 companion adds demand-gated HTTP and WebSocket chat delivery observations on **OpenCode 2.0.25** and retains the existing Splash prompt-progress observer. Unsupported OpenCode versions disable chat estimates while native runtime monitoring remains available. The plugin ID remains `mlx-scope-prompt-progress` to update existing installations in place.
+The 3.2 companion observes demand-gated HTTP and WebSocket chat delivery on **OpenCode 2.0.25**, for local and cloud
+chats alike, and retains the existing Splash prompt-progress observer. Unsupported OpenCode versions disable chat
+estimates while native runtime monitoring remains available. The plugin ID remains `mlx-scope-prompt-progress` to
+update existing installations in place.
 
-**3.1 scope:** local chat delivery only. Remote transport fixtures are retained for development, but cloud speed is not a supported feature.
+**3.2 scope:** local and cloud chat delivery. A cloud reading is delivery observed through OpenCode, including network
+and provider buffering; it is never engine throughput, and a cloud chat never borrows a local engine measurement.
 
 The Splash observer enables Splash's `return_progress` option on existing streaming requests. It observes the same HTTP response, without changing the model route, starting a proxy, or submitting a prompt. Scope can then show **Prompt progress** from `processed / total`; the completed portion includes cached prompt tokens. Native oMLX metrics do not require the companion.
 

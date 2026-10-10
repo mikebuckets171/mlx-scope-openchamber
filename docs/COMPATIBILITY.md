@@ -20,19 +20,29 @@ OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and c
 
 ## Optional chat delivery estimates
 
-Local chat estimates support the released **OpenCode 2.0.25** plugin-event protocol. An isolated 2.0.25 server with
-synthetic streaming providers exercises waiting, generation, completion, calibration and hidden shutdown. Unsupported
-versions disable estimates while runtime adapters continue to operate. Guided setup distinguishes installed/pending
-from a fresh loaded companion and supports native v2 and legacy local provider configuration.
+Chat estimates support the released **OpenCode 2.0.25** plugin-event protocol for local and cloud chats alike. An
+isolated 2.0.25 server with synthetic streaming providers exercises waiting, generation, completion, calibration and
+hidden shutdown over both transports. Unsupported versions disable estimates while runtime adapters continue to
+operate. Guided setup distinguishes installed/pending from a fresh loaded companion and supports native v2 and legacy
+local provider configuration.
+
+**Cloud is supported since 3.2.** OpenCode 2.0.25's built-in `openai` provider defaults to WebSocket transport, so the
+companion observes the qualified `experimental.ws.handshake` hook and matches the declared provider origin as a remote
+destination. A cloud reading is **delivery observed through OpenCode** — it includes network and provider buffering —
+and is never engine throughput. Cloud chats create chat-observation demand for their own selected session only, never
+collect LLM runtime or hardware data, and never borrow a local engine measurement or local endpoint. Media monitoring
+and every runtime adapter keep working during cloud chats.
+
+`node bridge/opencode/protocol-ws-smoke.mjs /absolute/path/to/opencode` verifies that path end to end against the
+installed binary with a synthetic provider rerouted to loopback: request start, live delivery timing, three- and
+four-step calibration, a completed-step average, one reused native WebSocket, a native tool continuation, and hidden
+shutdown with telemetry writes stopped. The remote HTTP variant is `node bridge/opencode/protocol-smoke.mjs
+/absolute/path/to/opencode --remote`. Interrupting a live cloud step on the installed host produced no readable
+delivery state, so the protocol smoke claims nothing about cancellation; the companion test suite covers it.
 
 Managed updates preserve JSONC comments, unrelated options and plugins. The reproducible developer check is
 `node bridge/opencode/protocol-hot-reload-smoke.mjs /absolute/path/to/opencode /absolute/path/to/previous/companion`;
 it uses an isolated server and verifies that a synthetic response completes during an update without duplication or restart.
-
-**Cloud speed tracking is not supported in 3.1.** Earlier transport fixtures demonstrated protocol behavior but did not
-establish reliable delivery readings in the installed host. Cloud chats remain inactive, create no chat-observation demand,
-and never borrow local engine measurements. Media monitoring remains available. Experimental transport fixtures are
-retained for development; they are not a supported cloud feature.
 
 Local estimates require observable text/reasoning events, corroborating primary transport metadata and unambiguous usage.
 Tool payloads, title/compaction tasks, missing metadata and ambiguous concurrent writers produce no chat speed.

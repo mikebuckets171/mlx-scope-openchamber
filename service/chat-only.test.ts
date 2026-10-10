@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chatKey } from '../src/contract/chat-key.ts';
-import type { ChatMeasurement } from '../src/contract/chat.ts';
+import { CHAT_SCOPE, type ChatMeasurement } from '../src/contract/chat.ts';
 import type { SnapshotV2 } from '../src/contract/snapshot.ts';
 import { version } from '../bridge/opencode/package.json';
 import { createChatDestination, createChatSource } from './chat-source.ts';
@@ -23,7 +23,7 @@ afterEach(async () => {
   await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true })));
 });
 
-const measurement = (at = NOW, rate = 42): ChatMeasurement => ({ scope: 'chat', basis: 'estimated-characters',
+const measurement = (at = NOW, rate = 42): ChatMeasurement => ({ scope: CHAT_SCOPE, basis: 'estimated-characters',
   timingBasis: 'delivery-window', phase: 'generating', tokensPerSecond: rate, freshness: 'live', observedAtMs: at,
   expiresAtMs: at + 5_000, observation: { startedAtMs: at - 2_500, endedAtMs: at } });
 const query = (provider = 'cloud', session = 'remote-session', model = 'remote-model', extra = '') =>
@@ -75,7 +75,7 @@ test('remote-only snapshots bypass runtime, host and engine history even without
   expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
   expect(value).toMatchObject({ connection: { id: 'cloud', runtime: null, choices: [] }, status: { state: 'ready', reason: null },
     capabilities: {}, host: null, completions: { cursor: 0, reset: true, items: [] }, alerts: [], alertLog: [], marksHead: 0,
-    runtime: { phase: 'unknown', request: null, server: { active: null, queued: null }, memory: {}, residency: [] }, nextPollMs: 30_000 });
+    runtime: { phase: 'unknown', request: null, server: { active: null, queued: null }, memory: {}, residency: [] }, nextPollMs: 1000 });
   expect(value.chat).toBeUndefined();
 });
 
@@ -86,7 +86,7 @@ test('selected chats resolve remote from configuration before their first runtim
   const g = guarded(createChatSource(f.transport, client)); g.sources.chatDestination = createChatDestination(client);
   const request = await launch(g.sources, f.clock);
   const body = await request(query().replace('chatOnly=1&', ''));
-  expect(body.chat).toBeUndefined(); expect(body.connection.id).toBe('cloud');
+  expect(body.chat?.tokensPerSecond).toBe(42); expect(body.connection.id).toBe('cloud');
   expect(metadataProviders).toEqual(['cloud']); expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
 });
 
@@ -113,29 +113,81 @@ test('unreadable selected-chat metadata safely withholds data without probing an
   expect(JSON.stringify(body)).not.toContain('PRIVATE'); expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
 });
 
-test('cloud views ignore valid and stale writers, release demand, and never create a cloud watcher', async () => {
+test('remote demand hashes only the exact selected provider/session/model and never consults local config', async () => {
+  const f = await transportFixture(); let localTargets = 0;
+  await f.write([{ ...f.remote, measurement: measurement() }]);
+  const source = createChatSource(f.transport, { companionTarget: async () => { localTargets++; throw Error('local config'); } });
+  const g = guarded(source), request = await launch(g.sources, f.clock);
+  expect((await request(query())).chat).toEqual(measurement());
+  const demand = JSON.parse(await readFile(join(f.directory, 'demand.json'), 'utf8'));
+  expect(demand.watched).toEqual([{ sessionKey: f.remote.sessionKey, modelKey: f.remote.modelKey,
+    providerKey: f.remote.providerKey, destination: 'remote' }]);
+  expect(JSON.stringify(demand)).not.toMatch(/remote-session|remote-model|fixture.invalid/);
+  for (const path of [query('other-cloud'), query('cloud', 'other-session'), query('cloud', 'remote-session', 'other-model')])
+    expect((await request(path)).chat).toBeUndefined();
+  expect(localTargets).toBe(0); expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
+});
+
+test('cloud views present every observed delivery phase under the chat scope and republish remote demand', async () => {
   const f = await transportFixture(); let localTargets = 0;
   const source = createChatSource(f.transport, { companionTarget: async () => { localTargets++; throw Error('local config'); } });
   const g = guarded(source), request = await launch(g.sources, f.clock);
   for (const phase of ['generating', 'reasoning', 'complete', 'cancelled'] as const) {
-    await f.write([{ ...f.remote, measurement: { ...measurement(), phase } }]);
+    const observed: ChatMeasurement = { ...measurement(), phase, ...phase === 'complete'
+      ? { basis: 'reported-output', timingBasis: 'completed-step', freshness: 'last', expiresAtMs: f.clock.now + 15_000 }
+      : phase === 'cancelled' ? { tokensPerSecond: undefined } : {} };
+    await f.write([{ ...f.remote, measurement: observed }]);
     const value = await request(query('cloud', 'remote-session', 'remote-model', '&chatBusy=1'));
-    expect(value.chat).toBeUndefined(); expect(value.nextPollMs).toBe(30_000);
-    expect(await readFile(join(f.directory, 'demand.json'), 'utf8').catch(() => null)).toBeNull();
+    // Delivery observed through OpenCode, never an engine reading; identity and origin never reach the wire.
+    expect(value.chat).toEqual(observed); expect(value.chat?.scope).toBe(CHAT_SCOPE);
+    expect(value.nextPollMs).toBe(1000); expect(JSON.stringify(value.chat)).not.toMatch(/session|model|endpoint|invalidsi/);
+    const demand = JSON.parse(await readFile(join(f.directory, 'demand.json'), 'utf8'));
+    expect(demand.watched).toEqual([{ sessionKey: f.remote.sessionKey, modelKey: f.remote.modelKey,
+      providerKey: f.remote.providerKey, destination: 'remote' }]);
   }
   expect(localTargets).toBe(0); expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
 });
 
-test('cloud snapshots suppress observations even from an older service source', async () => {
+test('remote freshness, cancellation, missing writers and unqualified companions always clear live speed', async () => {
+  const f = await transportFixture(), g = guarded(createChatSource(f.transport, { companionTarget: async () => null }));
+  const request = await launch(g.sources, f.clock);
+  await f.write([{ ...f.remote, measurement: measurement() }]); expect((await request(query())).chat?.tokensPerSecond).toBe(42);
+  f.clock.now += 5_000; f.clock.monotonic += 5_000;
+  expect((await request(query())).chat).toBeUndefined();
+  const cancelled: ChatMeasurement = { ...measurement(f.clock.now), phase: 'cancelled', tokensPerSecond: undefined };
+  await f.write([{ ...f.remote, measurement: cancelled }]);
+  expect((await request(query())).chat).toEqual(cancelled);
+  // Unsupported companion generations disable estimates without breaking the surrounding snapshot.
+  for (const overrides of [{ companionVersion: '2.1.6' }, { protocol: 'opencode-future' }, { runtimeVersion: '2.0.26' }]) {
+    await f.write([{ ...f.remote, measurement: measurement(f.clock.now) }], overrides);
+    expect((await request(query())).chat).toBeUndefined();
+  }
+  await f.write([]); expect((await request(query())).chat).toBeUndefined();
+  expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
+});
+
+test('a visible remote chat retains active cadence while another page owns the presentation lease', async () => {
+  let observed: ChatMeasurement | null = null;
+  const g = guarded(async () => observed), request = await launch(g.sources);
+  await request(query('other-cloud', 'other-session', 'other-model').replace('11111111', '22222222').replace('surface=status', 'surface=page'));
+  let value = await request(query('cloud', 'remote-session', 'remote-model', '&chatBusy=1'));
+  expect(value.lease.leader).toBe(false); expect(value.nextPollMs).toBe(1000);
+  observed = measurement(); value = await request(query()); expect(value.nextPollMs).toBe(1000);
+  expect((await request(query().replace('surface=status', 'surface=panel'))).nextPollMs).toBe(500);
+  expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
+});
+
+test('a cloud view presents a delivery observation from any source without collecting runtime, host or engine data', async () => {
   const g = guarded(async () => measurement()), request = await launch(g.sources);
   for (const surface of ['status', 'panel', 'page']) {
     const value = await request(query().replace('surface=status', `surface=${surface}`));
-    expect(value.chat).toBeUndefined(); expect(value.nextPollMs).toBe(30_000);
+    expect(value.chat).toEqual(measurement()); expect(value.chat?.scope).toBe(CHAT_SCOPE);
+    expect(value.connection.runtime).toBeNull(); expect(value.host).toBeNull(); expect(value.capabilities).toEqual({});
   }
   expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
 });
 
-test('a cloud view leaves simultaneous local chat demand and measurements intact', async () => {
+test('simultaneous local and remote chats share demand without mixing engine readings or history', async () => {
   const f = await transportFixture(), local: ChatTarget = { sessionKey: chatKey('session', 'local-session'),
     modelKey: chatKey('model', 'local-model'), providerKey: chatKey('provider', 'local'), endpointKey: chatKey('endpoint', 'http://127.0.0.1:8000') };
   await f.write([{ ...f.remote, measurement: measurement(NOW, 42) }, { ...local, measurement: measurement(NOW, 53) }]);
@@ -151,12 +203,12 @@ test('a cloud view leaves simultaneous local chat demand and measurements intact
   const request = await launch(sources, f.clock);
   const localQuery = `/v2/snapshot?provider=local&frame=22222222&surface=page&chat=${local.sessionKey}&chatModel=${local.modelKey}`;
   const [localView, remoteView] = await Promise.all([request(localQuery), request(query())]);
-  expect([localView.chat?.tokensPerSecond, remoteView.chat?.tokensPerSecond]).toEqual([53, undefined]);
+  expect([localView.chat?.tokensPerSecond, remoteView.chat?.tokensPerSecond]).toEqual([53, 42]);
   expect([reads, hosts, histories, targets]).toEqual([1, 1, 1, 1]);
   expect(remoteView.connection.runtime).toBeNull(); expect(remoteView.host).toBeNull(); expect(remoteView.capabilities).toEqual({});
   const demand = JSON.parse(await readFile(join(f.directory, 'demand.json'), 'utf8'));
-  expect(demand.watched).toHaveLength(1); expect(demand.watched).toContainEqual(local);
-  expect(demand.watched).not.toContainEqual({ sessionKey: f.remote.sessionKey, modelKey: f.remote.modelKey,
+  expect(demand.watched).toHaveLength(2); expect(demand.watched).toContainEqual(local);
+  expect(demand.watched).toContainEqual({ sessionKey: f.remote.sessionKey, modelKey: f.remote.modelKey,
     providerKey: f.remote.providerKey, destination: 'remote' });
 });
 

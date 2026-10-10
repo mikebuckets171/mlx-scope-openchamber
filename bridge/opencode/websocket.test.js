@@ -45,8 +45,11 @@ async function harness() {
     id: `evt-${++serial}`, type: `session.${type}`, created: time,
     data: { sessionID: session, assistantMessageID: assistant, ...data } });
   async function send(ctx, type, session, data, assistant) { ctx.events.push(envelope(type, session, data, assistant)); await settle(); }
-  async function stream(ctx, session = 'session-a', assistant = 'assistant-a') {
+  async function start(ctx, session = 'session-a', assistant = 'assistant-a') {
     await send(ctx, 'step.started', session, { started: time, model: { providerID: 'openai', id: 'gpt-6.1-sol' } }, assistant);
+  }
+  async function stream(ctx, session = 'session-a', assistant = 'assistant-a') {
+    await start(ctx, session, assistant);
     await send(ctx, 'text.started', session, { ordinal: 0 }, assistant);
     await send(ctx, 'text.delta', session, { ordinal: 0, delta: 'x'.repeat(40) }, assistant);
     time += 2_100;
@@ -56,7 +59,7 @@ async function harness() {
     return { sessionID: session, model: { providerID: 'openai', id: 'gpt-6.1-sol' }, kind: 'primary',
       url: 'wss://cloud.example/private?api_key=PRIVATE', ...overrides };
   }
-  return { context, observer, saved, identity, send, stream, handshake,
+  return { context, observer, saved, identity, send, start, stream, handshake,
     watch(items) { wanted = items; }, get reads() { return reads; }, advance(ms) { time += ms; },
     async close() { for (const dispose of disposals) if (contexts[disposals.indexOf(dispose)].hooks.size) await dispose(); } };
 }
@@ -223,4 +226,62 @@ test('setup registration rejection rolls back the observer and every prior hook;
     assert.deepEqual(counts, { attach: 1, detach: 1, dispose: reject === 'none' ? 2 : reject === 'http.request' ? 0 : 1, observerClose: 1, storeClose: 1 });
     assert.equal(Object.getOwnPropertySymbols(shared).length, 0, 'no leaked holder reference');
   }
+});
+
+test('an observed cloud dispatch reports request start before any output, then observed stream timing', async () => {
+  const h = await harness();
+  try {
+    const ctx = await h.context(); h.watch([h.identity()]);
+    await ctx.hooks.get('experimental.ws.handshake')(h.handshake());
+    await h.start(ctx);
+    const entry = h.saved.get(h.identity().sessionKey);
+    assert.ok(entry, 'the observed dispatch publishes its own step');
+    assert.equal(entry.destination, 'remote');
+    const waiting = entry.measurement;
+    assert.equal(waiting.scope, 'chat'); assert.equal(waiting.phase, 'waiting');
+    assert.equal(waiting.timingBasis, 'delivery-window'); assert.equal(waiting.freshness, 'live');
+    assert.equal(waiting.tokensPerSecond, undefined, 'request start carries no speed');
+    // One dispatch proves one step: the next step needs its own handshake proof.
+    await ctx.hooks.get('experimental.ws.handshake')(h.handshake());
+    await h.stream(ctx, 'session-a', 'assistant-b');
+    const live = h.saved.get(h.identity().sessionKey).measurement;
+    assert.equal(live.phase, 'generating'); assert.ok(live.tokensPerSecond > 0);
+  } finally { await h.close(); }
+});
+
+test('cancelling a running cloud step removes live delivery speed immediately', async () => {
+  const h = await harness();
+  try {
+    const ctx = await h.context(); h.watch([h.identity()]);
+    await ctx.hooks.get('experimental.ws.handshake')(h.handshake());
+    await h.stream(ctx);
+    assert.ok(h.saved.get(h.identity().sessionKey).measurement.tokensPerSecond > 0);
+    await h.send(ctx, 'execution.interrupted');
+    const cancelled = h.saved.get(h.identity().sessionKey).measurement;
+    assert.equal(cancelled.phase, 'cancelled'); assert.equal(cancelled.tokensPerSecond, undefined);
+    assert.equal(cancelled.freshness, 'live'); assert.equal(cancelled.timingBasis, 'delivery-window');
+    // A later delta cannot revive a cancelled step's speed.
+    h.advance(200);
+    await h.send(ctx, 'text.delta', 'session-a', { ordinal: 0, delta: 'y'.repeat(40) });
+    assert.equal(h.saved.get(h.identity().sessionKey).measurement.tokensPerSecond, undefined);
+  } finally { await h.close(); }
+});
+
+test('an interrupted cloud step never produces a completed-step average', async () => {
+  const h = await harness();
+  try {
+    const ctx = await h.context(); h.watch([h.identity()]);
+    await ctx.hooks.get('experimental.ws.handshake')(h.handshake());
+    await h.stream(ctx);
+    await h.send(ctx, 'execution.interrupted');
+    const cancelled = h.saved.get(h.identity().sessionKey).measurement;
+    assert.equal(cancelled.phase, 'cancelled'); assert.equal(cancelled.tokensPerSecond, undefined);
+    assert.notEqual(cancelled.basis, 'reported-output');
+    assert.notEqual(cancelled.timingBasis, 'completed-step');
+    // Usage reported afterwards for the interrupted step must not become a completed-step average.
+    await h.send(ctx, 'step.ended', 'session-a', { finish: 'stop', tokens: { output: 70, reasoning: 0 } });
+    const after = h.saved.get(h.identity().sessionKey)?.measurement;
+    assert.ok(!after || (after.phase !== 'complete' && after.tokensPerSecond === undefined
+      && after.basis !== 'reported-output' && after.timingBasis !== 'completed-step'));
+  } finally { await h.close(); }
 });

@@ -3,9 +3,16 @@ import { at, count, defined, nonneg, obj, oneOf, opt } from './guards.ts';
 export const CHAT_PHASES = ['waiting', 'generating', 'reasoning', 'tool', 'complete', 'cancelled'] as const;
 export type ChatPhase = typeof CHAT_PHASES[number];
 export const CHAT_BASES = ['estimated-characters', 'calibrated-characters', 'reported-output'] as const;
-/** Delivery observations never claim the engine's native decode timing. Matching identities stay in the service. */
+/**
+ * The one delivery scope this contract accepts, local or cloud: what OpenCode actually delivered to the session.
+ * It includes network and provider buffering and is never the engine's native decode throughput. Engine readings
+ * are a separate measurement and never borrow these values, and a cloud delivery never borrows a local engine one.
+ * Matching identities (session/provider/model/endpoint) stay in the service and never reach the wire.
+ */
+export const CHAT_SCOPE = 'chat' as const;
 export interface ChatMeasurement {
-  scope: 'chat';
+  /** Delivery observed through OpenCode — network and provider buffering included; never engine throughput. */
+  scope: typeof CHAT_SCOPE;
   basis: typeof CHAT_BASES[number];
   timingBasis: 'delivery-window' | 'completed-step';
   phase: ChatPhase;
@@ -26,7 +33,7 @@ export const parseChatMeasurement = (value: unknown, now?: number): ChatMeasurem
   const observedAtMs = at(item?.observedAtMs), expiresAtMs = at(item?.expiresAtMs);
   const startedAtMs = at(observation?.startedAtMs), endedAtMs = at(observation?.endedAtMs);
   const rate = nonneg(item?.tokensPerSecond), calibrationSteps = count(item?.calibrationSteps);
-  if (item?.scope !== 'chat' || !basis || !phase || !timingBasis || !freshness
+  if (item?.scope !== CHAT_SCOPE || !basis || !phase || !timingBasis || !freshness
     || observedAtMs === null || expiresAtMs === null || startedAtMs === null || endedAtMs === null
     || startedAtMs > endedAtMs || endedAtMs > observedAtMs || expiresAtMs <= observedAtMs
     || expiresAtMs - observedAtMs > 15_000
@@ -43,7 +50,7 @@ export const parseChatMeasurement = (value: unknown, now?: number): ChatMeasurem
     || rate !== null && !['generating', 'reasoning', 'complete'].includes(phase)
     || rate !== null && (!complete && endedAtMs - startedAtMs < 2_000 || endedAtMs === startedAtMs)
     || !complete && expiresAtMs - observedAtMs > 5_000) return null;
-  return defined({ scope: 'chat' as const, basis, phase, timingBasis, freshness,
+  return defined({ scope: CHAT_SCOPE, basis, phase, timingBasis, freshness,
     observedAtMs, expiresAtMs, observation: { startedAtMs, endedAtMs },
     tokensPerSecond: opt(rate), calibrationSteps: opt(calibrationSteps) });
 };
