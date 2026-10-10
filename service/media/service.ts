@@ -1,9 +1,28 @@
-import { mediaTerminal, withdrawMediaProgress, MEDIA_JOB_LIMIT, type MediaCancelResultV1, type MediaJobV1, type MediaSnapshotV1 } from '../../src/contract/media.ts';
+import { mediaTerminal, withdrawMediaProgress, MEDIA_ETA_HORIZON_MS, MEDIA_JOB_LIMIT, type MediaCancelResultV1, type MediaJobV1, type MediaProgressV1, type MediaSnapshotV1 } from '../../src/contract/media.ts';
 import { HttpFailure, type FetchImplementation } from '../http.ts';
 import { cancelMedia, collectMedia, type MediaAdapterOptions, type MediaCollection } from './adapters.ts';
 import { MediaDiscovery, type MediaSourceConfig } from './discovery.ts';
 
 interface SourceSlot { value?: MediaCollection; until: number; fingerprint: string; flight?: Promise<MediaCollection> }
+interface RateSample { at: number; value: number }
+/** Producer-timestamped samples of one phase identity, and the estimate last derived from them. */
+interface RateWindow { identity: string; samples: RateSample[]; eta?: number }
+/** Enough distinct reports to follow a changing rate; old ones fall out. */
+export const RATE_SAMPLE_LIMIT = 8;
+const phaseIdentity = (job: MediaJobV1, progress: MediaProgressV1): string => JSON.stringify([job.phase, job.phaseKey ?? null, progress.unit, progress.total]);
+/**
+ * A finish time from this phase's own measured rate: the first and latest distinct reports, which strictly increase in both
+ * value and producer time. Undefined without two such samples, a positive rate, or a plausible horizon. The estimate never
+ * precedes `reportedAt`, the producer time of the latest report: the job was still running then.
+ */
+export const measuredFinish = (samples: readonly RateSample[], total: number, reportedAt: number): number | undefined => {
+  const first = samples[0], last = samples.at(-1);
+  if (!first || !last || samples.length < 2 || last.at <= first.at || last.value <= first.value) return undefined;
+  const rate = (last.value - first.value) / (last.at - first.at);
+  if (!Number.isFinite(rate) || rate <= 0) return undefined;
+  const eta = Math.max(Math.ceil(last.at + (total - last.value) / rate), reportedAt);
+  return eta - last.at <= MEDIA_ETA_HORIZON_MS ? eta : undefined;
+};
 export interface MediaServiceOptions {
   home: string;
   now?: () => number;
@@ -21,6 +40,7 @@ export class MediaService {
   private pending = new Map<string, number>();
   private cancels = new Map<string, Promise<MediaCancelResultV1>>();
   private progress = new Map<string, { key: string; at: number }>();
+  private rates = new Map<string, RateWindow>();
   private options: MediaAdapterOptions;
   private generation = 0;
   private snapshotFlight: Promise<MediaSnapshotV1> | null = null;
@@ -32,13 +52,48 @@ export class MediaService {
   configurations(): Promise<MediaSourceConfig[]> { return this.input.configurations?.() ?? this.discovery.configurations(); }
   get enabled(): boolean { return this.discovery.enabled; }
   invalidate(enabled?: boolean): void { this.generation++; this.snapshotCache = null; this.options.videoHistory?.clear(); this.discovery.invalidate(enabled); for (const slot of this.slots.values()) slot.until = 0; }
+  /**
+   * Keeps this phase's rate window and sets a live or held estimate. Samples are the producer's own times for each distinct
+   * value (adapter progress-change time, or the producer observation that first carried the value), never Scope's read time.
+   * Any change of phase identity starts a new window, so an estimate is never stitched across phases.
+   */
+  private estimate(key: string, job: MediaJobV1, eligible: boolean): void {
+    // Only this service measures an estimate; anything an adapter or producer supplied is discarded first.
+    delete job.etaAtMs; delete job.lastEtaAtMs; delete job.etaBasis;
+    const live = job.state === 'running' && job.freshness === 'live' ? job.progress : null;
+    if (live && job.progressAtMs !== undefined) {
+      const identity = phaseIdentity(job, live), sample = { at: job.progressAtMs, value: live.value };
+      let window = this.rates.get(key);
+      if (!window || window.identity !== identity) { window = { identity, samples: [] }; this.rates.set(key, window); }
+      const last = window.samples.at(-1);
+      if (!last) window.samples.push(sample);
+      else if (sample.value > last.value && sample.at > last.at) { window.samples.push(sample); if (window.samples.length > RATE_SAMPLE_LIMIT) window.samples.shift(); }
+      // A counter that runs backwards, or a later value without a later producer time, cannot be measured: start again.
+      // A repeated value keeps the time it was first reported.
+      else if (sample.value !== last.value) window.samples = [sample];
+      window.eta = eligible ? measuredFinish(window.samples, live.total, job.progressAtMs) : undefined;
+      if (window.eta !== undefined) { job.etaAtMs = window.eta; job.etaBasis = 'measured-window'; }
+      return;
+    }
+    const window = this.rates.get(key), held = job.lastProgress;
+    if (job.state === 'running' && (job.freshness === 'stale' || job.freshness === 'unavailable')) {
+      // A held estimate belongs to the exact report the job retains; it is never extended while the job is not observed.
+      if (held && window?.eta !== undefined && window.identity === phaseIdentity(job, held) && window.samples.at(-1)?.value === held.value
+        && job.lastProgressAtMs !== undefined && window.eta >= job.lastProgressAtMs && window.eta - job.lastProgressAtMs <= MEDIA_ETA_HORIZON_MS) {
+        job.lastEtaAtMs = window.eta; job.etaBasis = 'measured-window';
+      }
+      return;
+    }
+    // Indeterminate, paused, queued, cancelling or ended work: the measured window no longer describes this job.
+    this.rates.delete(key);
+  }
   private async read(config: MediaSourceConfig, fresh = false): Promise<MediaCollection> {
     const now = this.options.now();
     const fingerprint = JSON.stringify([config.kind, config.origin, config.directory, config.tokenPath, config.helperTokenPath]);
     let slot = this.slots.get(config.id);
     if (!slot || slot.fingerprint !== fingerprint) {
       slot = { until: 0, fingerprint }; this.slots.set(config.id, slot);
-      for (const map of [this.progress, this.pending]) for (const key of map.keys()) if (key.startsWith(`${config.id}/`)) map.delete(key);
+      for (const map of [this.progress, this.pending, this.rates]) for (const key of map.keys()) if (key.startsWith(`${config.id}/`)) map.delete(key);
     }
     if (slot.flight) return slot.flight;
     if (!fresh && slot.value && now < slot.until) return slot.value;
@@ -69,6 +124,8 @@ export class MediaService {
     for (const key of this.options.videoHistory!.keys()) if (!historyKeys.has(key)) this.options.videoHistory!.delete(key);
     const collections = await Promise.all(configs.map(config => this.read(config))), now = this.options.now();
     let jobs = collections.flatMap(collection => collection.jobs.map(job => ({ ...job, sampledAtMs: now, cancel: { ...job.cancel } })));
+    // Each adapter declares, per job, when its current phase is final or dominant. Nothing is inferred here.
+    const eligible = new Set(collections.flatMap(collection => [...collection.finalPhase ?? []].map(id => `${collection.source.id}/${id}`)));
     // A queue can atomically move a record between directories during a read. Completion wins that race.
     const unique = new Map<string, MediaJobV1>();
     for (const job of jobs) {
@@ -84,6 +141,7 @@ export class MediaService {
       const engine = matches[0]!;
       if (bridge.state === 'running' && engine.state === 'running' && (bridge.phase === 'unknown' || bridge.phase === engine.phase)) {
         bridge.progress = engine.progress; bridge.phase = engine.phase; bridge.phaseKey = engine.phaseKey; bridge.progressAtMs = engine.progressAtMs;
+        if (eligible.has(`${engine.sourceId}/${engine.id}`)) eligible.add(`${bridge.sourceId}/${bridge.id}`);
         if (engine.freshness === 'stale' || engine.freshness === 'unavailable') {
           bridge.freshness = engine.freshness; bridge.lastProgress = engine.lastProgress; bridge.lastProgressAtMs = engine.lastProgressAtMs; bridge.cancel.supported = false;
         }
@@ -97,6 +155,7 @@ export class MediaService {
         if (!previous || previous.key !== progressKey) this.progress.set(key, { key: progressKey, at: job.observedAtMs });
         job.progressAtMs ??= this.progress.get(key)?.at;
       }
+      this.estimate(key, job, eligible.has(key));
       if (mediaTerminal(job.state)) this.pending.delete(key);
       const requested = this.pending.get(key);
       if (requested !== undefined && !mediaTerminal(job.state)) {
@@ -104,13 +163,15 @@ export class MediaService {
         job.message = now - requested > 15_000 ? 'Cancellation has not been confirmed by the source.' : 'Waiting for cancellation acknowledgement';
       }
       if (!mediaTerminal(job.state) && now - job.observedAtMs > 15_000) Object.assign(job, withdrawMediaProgress(job, job.freshness === 'unavailable' ? 'unavailable' : 'stale'));
-      if (job.state !== 'running') job.progress = null;
-      if (job.state !== 'running' || job.freshness === 'live') { job.lastProgress = undefined; job.lastProgressAtMs = undefined; }
+      if (job.state !== 'running') { job.progress = null; delete job.etaAtMs; }
+      if (job.state !== 'running' || job.freshness === 'live') { job.lastProgress = undefined; job.lastProgressAtMs = undefined; delete job.lastEtaAtMs; }
+      if (job.etaAtMs === undefined && job.lastEtaAtMs === undefined) delete job.etaBasis;
+      for (const field of ['etaAtMs', 'lastEtaAtMs'] as const) if (job[field] === undefined) delete job[field];
     }
     jobs.sort((a, b) => Number(mediaTerminal(a.state)) - Number(mediaTerminal(b.state)) || (b.finishedAtMs ?? b.queuedAtMs ?? b.observedAtMs) - (a.finishedAtMs ?? a.queuedAtMs ?? a.observedAtMs));
     jobs = jobs.slice(0, MEDIA_JOB_LIMIT);
     const keys = new Set(jobs.map(job => `${job.sourceId}/${job.id}`));
-    for (const map of [this.progress, this.pending]) for (const key of map.keys()) if (!keys.has(key)) map.delete(key);
+    for (const map of [this.progress, this.pending, this.rates]) for (const key of map.keys()) if (!keys.has(key)) map.delete(key);
     return { schemaVersion: 1, enabled: this.discovery.enabled, sampledAtMs: now, nextPollMs: collections.length === 0 ? 30_000 : jobs.some(job => !mediaTerminal(job.state)) ? 2000 : 5000, sources: collections.map(item => item.source), jobs };
   }
   cancel(sourceId: string, jobId: string): Promise<MediaCancelResultV1> {

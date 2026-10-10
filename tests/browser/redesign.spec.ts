@@ -1,6 +1,12 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type FrameLocator, type Page } from '@playwright/test';
+
+// 3.2 has one column and secondary views with Back; these replace the 3.1 Live/History tabs.
+const toColumn = async (frame: FrameLocator): Promise<void> => {
+  for (const name of ['Back to History', 'Back']) { const back = frame.getByRole('button', { name, exact: true }); if (await back.isVisible()) await back.click(); }
+};
+const toHistory = async (frame: FrameLocator): Promise<void> => { await toColumn(frame); await frame.getByRole('button', { name: 'History', exact: true }).click(); };
 
 // Flush iframe -> host -> iframe messages between clock ticks, so every synthetic reading is actually observed.
 const advance = async (page: Page, milliseconds: number): Promise<void> => {
@@ -36,7 +42,7 @@ test('next reply stays usable across navigation and page/rail resizing', async (
   await expect(frame.locator('#reply-strip')).toContainText('Next reply');
   await page.setViewportSize({ width: 430, height: 1000 });
   await expect(frame.locator('#reply-strip')).toContainText('Next reply');
-  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await toHistory(frame);
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
   await expect(frame.locator('[data-next="armed"]')).toBeVisible();
   await expect(frame.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(1);
@@ -45,7 +51,7 @@ test('next reply stays usable across navigation and page/rail resizing', async (
   await frame.getByRole('button', { name: 'Back to History', exact: true }).click();
   await expect(frame.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(1);
   await frame.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await frame.getByRole('tab', { name: 'Live', exact: true }).click();
+  await toColumn(frame);
   await expect(action).toHaveCount(1);
 });
 
@@ -59,7 +65,7 @@ test('a timed capture records while Live is visible and returns with its result'
     });
   });
   const frame = page.frameLocator('iframe');
-  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await toHistory(frame);
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
   await frame.getByRole('button', { name: 'Timed recording', exact: true }).click();
   await frame.getByLabel('Recording length').selectOption('30000');
@@ -68,11 +74,11 @@ test('a timed capture records while Live is visible and returns with its result'
   await frame.getByRole('button', { name: 'Reply', exact: true }).click();
   await expect(frame.locator('[data-window="recording"]')).toBeVisible();
   await expect(frame.locator('[data-window] button[data-action="window-stop"]')).toBeVisible();
-  await frame.getByRole('tab', { name: 'Live', exact: true }).click();
+  await toColumn(frame);
   await expect(frame.locator('#capture-activity')).toContainText('Timed recording');
   await expect(frame.locator('#capture-activity').getByRole('button', { name: 'Cancel', exact: true })).toBeVisible();
   await advance(page, 31_000);
-  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await toHistory(frame);
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
   await expect(frame.locator('#panel-captures .capture-ready')).toContainText('Timed recording: Captured · 30 s.');
   await frame.getByRole('button', { name: 'View timed recording', exact: true }).click();
@@ -93,15 +99,15 @@ test('a timed capture can be cancelled from Live without losing its partial obse
     });
   });
   const frame = page.frameLocator('iframe');
-  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await toHistory(frame);
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
   await frame.getByRole('button', { name: 'Timed recording', exact: true }).click();
   await frame.getByRole('button', { name: 'Start capture', exact: true }).click();
   await advance(page, 5_000);
-  await frame.getByRole('tab', { name: 'Live', exact: true }).click();
+  await toColumn(frame);
   await frame.locator('#capture-activity').getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(frame.locator('#capture-activity')).toBeHidden();
-  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await toHistory(frame);
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
   await expect(frame.locator('[data-window="interrupted"]')).toBeVisible();
   await expect(frame.locator('[data-window]')).toContainText('Stopped by you');
@@ -120,10 +126,10 @@ test('saving a measured reply from Live refreshes the existing Captures view', a
   });
   const frame = page.frameLocator('iframe');
   // Mount the destination before saving elsewhere, exercising activation of an existing controller.
-  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await toHistory(frame);
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
   await expect(frame.locator('#panel-captures .ledger')).toHaveCount(0);
-  await frame.getByRole('tab', { name: 'Live', exact: true }).click();
+  await toColumn(frame);
   await frame.getByRole('button', { name: 'Measure next reply', exact: true }).click();
   await page.evaluate(() => { (window as any).sendPreviewLifecycle('started'); });
   await advance(page, 2_000);
@@ -140,7 +146,7 @@ test('saving a measured reply from Live refreshes the existing Captures view', a
   await advance(page, 3_000);
   await frame.getByRole('button', { name: 'Save to Captures', exact: true }).click();
   await expect(frame.locator('#action-status')).toContainText('Saved');
-  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await toHistory(frame);
   await frame.getByRole('button', { name: 'Captures', exact: true }).click();
   await expect(frame.locator('#panel-captures .ledger .led-row')).toHaveCount(1);
   await expect(frame.locator('#panel-captures .ledger')).toContainText('25.0 tok/s');
@@ -171,19 +177,19 @@ test('design preview uses real views with isolated synthetic data and live theme
     await mkdir(evidence, { recursive: true });
     await screenshot(page, join(evidence, 'mlx-scope-dark.png'));
   }
-  await frame.getByRole('tab', { name: 'History', exact: true }).click();
+  await toHistory(frame);
   await expect(frame.locator('.history-trend .plot')).toBeVisible();
   await expect(frame.locator('.recent-replies .led-row').first()).toBeVisible();
   if (evidence && testInfo.project.name === 'chromium')
     await screenshot(page, join(evidence, 'mlx-scope-history-dark.png'));
-  await frame.getByRole('tab', { name: 'Live', exact: true }).click();
+  await toColumn(frame);
   await page.getByRole('combobox', { name: 'Preview theme' }).selectOption('warm-amber');
   await expect(frame.locator('html')).toHaveAttribute('data-oc-theme', 'light');
   await expect(frame.locator('body')).toHaveCSS('background-color', 'rgb(248, 245, 238)');
   if (evidence && testInfo.project.name === 'chromium')
     await screenshot(page, join(evidence, 'mlx-scope-light.png'));
   await page.getByRole('link', { name: '430px panel' }).click();
-  await expect(frame.locator('#scope')).toHaveAttribute('data-layout', 'tabs');
+  await expect(frame.locator('#scope')).toHaveAttribute('data-layout', 'column');
   await expect(frame.locator('html')).toHaveAttribute('data-oc-theme', 'light');
   await advance(page, 92_000);
   if (evidence && testInfo.project.name === 'chromium')

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { parseSnapshotV2 } from '../../src/contract/snapshot.ts';
 import { sessionMarkup } from '../render/views/session.ts';
+import { liveMarkup } from '../render/views/live.ts';
 import { esc } from '../render/html.ts';
 import { MOCK_NOW, MOCK_STATES, mockBody } from '../testing/mock-states.ts';
 import { fromSnapshot } from './reading.ts';
@@ -170,7 +171,7 @@ test('Energy saving explains an absent active recent speed without hiding a vali
 
 test('a cloud chat stays quiet without borrowing engine measurements or local warnings', () => {
   const view = presentSessionSection(inputOf('pressure', { chatIsLocal: false }));
-  expect(view).toMatchObject({ phase: 'Cloud chat', note: 'Speed tracking is for local models.',
+  expect(view).toMatchObject({ phase: 'Ready', note: null,
     tone: 'normal', measurement: null, alert: null, cancelMeasurement: false });
   expect(sessionMarkup(view).markup).not.toMatch(/Memory pressure|tok\/s|ws-model/);
   expect(sessionMarkup(view).markup).toContain('Open MLX Scope');
@@ -337,14 +338,36 @@ test('waiting for chat output preserves supported prompt progress while the engi
   expect(presentSessionSection(input)).toMatchObject({ phase: 'Reading prompt', measurement: { kind: 'progress', text: '64%' } });
 });
 
-test.each(['generating', 'reasoning', 'tool', 'waiting', 'cancelled', 'complete'] as const)(
-  'cloud %s stays clearly unsupported even if an older snapshot contains a reading', phase => {
-    const input = inputOf('pressure', { chatIsLocal: false }, body => { body.chat = chatSample({ phase }); });
-    const view = presentSessionSection(input);
-    expect(view).toMatchObject({ phase: 'Cloud chat', measurement: null, alert: null,
-      note: 'Speed tracking is for local models.' });
-    expect(sessionMarkup(view).markup).not.toMatch(/tok\/s|Chat · est.|Memory pressure/);
+test('cloud delivery is labelled Cloud · est. and never becomes an engine reading, even beside a native rate', () => {
+  const input = inputOf('pressure', { chatIsLocal: false }, body => { body.chat = chatSample(); });
+  const view = presentSessionSection(input);
+  expect(view).toMatchObject({ phase: 'Generating', alert: null, note: null,
+    measurement: { label: 'Cloud · est.', text: '19.2', basis: 'estimate', live: true } });
+  expect(view.measurement!.detail).toContain('provider buffering');
+  expect(view.speeds.speeds).toEqual([]);
+  expect(sessionMarkup(view).markup).not.toMatch(/Engine|Memory pressure|Chat · est\./);
+  expect(presentSessionSection({ ...input, now: MOCK_NOW + 5_001 }).measurement).toBeNull();
+  expect(presentSessionSection({ ...input, now: MOCK_NOW - 1 }).measurement).toBeNull();
+  expect(presentSessionSection({ ...input, fresh: false })).toMatchObject({ phase: 'Waiting for update', measurement: null });
+  expect(presentSessionSection({ ...input, paused: true })).toMatchObject({ phase: 'Paused', measurement: null });
+  // A local chat's estimate keeps its own label.
+  expect(presentSessionSection(inputOf('idle', { chatIsLocal: true }, body => { body.chat = chatSample(); })).measurement?.label).toBe('Chat · est.');
+});
+
+test.each([['reasoning', 'Reasoning'], ['tool', 'Using tools'], ['waiting', 'Waiting'], ['cancelled', 'Stopped']] as const)(
+  'cloud %s is explicit and never borrows the local engine speed', (phase, label) => {
+    const input = inputOf('decode', { chatIsLocal: false }, body => { body.chat = chatSample({ phase, tokensPerSecond: phase === 'reasoning' ? 19.2 : undefined }); });
+    expect(presentSessionSection(input)).toMatchObject({ phase: label });
+    expect(presentSessionSection(input).measurement?.label ?? null).toBe(phase === 'reasoning' ? 'Cloud · est.' : null);
   });
+
+test('cloud completed average stays labelled last and cloud, and does not claim native timing', () => {
+  const input = inputOf('decode', { chatIsLocal: false }, body => { body.chat = chatSample({ phase: 'complete', basis: 'reported-output', timingBasis: 'completed-step', freshness: 'last' }); });
+  const view = presentSessionSection(input);
+  expect(view.measurement).toMatchObject({ label: 'Last cloud · avg.', live: false, basis: 'derived', result: { label: 'Last cloud result', timing: 'step' } });
+  expect(view.measurement!.detail).toContain('cloud engine');
+  expect(presentSessionSection({ ...input, window: { tag: 'a', startedAt: MOCK_NOW - 100, endedAt: MOCK_NOW, outcome: 'failure' } })).toMatchObject({ phase: 'Stopped', measurement: null });
+});
 
 test('cloud full view excludes local diagnostics, charts, older replies and captures', () => {
   const input = inputOf('pressure', { chatIsLocal: false }, body => { body.chat = chatSample(); });
@@ -354,7 +377,7 @@ test('cloud full view excludes local diagnostics, charts, older replies and capt
   expect(view.tiles).toEqual([]);
   expect(view.mac).toBeNull();
   expect(view.hero).toMatchObject({ chatOnly: true, body: null, reply: null, engineTrend: null,
-    instrument: { phase: 'Cloud chat', measurement: null } });
+    instrument: { measurement: { label: 'Cloud · est.' } } });
 });
 
 test('Session supports the reading with one fresh fact whose engine scope stays explicit', () => {
@@ -378,4 +401,65 @@ test('Session supports the reading with one fresh fact whose engine scope stays 
   });
   expect(presentSessionSection(estimate).measurement?.label).toBe('Chat · est.');
   expect(presentSessionSection(estimate).support?.text).toMatch(/^Engine · /);
+});
+
+test('never dark: a prompt without reported progress holds the reply’s elapsed time, never a simulated percent', () => {
+  const window = { tag: 't', startedAt: MOCK_NOW - 12_400, endedAt: null, outcome: null } as const;
+  const waiting = inputOf('splash-prefill-waiting', { window, chatActivity: 'busy' });
+  expect(presentSessionSection(waiting)).toMatchObject({ phase: 'Reading prompt',
+    measurement: { kind: 'elapsed', text: '12\u00a0s', unit: null, label: 'This reply · elapsed', basis: 'observed', live: true } });
+  const markup = sessionMarkup(presentSessionSection(waiting)).markup;
+  expect(markup).toContain('id="elapsed"'); expect(markup).not.toMatch(/id="rate"|id="prefill-percent"|%/);
+  // A turn joined mid-way has no known start: the phase stays, nothing is invented.
+  expect(presentSessionSection({ ...waiting, window: { ...window, startedAt: null, joinedAt: MOCK_NOW - 3_000 } }).measurement).toBeNull();
+  expect(presentSessionSection({ ...waiting, window: null }).measurement).toBeNull();
+  expect(presentSessionSection({ ...waiting, measurementScope: 'engine' }).measurement).toBeNull();
+  expect(presentSessionSection({ ...waiting, fresh: false }).measurement).toBeNull();
+  expect(presentSessionSection({ ...waiting, paused: true }).measurement).toBeNull();
+  expect(presentSessionSection({ ...waiting, now: MOCK_NOW + 60_000 }).measurement?.text).toBe('1\u00a0m\u00a012\u00a0s');
+  // A measured rate, when the window has one, outranks elapsed time.
+  expect(presentSessionSection(inputOf('splash-prefill', { window, chatActivity: 'busy' })).measurement).toMatchObject({ kind: 'speed', label: 'Engine' });
+});
+
+test('never dark: the engine’s own request clock is preferred, and reported progress still wins', () => {
+  const window = { tag: 't', startedAt: MOCK_NOW - 30_000, endedAt: null, outcome: null } as const;
+  const noProgress = inputOf('prefill', { window, chatActivity: 'busy', attribution: { kind: 'inferred' } }, body => {
+    delete body.runtime.request.prefillFraction; delete body.runtime.request.prefillProcessedTokens; delete body.runtime.request.prefillTotalTokens;
+    delete body.runtime.request.prefillTps; delete body.runtime.request.prefillEtaMs;
+  });
+  const view = presentSessionSection(noProgress), elapsed = noProgress.snapshot!.runtime.request!.elapsedMs!;
+  expect(view.measurement).toMatchObject({ kind: 'elapsed', label: 'Chat · matched · prompt · elapsed', live: true,
+    text: `${Math.floor(elapsed / 1_000)}\u00a0s` });
+  expect(presentSessionSection(inputOf('prefill', { window, chatActivity: 'busy' })).measurement).toMatchObject({ kind: 'progress', text: '64%' });
+  // The hero's elapsed time is not repeated as a tile.
+  const live = presentLive({ ...noProgress, last: noProgress.last ? { ...noProgress.last, vsUsual: null, flag: null } : null, fresh: true, paused: false, version: '3.2.0', frame: null, chatRuntime: null, next: { kind: 'idle' }, samples: [], turnStartAt: null });
+  expect(liveMarkup(live, new Set()).markup.split('id="measurement-details"')[0]).not.toContain('>Elapsed</span>');
+});
+
+test('never dark: a cloud reply waiting for its first output shows elapsed time, then its estimate', () => {
+  const window = { tag: 't', startedAt: MOCK_NOW - 4_000, endedAt: null, outcome: null } as const;
+  const input = inputOf('pressure', { chatIsLocal: false, window, chatActivity: 'busy' }, body => { body.chat = chatSample({ phase: 'waiting', tokensPerSecond: undefined }); });
+  expect(presentSessionSection(input)).toMatchObject({ phase: 'Waiting', held: null,
+    measurement: { kind: 'elapsed', text: '4\u00a0s', label: 'This reply · elapsed' } });
+  input.snapshot!.chat = chatSample() as never;
+  expect(presentSessionSection(input).measurement).toMatchObject({ kind: 'speed', label: 'Cloud · est.' });
+  // After tools or between steps the phase itself is the truth.
+  input.snapshot!.chat = chatSample({ phase: 'tool', tokensPerSecond: undefined }) as never;
+  expect(presentSessionSection(input).measurement).toBeNull();
+});
+
+test('the previous completed average is held, dimmed and labelled, below a live local reading only', () => {
+  // Scope's own last-observed request reading is not a completed average and is never held.
+  expect(presentSessionSection(inputOf('decode')).held).toBeNull();
+  const input = inputOf('decode', {}, body => { body.completions.items.at(-1).basis = 'reported'; }), view = presentSessionSection(input);
+  expect(view.measurement).toMatchObject({ live: true, kind: 'speed' });
+  expect(view.held).toMatchObject({ text: 'Last engine reply · 24.9 tok/s · 1 min ago' });
+  expect(liveMarkup(presentLive({ ...input, last: input.last ? { ...input.last, vsUsual: null, flag: null } : null, fresh: true, paused: false, version: '3.2.0', frame: null, chatRuntime: null, next: { kind: 'idle' }, samples: [], turnStartAt: null }), new Set()).markup)
+    .toContain('class="instrument-held" data-held="true"');
+  for (const extra of [{ chatIsLocal: false }, { paused: true }, { fresh: false }, { window: { tag: 'a', startedAt: MOCK_NOW - 100, endedAt: MOCK_NOW, outcome: 'failure' as const } }])
+    expect(presentSessionSection({ ...input, ...extra }).held, JSON.stringify(extra)).toBeNull();
+  // A finished result is itself the held value: nothing is doubled.
+  expect(presentSessionSection(inputOf('idle')).held).toBeNull();
+  // Another model's reply is never held for this chat.
+  expect(presentSessionSection({ ...input, sessionModel: 'other-model' }).held).toBeNull();
 });

@@ -17,6 +17,8 @@ assert.ok(values.service && values.out, 'Pass --service and --out absolute paths
 const serviceFile = resolve(values.service), output = resolve(values.out), here = dirname(fileURLToPath(import.meta.url));
 const serviceDigest = () => createHash('sha256').update(readFileSync(serviceFile)).digest('hex');
 const measuredDigest = serviceDigest();
+// The service accepts only writers from the companion it bundles; follow its version instead of pinning one.
+const COMPANION_VERSION = JSON.parse(readFileSync(join(here, '../bridge/opencode/package.json'), 'utf8')).version;
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const digest = (kind, value) => createHash('sha256').update(`mlx-scope-${kind}-v1\0${value}`).digest('hex');
 const listen = server => new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', () => resolve(server.address().port)); });
@@ -55,7 +57,7 @@ async function run(plan) {
       if (writerBusy) return; writerBusy = true;
       try {
         const now = Date.now(), file = join(telemetry, `${writerID}.json`), temp = join(telemetry, '.writer.tmp');
-        const document = { schemaVersion: 1, writerID, companionVersion: '3.0.0', protocol: 'opencode-2.0.25', runtimeVersion: '2.0.25',
+        const document = { schemaVersion: 1, writerID, companionVersion: COMPANION_VERSION, protocol: 'opencode-2.0.25', runtimeVersion: '2.0.25',
           updatedAtMs: now, expiresAtMs: now + 15_000, entries: identities.map((identity, index) => ({ ...identity,
             ...identity.destination === 'remote' ? { endpointKey: remoteEndpoint } : {}, measurement: {
             scope: 'chat', basis: 'estimated-characters', timingBasis: 'delivery-window', phase: 'generating',
@@ -67,7 +69,7 @@ async function run(plan) {
     }
     if (withChat) {
       await mkdir(telemetry, { recursive: true, mode: 0o700 }); await chmod(telemetry, 0o700);
-      await writeFile(join(telemetry, 'heartbeat.json'), JSON.stringify({ schemaVersion: 1, companionVersion: '3.0.0', protocol: 'opencode-2.0.25',
+      await writeFile(join(telemetry, 'heartbeat.json'), JSON.stringify({ schemaVersion: 1, companionVersion: COMPANION_VERSION, protocol: 'opencode-2.0.25',
         runtimeVersion: '2.0.25', loadedAtMs: Date.now(), supported: true }), { mode: 0o600 });
       await updateWriter(); writer = setInterval(() => void updateWriter(), 200);
     }

@@ -4,12 +4,11 @@ import { APPROVAL, RESTART } from '../present/copy.ts';
 import type { HeaderView } from '../present/header.ts';
 import { html, raw, type Part, type Raw } from './html.ts';
 import { ICON } from './views/parts.ts';
-import type { PrimaryTab } from './views/types.ts';
 
-// The rail panel's and the page's static shell (G2 mock, 1.6 structure): masthead with the status pill, pause and ⋯,
-// the segmented tabs, one tabpanel per tab, and the footer. Polls patch the pill and the active panel only.
+// The rail panel's and the page's static shell: masthead with the status pill, pause and ⋯, then one column of truth —
+// This chat and its engine, then Media only while it has jobs — with History and Server & Mac details as secondary views
+// reached from the column's foot, each with Back. Polls patch the pill and the visible view only.
 
-export const TABS: ReadonlyArray<readonly [PrimaryTab, string]> = [['live', 'Live'], ['media', 'Media'], ['history', 'History']];
 
 const menuButton = (id: string, attributes: Raw, label: Part): Raw =>
   html`<button id="${id}" type="button"${attributes}><span class="menu-check" aria-hidden="true"></span>${label}</button>`;
@@ -18,26 +17,25 @@ const menu = html`<details class="monitor-menu" id="monitor-menu"><summary class
 /** The 3.0 shell keeps navigation quiet; the active instrument owns activity and measurement. */
 export const shellMarkup = (): Raw => html`<main class="scope" id="scope" aria-labelledby="scope-title" hidden>
   <header class="masthead">
-    <div class="brand">${ICON.mark}<h1 id="scope-title">MLX Scope</h1></div>
+    <div class="brand"><span class="brand-mark" data-heartbeat>${ICON.mark}</span><h1 id="scope-title">MLX Scope</h1></div>
     <div class="status-pill" id="status-pill"><span class="connection-dot" aria-hidden="true"></span><span class="phase sr-only" id="phase">Connecting</span><span class="status-sep sr-only" id="status-sep" aria-hidden="true">·</span><span class="conn" id="connection" role="status">Local server</span></div>
     <div class="monitor-controls"><button class="btn quiet connections-trigger" id="connection-change" type="button" aria-expanded="false" aria-controls="connection-setup">Connections</button><button class="icon-btn" id="pause" type="button" aria-pressed="false" aria-label="Pause monitoring">${ICON.pause}</button>${menu}</div>
   </header>
   ${raw(connectionsMarkup)}
   <button id="connection-configure" type="button" hidden>Connection…</button><p id="action-status" class="action-status" role="status" hidden></p><div id="frame-card"></div>
-  <nav class="workspace-nav" id="workspace-nav" aria-label="Scope workspaces"><div class="tablist" role="tablist" id="tablist"></div><div id="workspace-action" class="workspace-action" hidden></div></nav>
   <div id="next-activity" class="next-activity" hidden></div><div id="capture-activity" class="next-activity" role="region" aria-label="Active timed capture" hidden></div>
   <div id="panels">
-    <div role="tabpanel" id="panel-live" aria-labelledby="tab-live" tabindex="0" hidden><div class="view" id="view-live"></div><section class="view secondary-view" id="panel-server" aria-labelledby="server-title" hidden></section></div>
-    <div role="tabpanel" id="panel-media" aria-labelledby="tab-media" tabindex="0" hidden><div class="view" id="view-media"></div></div>
-    <div role="tabpanel" id="panel-history" aria-labelledby="tab-history" tabindex="0" hidden><div class="view" id="view-history"></div><section class="view secondary-view" id="panel-captures" aria-labelledby="captures-title" hidden><div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-history">Back to History</button><h2 id="captures-title" tabindex="-1">Captures</h2></div><div id="captures-content"></div></section></div>
+    <div class="column" id="panel-live" aria-label="This chat, engine and media" hidden><div class="view" id="view-live"></div><section class="column-block" id="view-media" aria-label="Media" hidden></section>
+      <nav class="column-foot" id="column-foot" aria-label="More from Scope"><button class="btn quiet" type="button" data-action="open-history">History</button><button class="btn quiet" type="button" data-action="open-server" id="open-server">Server &amp; Mac details</button></nav></div>
+    <section class="view secondary-view" id="panel-server" aria-labelledby="server-title" hidden></section>
+    <section class="view secondary-view" id="panel-history" aria-labelledby="history-title" hidden><div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-live">Back</button><h2 id="history-title" tabindex="-1">History</h2><button class="btn quiet secondary-action" type="button" data-action="open-captures">Captures</button></div><div class="view" id="view-history"></div></section>
+    <section class="view secondary-view" id="panel-captures" aria-labelledby="captures-title" hidden><div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-history">Back to History</button><h2 id="captures-title" tabindex="-1">Captures</h2></div><div id="captures-content"></div></section>
   </div>
   <div id="media-glance"></div>
   <section class="compact-glance" id="compact-glance" aria-label="MLX Scope glance" hidden></section>
   <footer><span id="freshness">No reading yet</span></footer>
 </main>`;
 
-export const tabsMarkup = (tabs: ReadonlyArray<readonly [PrimaryTab, string]>, active: PrimaryTab): Raw => html`${tabs.map(([id, label]) =>
-  html`<button class="tab" role="tab" type="button" id="tab-${id}" data-tab="${id}" aria-controls="panel-${id}" aria-selected="${String(id === active)}" tabindex="${id === active ? 0 : -1}">${label}</button>`)}`;
 
 const steps = (list: readonly string[]): Raw => html`<ol class="steps">${list.map(step => html`<li>${step}</li>`)}</ol>`;
 /** Needs approval (NO_SERVICE after an update) and needs a restart (version skew): nothing else is shown. */

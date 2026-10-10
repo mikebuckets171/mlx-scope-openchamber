@@ -21,6 +21,15 @@ export interface MediaJobV1 {
   /** An explicitly historical report for this same phase/node. Never a live reading. */
   lastProgress?: MediaProgressV1 | null;
   lastProgressAtMs?: number;
+  /**
+   * Finish-time estimate (Unix ms) for a live, running job whose source declares the current phase final or dominant.
+   * Derived by the service from at least two producer-timestamped samples of this phase only; absent otherwise.
+   */
+  etaAtMs?: number;
+  /** The held estimate for the same phase while the job is stale or unavailable. Explicitly historical, never live. */
+  lastEtaAtMs?: number;
+  /** Present only with `etaAtMs` or `lastEtaAtMs`. */
+  etaBasis?: 'measured-window';
   /** Reading a file does not refresh its producer observation. */
   sampledAtMs: number;
   observedAtMs: number;
@@ -59,14 +68,19 @@ export interface MediaCancelResultV1 {
 }
 export const MEDIA_JOB_LIMIT = 64;
 export const MEDIA_SOURCE_LIMIT = 8;
+/** A finish-time estimate further than this from its latest sample is not plausible enough to show. */
+export const MEDIA_ETA_HORIZON_MS = 86_400_000;
 export const mediaId = (value: unknown): string | null => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/.test(value) ? value : null;
 const hash = (value: unknown): string | undefined => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value) ? value : undefined;
 export const mediaTerminal = (state: MediaState): boolean => state === 'completed' || state === 'failed' || state === 'cancelled';
 export const withdrawMediaProgress = (job: MediaJobV1, freshness: 'stale' | 'unavailable'): MediaJobV1 => {
   const progress = job.state === 'running' ? job.progress ?? job.lastProgress : null;
   const observed = job.progress ? job.progressAtMs ?? job.observedAtMs : job.lastProgressAtMs;
+  // A live estimate becomes the held estimate for the same report; it is never refreshed while withdrawn.
+  const eta = progress ? job.progress ? job.etaAtMs : job.lastEtaAtMs : undefined;
   return { ...job, freshness, progress: null, cancel: { supported: false },
-    lastProgress: progress ?? undefined, lastProgressAtMs: progress ? observed ?? job.observedAtMs : undefined };
+    lastProgress: progress ?? undefined, lastProgressAtMs: progress ? observed ?? job.observedAtMs : undefined,
+    etaAtMs: undefined, lastEtaAtMs: eta, etaBasis: eta === undefined ? undefined : 'measured-window' };
 };
 export const parseMediaProgress = (raw: unknown): MediaProgressV1 | null => {
   const item = obj(raw), unit = oneOf(MEDIA_UNITS)(item?.unit), value = unit === 'percent' ? nonneg(item?.value) : count(item?.value), total = count(item?.total);
@@ -87,10 +101,19 @@ export const parseMediaJob = (raw: unknown): MediaJobV1 | null => {
   const lastAt = optionalTime('lastProgressAtMs');
   const lastProgress = state === 'running' && (freshness === 'stale' || freshness === 'unavailable') && lastAt !== undefined && lastAt <= observedAtMs
     ? parseMediaProgress(item.lastProgress) : null;
+  const liveProgress = freshness === 'live' && state === 'running' ? progress : null, progressAtMs = optionalTime('progressAtMs');
+  // An estimate needs its basis and the measured counters it was derived from; it cannot precede that report or run past the horizon.
+  const estimate = (raw: unknown, from: number | undefined): number | undefined => {
+    const value = at(raw);
+    return item.etaBasis === 'measured-window' && value !== null && from !== undefined && value >= from && value <= from + MEDIA_ETA_HORIZON_MS ? value : undefined;
+  };
+  const etaAtMs = liveProgress ? estimate(item.etaAtMs, progressAtMs ?? observedAtMs) : undefined;
+  const lastEtaAtMs = lastProgress ? estimate(item.lastEtaAtMs, lastAt) : undefined;
   return defined({ id, sourceId, kind, name, state, phase, phaseKey: hash(item.phaseKey), sampledAtMs, observedAtMs, freshness,
-    progress: freshness === 'live' && state === 'running' ? progress : null,
+    progress: liveProgress,
     lastProgress: lastProgress ?? undefined, lastProgressAtMs: lastProgress ? lastAt : undefined,
-    progressAtMs: optionalTime('progressAtMs'), queuedAtMs: optionalTime('queuedAtMs'), startedAtMs: optionalTime('startedAtMs'), finishedAtMs: optionalTime('finishedAtMs'),
+    etaAtMs, lastEtaAtMs, etaBasis: etaAtMs !== undefined || lastEtaAtMs !== undefined ? 'measured-window' as const : undefined,
+    progressAtMs, queuedAtMs: optionalTime('queuedAtMs'), startedAtMs: optionalTime('startedAtMs'), finishedAtMs: optionalTime('finishedAtMs'),
     ownership: defined({ sessionKey: hash(ownership?.sessionKey), projectKey: hash(ownership?.projectKey) }),
     cancel: { supported: cancel.supported && !mediaTerminal(state) && freshness === 'live' }, message: label(item.message, 120) ?? undefined });
 };

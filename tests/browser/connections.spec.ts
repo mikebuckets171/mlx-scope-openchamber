@@ -1,5 +1,11 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 
+
+// 3.2 has one column and secondary views with Back; these replace the 3.1 Live/History tabs.
+const toColumn = async (frame: FrameLocator): Promise<void> => {
+  for (const name of ['Back to History', 'Back']) { const back = frame.getByRole('button', { name, exact: true }); if (await back.isVisible()) await back.click(); }
+};
+const toHistory = async (frame: FrameLocator): Promise<void> => { await toColumn(frame); await frame.getByRole('button', { name: 'History', exact: true }).click(); };
 // Connection selection on the synthetic 1.x host: what is stored, what each poll asks for, and that a switch never
 // shows the previous connection's readings. Runtime coverage per connection is honest: nothing reported, nothing shown.
 type W = Window & Record<string, any>;
@@ -23,7 +29,7 @@ const choose = async (page: Page, provider: string, runtime = '') => {
   await frame.getByRole('button', { name: 'Use connection', exact: true }).click();
 };
 const server = async (frame: FrameLocator) => frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
-const live = async (frame: FrameLocator) => frame.getByRole('tab', { name: 'Live', exact: true }).click();
+const live = async (frame: FrameLocator) => toColumn(frame);
 
 test('a chosen connection is stored without credentials, sent with each poll, and survives reload', async ({ page }) => {
   const frame = await open(page);

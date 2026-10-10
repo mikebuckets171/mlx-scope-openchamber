@@ -64,13 +64,14 @@ summary::-webkit-details-marker { display: none; }
 .icon-btn:hover, .monitor-menu[open] > summary { color: var(--scope-fg); background: var(--oc-hover, var(--scope-surface)); }
 .icon-btn[aria-pressed="true"] { color: var(--scope-warn); }
 .icon-btn svg { width: 16px; height: 16px; }
-.workspace-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
-.tablist { display: flex; gap: 16px; flex: none; }
-.tab { min-width: 32px; min-height: 32px; padding: 3px 0; border: 0; background: transparent; color: var(--scope-muted); font-size: 12px; font-weight: 400; }
-.tab[aria-selected="true"] { color: var(--scope-fg); font-weight: 600; }
-.tab:hover { color: var(--scope-fg); }
-.workspace-action { min-width: 0; margin-left: auto; text-align: right; }
-.workspace-action .btn { padding: 3px 0; color: var(--scope-muted); font-size: 11px; white-space: normal; text-align: right; }
+/* One column of truth, structured by silence: space between blocks carries the hierarchy, not cards or rules. */
+.column { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 28px; min-width: 0; margin-top: 18px; }
+.column-block { min-width: 0; }
+.column-foot { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.column-foot .btn.quiet, .secondary-heading .btn.quiet.secondary-action { padding: 3px 0; color: var(--scope-muted); font-size: 11px; white-space: normal; }
+.column-foot .btn:hover, .secondary-action:hover { color: var(--scope-fg); }
+.secondary-view { margin-top: 18px; }
+.secondary-heading .secondary-action { margin-left: auto; }
 .view, .view-host { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 20px; min-width: 0; }
 .view { margin-top: 20px; }
 footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(--scope-muted); font-size: 10px; }
@@ -91,6 +92,9 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .speed-value > span { color: var(--scope-muted); font-size: max(12px, .75rem); }
 .instrument-source { display: inline-flex; align-self: center; align-items: center; flex-wrap: wrap; gap: 3px; margin-left: 8px; color: var(--scope-muted); font-size: max(11px, .6875rem); }
 .instrument-primary[data-live="false"] .speed-value { color: var(--scope-muted); }
+/* M5: a reading that stops being live fades to its held colour; it never snaps or stays styled as live. */
+.instrument-primary .speed-value, .ws-measurement .ws-reading { transition: color 200ms ease-out; }
+.brand-mark { display: inline-flex; transform-origin: 50% 50%; }
 .instrument-readout .coverage-note { margin-top: 2px; }
 .instrument-model { margin: 6px 0 10px; color: var(--scope-muted); font-size: 12px; overflow-wrap: anywhere; }
 .instrument-basis { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 12px; color: var(--scope-muted); font-size: 11px; }
@@ -116,6 +120,9 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .ws-measurement { grid-row: 2; min-height: 0; align-content: start; flex-wrap: wrap; gap: 0 8px; }
 .ws-support { grid-row: 3; min-height: 0; color: var(--scope-muted); font-size: max(11px, .6875rem); overflow-wrap: anywhere; }
 .ws-activity > :is(.ws-note, .ws-warning, .ws-action-error) { grid-row: 3; }
+/* A held previous value is dimmed and labelled, never styled as live. */
+.ws-held, .instrument-held { color: var(--scope-muted); opacity: .78; }
+.instrument-held { margin-top: 4px; font-size: max(11px, .6875rem); }
 .ws-phase { min-width: 0; font-weight: 550; color: var(--scope-fg); }
 .ws-context .scope-choice { max-width: 48%; }
 .ws-context .scope-choice:focus-visible { outline-offset: -2px; }
@@ -398,19 +405,25 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .media-progress-copy { min-width: 0; flex: 1; }
 .media-phase { font-size: 12px; font-weight: 550; overflow-wrap: anywhere; }
 .media-phase small { display: block; font-size: 10px; font-weight: 400; color: var(--scope-muted); }
+.media-percent { font-variant-numeric: tabular-nums; }
 .media-counters, .media-timing { margin-top: 3px; font-size: 11px; color: var(--scope-muted); font-variant-numeric: tabular-nums; }
+/* A finish time is clock text. Only a live estimate reads at full strength; held and measured ones are quiet. */
+.media-finish { margin-top: 3px; font-size: 11px; color: var(--scope-fg); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.media-finish:is([data-basis="held"], [data-basis="measured"]) { color: var(--scope-muted); }
 .media-job-progress > .btn { padding: 4px 0; font-size: 11px; }
 .media-ring { position: relative; display: grid; place-items: center; flex: none; width: max(52px, 3.25rem); height: max(52px, 3.25rem); color: var(--scope-accent); }
 .media-ring-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: rotate(-90deg); }
 .media-ring-track, .media-ring-fill { fill: none; stroke-width: 3; }
 .media-ring-track { stroke: var(--scope-line); }
 .media-ring-fill { stroke: currentColor; stroke-linecap: round; }
-.media-ring-value { font-size: max(12px, .75rem); font-weight: 550; color: var(--scope-fg); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
-.media-ring:is([data-mode="stale"], [data-mode="static"]) { color: var(--scope-muted); }
-.media-ring:is([data-mode="stale"], [data-mode="static"], [data-mode="indeterminate"]) .media-ring-value { color: var(--scope-muted); }
-.scope[data-media-motion="true"] .media-ring[data-mode="measured"] .media-ring-fill { transition: stroke-dashoffset 160ms cubic-bezier(.2,.7,.2,1); }
-.scope[data-media-motion="true"] .media-ring[data-mode="indeterminate"] .media-ring-svg { animation: media-orbit 3.6s linear infinite; }
-@keyframes media-orbit { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+/* The ring never displays a number: the percentage is text beside it, so it can never clip the stroke. */
+.media-ring:is([data-mode="stale"], [data-mode="static"], [data-mode="draining"], [data-mode="done"]) { color: var(--scope-muted); }
+/* No measured range: a still, dotted track rather than an arc that could be read as a value. Nothing spins or loops. */
+.media-ring[data-mode="indeterminate"] .media-ring-track { stroke: currentColor; stroke-dasharray: 1.5 3.5; opacity: .6; }
+/* M4: draw 0→value once when the ring's state arrives, then ease directly between received values; cancellation drains. */
+.scope[data-media-motion="true"] .media-ring[data-mode="measured"] .media-ring-fill { transition: stroke-dashoffset 160ms cubic-bezier(.2,.7,.2,1); animation: media-ring-draw 200ms cubic-bezier(.2,.7,.2,1); }
+.scope[data-media-motion="true"] .media-ring[data-mode="draining"] .media-ring-fill { transition: stroke-dashoffset 120ms cubic-bezier(.4,0,1,1); }
+@keyframes media-ring-draw { from { stroke-dashoffset: 100; } }
 .media-empty { padding: 24px 0; min-height: 130px; }
 .media-empty h3 { font-size: 14px; font-weight: 500; }
 .media-empty p { max-width: 48ch; margin-top: 7px; color: var(--scope-muted); font-size: 12px; }
@@ -421,7 +434,6 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .media-glance { padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--scope-line); font-size: 11px; }
 .media-glance-body { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .media-glance .media-ring { width: max(44px, 2.75rem); height: max(44px, 2.75rem); }
-.media-glance .media-ring-value { font-size: max(11px, .6875rem); }
 .media-glance-copy { flex: 1; min-width: 0; }
 .media-glance-head, .media-glance-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; }
 .media-glance-head strong { font-weight: 550; }
@@ -452,7 +464,6 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
   .status-pill { order: 3; flex-basis: 100%; }
   .media-job-head { gap: 8px; }
   .media-job-progress { flex-wrap: wrap; gap: 10px; }
-  .workspace-nav { flex-wrap: wrap; gap: 4px 12px; }
 }
 /* A retained, hidden workspace must never keep a decorative animation running. */
 [hidden] .media-ring-svg, [hidden] .media-ring-fill { animation: none !important; transition: none !important; }

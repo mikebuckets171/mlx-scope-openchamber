@@ -1,6 +1,12 @@
 import type { HostTheme, HostThemeTokens } from '@openchamber/sdk';
-import { expect, test, type Frame, type Page } from '@playwright/test';
+import { expect, test, type Frame, type FrameLocator, type Page } from '@playwright/test';
 import { inspect } from './ui-checks.ts';
+
+// 3.2 has one column and secondary views with Back; these replace the 3.1 Live/History tabs.
+const toColumn = async (frame: Pick<Frame | FrameLocator, 'getByRole'>): Promise<void> => {
+  for (const name of ['Back to History', 'Back']) { const back = frame.getByRole('button', { name, exact: true }); if (await back.isVisible()) await back.click(); }
+};
+const toHistory = async (frame: Pick<Frame | FrameLocator, 'getByRole'>): Promise<void> => { await toColumn(frame); await frame.getByRole('button', { name: 'History', exact: true }).click(); };
 
 // Synthetic palettes exercise OpenChamber's live ready messages, without changing a user's host settings.
 // Base fills deliberately differ from their readable text colors: a chart must use primaryText, not primary.
@@ -79,7 +85,7 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
   // Selection belongs to the mounted view, not to its palette.
   await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
   await setTheme(page, PAPER);
-  await expect(frame.getByRole('tab', { name: 'Live', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(frame.locator('#panel-live')).toBeHidden();
   await expect(frame.locator('#panel-server')).toBeVisible();
 });
 
@@ -148,7 +154,7 @@ for (const [name, palette] of [['violet', VIOLET], ['paper', PAPER]] as const) {
       expect(await frame.evaluate(inspect, false), `${name} Live @ ${width}`).toEqual([]);
       await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
       expect(await frame.evaluate(inspect, false), `${name} Server @ ${width}`).toEqual([]);
-      await frame.getByRole('tab', { name: 'History', exact: true }).click();
+      await toHistory(frame);
       expect(await frame.evaluate(inspect, false), `${name} History @ ${width}`).toEqual([]);
       await frame.getByRole('button', { name: 'Captures', exact: true }).click();
       expect(await frame.evaluate(inspect, false), `${name} Captures @ ${width}`).toEqual([]);

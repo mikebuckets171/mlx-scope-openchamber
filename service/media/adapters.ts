@@ -6,7 +6,16 @@ import { requestJSON, type FetchImplementation } from '../http.ts';
 import type { MediaSourceConfig } from './discovery.ts';
 import { directoryExists, directoryStamp, jsonFiles, readBounded } from './files.ts';
 
-export interface MediaCollection { source: MediaSourceV1; jobs: MediaJobV1[]; correlations?: Map<string, string> }
+export interface MediaCollection {
+  source: MediaSourceV1; jobs: MediaJobV1[]; correlations?: Map<string, string>;
+  /**
+   * Job ids whose current phase the source declares final or dominant, so that phase's end is effectively the job's end.
+   * Internal to the service; it permits a measured finish-time estimate and is never inferred. See docs/MEDIA.md.
+   * ComfyUI graphs, Qwen workflows and local-video shot sequences can each repeat or follow sampling with other
+   * substantial work, so those adapters declare nothing. Only a feed producer can declare it, per job and observation.
+   */
+  finalPhase?: Set<string>;
+}
 export interface VideoHistory { stamp: string; until: number; jobs: MediaJobV1[]; active: Set<string> }
 export interface MediaAdapterOptions { now: () => number; fetchImpl: FetchImplementation; cancelLocalVideo?: (id: string) => Promise<boolean>; localVideoDirectory?: string; videoHistory?: Map<string, VideoHistory> }
 const STALE_MS = 15_000;
@@ -165,7 +174,7 @@ export const qwenImage = async (config: MediaSourceConfig, options: MediaAdapter
 };
 
 export const localFeed = async (config: MediaSourceConfig, options: MediaAdapterOptions): Promise<MediaCollection> => {
-  const now = options.now(), source = sourceOf(config), jobs: MediaJobV1[] = [];
+  const now = options.now(), source = sourceOf(config), jobs: MediaJobV1[] = [], finalPhase = new Set<string>();
   if (!await directoryExists(config.directory!)) throw new Error('Feed unavailable');
   for (const name of (await jsonFiles(config.directory!, 32)).slice(0, 16)) {
     const file = await readBounded(join(config.directory!, name), 64_000, true);
@@ -176,13 +185,19 @@ export const localFeed = async (config: MediaSourceConfig, options: MediaAdapter
     for (const raw of body.jobs.slice(0, 32)) {
       const item = obj(raw); if (!item) continue;
       const stale = !mediaTerminal(item.state as MediaState) && now - observed > STALE_MS;
+      // Estimates are measured by Scope from this feed's own timestamps; a producer-supplied estimate is never accepted.
       const job = parseMediaJob({ ...item, sourceId: config.id, name: item.kind === 'video' ? 'Video generation' : item.kind === 'image' ? 'Image generation' : 'Media generation', sampledAtMs: now,
         ...stale && item.state === 'running' ? {lastProgress:parseMediaProgress(item.progress) ?? item.lastProgress,lastProgressAtMs:time(item.progressAtMs,observed) ?? observed} : {},
+        etaAtMs: undefined, lastEtaAtMs: undefined, etaBasis: undefined,
         observedAtMs: observed, freshness: mediaTerminal(item.state as MediaState) ? 'last' : now - observed <= STALE_MS ? 'live' : 'stale', cancel: { supported: false } });
-      if (job) { source.capabilities.progress ||= !!job.progress; jobs.push(job); }
+      if (job) {
+        source.capabilities.progress ||= !!job.progress; jobs.push(job);
+        // The producer's explicit declaration for this observation's phase. Absent, false or non-boolean declares nothing.
+        if (job.state === 'running' && item.finalPhase === true) finalPhase.add(job.id);
+      }
     }
   }
-  return { source, jobs };
+  return { source, jobs, finalPhase };
 };
 
 export const collectMedia = (config: MediaSourceConfig, options: MediaAdapterOptions): Promise<MediaCollection> =>

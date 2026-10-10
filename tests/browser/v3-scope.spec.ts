@@ -58,7 +58,7 @@ test('scope choice persists across reload, keeps Whole engine independent, and f
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(scope).toHaveValue('engine');
   await scope.selectOption('chat');
-  await expect(frame.locator('.ws-phase')).toHaveText('Cloud chat');
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
   await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
   await page.evaluate(() => (window as any).setPreviewSession({ id: 'local-again', title: 'Local', busy: true, model: 'omlx/Example-27B-4bit' }));
   await expect(scope).toHaveValue('chat');
@@ -120,6 +120,6 @@ test('an unknown provider echoed by an unavailable connection never makes a clou
     w.setPreviewPatch({ connection: body.connection, status: { state: 'unconfigured', reason: 'configuration_missing', params: {} } });
   });
   await expect.poll(() => page.evaluate(() => (window as any).previewRequests)).toBeGreaterThan(1);
-  await expect(frame.locator('.ws-phase')).toHaveText('Cloud chat');
+  await expect(frame.locator('.ws-phase')).toHaveText('Ready');
   await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
 });

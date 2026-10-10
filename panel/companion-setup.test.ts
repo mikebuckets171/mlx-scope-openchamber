@@ -13,7 +13,7 @@ describe('companion setup surface', () => {
   });
   it('explains the optional setup and hides mutations until status is validated', () => {
     const markup = companionSetupMarkup();
-    expect(markup).toContain('local chats');
+    expect(markup).toContain('local and cloud chats');
     expect(markup).toContain('observable reasoning on your computer');
     expect(markup).toContain('never saves chat content');
     expect(markup).toContain('OpenCode plugins');

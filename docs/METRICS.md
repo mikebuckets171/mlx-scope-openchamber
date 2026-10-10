@@ -46,7 +46,8 @@ calibrates from character and reported-token totals across the latest ten compar
 **est.** in the displayed label. Observable reasoning counts toward delivery; tool payloads, title generation,
 compaction, and ambiguous output-token accounting do not.
 
-A **Last chat · avg.** uses reported output tokens divided by observed completed-step duration. That duration includes
+A **Last chat · avg.** (for a cloud chat, **Last cloud · avg.**) uses reported output tokens divided by observed
+completed-step duration. That duration includes
 waiting before delivery, so the result is neither a live delivery-window rate nor native engine throughput. Very short
 or ambiguous replies can finish without a rate. Tool use, cancellation, stream gaps, and identity changes reset live
 estimates. Expired, future, paused, and stale observations cannot appear live. The snapshot extension records scope,

@@ -19,6 +19,18 @@ const job = (state: string): MediaJobV1 => {
     ownership: state === 'other' ? {} : { sessionKey: chatKey('session', 'fixture-chat') },
     cancel: { supported: !terminal && !stale }, ...state === 'waiting' ? { message: 'Waiting for the local chat to release the GPU.' } : {} };
 };
+// Finish-time fixtures use absolute times fixed when the page loads, so a clock line is stable across polls. Only a private
+// feed can declare a final phase, so estimates come from a feed source; the service's measured window is unit-tested.
+const LOADED = Date.now();
+window.previewMediaTimes = { report: LOADED, eta: LOADED + 330_000, soon: LOADED + 20_000, held: LOADED + 270_000, started: LOADED - 133_000, finished: LOADED - 61_000 };
+const FEED_STATES = ['eta', 'eta-soon', 'eta-stale'];
+const fixtureJob = (state: string): MediaJobV1 => {
+  const times = window.previewMediaTimes;
+  if (state === 'finished') return { ...job('completed'), startedAtMs: times.started, finishedAtMs: times.finished };
+  if (state === 'eta-stale') return { ...job('last-reported'), sourceId: 'studio', lastEtaAtMs: times.held, etaBasis: 'measured-window' };
+  if (state === 'eta' || state === 'eta-soon') return { ...job('active'), sourceId: 'studio', progressAtMs: times.report, etaAtMs: state === 'eta' ? times.eta : times.soon, etaBasis: 'measured-window', cancel: { supported: false } };
+  return job(state);
+};
 window.ScopeMediaFixtures = { respond(message) {
   const path = message.payload.path;
   if (!['/v2/connections', '/v2/media', '/v2/media/cancel', '/v2/media/setup', '/v2/companion/setup'].includes(path)) return null;
@@ -54,7 +66,8 @@ window.ScopeMediaFixtures = { respond(message) {
   const state = params.get('media') ?? 'none';
   if (!window.previewMediaEnabled) return response({ schemaVersion: 1, enabled: false, sampledAtMs: Date.now(), nextPollMs: 30_000, sources: [], jobs: [] });
   const snapshot: MediaSnapshotV1 = { schemaVersion: 1, sampledAtMs: Date.now(), nextPollMs: state === 'none' ? 30_000 : 1_000,
-    sources: state === 'none' ? [] : [{ id: 'comfyui', kind: 'comfyui', label: 'ComfyUI', state: state === 'disconnected' ? 'disconnected' : 'ready', capabilities: { progress: state !== 'basic', cancel: true } }],
-    jobs: ['none', 'empty', 'disconnected'].includes(state) ? [] : [job(window.previewMediaCancelled ? 'cancelled' : state)] };
+    sources: state === 'none' ? [] : FEED_STATES.includes(state) ? [{ id: 'studio', kind: 'feed', label: 'Studio feed', state: 'ready', capabilities: { progress: true, cancel: false } }]
+      : [{ id: 'comfyui', kind: 'comfyui', label: 'ComfyUI', state: state === 'disconnected' ? 'disconnected' : 'ready', capabilities: { progress: state !== 'basic', cancel: true } }],
+    jobs: ['none', 'empty', 'disconnected'].includes(state) ? [] : [fixtureJob(window.previewMediaCancelled ? 'cancelled' : state)] };
   return response(window.previewMediaOverride ?? snapshot);
 } };

@@ -7,11 +7,10 @@ import { presentStatusSection } from '../../present/status.ts';
 import { fromSnapshot } from '../../present/reading.ts';
 import { MOCK_NOW, MOCK_STATES, mockBody } from '../../testing/mock-states.ts';
 import { esc, html } from '../html.ts';
-import { frameCardMarkup, shellMarkup, TABS, tabsMarkup } from '../shell.ts';
+import { frameCardMarkup, shellMarkup } from '../shell.ts';
 import { liveMarkup } from './live.ts';
 import { serverMarkup } from './server.ts';
 import { statusHeight, statusMarkup } from './status.ts';
-import { primaryTab } from './types.ts';
 
 const snapshotOf = (state: string, patch: (body: Record<string, any>) => void = () => {}) => {
   const body = JSON.parse(JSON.stringify(mockBody(state))); patch(body);
@@ -57,16 +56,19 @@ test('every mock state renders every view without a raw placeholder', () => {
   }
 });
 
-test('three primary tabs keep secondary workspaces in the correct accessible parent', () => {
-  expect(TABS.map(([, label]) => label)).toEqual(['Live', 'Media', 'History']);
-  for (const [view, parent] of [['live', 'live'], ['server', 'live'], ['media', 'media'], ['history', 'history'], ['captures', 'history']] as const) {
-    expect(primaryTab(view)).toBe(parent);
-    const markup = tabsMarkup(TABS, primaryTab(view)).markup;
-    expect([...markup.matchAll(/tabindex="(-?\d)"/g)].map(match => match[1])).toEqual(TABS.map(([id]) => id === parent ? '0' : '-1'));
-    expect(markup).toContain(`id="tab-${parent}" data-tab="${parent}" aria-controls="panel-${parent}" aria-selected="true"`);
+test('one column of truth: no workspace tabs; History, Captures and Server are secondary views with Back', () => {
+  const shell = shellMarkup().markup;
+  expect(shell).not.toMatch(/role="tab"|role="tablist"|role="tabpanel"/);
+  // The column holds This chat and its engine, then the state-driven Media block, then the foot actions.
+  expect(shell.indexOf('id="view-live"')).toBeLessThan(shell.indexOf('id="view-media"'));
+  expect(shell.indexOf('id="view-media"')).toBeLessThan(shell.indexOf('id="column-foot"'));
+  expect(shell).toMatch(/<section class="column-block" id="view-media" aria-label="Media" hidden>/);
+  expect(shell).toContain('data-action="open-history">History</button>');
+  expect(shell).toContain('data-action="open-server" id="open-server">Server &amp; Mac details</button>');
+  for (const [id, back] of [['history', 'back-live'], ['captures', 'back-history']] as const) {
+    expect(shell).toContain(`aria-labelledby="${id}-title"`);
+    expect(shell).toContain(`data-action="${back}"`);
   }
-  expect(shellMarkup().markup.match(/role="tabpanel"/g)).toHaveLength(3);
-  expect(shellMarkup().markup).toContain('aria-labelledby="captures-title"');
 });
 
 test('runtime diagnostics are available in a disclosure without displacing server measurements', () => {
@@ -179,9 +181,8 @@ test('completed chat facts never borrow output or first-token timing from an eng
         observation: { startedAtMs: MOCK_NOW - 3_000, endedAtMs: MOCK_NOW }, freshness: 'last' };
     }, { chatIsLocal }));
     const markup = liveMarkup(view, new Set()).markup, visible = markup.split('id="measurement-details"')[0]!;
-    if (!chatIsLocal) { expect(visible).not.toContain('id="completed-facts"'); expect(visible).toContain('Speed tracking is for local models.'); continue; }
     expect(visible).toContain('id="completed-facts" data-count="1"');
-    expect(visible).toContain('Last chat result');
+    expect(visible).toContain(chatIsLocal ? 'Last chat result' : 'Last cloud result');
     expect(visible).toContain('<time>Finished just now</time>');
     expect(visible).toContain('>Step duration</span><strong data-basis="derived">3.0 s</strong>');
     expect(visible).not.toContain('>Output</span>');

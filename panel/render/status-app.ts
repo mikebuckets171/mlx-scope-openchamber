@@ -1,6 +1,7 @@
 import type { MediaController } from '../media/controller.ts';
 import { mediaGlanceMarkup } from '../media/view.ts';
 import { DigitRoll } from './digit-roll.ts';
+import { beatKey, Motion } from './motion.ts';
 import { html } from './html.ts';
 import type { HostClient, SessionSnapshot } from '@openchamber/sdk';
 import type { SnapshotClient } from '../data/client.ts';
@@ -26,6 +27,7 @@ export const chatIsLocal = (session: SessionSnapshot | null, connection: { id: s
 export class StatusApp {
   private height = 0;
   private readonly digits: DigitRoll;
+  private readonly motion: Motion;
   private session: SessionSnapshot | null = null;
   private actionError: string | null = null;
   private readonly resize: ResizeObserver | null;
@@ -33,6 +35,7 @@ export class StatusApp {
   constructor(private readonly p: StatusParts, session: SessionSnapshot | null) {
     this.session = session;
     this.digits = new DigitRoll(p.root);
+    this.motion = new Motion(p.root);
     this.unsubscribe = p.host.onSession(next => {
       if (!this.sameSession(next)) this.actionError = null;
       this.session = next; this.render();
@@ -58,6 +61,8 @@ export class StatusApp {
     this.p.mediaJobs.sync(this.p.visible() && !state.userPaused && state.frame?.reason !== 'needs_approval');
     morph(this.p.root, html`${sessionMarkup(view, actionError)}${mediaGlanceMarkup(this.p.mediaJobs, this.session?.id ?? null, client.now(), true)}`);
     this.digits.sync(`${state.generation}/${this.session?.id ?? ''}/${this.session?.model ?? ''}/${snapshot?.connection.id ?? ''}/${snapshot?.connection.generation ?? ''}/${snapshot?.runtime.phase ?? ''}/${window?.startedAt ?? ''}/${snapshot?.chat?.phase ?? ''}`, this.p.visible() && !state.stale && !state.frame && !state.awaitingFresh && !state.userPaused);
+    const fresh = snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh && !state.userPaused;
+    this.motion.sync(this.p.visible() && !state.userPaused, fresh ? beatKey(this.p.root, snapshot) : null);
     const select = this.p.root.querySelector<HTMLSelectElement>('[data-action="measurement-scope"]');
     if (select && select.value !== view.measurementScope) select.value = view.measurementScope;
     this.fitHeight();
@@ -99,5 +104,5 @@ export class StatusApp {
     this.render();
     this.p.root.querySelector<HTMLElement>(`[data-action="${action}"]`)?.focus({ preventScroll: true });
   };
-  dispose(): void { this.digits.dispose(); this.unsubscribe(); this.resize?.disconnect(); this.p.root.removeEventListener('click', this.onClick); this.p.root.removeEventListener('change', this.onChange); }
+  dispose(): void { this.digits.dispose(); this.motion.dispose(); this.unsubscribe(); this.resize?.disconnect(); this.p.root.removeEventListener('click', this.onClick); this.p.root.removeEventListener('change', this.onChange); }
 }

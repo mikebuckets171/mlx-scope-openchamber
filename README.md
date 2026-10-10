@@ -44,12 +44,14 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   Cloud chats show a delivery estimate labelled **Cloud · est.** on qualified runtimes. They never borrow a local engine's reading
   or hardware warnings. Media progress remains available. Theme-native rows remain readable at increased text size.
   The section samples only while visible and uses lighter Mac probes than the full panel.
-- **Rail panel and full page.** **Live** and **History** remain available at every width. Live leads with the same activity,
-  reading and scope menu as the sidebar, with available supporting facts in a separate **Engine** group and a visible
-  **Engine trend** when compatible samples exist. Prompt progress shows supported counts and an available server estimate.
-  Completed results retain their own available output, duration and first-token facts; chat step timing stays distinct.
-  **Measurement details** groups deeper engine readings, request details and the last reply; engine charts never mix in
-  chat estimates. **Server & Mac details** opens diagnostics with **Back to Live**.
+- **Rail panel and full page.** One column at every width: This chat leads with the same activity, reading and scope
+  menu as the sidebar, with available supporting facts in a separate **Engine** group and a visible **Engine trend** when
+  compatible samples exist; **Media** joins the column only while jobs are running or recently finished. The reading never
+  goes dark: prompt progress shows supported counts, otherwise the reply's elapsed time, and the previous completed average
+  stays below a live reading, dimmed and labelled. Completed results retain their own available output, duration and
+  first-token facts; chat step timing stays distinct. **Measurement details** groups deeper engine readings, request
+  details and the last reply; engine charts never mix in chat estimates. The column's foot opens **History** and
+  **Server & Mac details**, each with **Back**.
   History retains recent replies, trends, insights, alerts, and storage. **Captures** opens from History with
   **Back to History**, a **Reply / Timed window** selector, and saved captures. Active recordings remain cancellable
   while you navigate. Resizing preserves your selected destination. Open the rail from the Session action or the full
@@ -174,7 +176,7 @@ OpenChamber 2.0.4 or newer is required. The extension uses the 2.0.4 SDK and is 
 
 Scope discovers supported existing connections. Native readings start immediately when available. **Connections** shows what is connected and gives one action for additional tracking: **Enable chat speed** or **Enable detailed media progress**. Installation and readiness are separate; a helper waiting for its owning application to start is labelled accordingly. Scope never restarts an application or generates test work.
 
-**Live** shows chat and engine readings. **History** retains existing observations and captures. **Media** shows active and recent local image/video jobs. In the compact Session section, this chat’s media job comes first, with a count of other jobs. A circular indicator shows the measured percentage for the named phase; an older reading says **Last reported** and stays still. [Media support and setup](docs/MEDIA.md) explains supported sources and progress units.
+The column shows chat and engine readings, then **Media** while local image/video jobs are active or recently finished. **History** retains existing observations and captures. In the compact Session section, this chat’s media job comes first, with a count of other jobs. A ring shows the measured progress of the named phase and the percentage is written beside it; an older reading says **Last reported** and stays still. A source that declares its final phase adds a finish time such as **finishes around 9:41 PM**. [Media support and setup](docs/MEDIA.md) explains supported sources and progress units.
 
 Use Connections → Advanced only when automatic discovery cannot identify a custom installation. Existing provider credentials stay in their owning configuration. Enterprise deployments may require the administrator to allowlist this repository.
 

@@ -6,7 +6,16 @@
 - OpenCode SDK 2.0.4 floor: unsupported or future runtime generations disable cloud estimates with a one-line reason instead of deferring the whole feature.
 - A cloud step interrupted before completion yields no completed-step average; the gap is documented in COMPATIBILITY.md and covered by bridge unit tests.
 - Protocol smokes stage their isolated companion outside `node_modules` and canonicalize the temporary base, fixing silent plugin-loading and symlink refusals that left both smokes unusable; the WebSocket smoke now passes end-to-end against the real runtime binary.
-- Local engine measurements, media monitoring, history and the 3.1 sidebar remain unchanged in behavior.
+- One column of truth: the page reads This chat and its engine, then Media only while it has jobs; History, Captures and Server & Mac details are secondary views reached from the column's foot, each with Back. The Live/Media/History tabs are gone.
+- The instrument never goes dark: while a prompt is read without reported progress or rate, or a reply waits for its first output, the hero holds this reply's elapsed time (the engine's own request clock when reported, otherwise the observed turn start). The previous completed average stays below a live local reading, dimmed and labelled. Nothing is simulated.
+- Truth-locked motion: blocks fade in once on arrival, the mark beats once per fresh measurement (keyed to the reading's own sample time), changed phases and labels crossfade, and a reading that stops being live fades to its held colour. Nothing loops; hidden or paused views and Reduce Motion animate nothing.
+- Media rings no longer display a number; the phase percentage is text beside the ring. Rings draw in on arrival, ease between reported values, drain on cancellation and never spin; indeterminate work shows a still, dotted track.
+- Media jobs can show a finish time as clock time ("finishes around H:MM", "finishes any moment"), measured from at least two producer-timestamped reports of the current phase and only when the source declares that phase final (feed producers via `finalPhase`); it is held as "last estimate" when stale and becomes "finished H:MM" at completion. ComfyUI, Qwen image and local video declare no final phase, so they show no estimate rather than a guess.
+- A reply whose step announcement is lost while tracking starts (demand arriving as the reply begins) is still observed: the qualified dispatch seeds the observation of its own call, never of an earlier or later one, and without the announcement it reports no completed-step average and trains no calibration.
+- Guided updates replace each changed companion file by rename in place, the change OpenCode 2.0.25 reloads on; unchanged files are untouched. Setup offers the update whenever the installed files differ from the bundle, even at the same package version, and finishes an interrupted update instead of reporting it as a user edit.
+- The companion reports once in the OpenCode log when it ignores a demand file that is not private to the account, instead of looking exactly like no demand.
+- Chat locality follows the provider's declared loopback endpoint, including key-free providers and providers beyond the eight-entry connection list.
+- Local engine measurements, history records, captures and media monitoring keep their data and measurement semantics; only their presentation changed.
 
 ## 3.1.0 — release candidate
 
