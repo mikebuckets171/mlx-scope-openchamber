@@ -139,11 +139,16 @@ export class MediaService {
       const matches = jobs.filter(job => job.id === promptId && collections.some(item => item.source.id === job.sourceId && item.source.kind === 'comfyui'));
       if (!bridge || matches.length !== 1) continue;
       const engine = matches[0]!;
-      if (bridge.state === 'running' && engine.state === 'running' && (bridge.phase === 'unknown' || bridge.phase === engine.phase)) {
+      // The engine entry is removed only after it is reconciled into the bridge. While ComfyUI runs the prompt, its lifecycle
+      // and counters are the current truth even if the bridge still reports queued or an earlier phase of its own (producer
+      // skew). A bridge that has finished, or is cancelling, keeps its own state, as completion wins the queue race above.
+      if (engine.state === 'running' && !mediaTerminal(bridge.state) && bridge.state !== 'cancelling') {
+        bridge.state = 'running'; bridge.startedAtMs ??= engine.startedAtMs;
         bridge.progress = engine.progress; bridge.phase = engine.phase; bridge.phaseKey = engine.phaseKey; bridge.progressAtMs = engine.progressAtMs;
+        bridge.observedAtMs = Math.max(bridge.observedAtMs, engine.observedAtMs); bridge.freshness = engine.freshness;
         if (eligible.has(`${engine.sourceId}/${engine.id}`)) eligible.add(`${bridge.sourceId}/${bridge.id}`);
         if (engine.freshness === 'stale' || engine.freshness === 'unavailable') {
-          bridge.freshness = engine.freshness; bridge.lastProgress = engine.lastProgress; bridge.lastProgressAtMs = engine.lastProgressAtMs; bridge.cancel.supported = false;
+          bridge.lastProgress = engine.lastProgress; bridge.lastProgressAtMs = engine.lastProgressAtMs; bridge.cancel.supported = false;
         }
       }
       jobs = jobs.filter(job => job !== engine);

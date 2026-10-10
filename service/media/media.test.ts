@@ -314,3 +314,29 @@ test('waiting, cancellation and completion end the estimate', async () => {
   const done = await report(40_000, steps(20), { state: 'completed', phase: 'completed', progress: null, finishedAtMs: NOW + 39_000 });
   expect(done?.finishedAtMs).toBe(NOW + 39_000); for (const key of ['etaAtMs', 'lastEtaAtMs', 'etaBasis']) expect(wire(done)).not.toHaveProperty(key);
 });
+
+test('a correlated ComfyUI prompt is reconciled into its bridge job before its duplicate entry is removed', async () => {
+  const home = await temp(), tokenPath = join(home, 'token'); await writeFile(tokenPath, 'a'.repeat(32), { mode: 0o600 });
+  const comfy: MediaSourceConfig = { ...COMFY, helperTokenPath: tokenPath };
+  const qwen: MediaSourceConfig = { id: 'qwen', kind: 'qwen-image', label: 'Image', origin: 'http://127.0.0.1:9000' };
+  let bridge: Record<string, unknown> = { jobId: 'image-1', state: 'queued', phase: 'queued', promptId: 'prompt1', sessionId: 'session-A',
+    createdAtMs: NOW - 20_000, updatedAtMs: NOW - 20_000, canCancel: true };
+  const fetchImpl: MediaAdapterOptions['fetchImpl'] = async input => {
+    const url = String(input);
+    if (url.startsWith('http://127.0.0.1:9000')) return json({ schemaVersion: 1, producer: 'qwen-image', observedAtMs: NOW, jobs: [bridge] });
+    if (url.includes('/api/jobs')) return json({ jobs: [{ id: 'prompt1', status: 'in_progress' }] });
+    return json({ schemaVersion: 1, helperVersion: '1.0.0', comfyVersion: '0.38.0', supported: true, observedAtMs: NOW,
+      jobs: [{ promptId: 'prompt1', phase: 'sampling', progress: { value: 8, total: 20, unit: 'steps' } }] });
+  };
+  const service = () => new MediaService({ home, now: () => NOW, fetchImpl, configurations: async () => [comfy, qwen] });
+  // Producer skew: the bridge still says queued while ComfyUI already samples. One job, with the engine's current truth.
+  let jobs = (await service().snapshot()).jobs;
+  expect(jobs).toHaveLength(1);
+  expect(jobs[0]).toMatchObject({ id: 'image-1', sourceId: 'qwen', state: 'running', phase: 'sampling',
+    progress: { value: 8, total: 20, unit: 'steps', basis: 'phase' }, ownership: { sessionKey: chatKey('session', 'session-A') } });
+  // A finished bridge keeps its own completion; the engine's running entry never resurrects it.
+  bridge = { ...bridge, state: 'completed', phase: 'completed', updatedAtMs: NOW - 1_000 };
+  jobs = (await service().snapshot()).jobs;
+  expect(jobs).toHaveLength(1);
+  expect(jobs[0]).toMatchObject({ id: 'image-1', state: 'completed', progress: null });
+});
