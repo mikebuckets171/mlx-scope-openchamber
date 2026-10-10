@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.2.1
+
+- Media: when a Qwen image job is correlated with a ComfyUI prompt that is already running while the image job still reports an earlier state, the job now shows ComfyUI's current lifecycle, phase and progress instead of the stale state. A finished or cancelling image job keeps its own state. The chat companion is unchanged (3.2.0).
+
 ## 3.2.0
 
 - Restores cloud chat speed: the companion observes cloud delivery through the native OpenCode transport (qualified WebSocket handshake on OpenCode 2.0.25) and the panel presents it as **Cloud · est.** — network and provider buffering included; never the engine's native throughput, and never borrowed from or into local engine readings.
