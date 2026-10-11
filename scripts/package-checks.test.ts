@@ -62,8 +62,8 @@ describe('two-way exec match', () => {
 });
 
 describe('bundles and pages', () => {
-  test('media feature allowance preserves finite ceilings and the background budget', () => {
-    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 312_000, 'service/main.js': 250_000, 'background/main.js': 25_000 });
+  test('the guest stays within 304 KB while service and background ceilings stay fixed', () => {
+    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 304_000, 'service/main.js': 250_000, 'background/main.js': 25_000 });
   });
   test('the background page declares exactly the panel CSP', () => {
     const panel = cspOf(read('panel/index.html'));
