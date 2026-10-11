@@ -73,7 +73,10 @@ test('standalone Splash: server-wide averages and Metal memory stay separate, an
   await expect(frame.locator('#connection')).toHaveText('Inco AI Splash');
   await expect(frame.locator('#model')).toHaveText('incoai/Qwen3.8-27B-Splash');
   await expect(frame.locator('.instrument-phase')).toHaveText('Idle');
-  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('#rate')).toHaveText('47.2');
+  await expect(frame.locator('.instrument-primary')).toHaveAttribute('data-live', 'false');
+  await expect(frame.locator('.instrument-source')).toContainText('Engine · overall avg.');
+  await expect(frame.locator('.instrument-source .basis')).toContainText('Not a live reading.');
   await expect(frame.locator('#metrics')).toHaveCount(0);
   await server(frame);
   await expect(frame.locator('[data-key="server-session"]')).toContainText('47.2 tok/s');

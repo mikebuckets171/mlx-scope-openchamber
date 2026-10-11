@@ -93,7 +93,8 @@ export const macCard = (mac: MacView | null, open: Open): Raw | string => {
 
 const machineSummary = (mac: MacView | null): Raw | string => {
   if (!mac) return '';
-  return html`<section class="machine-summary" aria-label="${mac.title}" data-stale="${String(mac.stale)}"><h2>${mac.title}</h2><div class="machine-summary-values">${mac.line.filter(item => item.label !== 'Swap').map(item => html`<span>${item.label} <strong>${item.value}</strong></span>`)}</div><div class="machine-health">${mac.rows.filter(row => row.level !== 'normal').map(row => html`<span class="level" data-level="${row.level ?? 'normal'}">${row.key === 'pressure' ? 'Memory' : 'Heat'} ${row.value.text.toLowerCase()}</span>`)}</div></section>`;
+  const values = mac.line.filter(item => item.label !== 'Swap'), health = mac.rows.filter(row => row.level !== 'normal');
+  return html`<section class="machine-summary" aria-label="${mac.title}" data-stale="${String(mac.stale)}"><h2>${mac.title}</h2>${values.length ? html`<div class="machine-summary-values">${values.map(item => html`<span>${item.label} <strong>${item.value}</strong></span>`)}</div>` : ''}${health.length ? html`<div class="machine-health">${health.map(row => html`<span class="level" data-level="${row.level ?? 'normal'}">${row.key === 'pressure' ? 'Memory' : 'Heat'} ${row.value.text.toLowerCase()}</span>`)}</div>` : ''}</section>`;
 };
 
 export const liveMarkup = (view: LiveView, open: Open): Raw => html`${callouts(P, view.callouts, open)}${hero(view.hero, view.tiles, open, view.mac)}${!view.hero ? html`${tiles(view.tiles)}${machineSummary(view.mac)}` : ''}`;

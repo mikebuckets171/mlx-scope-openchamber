@@ -13,7 +13,30 @@ const position = (frame: FrameLocator, selector: string) => frame.locator(select
   const r = element.getBoundingClientRect(); return { y: r.y, height: r.height };
 });
 
-for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test(`Session controls hold position across absent readings in ${theme} at ${fontSize}px text`, async ({ page }) => {
+const glanceGeometry = (frame: FrameLocator) => frame.locator('#ws').evaluate(section => {
+  const rect = (node: Element) => { const r = node.getBoundingClientRect(); return { y: r.y, height: r.height }; };
+  const activity = section.querySelector('.ws-activity')!, measurement = section.querySelector('.ws-measurement');
+  const support = section.querySelector('.ws-support, .ws-note, .ws-warning, .ws-action-error');
+  return { activity: rect(activity), section: rect(section), actions: rect(section.querySelector('.ws-actions')!),
+    measurement: measurement ? rect(measurement) : null, support: support ? rect(support) : null,
+    rows: getComputedStyle(activity).gridTemplateRows.split(/\s+/).map(Number.parseFloat) };
+});
+const fitsGlance = async (frame: FrameLocator) => {
+  const layout = await glanceGeometry(frame);
+  if (!layout.measurement) expect(layout.rows[1] ?? 0).toBe(0);
+  if (!layout.support) expect(layout.rows[2] ?? 0).toBe(0);
+  expect(layout.actions.y).toBeCloseTo(layout.activity.y + layout.activity.height, 5);
+  expect(layout.section.height).toBeCloseTo(layout.activity.height + layout.actions.height, 5);
+  const action = frame.getByRole('button', { name: 'Open MLX Scope', exact: true });
+  await expect(action).toBeVisible();
+  await action.focus();
+  await expect(action).toBeFocused();
+  expect(await frame.locator('#ws').evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await expect.poll(() => frame.locator('#ws').evaluate(element => element.getBoundingClientRect().bottom <= innerHeight + 1)).toBe(true);
+  return layout;
+};
+
+for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test(`Session keeps populated rows stable and collapses absent readings in ${theme} at ${fontSize}px text`, async ({ page }) => {
   await page.setViewportSize({ width: 260, height: 550 });
   await page.goto(`/v2?surface=status&state=splash-decode&chat=local&theme=${theme}`);
   await page.locator('iframe').evaluate(element => { (element as HTMLElement).style.width = '260px'; });
@@ -22,18 +45,35 @@ for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test
   await frame.locator('html').evaluate((element, size) => { (element as HTMLElement).style.fontSize = `${size}px`; }, fontSize);
   await setPhase(page, 'generating', 17.8);
   await expect(frame.locator('#rate')).toHaveText('17.8');
-  const actions = await position(frame, '.ws-actions'), section = await position(frame, '#ws');
+  const populated = await fitsGlance(frame);
   for (const [phase, label] of [['reasoning', 'Reasoning'], ['tool', 'Using tools'], ['waiting', 'Waiting'], ['complete', 'Complete'], ['cancelled', 'Stopped']] as const) {
     await setPhase(page, phase, phase === 'reasoning' ? 18.1 : phase === 'complete' ? 19.2 : undefined);
     await expect(frame.locator('.ws-phase')).toHaveText(label);
     await expect(frame.locator('.ws-measurement')).toHaveCount(phase === 'reasoning' || phase === 'complete' ? 1 : 0);
-    expect(await position(frame, '.ws-actions'), phase).toEqual(actions);
-    expect(await position(frame, '#ws'), phase).toEqual(section);
+    const layout = await fitsGlance(frame);
+    expect(layout.actions.height, phase).toBe(populated.actions.height);
+    if (phase === 'reasoning') {
+      expect(layout.measurement).toEqual(populated.measurement);
+      expect(layout.actions).toEqual(populated.actions);
+      expect(layout.section).toEqual(populated.section);
+    } else if (phase === 'complete') {
+      expect(layout.measurement!.height).toBeGreaterThanOrEqual(populated.measurement!.height);
+      await expect(frame.locator('.ws-support')).toContainText('Finished');
+    } else {
+      expect(layout.measurement).toBeNull();
+      expect(layout.actions.y).toBeLessThan(populated.actions.y);
+      expect(layout.section.height).toBeLessThan(populated.section.height);
+    }
     await expect(frame.locator('#ws')).not.toContainText(/undefined|NaN|—/);
   }
-  const overflows = await frame.locator('#ws').evaluate(() => document.documentElement.scrollWidth > innerWidth);
-  expect(overflows).toBe(false);
-  await expect.poll(() => frame.locator('#ws').evaluate(element => element.getBoundingClientRect().bottom <= innerHeight + 1)).toBe(true);
+  // A diagnostic note still owns its populated support row when no reading exists.
+  await page.goto(`/v2?surface=status&state=offline&theme=${theme}`);
+  await page.locator('iframe').evaluate(element => { (element as HTMLElement).style.width = '260px'; });
+  await frame.locator('html').evaluate((element, size) => { (element as HTMLElement).style.fontSize = `${size}px`; }, fontSize);
+  await expect(frame.locator('.ws-note')).toHaveText('Scope checks again automatically');
+  const offline = await fitsGlance(frame);
+  expect(offline.measurement).toBeNull();
+  expect(offline.support!.height).toBeGreaterThan(0);
 });
 
 test('ordinary busy changes retain a fresh speed while the refresh is pending', async ({ page }) => {
@@ -73,7 +113,7 @@ for (const theme of ['light', 'dark']) test(`Session priority information fits t
   }
 });
 
-for (const width of [320, 1160]) for (const fontSize of [16, 32]) test(`full Live keeps controls in position across phase changes at ${width}px and ${fontSize}px text`, async ({ page }) => {
+for (const width of [320, 1160]) for (const fontSize of [16, 32]) test(`full Live keeps populated parts stable and collapses empty parts at ${width}px and ${fontSize}px text`, async ({ page }) => {
   await page.setViewportSize({ width, height: 950 });
   await page.goto('/v2?surface=page&state=splash-decode&chat=local');
   const frame = page.frameLocator('iframe');
@@ -81,12 +121,29 @@ for (const width of [320, 1160]) for (const fontSize of [16, 32]) test(`full Liv
   await setPhase(page, 'generating', 17.8);
   await expect(frame.locator('#rate')).toHaveText('17.8');
   await expect(frame.locator('#engine-trend')).toBeVisible();
-  const trend = await position(frame, '#measurement-details > summary');
+  const readout = () => frame.locator('.instrument-readout').evaluate(element => {
+    const style = getComputedStyle(element);
+    return { occupied: element.getBoundingClientRect().height + parseFloat(style.marginTop) + parseFloat(style.marginBottom),
+      parts: Array.from(element.querySelectorAll<HTMLElement>('.instrument-measure, .instrument-evidence')).map(part => ({
+        quiet: part.dataset.quiet === 'true', height: part.getBoundingClientRect().height, content: part.innerText.trim().length > 0,
+      })) };
+  });
+  const details = await position(frame, '#measurement-details > summary'), populated = await readout();
   for (const [phase, label] of [['reasoning', 'Reasoning'], ['tool', 'Using tools'], ['waiting', 'Waiting'], ['complete', 'Complete'], ['cancelled', 'Stopped']] as const) {
     await setPhase(page, phase, phase === 'reasoning' ? 18.1 : phase === 'complete' ? 19.2 : undefined);
     await expect(frame.locator('.instrument-phase')).toHaveText(label);
     await expect(frame.locator('.instrument-primary')).toHaveCount(phase === 'reasoning' || phase === 'complete' ? 1 : 0);
-    expect(await position(frame, '#measurement-details > summary'), phase).toEqual(trend);
+    const current = await readout(), controls = await position(frame, '#measurement-details > summary');
+    for (const part of current.parts) {
+      if (part.quiet) expect(part.height, phase).toBe(0);
+      else expect(part.content, phase).toBe(true);
+    }
+    if (phase === 'reasoning') expect(current).toEqual(populated);
+    if (!['reasoning', 'complete'].includes(phase)) expect(current.parts[0]!.quiet, phase).toBe(true);
+    expect(controls.height, phase).toBe(details.height);
+    expect(controls.y, phase).toBeCloseTo(details.y + current.occupied - populated.occupied, 4);
+    await expect(frame.locator('#engine-trend')).toBeVisible();
+    await expect(frame.locator('#measurement-details > summary')).toBeVisible();
     expect(await frame.locator('#scope').evaluate(() => document.documentElement.scrollWidth > innerWidth), phase).toBe(false);
   }
 });

@@ -120,6 +120,12 @@ describe('History presenter (plan §5.6, G2 mock)', () => {
     hourly.buckets = hourly.buckets.flatMap(b => [0, 1, 2].map(h => ({ ...b, at: b.at + h * 3_600_000, outputTokens: b.outputTokens! / 3 })));
     expect(presentHistory(input({ usage: hourly })).usage!.bars.map(b => b.height)).toEqual([37, 52, 27, 2, 47, 72, 61]);
   });
+  test('reported usage totals survive an absent daily series without inventing buckets', () => {
+    const usage = presentHistory(input({ usage: { ...mockUsage(), buckets: [] } })).usage!;
+    expect(usage.bars).toEqual([]);
+    expect(usage.rows).toEqual(presentHistory(input()).usage!.rows);
+    expect(usage.title).toBe('Recorded by oMLX');
+  });
   test('reply history storage: usage bar, retention, pause, full and the clear confirmation', () => {
     const view = presentHistory(input()).storage!;
     expect(view).toEqual(expect.objectContaining({ used: '412 KiB', detail: 'of 1.25 MiB · 41 replies · 13 days', retention: '30 days', paused: false, full: null,

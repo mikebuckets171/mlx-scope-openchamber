@@ -87,7 +87,7 @@ harness.handle = tab === 'captures' ? capturesView({
   },
   client: {
     trend: async request => { harness.trendReads.push(request.windowMs); return { ok: true, body: mockTrend(request.windowMs, empty) }; },
-    usage: async request => { harness.usageReads.push(request.range); return { ok: true, body: mockUsage(request.range) }; },
+    usage: async request => { harness.usageReads.push(request.range); const body = mockUsage(request.range); if (params.get('usage') === 'totals-only') body.buckets = []; return { ok: true, body }; },
   },
   retentionDays: () => 30, paused: () => state === 'recording-paused', copy: text => host.writeClipboard(text), version: '2.0.0', text: MOCK_TEXT, legacyCaptures: async () => empty ? 3 : 0,
 })(root, context);

@@ -289,11 +289,12 @@ class HistoryViewHandle implements ViewHandle {
     const baseline = section('Usual speed', view.baseline.model || view.baseline.bucket ? [view.baseline.model ? el('span', { translate: 'no' }, view.baseline.model) : null,
         view.baseline.model && view.baseline.bucket ? ' · ' : null, view.baseline.bucket] : null, baselineBody(view.baseline, tips, this.#status.baseline),
       tip('baseline', 'Usual speed', view.baseline.tip), 'insight-section history-baseline');
+    // A reported total can exist without daily buckets; only measured buckets get a plot.
     const usage = view.usage ? section(view.usage.title, seg('Usage range', 'range', view.usage.ranges.map(r => ({ label: r.label, arg: r.label, pressed: r.pressed }))), [
-        el('div', { class: 'usage-bars', role: 'img', 'aria-label': view.usage.aria, 'data-dense': view.usage.dense, style: `grid-template-columns:repeat(${view.usage.bars.length},minmax(0,1fr))` },
+        view.usage.bars.length ? [el('div', { class: 'usage-bars', role: 'img', 'aria-label': view.usage.aria, 'data-dense': view.usage.dense, style: `grid-template-columns:repeat(${view.usage.bars.length},minmax(0,1fr))` },
           view.usage.bars.map(bar => el('div', { 'aria-hidden': 'true' }, el('i', { style: `height:${bar.height}px` })))),
         el('div', { class: 'usage-days', 'aria-hidden': 'true', 'data-dense': view.usage.dense, style: `grid-template-columns:repeat(${view.usage.bars.length},minmax(0,1fr))` },
-          view.usage.bars.map(bar => span( bar.label))),
+          view.usage.bars.map(bar => span( bar.label)))] : null,
         box('values-3', view.usage.rows.map(row => group( span( row.label), strong( row.value), row.detail ? small( row.detail) : null)))],
       tip('usage', view.usage.title, view.usage.tip)) : null;
     const alertLog = section('Alert log', 'Last 20 · while Scope was open', view.alertLogEmpty ? el('p', { class: 'empty' }, view.alertLogEmpty)

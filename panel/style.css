@@ -83,6 +83,7 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .scope-choice:hover, .scope-choice:focus-visible { color: var(--scope-fg); }
 .scope-choice option { color: var(--scope-fg); background: var(--scope-bg); }
 .instrument-readout { margin: 10px 0 16px; }
+.instrument-readout[data-quiet="true"] { margin: 0; }
 .instrument-measure { min-height: max(80px, 5rem); }
 .instrument-evidence { display: flow-root; min-height: max(96px, 6rem); }
 /* A part that holds no true content gives back its reserved height instead of leaving a blank block. */
@@ -113,14 +114,14 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .instrument-detail-content .machine-summary { margin-top: 12px; }
 .instrument-detail-content .instrument-details { min-width: 0; }
 
-/* Session and compact rail share three reserved rows, without empty value elements. */
+/* Session and compact rail reserve height only for the reading and context they actually show. */
 .ws { position: relative; width: auto; min-width: 0; container-type: inline-size; font-size: max(12px, .75rem); line-height: 1.5; font-variant-numeric: tabular-nums; }
-.ws-activity { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: max(24px, 1.5rem) max(36px, 2.25rem) minmax(max(20px, 1.25rem), auto); }
+.ws-activity { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: max(24px, 1.5rem) auto auto; }
 .ws-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; min-height: max(24px, 1.5rem); }
 .ws-context { grid-row: 1; align-items: baseline; justify-content: space-between; gap: 8px; }
-.ws-measurement { grid-row: 2; min-height: 0; align-content: start; flex-wrap: wrap; gap: 0 8px; }
-.ws-support { grid-row: 3; min-height: 0; color: var(--scope-muted); font-size: max(11px, .6875rem); overflow-wrap: anywhere; }
-.ws-activity > :is(.ws-note, .ws-warning, .ws-action-error) { grid-row: 3; }
+.ws-measurement { grid-row: 2; min-height: max(36px, 2.25rem); align-content: start; flex-wrap: wrap; gap: 0 8px; }
+.ws-support { grid-row: 3; min-height: max(20px, 1.25rem); color: var(--scope-muted); font-size: max(11px, .6875rem); overflow-wrap: anywhere; }
+.ws-activity > :is(.ws-note, .ws-warning, .ws-action-error) { grid-row: 3; min-height: max(20px, 1.25rem); }
 /* At rest with nothing to show, the reserved reading rows fold away instead of leaving a blank block. */
 .ws[data-resting="true"] .ws-activity { grid-template-rows: max(24px, 1.5rem); }
 /* A held previous value is dimmed and labelled, never styled as live. */
@@ -353,7 +354,9 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 @container (max-width: 20em) {
   .ws-context { align-items: flex-start; flex-direction: column; gap: 0; }
   .ws-context .scope-choice { max-width: 100%; }
-  .ws-activity { grid-template-rows: 3.75rem 2.625rem minmax(2.0625rem, auto); }
+  .ws-activity { grid-template-rows: 3.75rem auto auto; }
+  .ws-measurement { min-height: 2.625rem; }
+  .ws-activity > :is(.ws-support, .ws-note, .ws-warning, .ws-action-error) { min-height: 2.0625rem; }
   .ws-context { justify-content: flex-start; }
 }
 @media (max-width: 380px) {
@@ -429,7 +432,8 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .scope[data-media-motion="true"] .media-ring[data-mode="measured"] .media-ring-fill { transition: stroke-dashoffset 160ms cubic-bezier(.2,.7,.2,1); animation: media-ring-draw 200ms cubic-bezier(.2,.7,.2,1); }
 .scope[data-media-motion="true"] .media-ring[data-mode="draining"] .media-ring-fill { transition: stroke-dashoffset 120ms cubic-bezier(.4,0,1,1); }
 @keyframes media-ring-draw { from { stroke-dashoffset: 100; } }
-.media-empty { padding: 24px 0; min-height: 130px; }
+/* Empty-state guidance takes its natural height, including when only recent jobs remain. */
+.media-empty { padding: 6px 0; }
 .media-empty h3 { font-size: 14px; font-weight: 500; }
 .media-empty p { max-width: 48ch; margin-top: 7px; color: var(--scope-muted); font-size: 12px; }
 .media-notice, .media-confirm { padding: 10px 12px; border: 1px solid var(--scope-line-strong); border-radius: var(--scope-radius); font-size: 12px; }

@@ -482,7 +482,7 @@ test('at rest the glance shows the engine’s own record instead of empty rows, 
   expect(rest({ measurementScope: 'chat' }).measurement?.label).toBe('Engine · overall avg.');
   // The presenter never fills by itself; the sidebar/compact glance and the full-page hero opt in where they render.
   expect(rest({ restingFacts: false }).measurement).toBeNull();
-  // A reply in progress keeps its reserved rows and never shows the resting record.
+  // A reply in progress never borrows the resting record.
   expect(rest({ chatActivity: 'busy', measurementScope: 'chat' })).toMatchObject({ resting: false, measurement: null });
   // A cloud chat never borrows a local engine's record; with nothing true to show, the rows fold away.
   const cloud = rest({ chatIsLocal: false, measurementScope: 'chat' });
@@ -493,4 +493,20 @@ test('at rest the glance shows the engine’s own record instead of empty rows, 
     .toMatchObject({ measurement: null, support: null, resting: true });
   expect(rest({ paused: true })).toMatchObject({ phase: 'Paused', measurement: null, resting: true });
   expect(rest({ fresh: false })).toMatchObject({ measurement: null, resting: false });
+});
+
+
+test('every mock glance omits unmeasured lanes while retaining its truthful support or priority note', () => {
+  for (const state of MOCK_STATES) {
+    const view = presentSessionSection(inputOf(state, { restingFacts: true, paused: state === 'paused' }));
+    const markup = sessionMarkup(view).markup;
+    expect(markup.includes('class="ws-line ws-measurement"'), state).toBe(view.measurement !== null);
+    const support = !view.alert && !view.note ? view.support?.text ?? view.held?.text : null;
+    expect(markup.includes('class="ws-line ws-support'), state).toBe(!!support);
+    if (support) expect(markup, state).toContain(esc(support));
+    if (view.alert || view.note) expect(markup, state).toContain(esc(view.alert?.label ?? view.note!));
+    const error = sessionMarkup(view, 'Could not open Scope.').markup;
+    expect(error, state).toContain('Could not open Scope.');
+    expect(error, state).not.toContain('class="ws-line ws-support');
+  }
 });

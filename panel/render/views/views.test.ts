@@ -220,3 +220,20 @@ test('completed chat facts never borrow output or first-token timing from an eng
     if (!chatIsLocal) expect(markup).not.toContain('id="measurement-details"');
   }
 });
+
+
+test('the machine summary omits empty health and measurement regions without hiding reported facts', () => {
+  const view = presentLive(inputOf('decode'));
+  expect(view.mac).not.toBeNull();
+  const mac = view.mac!;
+  const healthy = { ...mac, rows: mac.rows.map(row => ({ ...row, level: 'normal' as const })) };
+  const filled = liveMarkup({ ...view, mac: healthy }, new Set()).markup;
+  expect(filled).toContain('class="machine-summary-values"');
+  expect(filled).not.toContain('class="machine-health"');
+  const empty = liveMarkup({ ...view, mac: { ...healthy, line: [] } }, new Set()).markup;
+  expect(empty).not.toContain('class="machine-summary-values"');
+  expect(empty).not.toContain('class="machine-health"');
+  expect(empty).toContain(esc(mac.title));
+  const warning = liveMarkup(presentLive(inputOf('pressure')), new Set()).markup;
+  expect(warning).toContain('class="machine-health"');
+});

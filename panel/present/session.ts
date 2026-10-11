@@ -29,7 +29,7 @@ export interface SessionSectionView {
   cancelMeasurement: boolean;
 }
 const positive = (value: number | null | undefined): value is number => value != null && Number.isFinite(value) && value > 0;
-/** Phases where nothing is happening; anything mid-turn keeps its reserved rows so the glance never jumps during a reply. */
+/** Phases where fresh engine records can support a resting glance. */
 const RESTING = new Set(['Idle', 'Ready', 'No model loaded', 'Connected', 'Paused']);
 /** Whole seconds, rounded down: an elapsed time never runs ahead of the clock. */
 const elapsedText = (ms: number): string => (ms < 60_000 ? `${Math.floor(ms / 1_000)} s` : dur(Math.floor(ms / 1_000) * 1_000)).replace(/ /g, '\u00a0');
@@ -168,7 +168,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     if (facts.length) restingSupport = { text: facts.join(' · '), detail: 'What the engine holds now and its typical first-token time across recent requests.' };
   }
   const shownSupport = support ?? restingSupport;
-  // Missing readings leave the activity area's geometry intact without inventing a measurement row.
+  // Missing readings never invent a measurement row.
   return { measurementScope, measurement, support: shownSupport, speeds, progress, held,
     resting: atRest && !measurement && !shownSupport && !held,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
