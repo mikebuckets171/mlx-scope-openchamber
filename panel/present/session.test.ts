@@ -480,7 +480,7 @@ test('at rest the glance shows the engine’s own record instead of empty rows, 
   expect(markup).toContain('data-live="false"'); expect(markup).toContain('data-resting="false"');
   // The same rest in This chat scope is the labelled engine fallback for a local chat.
   expect(rest({ measurementScope: 'chat' }).measurement?.label).toBe('Engine · overall avg.');
-  // The full panel keeps its own hero; only the sidebar and compact glance opt in.
+  // The presenter never fills by itself; the sidebar/compact glance and the full-page hero opt in where they render.
   expect(rest({ restingFacts: false }).measurement).toBeNull();
   // A reply in progress keeps its reserved rows and never shows the resting record.
   expect(rest({ chatActivity: 'busy', measurementScope: 'chat' })).toMatchObject({ resting: false, measurement: null });

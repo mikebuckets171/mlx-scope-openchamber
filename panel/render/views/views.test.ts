@@ -56,6 +56,35 @@ test('every mock state renders every view without a raw placeholder', () => {
   }
 });
 
+test('the full page fills its readout at rest and folds only the parts that hold nothing true', () => {
+  // A local engine at rest shows the same labelled record the glance does: overall average plus what it holds.
+  const rest = inputOf('idle', body => {
+    body.runtime.server.averages = { decodeTps: 35.73, prefillTps: 284.2 };
+    body.capabilities['server.averages'] = { scope: 'server', basis: 'reported' };
+    body.runtime.memory = { metalBytes: 25_663_782_912 };
+    body.capabilities['server.memory.metal'] = { scope: 'server', basis: 'reported' };
+    delete body.capabilities['server.memory.model'];
+    body.runtime.server.histograms = { ttftMs: { p50: 410, p95: 900, n: 64, window: 'native-last-4096' } };
+    body.capabilities['server.latency'] = { scope: 'server', basis: 'derived' };
+  }, { chatActivity: 'idle', last: null, measurementScope: 'engine' });
+  const filled = liveMarkup(presentLive(rest), new Set()).markup;
+  expect(filled).toContain('Engine · overall avg.');
+  expect(filled).toContain('23.9 GiB');
+  expect(filled).toMatch(/class="instrument-measure" data-quiet="false"/);
+  expect(filled).toMatch(/class="instrument-evidence" data-quiet="false"/);
+  // No model loaded: neither part holds anything true, so both fold to their line instead of a blank block.
+  const unloaded = liveMarkup(presentLive(inputOf('model-unloaded')), new Set()).markup;
+  expect(unloaded).toMatch(/class="instrument-measure" data-quiet="true"/);
+  expect(unloaded).toMatch(/class="instrument-evidence" data-quiet="true"/);
+  // A cloud chat at rest borrows nothing local; the readout folds under its phase line.
+  const cloud = liveMarkup(presentLive(inputOf('idle', undefined, { chatIsLocal: false, chatActivity: 'idle', last: null, measurementScope: 'chat' })), new Set()).markup;
+  expect(cloud).toMatch(/class="instrument-measure" data-quiet="true"/);
+  expect(cloud).toMatch(/class="instrument-evidence" data-quiet="true"/);
+  // A live reading never folds its measure, even without evidence tiles.
+  const live = liveMarkup(presentLive(inputOf('decode')), new Set()).markup;
+  expect(live).toMatch(/class="instrument-measure" data-quiet="false"/);
+});
+
 test('one column of truth: no workspace tabs; History, Captures and Server are secondary views with Back', () => {
   const shell = shellMarkup().markup;
   expect(shell).not.toMatch(/role="tab"|role="tablist"|role="tabpanel"/);

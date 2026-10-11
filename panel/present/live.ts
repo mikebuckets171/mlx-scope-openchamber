@@ -155,7 +155,8 @@ const replyView = (s: ScopeInput): ReplyView | null => {
 const presentHero = (s: ScopeInput): HeroView | null => {
   const snapshot = s.snapshot;
   if (!snapshot) return null;
-  const instrument = presentSessionSection({ ...s, reading: fromSnapshot(snapshot), chatIsLocal: s.chatIsLocal ?? null });
+  // The full page takes the same at-rest facts the glance uses, so an idle engine shows its labelled record here too.
+  const instrument = presentSessionSection({ ...s, reading: fromSnapshot(snapshot), chatIsLocal: s.chatIsLocal ?? null, restingFacts: true });
   if (s.measurementScope !== 'engine' && s.chatIsLocal === false) return { instrument, speeds: instrument.speeds, title: 'This chat', chatOnly: true,
     attr: null, body: null, engineTrend: null, firstToken: null, context: null, reply: null };
   const kind = heroKind(s), title = modelOf(snapshot) ?? connName(snapshot.connection), body = kind ? heroBody(kind, s) : null;

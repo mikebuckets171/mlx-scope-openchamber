@@ -53,18 +53,23 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open, mac: MacVie
     ['First token', result.ttftMs, dur, reading!.basis],
   ] as const).flatMap(([label, value, format, basis]) => value == null ? [] : [{ label, value: format(value), detail: label === 'Output' ? 'tokens' : '', meter: null, basis }]) : fallback.length ? fallback.slice(0, 3) : reading?.live && !prefill ? list.filter(tile => tile.label === 'Output' || tile.label === 'Elapsed' && reading.kind !== 'elapsed') : [];
   if (reading?.live && !prefill && h.firstToken && facts.length < 3) facts.push({ label: 'First token', value: h.firstToken.strong!, detail: '', meter: null, basis: h.firstToken.basis });
-  const quiet = !reading && !facts.length && (instrument.phase === 'Ready' || instrument.phase === 'Idle');
+  // Each part of the readout folds its reserved height only when it holds nothing true — an at-rest reading, the held
+  // line or a resting fact counts as content, so a filled readout keeps its shape and nothing jumps when a reply starts.
+  const hasSupport = !!(instrument.support && !instrument.alert);
+  const noteShown = !!(instrument.note && !instrument.alert) || (h.body?.kind === 'word' && !reading && h.speeds.source !== 'Splash') || h.body?.kind === 'paused';
+  const measureQuiet = !reading && !instrument.held && !hasSupport && !noteShown;
+  const evidenceQuiet = !prefill && !facts.length;
   const remaining = list.filter(tile => !facts.includes(tile));
   const notes = html`${instrument.note && !instrument.alert ? html`<p class="coverage-note">${instrument.note}</p>` : ''}${h.body?.kind === 'word' && !reading && h.speeds.source !== 'Splash' ? html`<p class="coverage-note">${h.body.unit}${h.body.note ? html` · ${val(h.body.note)}` : ''}</p>` : ''}${h.body?.kind === 'paused' ? html`<p class="coverage-note" id="paused-note">${h.body.note}</p>` : ''}`;
   return html`<section class="hero-card" id="hero" aria-label="Activity and speed" data-arrive>
     <div class="instrument-heading"><h2 class="instrument-phase" data-tone="${instrument.tone}" data-crossfade>${instrument.phase}</h2>${scopeMenuMarkup(instrument.measurementScope)}</div>
-    <div class="instrument-readout" data-measured="${String(reading !== null)}" data-quiet="${String(quiet)}">
-      <div class="instrument-measure">
+    <div class="instrument-readout" data-measured="${String(reading !== null)}" data-quiet="${String(measureQuiet && evidenceQuiet)}">
+      <div class="instrument-measure" data-quiet="${String(measureQuiet)}">
       ${reading ? html`<div class="instrument-primary" data-live="${String(reading.live)}" data-basis="${reading.basis}" data-arrive><div class="speed-value"><span class="sr-only">${reading.text}${reading.unit ? ' tokens per second' : ''}</span><strong id="${READOUT_ID[reading.kind]}" aria-hidden="true" data-roll-value="${reading.kind === 'speed' ? compactRate(reading.text) : reading.text}" data-roll-context="${instrument.phase}/${instrument.measurementScope}/${reading.basis}/${reading.label}">${digitMarkup(reading.kind === 'speed' ? compactRate(reading.text) : reading.text)}</strong>${reading.unit ? html`<span aria-hidden="true">${reading.unit}</span>` : ''}<div class="instrument-source" data-crossfade>${reading.label}${measurementTip!.btn}<span class="sr-only basis">${reading.detail}</span></div></div></div>` : ''}
       ${instrument.held ? html`<p class="instrument-held" data-held="true" data-arrive title="${instrument.held.detail}">${instrument.held.text}</p>` : ''}
-      ${result && instrument.support ? html`<p class="coverage-note"><time>${instrument.support.text}</time></p>` : ''}${notes}${measurementTip?.pop ?? ''}
+      ${instrument.support && !instrument.alert ? html`<p class="coverage-note">${result ? html`<time>${instrument.support.text}</time>` : instrument.support.text}${instrument.support.basis && instrument.support.basis !== 'reported' ? html` <span class="basis">${BASIS_WORD[instrument.support.basis]}</span>` : ''}</p>` : ''}${notes}${measurementTip?.pop ?? ''}
       </div>
-      <div class="instrument-evidence">${prefill ? html`<div class="instrument-prefill" id="prefill-progress"><div class="progress-track" role="progressbar" aria-label="Prompt progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${prefill.fraction * 100}"><span style="width:${pct100(prefill.fraction)}"></span></div>${prefill.counts ? html`<p class="coverage-note">Engine · ${prefill.counts}</p>` : ''}${prefill.eta ? html`<p class="coverage-note" data-basis="estimate">About ${prefill.eta} left · <span class="basis">Server estimate</span></p>` : ''}</div>` : tiles(facts, result?.label ?? 'Engine')}</div>
+      <div class="instrument-evidence" data-quiet="${String(evidenceQuiet)}">${prefill ? html`<div class="instrument-prefill" id="prefill-progress"><div class="progress-track" role="progressbar" aria-label="Prompt progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${prefill.fraction * 100}"><span style="width:${pct100(prefill.fraction)}"></span></div>${prefill.counts ? html`<p class="coverage-note">Engine · ${prefill.counts}</p>` : ''}${prefill.eta ? html`<p class="coverage-note" data-basis="estimate">About ${prefill.eta} left · <span class="basis">Server estimate</span></p>` : ''}</div>` : tiles(facts, result?.label ?? 'Engine')}</div>
     </div>
     ${h.engineTrend?.chart ? html`<div id="engine-trend">${chartMarkup(h.engineTrend.chart)}</div>` : ''}
     ${h.chatOnly ? '' : html`<div id="reply-strip" class="instrument-support"><details class="instrument-detail-container" id="measurement-details"${flag('open', open.has('measurement-details'))}><summary>Measurement details${DISCLOSURE_ARROW}</summary><div class="instrument-detail-content">

@@ -85,7 +85,8 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .instrument-readout { margin: 10px 0 16px; }
 .instrument-measure { min-height: max(80px, 5rem); }
 .instrument-evidence { display: flow-root; min-height: max(96px, 6rem); }
-.instrument-readout[data-quiet="true"] :is(.instrument-measure, .instrument-evidence) { min-height: 0; }
+/* A part that holds no true content gives back its reserved height instead of leaving a blank block. */
+.instrument-measure[data-quiet="true"], .instrument-evidence[data-quiet="true"] { min-height: 0; }
 .instrument-primary { min-width: 0; }
 .speed-value { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 7px; }
 .instrument-primary .speed-value strong { font-size: max(clamp(30px, 5vw, 38px), 1.875rem); line-height: 1.15; font-weight: 550; letter-spacing: -.035em; }
