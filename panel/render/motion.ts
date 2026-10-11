@@ -21,25 +21,33 @@ export class Motion {
    */
   sync(active: boolean, beat: string | null): void {
     const still = !active || !!this.reduced?.matches;
-    let order = 0;
-    // M1: a block that appears fades in and rises 4 px once, staggered down the column; then it is still.
-    for (const node of Array.from(this.root.querySelectorAll<HTMLElement>('[data-arrive]'))) {
-      if (this.arrived.has(node)) continue;
-      this.arrived.add(node);
-      if (!still && this.shown(node)) this.run(node, ARRIVE, { duration: 120, delay: STAGGER_MS * order++, easing: 'ease-out', fill: 'backwards' });
-    }
-    // M5: a changed phase, unit or label crossfades; an unchanged one never moves.
-    for (const node of Array.from(this.root.querySelectorAll<HTMLElement>('[data-crossfade]'))) {
-      const text = node.textContent ?? '', before = this.texts.get(node);
-      this.texts.set(node, text);
-      if (!still && before !== undefined && before !== text && this.shown(node)) this.run(node, CROSSFADE, { duration: 120, easing: 'ease-out' });
-    }
-    // M3: the mark beats once per fresh measurement arrival, in any phase — the only recurring motion, caused by truth.
-    if (beat === this.beatKey) return;
+    if (still) this.reset();
+    const freshBeat = beat !== this.beatKey;
     this.beatKey = beat;
-    if (beat === null || still) return;
-    for (const mark of Array.from(this.root.querySelectorAll<HTMLElement>('[data-heartbeat]')))
-      if (this.shown(mark)) this.run(mark, BEAT, { duration: 260, easing: 'cubic-bezier(.2,.7,.3,1)' });
+    const arrivals: HTMLElement[] = [], changes: HTMLElement[] = [], marks: HTMLElement[] = [];
+    // Read visibility before starting any animation: animation writes must not make the next visibility read flush styles.
+    // A nonempty crossfade key describes the visible label when its node also contains changing hidden explanation text.
+    for (const node of Array.from(this.root.querySelectorAll<HTMLElement>('[data-arrive], [data-crossfade], [data-heartbeat]'))) {
+      const arrive = node.hasAttribute('data-arrive') && !this.arrived.has(node);
+      if (arrive) this.arrived.add(node);
+      let changed = false;
+      if (node.hasAttribute('data-crossfade')) {
+        const text = node.getAttribute('data-crossfade') || node.textContent || '', before = this.texts.get(node);
+        this.texts.set(node, text);
+        changed = before !== undefined && before !== text;
+      }
+      const mark = freshBeat && beat !== null && node.hasAttribute('data-heartbeat');
+      if (still || !(arrive || changed || mark) || !this.shown(node)) continue;
+      if (arrive) arrivals.push(node);
+      if (changed) changes.push(node);
+      if (mark) marks.push(node);
+    }
+    // M1: a block that appears fades in and rises 4 px once, staggered down the column; then it is still.
+    arrivals.forEach((node, order) => this.run(node, ARRIVE, { duration: 120, delay: STAGGER_MS * order, easing: 'ease-out', fill: 'backwards' }));
+    // M5: a changed phase, unit or label crossfades; an unchanged one never moves.
+    for (const node of changes) this.run(node, CROSSFADE, { duration: 120, easing: 'ease-out' });
+    // M3: the mark beats once per fresh measurement arrival, in any phase — the only recurring motion, caused by truth.
+    for (const mark of marks) this.run(mark, BEAT, { duration: 260, easing: 'cubic-bezier(.2,.7,.3,1)' });
   }
   private shown(node: HTMLElement): boolean { return typeof node.animate === 'function' && (node.checkVisibility?.() ?? true); }
   private run(node: HTMLElement, frames: Keyframe[], options: KeyframeAnimationOptions): void {

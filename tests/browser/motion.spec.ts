@@ -11,11 +11,11 @@ const running = (frame: FrameLocator, selector: string): Promise<Running[]> => f
     const timing = animation.effect!.getComputedTiming();
     return { name: (animation.effect as KeyframeEffect).target!.className.toString(), duration: Number(timing.duration), iterations: Number(timing.iterations) };
   }), selector);
-const generating = (page: Page, rate: number) => page.evaluate(rate => {
+const generating = (page: Page, rate: number, elapsed = 3_000) => page.evaluate(({ rate, elapsed }) => {
   const now = Date.now();
   (window as any).setPreviewPatch({ chat: { scope: 'chat', basis: 'estimated-characters', timingBasis: 'delivery-window', phase: 'generating',
-    tokensPerSecond: rate, observedAtMs: now, expiresAtMs: now + 5_000, observation: { startedAtMs: now - 3_000, endedAtMs: now }, freshness: 'live' } });
-}, rate);
+    tokensPerSecond: rate, observedAtMs: now, expiresAtMs: now + 5_000, observation: { startedAtMs: now - elapsed, endedAtMs: now }, freshness: 'live' } });
+}, { rate, elapsed });
 
 test('a fresh measurement beats the mark once; an unchanged reading never beats again', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
@@ -82,6 +82,29 @@ test('a changed phase crossfades; Reduce Motion makes every change instant', asy
     timingBasis: 'delivery-window', phase: 'tool', observedAtMs: now, expiresAtMs: now + 5_000, observation: { startedAtMs: now, endedAtMs: now }, freshness: 'live' } }); });
   await expect(frame.locator('.ws-phase')).toHaveText('Using tools');
   expect(await frame.locator('html').evaluate(root => root.ownerDocument.getAnimations().length)).toBe(0);
+});
+
+test('an unchanged visible source label stays still when its hidden measurement basis changes', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/v2?surface=page&state=decode&chat=cloud&poll=500');
+  const frame = page.frameLocator('iframe');
+  await generating(page, 17.8);
+  await expect(frame.locator('#rate')).toHaveText('17.8');
+  const source = frame.locator('.instrument-source'), basis = source.locator('.basis');
+  const before = await basis.textContent();
+  await expect(source).toHaveAttribute('data-crossfade', 'Cloud · est.');
+  await source.evaluate(node => {
+    const w = node.ownerDocument.defaultView as any, original = w.Element.prototype.animate; w.sourceFades = 0;
+    w.Element.prototype.animate = function (this: Element, ...args: any[]) {
+      if (this.classList.contains('instrument-source')) w.sourceFades++;
+      return original.apply(this, args);
+    };
+  });
+  await generating(page, 18.4, 4_500);
+  await expect(frame.locator('#rate')).toHaveText('18.4');
+  await expect(basis).not.toHaveText(before!);
+  await expect(source).toHaveAttribute('data-crossfade', 'Cloud · est.');
+  expect(await source.evaluate(node => (node.ownerDocument.defaultView as any).sourceFades)).toBe(0);
 });
 
 test('a paused frame animates nothing when readings change', async ({ page }) => {

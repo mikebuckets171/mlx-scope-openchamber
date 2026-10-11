@@ -26,6 +26,7 @@ test('the ring draws once on arrival, eases same-phase updates, and replaces its
   await expect(frame.locator('#view-media')).toBeVisible();
   await expect(frame.locator('#view-media .media-percent')).toHaveText('40%');
   const fill = frame.locator('#view-media .media-ring-fill');
+  await expect(frame.locator('#view-media .media-ring')).toHaveCSS('will-change', 'transform');
   expect(await fill.evaluate(node => [getComputedStyle(node).animationName, getComputedStyle(node).animationDuration, getComputedStyle(node).animationIterationCount])).toEqual(['media-ring-draw', '0.2s', '1']);
   await expect.poll(() => fill.evaluate(node => node.getAnimations().length)).toBe(0); // the arrival draw has finished
   await frame.locator('#view-media').evaluate(node => {
@@ -51,6 +52,7 @@ test('the ring draws once on arrival, eases same-phase updates, and replaces its
   await update(1, 'decoding', 'tiles', 'a'.repeat(64));
   expect(await frame.locator('#view-media .media-ring').evaluate(node => node === (window as any).oldRing)).toBe(false);
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(frame.locator('#view-media .media-ring')).toHaveCSS('will-change', 'auto');
   expect(await fill.evaluate(node => [getComputedStyle(node).transitionDuration, getComputedStyle(node).animationName])).toEqual(['0s', 'none']);
 });
 
@@ -61,6 +63,7 @@ test('indeterminate work is still: an empty dotted track, with no ambient or loo
   await expect(frame.locator('#view-media')).toBeVisible();
   const ring = frame.locator('#view-media .media-ring');
   await expect(ring).toHaveAttribute('data-mode', 'indeterminate');
+  await expect(ring).toHaveCSS('will-change', 'auto');
   for (const part of ['.media-ring-svg', '.media-ring-fill']) expect(await ring.locator(part).evaluate(node => getComputedStyle(node).animationName)).toBe('none');
   expect(await ring.locator('.media-ring-fill').evaluate(node => Number.parseFloat(getComputedStyle(node).strokeDashoffset))).toBe(100);
   expect(await ring.locator('.media-ring-track').evaluate(node => getComputedStyle(node).strokeDasharray)).not.toBe('none');
@@ -79,6 +82,7 @@ for (const state of ['waiting', 'queued', 'stale', 'last-reported']) test(`${sta
   await expect(frame.locator('#view-media')).toBeVisible();
   const ring = frame.locator('#view-media .media-ring');
   await expect(ring).toHaveAttribute('data-mode', state === 'last-reported' ? 'stale' : 'static');
+  await expect(ring).toHaveCSS('will-change', 'auto');
   expect(await ring.locator('svg').evaluate(node => getComputedStyle(node).animationName)).toBe('none');
   expect(await ring.locator('.media-ring-fill').evaluate(node => [getComputedStyle(node).transitionDuration, getComputedStyle(node).animationName])).toEqual(['0s', 'none']);
   expect(await ring.evaluate(node => node.textContent?.trim())).toBe('');
@@ -103,12 +107,14 @@ test('a confirmed cancellation drains the same ring over 120 ms; Reduce Motion d
   await page.evaluate(() => { (window as any).previewHold = true; }); // keep the request pending so the drain is observable
   await frame.getByRole('button', { name: 'Cancel this job', exact: true }).click();
   await expect(ring).toHaveAttribute('data-mode', 'draining');
+  await expect(ring).toHaveCSS('will-change', 'transform');
   expect(await ring.evaluate(node => node === (window as any).oldRing)).toBe(true);
   expect(await ring.locator('.media-ring-fill').evaluate(node => [node.getAttribute('style'), getComputedStyle(node).transitionDuration])).toEqual(['stroke-dashoffset:100', '0.12s']);
   await expect.poll(() => ring.locator('.media-ring-fill').evaluate(node => Number.parseFloat(getComputedStyle(node).strokeDashoffset))).toBe(100);
   await expect(ring).not.toHaveAttribute('aria-valuenow');
   await expect(frame.locator('#view-media .media-percent')).toHaveCount(0);
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(ring).toHaveCSS('will-change', 'auto');
   expect(await ring.locator('.media-ring-fill').evaluate(node => getComputedStyle(node).transitionDuration)).toBe('0s');
 });
 
@@ -120,10 +126,28 @@ test('a completed job holds a still, full, dimmed ring beside its measured finis
   await frame.locator('.media-recent > summary').click();
   const ring = frame.locator('#view-media .media-ring');
   await expect(ring).toHaveAttribute('data-mode', 'done');
+  await expect(ring).toHaveCSS('will-change', 'auto');
   await expect(ring).toHaveAttribute('aria-hidden', 'true');
   await expect(frame.locator('#view-media [role="progressbar"]')).toHaveCount(0);
   const fill = ring.locator('.media-ring-fill');
   expect(await fill.evaluate(node => [Number.parseFloat(getComputedStyle(node).strokeDashoffset), getComputedStyle(node).animationName, getComputedStyle(node).transitionDuration])).toEqual([0, 'none', '0s']);
   expect(await ring.evaluate(node => getComputedStyle(node).color)).toBe(await frame.locator('#view-media .media-counters').evaluate(node => getComputedStyle(node).color));
   expect(await ring.evaluate(node => node.textContent?.trim())).toBe('');
+});
+
+test('a measured ring releases its painting layer while its view or frame is hidden', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/v2?surface=page&state=decode&chat=local&media=active');
+  const frame = page.frameLocator('iframe'), ring = frame.locator('#view-media .media-ring');
+  await expect(ring).toHaveAttribute('data-mode', 'measured');
+  await expect(ring).toHaveCSS('will-change', 'transform');
+  await frame.getByRole('button', { name: 'Connections', exact: true }).click();
+  await expect(ring).toBeHidden();
+  await expect(ring).toHaveCSS('will-change', 'auto');
+  await frame.getByRole('button', { name: 'Close connections' }).click();
+  await expect(ring).toBeVisible();
+  await expect(ring).toHaveCSS('will-change', 'transform');
+  await page.evaluate(() => (window as any).setPreviewFrameHidden(true));
+  await expect(frame.locator('#scope')).toHaveAttribute('data-media-motion', 'false');
+  await expect(ring).toHaveCSS('will-change', 'auto');
 });

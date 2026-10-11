@@ -423,6 +423,8 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .media-ring:is([data-mode="stale"], [data-mode="static"], [data-mode="draining"], [data-mode="done"]) { color: var(--scope-muted); }
 /* No measured range: a still, dotted track rather than an arc that could be read as a value. Nothing spins or loops. */
 .media-ring[data-mode="indeterminate"] .media-ring-track { stroke: currentColor; stroke-dasharray: 1.5 3.5; opacity: .6; }
+/* Isolate the small changing ring so each measured update does not repaint the surrounding column. */
+.scope[data-media-motion="true"] .media-ring:is([data-mode="measured"], [data-mode="draining"]) { will-change: transform; }
 /* M4: draw 0→value once when the ring's state arrives, then ease directly between received values; cancellation drains. */
 .scope[data-media-motion="true"] .media-ring[data-mode="measured"] .media-ring-fill { transition: stroke-dashoffset 160ms cubic-bezier(.2,.7,.2,1); animation: media-ring-draw 200ms cubic-bezier(.2,.7,.2,1); }
 .scope[data-media-motion="true"] .media-ring[data-mode="draining"] .media-ring-fill { transition: stroke-dashoffset 120ms cubic-bezier(.4,0,1,1); }
@@ -469,8 +471,9 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
   .media-job-progress { flex-wrap: wrap; gap: 10px; }
 }
 /* A retained, hidden workspace must never keep a decorative animation running. */
+[hidden] .media-ring { will-change: auto !important; }
 [hidden] .media-ring-svg, [hidden] .media-ring-fill { animation: none !important; transition: none !important; }
-@media (prefers-reduced-motion: reduce) { .media-ring-svg, .media-ring-fill { animation: none !important; transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .media-ring { will-change: auto !important; } .media-ring-svg, .media-ring-fill { animation: none !important; transition: none !important; } }
 @media (forced-colors: active) { .media-ring { color: Highlight; } .media-ring-track { stroke: GrayText; } }
 .media-enabled { display: flex; align-items: center; gap: 8px; min-height: 32px; color: var(--scope-fg) !important; font-size: 12px !important; }
 .media-enabled input { accent-color: var(--scope-accent); width: 14px; height: 14px; }
