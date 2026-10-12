@@ -10,7 +10,9 @@
 
 To keep chat speed reports working, choose **Connections → Update chat speed** and confirm that version 3.3.0 is loaded. Existing History and Captures are unchanged. Only OpenCode 2.0.25 was tested; a successful test with a simulated host does not prove that newer versions work in a real installation.
 
-In a browser test, the page used 2.3165% of one processor core for version 4.0, compared with 1.8596% for version 3.1—about a quarter more. This was above the 1.62–1.70% target, so the target was not met. The test used a simulated OpenChamber host. We did not measure the service's processor use or memory for this release, and we did not replace a result or raise a limit. We have not installed the extension in a real setup or checked prompt progress through a live llama-swap. These tests do not show the effect on the real app, graphics processor or model replies.
+In a browser test, the page used 2.3165% of one processor core for version 4.0, compared with 1.8596% for version 3.1—about a quarter more. This was above the 1.62–1.70% target, so the target was not met. The test used a simulated OpenChamber host. We did not measure the service's processor use or memory for this release, and we did not replace a result or raise a limit. These tests do not show the effect on the real app, graphics processor or model replies.
+
+The 4.0.0 package was also installed into a real OpenChamber on macOS, replacing an earlier version. The extension loaded, its service restarted on 4.0.0, the panel, Run details, History and Connections views opened and navigated, and the Session panel showed live readings from a loaded local model behind llama-swap. That install did not run a model reply, so chat speed and llama-swap prompt progress are still unproven in a real chat. On that machine the OpenCode runtime was newer than the qualified 2.0.25, and Scope reported the optional chat features as unqualified rather than assuming support.
 
 ## 3.2.3
 
