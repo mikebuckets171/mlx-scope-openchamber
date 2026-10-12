@@ -96,7 +96,7 @@ test('ordinary busy changes retain a fresh speed while the refresh is pending', 
   await expect(frame.locator('#rate')).toHaveText('26.4');
 });
 
-for (const theme of ['light', 'dark']) test(`Session priority information fits the host clamp at 200% text in ${theme}`, async ({ page }) => {
+for (const theme of ['light', 'dark']) test(`The Session panel fits its host at 200% text in ${theme}`, async ({ page }) => {
   await page.setViewportSize({ width: 260, height: 550 });
   for (const state of ['pressure', 'pressure-critical', 'needs-approval', 'unconfigured', 'offline', 'runtime-changed', 'contract-mismatch', 'prefill-stall']) {
     await page.goto(`/v2?surface=status&state=${state}&chat=local&theme=${theme}`);
@@ -104,12 +104,20 @@ for (const theme of ['light', 'dark']) test(`Session priority information fits t
     const frame = page.frameLocator('iframe');
     await expect(frame.locator('.ws-phase')).toBeVisible();
     await frame.locator('html').evaluate(element => { (element as HTMLElement).style.fontSize = '32px'; });
-    await expect.poll(() => frame.locator('#ws').evaluate(element => element.getBoundingClientRect().bottom <= innerHeight + 1), state).toBe(true);
-    expect(await frame.locator('#ws').evaluate(() => document.documentElement.scrollWidth > innerWidth), state).toBe(false);
+    const headingRow = await frame.locator('.ws-activity').evaluate(activity => {
+      const rowHeight = Number.parseFloat(getComputedStyle(activity).gridTemplateRows.split(/\s+/)[0]!);
+      const context = activity.querySelector('.ws-context')!, rect = context.getBoundingClientRect();
+      const children = Array.from(context.children, child => child.getBoundingClientRect());
+      return { rowHeight, contentHeight: Math.max(...children.map(child => child.bottom)) - Math.min(...children.map(child => child.top)) };
+    });
+    const label = (reason: string) => `${reason} (mock state: ${state})`;
+    expect(headingRow.rowHeight, label('The heading and menu should not reserve extra height at 200% text')).toBeLessThanOrEqual(headingRow.contentHeight + 1);
+    await expect.poll(() => frame.locator('#ws').evaluate(element => element.getBoundingClientRect().bottom <= innerHeight + 1), label('The Session panel should fit inside its host')).toBe(true);
+    expect(await frame.locator('#ws').evaluate(() => document.documentElement.scrollWidth > innerWidth), label('Session text should stay within the panel width')).toBe(false);
     const action = frame.getByRole('button', { name: 'Open MLX Scope', exact: true });
     await expect(action).toBeVisible();
-    expect(await action.evaluate(element => element.getBoundingClientRect().bottom <= innerHeight), state).toBe(true);
-    expect(await frame.locator('#ws').evaluate(element => element.getBoundingClientRect().height), state).toBeLessThanOrEqual(320);
+    expect(await action.evaluate(element => element.getBoundingClientRect().bottom <= innerHeight), label('The button should stay inside its host')).toBe(true);
+    expect(await frame.locator('#ws').evaluate(element => element.getBoundingClientRect().height), label('The Session panel should stay within the host height limit')).toBeLessThanOrEqual(320);
   }
 });
 
