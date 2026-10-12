@@ -46,8 +46,10 @@ jobs:
           if-no-files-found: error
 
   browser:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Scope is a macOS extension, so the browser suite runs against the WebKit build users actually get.
+    # The Linux runner used a different engine build and failed geometry checks that pass on macOS.
+    runs-on: macos-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
