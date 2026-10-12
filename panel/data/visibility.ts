@@ -12,23 +12,26 @@ const nativeObserver: ObserverFactory | null = typeof IntersectionObserver === '
  * is synchronous, so a visible frame polls at once and a `display:none` frame never starts.
  */
 export class Visibility {
-  private intersecting: boolean;
-  private readonly observer: Observer | null;
-  constructor(private readonly page: Page, frame: Frame, private readonly change: () => void, observe: ObserverFactory | null = nativeObserver) {
-    this.intersecting = frame.innerWidth > 0 && frame.innerHeight > 0;
-    this.observer = observe?.(entries => {
-      const next = entries.at(-1)?.isIntersecting ?? this.intersecting;
-      if (next === this.intersecting) return;
-      this.intersecting = next;
-      this.change();
+  #intersecting: boolean;
+  #observer: Observer | null;
+  #page: Page;
+  #change: () => void;
+  constructor(page: Page, frame: Frame, change: () => void, observe: ObserverFactory | null = nativeObserver) {
+    this.#page = page; this.#change = change;
+    this.#intersecting = frame.innerWidth > 0 && frame.innerHeight > 0;
+    this.#observer = observe?.(entries => {
+      const next = entries.at(-1)?.isIntersecting ?? this.#intersecting;
+      if (next === this.#intersecting) return;
+      this.#intersecting = next;
+      this.#change();
     }) ?? null;
-    this.observer?.observe(page.documentElement);
+    this.#observer?.observe(page.documentElement);
     // 1.6 re-synchronised on every visibility event, changed or not; that stays.
-    page.addEventListener('visibilitychange', this.change);
+    page.addEventListener('visibilitychange', this.#change);
   }
-  get visible(): boolean { return !this.page.hidden && this.intersecting; }
+  get visible(): boolean { return !this.#page.hidden && this.#intersecting; }
   dispose(): void {
-    this.observer?.disconnect();
-    this.page.removeEventListener('visibilitychange', this.change);
+    this.#observer?.disconnect();
+    this.#page.removeEventListener('visibilitychange', this.#change);
   }
 }

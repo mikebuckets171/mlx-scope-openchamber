@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { parse } from 'jsonc-parser/lib/esm/main.js';
 import { COMPANION_FILES, COMPANION_ID, createCompanionSetup, type CompanionProbe, type CompanionSetupOptions } from './companion-setup.ts';
 import { version as companionVersion } from '../bridge/opencode/package.json';
+import { featureSupport } from '../bridge/opencode/compatibility.js';
 
 const homes: string[] = [];
 afterEach(async () => { for (const home of homes.splice(0)) await rm(home, { recursive: true, force: true }); });
@@ -248,6 +249,27 @@ describe('explicit companion setup', () => {
     const before = await readFile(f.config, 'utf8');
     expect(await setup.enable()).toMatchObject({ state: 'incompatible', canEnable: false, canDisable: true });
     expect(await readFile(f.config, 'utf8')).toBe(before);
+  });
+
+  it('separates feature qualification, loaded revision and demanded activity without changing configuration', async () => {
+    const at = 20_000, f = await fixture('{}', { now: () => at });
+    await f.setup.enable();
+    const features = featureSupport('2.0.25');
+    features['http-delivery'].available = true;
+    features['websocket-delivery'] = { support: 'unavailable', available: false };
+    let probe = receipt(at, { features });
+    const setup = createCompanionSetup({ ...f.options, now: () => at + 100, probe: async () => probe });
+    const config = await readFile(f.config, 'utf8');
+    expect(await setup.status()).toMatchObject({ state: 'ready', live: false,
+      compatibility: { profile: 'opencode-2.0.25-v1', activity: 'awaiting-demand', features } });
+    probe = receipt(at, { features, updatedAtMs: at, expiresAtMs: at + 15_000 });
+    expect((await setup.status()).compatibility?.activity).toBe('listening');
+    probe = receipt(at, { features, supported: false });
+    expect(await setup.status()).toMatchObject({ state: 'error', live: false, compatibility: { activity: 'unavailable' } });
+    probe = receipt(at, { runtimeVersion: '2.0.26', protocol: 'unsupported', supported: false });
+    expect(await setup.status()).toMatchObject({ state: 'incompatible', compatibility: { profile: null,
+      features: { 'prompt-progress': { support: 'unqualified', available: false } } } });
+    expect(await readFile(f.config, 'utf8')).toBe(config);
   });
 
   it('replaces each changed file by rename in the same directory; unchanged files and no-op updates stay untouched', async () => {

@@ -132,6 +132,7 @@ window.addEventListener('message', event => {
   if (m.type === 'clipboard-write') { window.previewCopied = m.payload.text; result(m.id); return; }
   if (m.type === 'compose') { window.previewComposed = m.payload; result(m.id); return; }
   if (m.type === 'storage') {
+    (window.previewStorageOps ??= []).push(m.payload.op);
     const {op,key,value} = m.payload, storedKey = demo ? demoPrefix + key : key, stored = key ? sessionStorage.getItem(storedKey) : null;
     if (params.get('storage') === 'fail') { failure(m.id, 'HOST_REJECTED', 'Fixture storage failure'); return; }
     if (op === 'delete') { sessionStorage.removeItem(storedKey); window.previewWrites += 1; }
@@ -143,6 +144,7 @@ window.addEventListener('message', event => {
   if (m.type === 'prompt' || m.type === 'generate' || m.type === 'start-session') { window.previewUnexpectedSends += 1; return; }
   if (m.type !== 'service-request') return;
   window.previewAllRequests = (window.previewAllRequests || 0) + 1;
+  (window.previewServicePaths ??= []).push(m.payload.path);
   const auxiliary = window.ScopeMediaFixtures?.respond(m);
   if (auxiliary) {
     if (window.previewHold || (m.payload.path === '/v2/media' && window.previewMediaHold)) return;

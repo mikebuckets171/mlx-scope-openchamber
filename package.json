@@ -1,6 +1,6 @@
 {
   "name": "mlx-scope-openchamber",
-  "version": "3.2.3",
+  "version": "4.0.0",
   "description": "Lightweight local model monitoring for OpenChamber.",
   "private": true,
   "license": "MIT",
@@ -98,6 +98,7 @@
     "check": "bun run type-check && bun run scan && bun run test && bun run test:helpers && bun run build && bun run verify:package",
     "check:all": "bun run check && bun run test:browser",
     "scan": "bun scripts/scan-committed.ts",
+    "qualify:compatibility": "node scripts/qualify-compatibility.mjs",
     "overhead": "node scripts/measure-overhead.mjs",
     "test:helpers": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s bridge/comfyui -p \"test_*.py\""
   },
@@ -138,6 +139,7 @@
     "bridge/opencode/README.md",
     "bridge/opencode/package.json",
     "bridge/opencode/index.js",
+    "bridge/opencode/compatibility.js",
     "bridge/opencode/store.js",
     "bridge/opencode/stream.js",
     "bridge/opencode/chat.js",

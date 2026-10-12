@@ -10,7 +10,7 @@ import type { TurnWindow } from '../attribution/sessions.ts';
 import type { TurnSummary } from '../attribution/turn.ts';
 import type { VsUsual } from '../history/regress.ts';
 import { niceCeil } from '../render/chart.ts';
-import { alertCopy, APPROVAL, FIRST_RUN, NON_LOCAL, PRESSURE, RESTART, SEVERITY_WORD, sinceText, statusCopy, statusGlanceNote, THERMAL, THERMAL_WARN, thermalLevel, TIP, withheldWhy } from './copy.ts';
+import { alertCopy, APPROVAL, CHAT_UNAVAILABLE, FIRST_RUN, NON_LOCAL, PRESSURE, RESTART, SEVERITY_WORD, sinceText, statusCopy, statusGlanceNote, THERMAL, THERMAL_WARN, thermalLevel, TIP, withheldWhy } from './copy.ts';
 import { ago, delta, dur, int, kt, mmss, pct, tps } from './format.ts';
 import { attrChip, BASIS_WORD, visibleAlerts, type Chip } from './parts.ts';
 import type { Reading } from './reading.ts';
@@ -166,7 +166,7 @@ export const presentGlance = (input: StatusSectionInput): StatusSectionView => {
   if (reason === 'needs_approval') return blank(L1({ title: APPROVAL.title }), { kind: 'note', text: APPROVAL.glance }, HEIGHTS.glance);
   if (reason === 'contract_mismatch') return blank(L1({ title: RESTART.title }), { kind: 'note', text: RESTART.glance }, HEIGHTS.glance);
   if (input.chatIsLocal === false) return { ...blank(L1({ title: NON_LOCAL, muted: true }), null, HEIGHTS.nonLocal), mode: 'non-local' };
-  if (!snapshot) return blank(L1({ dot: reading.reason ? 'warn' : 'idle', title: reading.reason ? 'MLX Scope can’t read its service' : 'Connecting to the local server' }),
+  if (!snapshot) return blank(L1({ dot: reading.reason ? 'warn' : 'idle', title: reason === 'chat_unavailable' ? CHAT_UNAVAILABLE : reason ? 'MLX Scope can’t read its service' : 'Connecting to the local server' }),
     reading.message ? { kind: 'note', text: reading.message } : null, HEIGHTS.glance);
   if (input.paused) return blank(L1({ word: 'Paused', model: glanceOr(snapshot) }), { kind: 'note', text: 'Only this monitor is paused; your model keeps running' }, HEIGHTS.glance);
   const status = statusCopy(snapshot);

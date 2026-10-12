@@ -1,4 +1,4 @@
-import type { HostClient } from '@openchamber/sdk';
+import type { HostClient } from '../host/types.ts';
 import { obj } from '../../src/contract/guards.ts';
 import { FRAME_REASONS, type FrameReason } from '../../src/contract/reasons.ts';
 import { parseTrendV2, type TrendSeries, type TrendV2, type TrendWindowMs } from '../../src/contract/trend.ts';
@@ -42,7 +42,8 @@ const read = async <T>(host: Pick<HostClient, 'serviceRequest'>, path: string, q
 };
 
 export class HistoryClient {
-  constructor(private readonly host: Pick<HostClient, 'serviceRequest'>) {}
-  trend(request: TrendRequest): Promise<HistoryResult<TrendV2>> { return read(this.host, ROUTES.trend, trendQuery(request), parseTrendV2); }
-  usage(request: UsageRequest): Promise<HistoryResult<UsageV2>> { return read(this.host, ROUTES.usage, usageQuery(request), parseUsageV2); }
+  readonly #host: Pick<HostClient, 'serviceRequest'>;
+  constructor(host: Pick<HostClient, 'serviceRequest'>) { this.#host = host; }
+  trend(request: TrendRequest): Promise<HistoryResult<TrendV2>> { return read(this.#host, ROUTES.trend, trendQuery(request), parseTrendV2); }
+  usage(request: UsageRequest): Promise<HistoryResult<UsageV2>> { return read(this.#host, ROUTES.usage, usageQuery(request), parseUsageV2); }
 }

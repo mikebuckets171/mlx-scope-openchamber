@@ -1,4 +1,5 @@
-import { HostRequestError, type AttachIssueRequest, type HostClient, type ResolveRequest } from '@openchamber/sdk';
+import type { AttachIssueRequest, HostClient } from '../panel/host/types.ts';
+import { approvalRequired, type ResolveRequest } from './host.ts';
 import { version } from '../package.json';
 import { obj } from '../src/contract/guards.ts';
 import { runtimeKind } from '../src/contract/runtime.ts';
@@ -22,7 +23,7 @@ export const SCOPE_ERRORS = {
 // The host's own 20 s deadline covers a service or storage read that hangs.
 const fail = (message: string): never => { throw new Error(message); };
 const hostFailure = (error: unknown): never =>
-  fail(error instanceof HostRequestError && (error.code === 'NOT_GRANTED' || error.code === 'DISABLED') ? SCOPE_ERRORS.approval : SCOPE_ERRORS.unreachable);
+  fail(approvalRequired(error) ? SCOPE_ERRORS.approval : SCOPE_ERRORS.unreachable);
 
 /**
  * `/scope [args]` → the "MLX Scope diagnostics" chip. `args` is ignored and never echoed: it can hold anything typed

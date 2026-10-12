@@ -1,4 +1,4 @@
-import type { HostClient } from '@openchamber/sdk';
+import type { HostClient } from './host/types.ts';
 import type { Capture } from './capture.ts';
 import { capturedRate } from './capture.ts';
 import { gib } from './present/format.ts';

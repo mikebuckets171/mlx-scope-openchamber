@@ -1,4 +1,4 @@
-import type { HostClient, JsonValue } from '@openchamber/sdk';
+import type { HostClient, JsonValue } from '../host/types.ts';
 import { MAX_COMPLETIONS, type CompletionsV2, type CompletionV2 } from '../../src/contract/completion.ts';
 import { modelLabel } from '../../src/contract/guards.ts';
 import type { RuntimeKind } from '../../src/contract/runtime.ts';
@@ -6,7 +6,7 @@ import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { Accounting, entryBytes, isLedgerKey, jsonBytes, type LedgerAccounting } from './accounting.ts';
 import { BASELINE_WINDOW_MS, BASELINE_WRITE_EVERY_MS as BASELINE_WRITE_MS, baselineStore as toBaselineStore, buildBaselines, parseBaselineStore, sameBaselines, type Baselines } from './baselines.ts';
 import {
-  CHUNK_KEY, CHUNK_MAX_CHARS, CHUNK_TARGET_CHARS, chunkKey, KEYS, LEDGER_SCHEMA, MAX_CURSORS, MAX_MODELS, parseChunk, parseCursors, parseMeta,
+  assertHistoryVersion, HistoryVersionError, CHUNK_KEY, CHUNK_MAX_CHARS, CHUNK_TARGET_CHARS, chunkKey, KEYS, LEDGER_SCHEMA, MAX_CURSORS, MAX_MODELS, parseChunk, parseCursors, parseMeta,
   parseModels, parsePref, rand4, replyRow, retentionDays, rowIdentity, rowTimeS, toSeconds, verdictAttr,
   type ChunkV2, type LedgerAttr, type LedgerCursor, type LedgerMeta, type LedgerRow, type ReplyRow, type TurnRow,
 } from './ledger-schema.ts';
@@ -89,6 +89,7 @@ export class Ledger {
   #stored: Baselines | null = null;
   #flushing: Promise<void> | null = null;
   #epoch = 0;
+  #issue: string | null = null;
 
   readonly #options: LedgerOptions;
   constructor(options: LedgerOptions) {
@@ -97,6 +98,7 @@ export class Ledger {
     this.#prefs = new PrefStore(options.storage);
   }
   get state(): LedgerState { return this.#stateValue; }
+  get issue(): string | null { return this.#issue; }
   /** True until the first row is ever written: "Recording reply history locally · Open Scope to manage". */
   get firstRun(): boolean { return this.#first; }
   /** Rows appended and not yet written. */
@@ -122,8 +124,8 @@ export class Ledger {
       // `due` still needs pending rows.
       this.#lastFlushAt = 0;
       this.#stateValue = this.#paused ? 'paused' : 'idle';
-    } catch {
-      if (epoch === this.#epoch) this.#stateValue = 'stopped';
+    } catch (error) {
+      if (epoch === this.#epoch) { this.#stateValue = 'stopped'; this.#issue = error instanceof HistoryVersionError ? error.message : 'History storage is unavailable. Monitoring can continue.'; }
     }
   }
 
@@ -269,12 +271,13 @@ export class Ledger {
   /** Deletes every ledger.v2.* key and baseline.v2 (after the UI's confirmation). */
   async clear(): Promise<void> {
     const now = this.#options.now(), storage = this.#options.storage;
-    const meta: LedgerMeta = { ...parseMeta(await storage.get(KEYS.meta)) ?? { schema: LEDGER_SCHEMA, migratedAt: null, accounting: { bytes: 0, keys: 0 } }, clearedAt: now };
+    const entries = await this.#entries();
+    const meta: LedgerMeta = { ...parseMeta(new Map(entries).get(KEYS.meta)) ?? { schema: LEDGER_SCHEMA, migratedAt: null, accounting: { bytes: 0, keys: 0 } }, clearedAt: now };
     // clearedAt first: whichever frame leads next never re-records a cleared reply from the service ring.
-    await storage.set(KEYS.meta, meta as unknown as JsonValue);
+    await this.#store(KEYS.meta, meta as unknown as JsonValue);
     this.#book.apply(KEYS.meta, undefined, meta);
     for (const key of (await storage.keys()).filter(isLedgerKey)) {
-      await storage.delete(key);
+      await this.#store(key);
       this.#book.apply(key, undefined, undefined); this.#chunks.delete(key);
     }
     this.#applyClear(now);
@@ -286,6 +289,7 @@ export class Ledger {
   }
 
   #reset(): void {
+    this.#issue = null;
     this.#chunks.clear(); this.#open = null; this.#pending = []; this.#cursors.clear(); this.#persisted = new Map(); this.#resync.clear();
     this.#recent = []; this.#seen.clear(); this.#mutable.clear(); this.#relabeled = false; this.#modelList = []; this.#modelIndex.clear();
     this.#modelsDirty = false; this.#clearedAt = 0; this.#retryAt = 0; this.#failures = 0; this.#stale = false; this.#first = false;
@@ -293,7 +297,17 @@ export class Ledger {
   }
   async #entries(): Promise<Entries> {
     const storage = this.#options.storage, keys = await storage.keys();
-    return Promise.all(keys.map(async key => [key, await storage.get(key)] as [string, unknown]));
+    return Promise.all(keys.map(async key => {
+      const value = await storage.get(key);
+      if (key === KEYS.meta || key === KEYS.pref || key === KEYS.models || key === KEYS.baseline || isChunkKey(key)) assertHistoryVersion(value, key === KEYS.meta ? 'schema' : 'v');
+      return [key, value] as [string, unknown];
+    }));
+  }
+  /** A cached key can change format after start. Check each mutation target, including retention deletions. */
+  async #store(key: string, value?: JsonValue): Promise<void> {
+    const storage = this.#options.storage;
+    assertHistoryVersion(await storage.get(key), key === KEYS.meta ? 'schema' : 'v');
+    if (value === undefined) await storage.delete(key); else await storage.set(key, value);
   }
   #load(entries: Entries): void {
     const values = new Map(entries), meta = parseMeta(values.get(KEYS.meta)), pref = parsePref(values.get(KEYS.pref));
@@ -389,7 +403,7 @@ export class Ledger {
   }
 
   async #write(reason: FlushReason): Promise<void> {
-    const epoch = this.#epoch, storage = this.#options.storage, now = this.#options.now();
+    const epoch = this.#epoch, now = this.#options.now();
     if (reason === 'hidden') this.#lastHideFlushAt = now;
     let relabeled = false;
     try {
@@ -429,14 +443,14 @@ export class Ledger {
       }
       // The dictionary goes first, so a stored row never names a model the stored dictionary lacks.
       if (models) {
-        await storage.set(KEYS.models, models);
+        await this.#store(KEYS.models, models);
         this.#book.apply(KEYS.models, undefined, models);
         if (this.#modelList.length === models.length) this.#modelsDirty = false;
       }
       // Labels that change while the set is in flight belong to the next flush.
       relabeled = this.#relabeled; this.#relabeled = false;
       if (epoch !== this.#epoch) return;
-      await storage.set(key, value as unknown as JsonValue);
+      await this.#store(key, value as unknown as JsonValue);
       relabeled = false;
       if (epoch !== this.#epoch) return;
       this.#book.apply(key, undefined, value);
@@ -450,9 +464,12 @@ export class Ledger {
       this.#stateValue = this.#paused ? 'paused' : 'idle';
       await this.#writeBaselines(now);
       await this.#evict(toSeconds(now), CHUNK_TARGET_CHARS, 1);
-    } catch {
+    } catch (error) {
       if (relabeled) this.#relabeled = true;
-      if (epoch === this.#epoch) await this.#rejected(now);
+      if (epoch === this.#epoch) {
+        if (error instanceof HistoryVersionError) { this.#issue = error.message; this.#stateValue = 'stopped'; }
+        else await this.#rejected(now);
+      }
     }
   }
   /**
@@ -463,6 +480,7 @@ export class Ledger {
   async #refresh(): Promise<void> {
     const storage = this.#options.storage;
     const [keys, meta, pref] = await Promise.all([storage.keys(), storage.get(KEYS.meta), storage.get(KEYS.pref)]);
+    assertHistoryVersion(meta, 'schema'); assertHistoryVersion(pref);
     const clearedAt = parseMeta(meta)?.clearedAt ?? 0, settings = parsePref(pref);
     if (clearedAt > this.#clearedAt) this.#applyClear(clearedAt);
     if (JSON.stringify(settings) !== this.#prefSeen) {
@@ -479,6 +497,7 @@ export class Ledger {
     this.#book.apply(KEYS.meta, undefined, meta); this.#book.apply(KEYS.pref, undefined, pref);
     for (const key of keys.filter(key => !this.#book.has(key))) {
       const value = await storage.get(key);
+      if (key === KEYS.baseline || isChunkKey(key)) assertHistoryVersion(value);
       this.#book.apply(key, undefined, value);
       const rows = isChunkKey(key) ? parseChunk(value)?.r : undefined;
       if (rows?.length) this.#chunks.set(key, infoOf(key, rows));
@@ -490,7 +509,9 @@ export class Ledger {
   }
   /** An adopted chunk is re-read once and merged, so an old leader's last write is never overwritten. */
   async #verifyOpen(): Promise<void> {
-    const open = this.#open!, stored = parseChunk(await this.#options.storage.get(open.key));
+    const open = this.#open!, raw = await this.#options.storage.get(open.key);
+    assertHistoryVersion(raw);
+    const stored = parseChunk(raw);
     if (!stored) { this.#open = null; return; }
     const merged = new Map(stored.r.map(row => [rowIdentity(row), row] as const));
     for (const row of open.rows) if (!merged.has(rowIdentity(row))) merged.set(rowIdentity(row), row);
@@ -512,7 +533,7 @@ export class Ledger {
       .sort((a, b) => a.newestS - b.newestS || (a.key < b.key ? -1 : 1));
     for (const chunk of order) {
       if (chunk.newestS >= expiryS && chunk.newestS * 1000 >= this.#clearedAt && this.#book.fits(reserve, keys)) break;
-      await this.#options.storage.delete(chunk.key);
+      await this.#store(chunk.key);
       this.#book.apply(chunk.key, undefined, undefined);
       this.#chunks.delete(chunk.key);
     }
@@ -525,7 +546,7 @@ export class Ledger {
     if (this.#stored && sameBaselines(baselines, this.#stored) || !this.#stored && !baselines.size) return;
     const value = toBaselineStore(baselines, now);
     if (!this.#book.fits(entryBytes(KEYS.baseline, value) - this.#book.size(KEYS.baseline))) return;
-    await this.#options.storage.set(KEYS.baseline, value as unknown as JsonValue);
+    await this.#store(KEYS.baseline, value as unknown as JsonValue);
     this.#book.apply(KEYS.baseline, undefined, value);
     this.#stored = baselines;
   }
@@ -546,31 +567,32 @@ export class Ledger {
  * flushed, and the next leader reads it from the persisted cursor), append each poll, flush when due.
  */
 export class LedgerRecorder {
-  private leading = false;
-  private starting: Promise<void> | null = null;
-  private epoch = -1;
-  constructor(readonly ledger: Ledger, private readonly label: (completion: CompletionV2) => LedgerAttr = verdictAttr) {}
-  get recording(): boolean { return this.leading && this.ledger.state !== 'stopped'; }
+  #leading = false;
+  #starting: Promise<void> | null = null;
+  #epoch = -1;
+  readonly #label: (completion: CompletionV2) => LedgerAttr;
+  constructor(readonly ledger: Ledger, label: (completion: CompletionV2) => LedgerAttr = verdictAttr) { this.#label = label; }
+  get recording(): boolean { return this.#leading && this.ledger.state !== 'stopped'; }
   /** The `since` the next poll must send while this frame leads; undefined otherwise. */
-  since(connection: string, now?: number): number | undefined { return this.leading ? this.ledger.since(connection, now) : undefined; }
+  since(connection: string, now?: number): number | undefined { return this.#leading ? this.ledger.since(connection, now) : undefined; }
   async observe(snapshot: SnapshotV2, now: number, sentSince?: number): Promise<void> {
-    if (!snapshot.lease.leader) { if (this.leading) this.dispose(); return; }
+    if (!snapshot.lease.leader) { if (this.#leading) this.dispose(); return; }
     // Leadership handed away and back while this frame was hidden (no poll saw the loss): another leader may have
     // stored rows since, so restart from storage instead of flushing a stale ledger over them.
-    const restart = this.leading && snapshot.lease.epoch !== this.epoch;
+    const restart = this.#leading && snapshot.lease.epoch !== this.#epoch;
     if (restart) this.dispose();
-    if (!this.leading) { this.leading = true; this.epoch = snapshot.lease.epoch; this.starting = this.ledger.start(); }
-    await this.starting;
+    if (!this.#leading) { this.#leading = true; this.#epoch = snapshot.lease.epoch; this.#starting = this.ledger.start(); }
+    await this.#starting;
     const runtime = snapshot.connection.runtime;
     // The restart poll was sent with the stale cursor; the next one sends the persisted cursor.
-    if (!this.leading || !runtime || restart) return;
-    this.ledger.append(snapshot.completions, this.label, { connection: snapshot.connection.id, rt: runtime, since: sentSince });
+    if (!this.#leading || !runtime || restart) return;
+    this.ledger.append(snapshot.completions, this.#label, { connection: snapshot.connection.id, rt: runtime, since: sentSince });
     const reason = this.ledger.due('rows', now) ? 'rows' : this.ledger.due('timer', now) ? 'timer' : null;
     if (reason) await this.ledger.flush(reason);
   }
   /** visibility hidden or pagehide. */
   async hidden(now: number): Promise<void> {
-    if (this.leading && this.ledger.due('hidden', now)) await this.ledger.flush('hidden');
+    if (this.#leading && this.ledger.due('hidden', now)) await this.ledger.flush('hidden');
   }
-  dispose(): void { this.leading = false; this.starting = null; this.ledger.dispose(); }
+  dispose(): void { this.#leading = false; this.#starting = null; this.ledger.dispose(); }
 }

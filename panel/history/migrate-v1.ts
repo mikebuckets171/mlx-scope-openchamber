@@ -1,8 +1,8 @@
-import type { HostClient, JsonValue } from '@openchamber/sdk';
+import type { HostClient, JsonValue } from '../host/types.ts';
 import { hash32 } from '../../src/contract/hash.ts';
 import { captureKey, parseCapture, type CaptureMeasurement, type CaptureV2 } from '../captures/store.ts';
 import { measurementLabels, sanitizeObservation, type Observation } from '../saved.ts';
-import { KEYS, LEDGER_SCHEMA, parseMeta, type LedgerMeta } from './ledger-schema.ts';
+import { assertHistoryVersion, KEYS, LEDGER_SCHEMA, parseMeta, type LedgerMeta } from './ledger-schema.ts';
 
 // Owner: ledger. observation.v1.* → capture.v2.* (plan §7): reuses sanitizeObservation (panel/saved.ts), GiB → bytes as
 // ×2³⁰ (1.6 stored GiB), covers measurements and reference. v1 keys stay through 2.0.x.
@@ -56,7 +56,9 @@ export const migratedKey = (v1Key: string, savedAt: number): string => captureKe
  * written when there is nothing to migrate or it already ran; the v1 keys are left untouched (deleted in 2.1).
  */
 export const migrateV1 = async (storage: HostClient['storage'], now: number): Promise<MigrationResult> => {
-  const keys = await storage.keys(), meta = parseMeta(await storage.get(KEYS.meta));
+  const keys = await storage.keys(), raw = await storage.get(KEYS.meta);
+  assertHistoryVersion(raw, 'schema');
+  const meta = parseMeta(raw);
   const legacy = keys.filter(key => key.startsWith(KEYS.legacyObservationPrefix)).sort();
   if (meta?.migratedAt || !legacy.length) return { migrated: 0, skipped: 0, at: now };
   const existing = new Set(keys);
@@ -65,10 +67,13 @@ export const migrateV1 = async (storage: HostClient['storage'], now: number): Pr
     const capture = captureFromObservation(await storage.get(key));
     if (!capture) { skipped += 1; continue; }
     const target = migratedKey(key, capture.savedAt);
-    if (!existing.has(target)) await storage.set(target, capture as unknown as JsonValue);
+    if (!existing.has(target) && await storage.get(target) === undefined) await storage.set(target, capture as unknown as JsonValue);
     migrated += 1;
   }
-  const next: LedgerMeta = { ...meta ?? { schema: LEDGER_SCHEMA, accounting: { bytes: 0, keys: 0 } }, schema: LEDGER_SCHEMA, migratedAt: now };
+  // Migration awaits other reads/writes: a newer writer may have replaced metadata since its first check.
+  const current = await storage.get(KEYS.meta);
+  assertHistoryVersion(current, 'schema');
+  const next: LedgerMeta = { ...parseMeta(current) ?? { schema: LEDGER_SCHEMA, accounting: { bytes: 0, keys: 0 } }, schema: LEDGER_SCHEMA, migratedAt: now };
   await storage.set(KEYS.meta, next as unknown as JsonValue);
   return { migrated, skipped, at: now };
 };

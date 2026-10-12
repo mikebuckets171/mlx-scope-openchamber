@@ -61,7 +61,7 @@ async function harness() {
   }
   return { context, observer, saved, identity, send, start, stream, handshake,
     watch(items) { wanted = items; }, get reads() { return reads; }, advance(ms) { time += ms; },
-    async close() { for (const dispose of disposals) if (contexts[disposals.indexOf(dispose)].hooks.size) await dispose(); } };
+    async close() { for (const dispose of disposals) await dispose(); } };
 }
 
 test('qualified WS hook refreshes newly visible demand before first dispatch; never touches frames or headers', async () => {
@@ -108,7 +108,8 @@ test('auxiliary and unqualified hooks do not start observations or read demand a
   }
   const h = await harness();
   try { const ctx = await h.context('/fixture/unsupported', '2.0.26');
-    assert.ok(!ctx.hooks.has('experimental.ws.handshake')); h.watch([h.identity()]); await h.observer.tick();
+    assert.equal(ctx.hooks.size, 0); h.watch([h.identity()]); const reads = h.reads; await h.observer.tick();
+    assert.equal(h.reads, reads, 'unqualified observation does no periodic demand IO');
     assert.equal(ctx.events.stats().subscriptions, 0);
   } finally { await h.close(); }
 });
@@ -211,19 +212,22 @@ test('many loaded projects keep a bounded subscription set and prioritize a disp
   } finally { await h.close(); }
 });
 
-test('setup registration rejection rolls back the observer and every prior hook; teardown is idempotent', async () => {
+test('optional hook rejection preserves other transports and teardown is idempotent', async () => {
   for (const reject of ['http.request', 'experimental.ws.handshake', 'none']) {
     const shared = {}, counts = { attach: 0, detach: 0, dispose: 0, observerClose: 0, storeClose: 0 };
-    const plugin = makePlugin({ shared, storeFactory: () => ({ async close() { counts.storeClose++; } }),
-      observerFactory: () => ({ async attach() { counts.attach++; return () => { counts.detach++; }; }, async close() { counts.observerClose++; } }) });
+    let features;
+    const plugin = makePlugin({ shared, warn() {}, storeFactory: () => ({ async close() { counts.storeClose++; } }),
+      observerFactory: () => ({ async attach(ctx, value) { features = value; counts.attach++; return () => { counts.detach++; }; }, async close() { counts.observerClose++; } }) });
     const ctx = { app: { version: '2.0.25' }, location: { directory: '/fixture' }, options: { promptProgress: false },
       event: { subscribe() {} }, session: { async hook(name) {
         if (name === reject) throw new Error('fixture registration rejection');
         return { dispose() { counts.dispose++; throw new Error('fixture disposer failure'); } };
       } } };
-    if (reject === 'none') { const dispose = await plugin.setup(ctx); await dispose(); await dispose(); }
-    else await assert.rejects(plugin.setup(ctx), /fixture registration rejection/);
-    assert.deepEqual(counts, { attach: 1, detach: 1, dispose: reject === 'none' ? 2 : reject === 'http.request' ? 0 : 1, observerClose: 1, storeClose: 1 });
+    const dispose = await plugin.setup(ctx);
+    assert.equal(features['http-delivery'].available, reject !== 'http.request');
+    assert.equal(features['websocket-delivery'].available, reject !== 'experimental.ws.handshake');
+    await dispose(); await dispose();
+    assert.deepEqual(counts, { attach: 1, detach: 1, dispose: reject === 'none' ? 2 : 1, observerClose: 1, storeClose: 1 });
     assert.equal(Object.getOwnPropertySymbols(shared).length, 0, 'no leaked holder reference');
   }
 });

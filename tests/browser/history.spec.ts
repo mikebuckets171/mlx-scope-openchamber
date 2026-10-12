@@ -271,7 +271,7 @@ test.describe('History tab', () => {
     await open(page, 'surface=page&state=decode&theme=dark', 1160);
     const column = page.locator('#history-column');
     await expect(column.locator('.col-title')).toHaveCount(0);
-    await expect(column.locator(':scope > section h2')).toHaveText(['Trend', 'Recent replies']);
+    await expect(column.locator(':scope > .view-host > section h2')).toHaveText(['Trend', 'Recent replies']);
     await expect(column.locator('.history-insights')).toHaveJSProperty('open', false);
     await expect(column.locator('.history-insights h2')).toHaveText(['Usual speed', 'Recorded by oMLX']);
     await expect(column.locator('.recent-replies .section-heading')).toContainText('Recorded while Scope was open');

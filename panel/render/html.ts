@@ -20,7 +20,7 @@ const patchAttributes = (from: Element, to: Element): void => {
   for (const { name } of Array.from(from.attributes)) if (!to.hasAttribute(name)) from.removeAttribute(name);
   for (const { name, value } of Array.from(to.attributes)) if (from.getAttribute(name) !== value) from.setAttribute(name, value);
 };
-const patch = (from: Node, to: Node): void => {
+const patch = (from: Node, to: Node, markup: boolean): void => {
   if (from.nodeType === Node.TEXT_NODE || from.nodeType === Node.COMMENT_NODE) {
     if (from.nodeValue !== to.nodeValue) from.nodeValue = to.nodeValue;
     return;
@@ -28,16 +28,17 @@ const patch = (from: Node, to: Node): void => {
   if (from instanceof Element && to instanceof Element) {
     patchAttributes(from, to);
     // A <select> keeps what the user picked; a `data-mount` host belongs to a view mounted into it.
-    if (from.localName === 'select' || from.hasAttribute('data-mount')) return;
+    if (markup && (from.localName === 'select' || from.hasAttribute('data-mount'))) return;
   }
-  patchChildren(from, to);
+  morphNodes(from, to, markup);
 };
-const patchChildren = (from: Node, to: Node): void => {
+/** Shared in-place patcher. Markup views own keyed nodes; DOM views also refresh their generated select options. */
+export const morphNodes = (from: Node, to: Node, markup = false): void => {
   let current = from.firstChild, next = to.firstChild;
   while (next) {
     const following = next.nextSibling;
     if (!current) from.appendChild(next);
-    else if (same(current, next)) { patch(current, next); current = current.nextSibling; }
+    else if (markup ? same(current, next) : current.nodeType === next.nodeType && current.nodeName === next.nodeName) { patch(current, next, markup); current = current.nextSibling; }
     else { const after = current.nextSibling; from.replaceChild(next, current); current = after; }
     next = following;
   }
@@ -50,5 +51,5 @@ export const morph = (target: Element, markup: Raw | string): void => {
   (target as Element & { __markup?: string }).__markup = text;
   const template = target.ownerDocument.createElement('template');
   template.innerHTML = text;
-  patchChildren(target, template.content);
+  morphNodes(target, template.content, true);
 };

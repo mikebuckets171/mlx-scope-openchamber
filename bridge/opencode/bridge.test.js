@@ -19,9 +19,10 @@ function source(parts) {
   return { response: new Response(new ReadableStream({ pull(c) { reads++; if (parts.length) c.enqueue(parts.shift()); else c.close(); }, cancel(reason) { cancelled = reason; } }, { highWaterMark: 0 }), { headers: { 'content-type': 'text/event-stream', 'x-test': 'preserved' } }), get reads() { return reads; }, get cancelled() { return cancelled; } };
 }
 const event = (extra = {}) => ({ sessionID: 'ses_private', kind: 'primary', model: { providerID: 'splish', id: 'alias/model' }, request: new Request('http://127.0.0.1:8000/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json', 'x-opencode-session-id': 'ses_private', authorization: 'Bearer secret-token' }, body: JSON.stringify({ stream: true, messages: [{ role: 'user', content: 'PRIVATE PROMPT' }] }) }), ...extra });
-async function setup(store = memory(), shared = {}) {
+async function setup(store = memory(), shared = {}, version = '2.0.25') {
   const hooks = new Map(), options = [];
-  const dispose = await makePlugin({ storeFactory: () => store, shared }).setup({ session: { hook: async (name, callback, filter) => { hooks.set(name, callback); options.push(filter); } } });
+  const dispose = await makePlugin({ storeFactory: () => store, shared, observerFactory: () => ({ async attach() {}, async close() {} }) })
+    .setup({ app: { version }, session: { hook: async (name, callback, filter) => { hooks.set(name, callback); options.push(filter); } } });
   return { hooks, options, store, dispose };
 }
 
@@ -40,6 +41,16 @@ test('http hooks opt in only the same Splash request', async () => {
   assert.equal(saved.processed / saved.total, 0.32); assert.equal(saved.cache, 20);
   assert.ok(!JSON.stringify(saved).match(/PRIVATE|secret-token|ses_private|canonical\/model|alias\/model/));
   await reader.read(); assert.equal(plugin.store.entries.size, 0); await reader.cancel(); await plugin.dispose();
+});
+
+test('unqualified versions never install prompt request mutation or alter a request', async () => {
+  for (const version of ['2.0.24', '2.0.26', '2.0.25-custom', undefined]) {
+    const plugin = await setup(memory(), {}, version ?? 'unknown'), input = event(), original = input.request;
+    assert.equal(plugin.hooks.size, 0);
+    assert.equal(input.request, original);
+    assert.equal((await input.request.json()).return_progress, undefined);
+    await plugin.dispose();
+  }
 });
 
 test('other providers, nonloopback routes, auxiliary wrong session headers and nonstreaming bodies are untouched', async () => {

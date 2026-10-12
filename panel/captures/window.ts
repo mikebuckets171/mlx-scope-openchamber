@@ -34,79 +34,79 @@ const usable = (snapshot: SnapshotV2): boolean => snapshot.status.state === 'rea
 const mean = (current: number | null, n: number, value: number): number => current === null ? value : current + (value - current) / n;
 
 export class WindowCapture {
-  private state: WindowCaptureState | null = null;
-  private connection = '';
-  private runtimeAt: number | null = null;
-  private hostAt: number | null = null;
-  private previous: { tokens: number; elapsedMs: number | null; at: number } | null = null;
-  private seen = new Set<number>();
-  get current(): WindowCaptureState | null { return this.state; }
-  get recording(): boolean { return this.state?.status === 'recording'; }
+  #state: WindowCaptureState | null = null;
+  #connection = '';
+  #runtimeAt: number | null = null;
+  #hostAt: number | null = null;
+  #previous: { tokens: number; elapsedMs: number | null; at: number } | null = null;
+  #seen = new Set<number>();
+  get current(): WindowCaptureState | null { return this.#state; }
+  get recording(): boolean { return this.#state?.status === 'recording'; }
 
   /** False while another window records or while the runtime can't be read. */
   start(snapshot: SnapshotV2, targetMs: WindowLengthMs): boolean {
     if (this.recording || !usable(snapshot)) return false;
     const now = snapshot.serverNow;
-    this.state = { status: 'recording', stopReason: null, runtime: snapshot.connection.runtime, targetMs, startedAt: now, endedAt: now, samples: 0,
+    this.#state = { status: 'recording', stopReason: null, runtime: snapshot.connection.runtime, targetMs, startedAt: now, endedAt: now, samples: 0,
       decodeTokens: 0, decodeMs: 0, completions: 0, cpuSamples: 0, cpuMean: null, cpuPeak: null, memSamples: 0, memMeanBytes: null, memPeakBytes: null,
       footprintPeakBytes: null, swapStartBytes: null, swapEndBytes: null };
-    this.connection = identity(snapshot); this.runtimeAt = this.hostAt = null; this.previous = null;
+    this.#connection = identity(snapshot); this.#runtimeAt = this.#hostAt = null; this.#previous = null;
     // Replies already in the ring finished before the click.
-    this.seen = new Set(snapshot.completions.items.map(item => item.seq));
+    this.#seen = new Set(snapshot.completions.items.map(item => item.seq));
     this.observe(snapshot);
     // The reading at the click can predate it; rate intervals begin with the first reading after it.
-    this.previous = null;
+    this.#previous = null;
     return true;
   }
   observe(snapshot: SnapshotV2): void {
-    const s = this.state;
+    const s = this.#state;
     if (!s || s.status !== 'recording') return;
     const now = snapshot.serverNow;
     if (now < s.endedAt || now - s.endedAt > WINDOW_GAP_MS) { this.stop('Monitoring gap'); return; }
-    if (identity(snapshot) !== this.connection) { this.stop('The connection or server changed'); return; }
+    if (identity(snapshot) !== this.#connection) { this.stop('The connection or server changed'); return; }
     if (!usable(snapshot)) { this.stop('The server stopped answering'); return; }
     // A late poll cannot supply the unobserved end of the window.
     const end = Math.min(now, s.startedAt + s.targetMs);
     s.endedAt = end;
-    this.host(snapshot, s, end);
-    this.runtime(snapshot, s, end);
+    this.#host(snapshot, s, end);
+    this.#runtime(snapshot, s, end);
     for (const item of snapshot.completions.items) {
-      if (this.seen.has(item.seq) || item.finishedAt < s.startedAt || item.finishedAt > end) continue;
-      this.seen.add(item.seq); s.completions += 1;
+      if (this.#seen.has(item.seq) || item.finishedAt < s.startedAt || item.finishedAt > end) continue;
+      this.#seen.add(item.seq); s.completions += 1;
     }
-    if (now >= s.startedAt + s.targetMs) this.finish();
+    if (now >= s.startedAt + s.targetMs) this.#finish();
   }
   stop(reason = 'Stopped by you'): void {
-    if (!this.state || this.state.status !== 'recording') return;
-    this.state.status = 'interrupted'; this.state.stopReason = reason; this.previous = null;
+    if (!this.#state || this.#state.status !== 'recording') return;
+    this.#state.status = 'interrupted'; this.#state.stopReason = reason; this.#previous = null;
   }
-  clear(): void { if (!this.recording) this.state = null; }
+  clear(): void { if (!this.recording) this.#state = null; }
 
-  private finish(): void {
-    const s = this.state!;
+  #finish(): void {
+    const s = this.#state!;
     if (!s.samples) { this.stop('No fresh readings'); return; }
-    s.status = 'finished'; this.previous = null;
+    s.status = 'finished'; this.#previous = null;
   }
-  private runtime(snapshot: SnapshotV2, s: WindowCaptureState, end: number): void {
+  #runtime(snapshot: SnapshotV2, s: WindowCaptureState, end: number): void {
     const at = snapshot.runtime.sampledAt ?? snapshot.serverNow;
     // A reading from before the click (a cached one at the click included) or after the window's end belongs to no part of it.
-    if (at === this.runtimeAt || at < s.startedAt || at > end) { if (at > end) this.previous = null; return; }
-    this.runtimeAt = at; s.samples += 1;
+    if (at === this.#runtimeAt || at < s.startedAt || at > end) { if (at > end) this.#previous = null; return; }
+    this.#runtimeAt = at; s.samples += 1;
     const footprint = snapshot.host?.runtimeProcess?.footprintBytes ?? snapshot.runtime.memory.processBytes;
     if (footprint != null) s.footprintPeakBytes = Math.max(s.footprintPeakBytes ?? 0, footprint);
     const request = snapshot.runtime.request, tokens = request?.outputTokens;
     // Increments count only while exactly one request decodes; a new request (fewer tokens or less elapsed time) restarts.
-    if (snapshot.runtime.phase !== 'decode' || snapshot.runtime.server.active !== 1 || tokens == null) { this.previous = null; return; }
-    const elapsedMs = request!.elapsedMs ?? null, p = this.previous;
+    if (snapshot.runtime.phase !== 'decode' || snapshot.runtime.server.active !== 1 || tokens == null) { this.#previous = null; return; }
+    const elapsedMs = request!.elapsedMs ?? null, p = this.#previous;
     if (p && tokens >= p.tokens && at > p.at && at - p.at <= WINDOW_GAP_MS && (elapsedMs === null || p.elapsedMs === null || elapsedMs >= p.elapsedMs)) {
       s.decodeTokens += tokens - p.tokens; s.decodeMs += at - p.at;
     }
-    this.previous = { tokens, elapsedMs, at };
+    this.#previous = { tokens, elapsedMs, at };
   }
-  private host(snapshot: SnapshotV2, s: WindowCaptureState, end: number): void {
+  #host(snapshot: SnapshotV2, s: WindowCaptureState, end: number): void {
     const host = snapshot.host;
-    if (!host || host.sampledAt === this.hostAt || host.sampledAt < s.startedAt || host.sampledAt > end) return;
-    this.hostAt = host.sampledAt;
+    if (!host || host.sampledAt === this.#hostAt || host.sampledAt < s.startedAt || host.sampledAt > end) return;
+    this.#hostAt = host.sampledAt;
     if (host.cpuFraction != null) { s.cpuSamples += 1; s.cpuMean = mean(s.cpuMean, s.cpuSamples, host.cpuFraction); s.cpuPeak = Math.max(s.cpuPeak ?? 0, host.cpuFraction); }
     if (host.memUsedBytes != null) { s.memSamples += 1; s.memMeanBytes = mean(s.memMeanBytes, s.memSamples, host.memUsedBytes); s.memPeakBytes = Math.max(s.memPeakBytes ?? 0, host.memUsedBytes); }
     const swap = host.mac?.swapUsedBytes;

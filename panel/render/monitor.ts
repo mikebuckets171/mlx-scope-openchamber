@@ -23,50 +23,51 @@ export interface MonitorParts {
 /** Polls `/v2/snapshot` while the frame is visible and not paused, at the cadence the service asks for, and renders each reading. */
 export class Monitor {
   readonly poller: Poller;
-  private delay = 2_000;
-  private splashBoundaryAt: number | null = null;
-  private chatTimer: ReturnType<typeof setTimeout> | null = null;
-  constructor(private readonly p: MonitorParts) {
-    this.poller = new Poller(() => this.poll());
+  #delay = 2_000;
+  #splashBoundaryAt: number | null = null;
+  #chatTimer: ReturnType<typeof setTimeout> | null = null;
+  readonly #p: MonitorParts;
+  constructor(p: MonitorParts) { this.#p = p;
+    this.poller = new Poller(() => this.#poll());
   }
-  get live(): boolean { return !this.p.state.userPaused && this.p.visibility().visible; }
+  get live(): boolean { return !this.#p.state.userPaused && this.#p.visibility().visible; }
 
-  private async poll(): Promise<number> {
-    const { state, client } = this.p, generation = state.generation;
+  async #poll(): Promise<number> {
+    const { state, client } = this.#p, generation = state.generation;
     const current = (): boolean => !state.disposed && generation === state.generation && this.live;
     try {
-      const since = this.p.since ? this.p.since(state.since) : state.since;
-      const reading = await client.read({ ...this.p.query(), frame: this.p.frame, surface: state.surface, since, tier: this.p.tier });
+      const since = this.#p.since ? this.#p.since(state.since) : state.since;
+      const reading = await client.read({ ...this.#p.query(), frame: this.#p.frame, surface: state.surface, since, tier: this.#p.tier });
       // Only a poll without a body backs off here; with one, the service's own backoff is already in nextPollMs.
       if (current()) { state.failures = reading.body ? 0 : state.failures + 1; state.awaitingFresh = false; this.apply(reading); }
     } catch (error) {
       if (current()) { state.failures += 1; state.awaitingFresh = false; this.apply(client.failure(error)); }
     } finally {
-      if (state.manualRefresh) { state.manualRefresh = false; this.p.refreshed(); }
+      if (state.manualRefresh) { state.manualRefresh = false; this.#p.refreshed(); }
     }
-    this.delay = pollDelay({ failures: state.failures, nextPollMs: state.snapshot?.nextPollMs ?? null, efficient: state.efficient, floorMs: this.p.floorMs });
+    this.#delay = pollDelay({ failures: state.failures, nextPollMs: state.snapshot?.nextPollMs ?? null, efficient: state.efficient, floorMs: this.#p.floorMs });
     if (current()) this.armFreshness();
-    return this.delay;
+    return this.#delay;
   }
 
   /** Apply one reading. A reading from another connection first discards every observation of the previous one. */
   apply(reading: Reading): void {
-    const { state } = this.p;
+    const { state } = this.#p;
     if (state.isNewConnection(reading)) {
       state.clearObservations();
-      this.splashBoundaryAt = reading.sampledAt;
+      this.#splashBoundaryAt = reading.sampledAt;
     }
-    reading = this.afterSplashBoundary(reading);
+    reading = this.#afterSplashBoundary(reading);
     const fresh = state.accept(reading);
-    if (reading.available) state.signal.observe(reading, state.efficient ? 3_000 : this.delay);
+    if (reading.available) state.signal.observe(reading, state.efficient ? 3_000 : this.#delay);
     else if (reading.body) state.signal.break();
-    this.p.received(reading, fresh, state.efficient ? 3_000 : this.delay);
-    this.p.render();
+    this.#p.received(reading, fresh, state.efficient ? 3_000 : this.#delay);
+    this.#p.render();
   }
 
   /** Each frame starts afresh after a pause or connection switch without resetting other frames' shared samples. */
-  private afterSplashBoundary(reading: Reading): Reading {
-    const body = reading.body, boundary = this.splashBoundaryAt;
+  #afterSplashBoundary(reading: Reading): Reading {
+    const body = reading.body, boundary = this.#splashBoundaryAt;
     if (boundary === null || body?.connection.runtime !== 'splash') return reading;
     const source = body.runtime.server.rates, sampledAt = body.runtime.sampledAt;
     const follows = (window: number | undefined): boolean => sampledAt !== undefined && window !== undefined
@@ -95,36 +96,36 @@ export class Monitor {
   }
 
   clearFreshness(): void {
-    const state = this.p.state;
+    const state = this.#p.state;
     if (state.freshnessTimer !== null) clearTimeout(state.freshnessTimer); state.freshnessTimer = null;
-    if (this.chatTimer !== null) clearTimeout(this.chatTimer); this.chatTimer = null;
+    if (this.#chatTimer !== null) clearTimeout(this.#chatTimer); this.#chatTimer = null;
   }
   /** One deadline, not an animation loop: a stalled request cannot leave a live rate on screen. */
   armFreshness(): void {
-    const state = this.p.state;
+    const state = this.#p.state;
     this.clearFreshness();
     if (state.disposed || !this.live) return;
     const expiry = state.snapshot?.chat?.expiresAtMs;
-    if (expiry !== undefined && expiry > this.p.client.now()) this.chatTimer = setTimeout(() => {
-      this.chatTimer = null; this.p.render();
-    }, expiry - this.p.client.now());
-    state.freshnessTimer = setTimeout(() => { state.freshnessTimer = null; state.stale = true; state.signal.break(); this.p.render(); }, freshnessDeadline(this.delay));
+    if (expiry !== undefined && expiry > this.#p.client.now()) this.#chatTimer = setTimeout(() => {
+      this.#chatTimer = null; this.#p.render();
+    }, expiry - this.#p.client.now());
+    state.freshnessTimer = setTimeout(() => { state.freshnessTimer = null; state.stale = true; state.signal.break(); this.#p.render(); }, freshnessDeadline(this.#delay));
   }
 
   /** Pause or resume polling for the user and the visibility gate; resuming never shows old readings as live. */
   sync(): void {
-    const { state } = this.p;
+    const { state } = this.#p;
     state.generation += 1;
     const live = this.live;
-    if (live && state.interrupted) this.splashBoundaryAt = this.p.client.now();
+    if (live && state.interrupted) this.#splashBoundaryAt = this.#p.client.now();
     this.poller.setPaused(!live);
-    this.p.live?.(live);
+    this.#p.live?.(live);
     if (!live) {
       state.interrupted = true; state.awaitingFresh = true;
-      this.clearFreshness(); state.signal.break(); this.p.hidden(); this.p.render();
+      this.clearFreshness(); state.signal.break(); this.#p.hidden(); this.#p.render();
       return;
     }
-    if (state.interrupted) { state.interrupted = false; this.p.render(); }
+    if (state.interrupted) { state.interrupted = false; this.#p.render(); }
     this.armFreshness();
   }
 }

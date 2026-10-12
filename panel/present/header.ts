@@ -1,4 +1,4 @@
-import { connName, phaseLabel } from './copy.ts';
+import { CHAT_UNAVAILABLE, connName, phaseLabel } from './copy.ts';
 import { ago } from './format.ts';
 import type { ScopeInput } from './scope.ts';
 
@@ -19,6 +19,7 @@ export const presentHeader = (s: ScopeInput): HeaderView => {
   const updated = sampled === null ? 'No reading yet' : s.fresh && !s.paused ? `Updated ${ago(sampled, s.now)}` : `Last reading ${ago(sampled, s.now)}`;
   const base = { updated, data: { stale: false, approval: false, paused: s.paused } };
   if (card) return { ...base, phase: card === 'approval' ? 'Needs approval' : 'Needs restart', connection: null, data: { ...base.data, phase: 'detecting', approval: true } };
+  if (s.frame?.reason === 'chat_unavailable') return { ...base, phase: CHAT_UNAVAILABLE, connection: null, data: { ...base.data, phase: 'unknown' } };
   if (!snapshot || !status) return { ...base, phase: s.frame ? 'Reconnecting' : 'Connecting', connection: connName(null), data: { ...base.data, phase: s.frame ? 'reconnecting' : 'detecting' } };
   const connection = chatOnly ? null : connName(snapshot.connection);
   if (s.paused) return { ...base, phase: 'Paused', connection, data: { ...base.data, phase: snapshot.runtime.phase } };

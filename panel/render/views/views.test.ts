@@ -109,7 +109,7 @@ test('runtime diagnostics are available in a disclosure without displacing serve
   expect(serverMarkup(view, new Set(['server-runtime-details'])).markup).toContain('id="server-runtime-details" open>');
 });
 
-test('full Live reserves the readout through freshness changes and shows no empty trend', () => {
+test('full Live retains the readout structure through freshness changes and shows no empty trend', () => {
   for (const state of ['decode', 'prefill', 'idle']) {
     const input = inputOf(state), markup = liveMarkup(presentLive(input), new Set()).markup;
     expect(markup, state).toContain('class="instrument-readout"');

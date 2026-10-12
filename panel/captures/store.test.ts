@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { unitViolations } from '../../src/contract/units.ts';
 import { createFakeStorage } from '../testing/storage.ts';
 import { CAPTURE_MEASUREMENTS as TAB_KEYS } from '../present/captures-tab.ts';
-import { CAPTURE_LIMIT, captureCount, CaptureStore, parseCapture, type CaptureV2 } from './store.ts';
+import { CAPTURE_LIMIT, captureCount, captureKey, CaptureStore, parseCapture, type CaptureV2 } from './store.ts';
 
 const NOW = 1_790_690_700_000;
 const capture = (savedAt: number, extra: Partial<CaptureV2> = {}): CaptureV2 => ({ v: 2, savedAt, kind: 'next-reply', runtime: 'lmstudio', label: 'armed',
@@ -44,6 +44,47 @@ test('concurrent saves from one view both land; a colliding random suffix gets a
   const keys = await Promise.all([store.save(capture(NOW)), store.save(capture(NOW))]);
   expect(new Set(keys).size).toBe(2);
   expect(await store.list()).toHaveLength(2);
+});
+
+test('removal preserves a listed capture replaced by another major format', async () => {
+  const key = captureKey(NOW, 'aaaa'), storage = createFakeStorage({ initial: { [key]: capture(NOW) as never } });
+  const store = new CaptureStore(storage);
+  expect(await store.list()).toHaveLength(1);
+  for (const v of [3, 4, '3']) {
+    const future = { v, future: ['preserve'] }; await storage.set(key, future);
+    await expect(store.remove(key)).rejects.toThrow('different format');
+    expect(storage.dump()[key]).toEqual(future);
+  }
+  expect(storage.stats().deletes).toBe(0);
+});
+
+test('retention preserves a capture changed to another major after the pruning list was read', async () => {
+  const old = captureKey(NOW, 'aaaa'), future = { v: 3, future: ['preserve'] };
+  const storage = createFakeStorage({ initial: Object.fromEntries(Array.from({ length: CAPTURE_LIMIT }, (_, index) =>
+    [captureKey(NOW + index * 1000, 'aaaa'), capture(NOW + index * 1000)])) as never });
+  let read = false;
+  const store = new CaptureStore({ ...storage, get: async key => {
+    const value = await storage.get(key);
+    if (key === old && !read) { read = true; await storage.set(key, future); }
+    return value;
+  } });
+  await expect(store.save(capture(NOW + CAPTURE_LIMIT * 1000))).rejects.toThrow('different format');
+  expect(storage.dump()[old]).toEqual(future); expect(storage.stats().deletes).toBe(0);
+});
+
+test('save avoids a newly occupied key and bounds collision retries without overwriting any format', async () => {
+  const target = captureKey(NOW, 'aaaa'), future = { v: 3, future: ['preserve'] }, storage = createFakeStorage();
+  const store = new CaptureStore({ ...storage, get: async key => {
+    if (key === target && storage.dump()[target] === undefined) await storage.set(target, future);
+    return storage.get(key);
+  } }, () => 'aaaa');
+  const saved = await store.save(capture(NOW));
+  expect(saved).not.toBe(target); expect(storage.dump()[target]).toEqual(future);
+  expect((await store.list()).map(item => item.key)).toEqual([saved]);
+  let reads = 0, writes = 0;
+  const occupied = new CaptureStore({ ...storage, get: async () => { reads++; return future; }, set: async () => { writes++; } });
+  await expect(occupied.save(capture(NOW))).rejects.toThrow('Capture key unavailable');
+  expect(reads).toBe(8); expect(writes).toBe(0);
 });
 
 test('every measurement the Captures tab writes survives a save and a reload', () => {

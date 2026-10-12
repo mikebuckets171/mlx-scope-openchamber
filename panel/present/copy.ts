@@ -51,18 +51,18 @@ const WITHHOLD: Record<string, string> = {
 export const withheldWhy = (reason: string, chatRuntime: string | null = null): string => reason === 'other-provider' && chatRuntime ? `this chat uses ${chatRuntime}` : WITHHOLD[reason] ?? WITHHOLD['not-observed']!;
 
 const allActivity = (...detail: [string, ...string[]]): [string, string, ...string[]] => ['All server activity', ...detail];
+const attributionBoundary = (rt: string): string => `${rt} does not identify which chat made a request. Alternating requests from another chat can’t be ruled out.`;
 /** The ⓘ behind an attribution chip: [title, first, second?]. */
 export const whyCopy = (key: string, rt: string, live: boolean, chatRuntime: string | null = null): [string, string, ...string[]] => {
-  const alternating = 'Alternating requests from another chat can’t be ruled out.';
   switch (key) {
     case 'inferred': return ['Likely this chat', live
       ? `${rt} matches this chat’s model with one request at a time. Scope has observed this turn from the start.`
       : `${rt} matched this chat’s model with one request at a time. Scope observed the whole reply.`,
-    `Scope matches chat activity; ${rt} does not identify which chat made a request. ${alternating} Calls for titles may be included.`];
+    `Scope matches chat activity; ${attributionBoundary(rt)} Calls for titles may be included.`];
     case 'armed': return ['Next reply', live
       ? `You chose to measure your next reply. Each step matches this chat’s model on ${rt}.`
       : `You chose to measure your next reply. Every step matched this chat’s model on ${rt}.`,
-    `${rt} does not identify which chat made a request. ${alternating}`];
+    attributionBoundary(rt)];
     case 'other-provider': return allActivity(`This chat uses ${chatRuntime ?? 'another server'}. ${rt} is serving another app or chat.`,
       chatRuntime ? `Watch ${chatRuntime} to label this chat’s readings.` : 'Watch this chat’s server to label its readings.');
     case 'model-differs': return allActivity(`${rt} is running a different model for another app or chat.`, 'Scope never loads or switches models.');
@@ -105,6 +105,7 @@ export interface StatusCopy { severity: Severity; title: string; detail: string;
 const statusMessage = (severity: Severity, title: string, detail: string, extra?: Pick<StatusCopy, 'since' | 'action'>): StatusCopy =>
   ({ severity, title, detail, ...extra });
 const port = (params: Params): string => typeof params.port === 'number' ? `:${params.port}` : 'its port';
+const missingConnection = (): StatusCopy => statusMessage('warning', 'No local server found', 'Nothing answered on the usual local ports. Start a server, or choose one.', { action: 'connection' });
 /** Why a connection can't be read (`configuration_missing {issue}`): the 1.6 configuration wording. */
 const CONFIG: Partial<Record<string, string>> = {
   malformed_config: 'Correct the malformed provider configuration in OpenChamber.',
@@ -127,7 +128,7 @@ export const statusCopy = (snapshot: SnapshotV2): StatusCopy | null => {
         : 'Check Connection. Scope reads the server’s key without storing it.', { action: 'connection' });
     case 'configuration_missing': return typeof params.issue === 'string' && CONFIG[params.issue]
       ? statusMessage('warning', 'This connection can’t be read', CONFIG[params.issue]!, { action: 'connection' })
-      : statusMessage('warning', 'No local server found', 'Nothing answered on the usual local ports. Start a server, or choose one.', { action: 'connection' });
+      : missingConnection();
     case 'unsupported_runtime': return statusMessage('warning', 'Scope doesn’t recognise this server', `Unsupported server on ${port(params)}.`, { action: 'connection' });
     case 'unsupported_contract': return statusMessage('warning', `${subject} answered in a shape Scope doesn’t know`, 'Scope shows the readings it understands and checks again automatically.');
     case 'detecting': return statusMessage('info', 'Looking for a local server', `Checking ${port(params)} for a supported server.`);
@@ -145,15 +146,14 @@ export const statusCopy = (snapshot: SnapshotV2): StatusCopy | null => {
     case 'admin_unauthorized': return statusMessage('info', 'oMLX admin login refused', 'Only server totals are available. Individual speeds, reply history and usage are unavailable.', { action: 'connection' });
     case 'lms_unavailable': return statusMessage('info', 'Bionic isn’t answering Scope’s check', 'Scope waits for Bionic before running lms. It never starts Bionic; model details return when Bionic answers.');
     // wakes: the build has --metrics, but its /metrics wakes a sleeping server (b7492–b10518), so the fix is an update (§12.9).
-    case 'metrics_required': return params.wakes === true
-      ? statusMessage('info', 'Live requests need a newer llama-server', 'Update to b10519+ to read active requests and speeds without waking the model.')
-      : statusMessage('info', 'Live request details need --metrics', 'Start with --metrics to read active requests and speeds without waking the model.');
+    case 'metrics_required': return statusMessage('info', params.wakes === true ? 'Live requests need a newer llama-server' : 'Live request details need --metrics',
+      `${params.wakes === true ? 'Update to b10519+' : 'Start with --metrics'} to read active requests and speeds without waking the model.`);
     case 'sleeping': return statusMessage('info', 'llama-server is asleep', 'The model will load on the next request. Scope lets it sleep.');
     default: {
       // A state without a reason still says what it means; a reason code this build doesn't know never blanks the view.
       const state = snapshot.status.state;
       if (state === 'failing') return statusMessage('critical', `${subject} isn’t answering`, 'Scope checks again automatically.', { since, action: 'connection' });
-      if (state === 'unconfigured') return statusMessage('warning', 'No local server found', 'Nothing answered on the usual local ports. Start a server, or choose one.', { action: 'connection' });
+      if (state === 'unconfigured') return missingConnection();
       if (state === 'detecting') return statusMessage('info', 'Looking for a local server', 'Checking the usual local ports.');
       return null;
     }
@@ -202,8 +202,10 @@ export const FIRST_RUN = 'Recording reply history locally';
 export const NON_LOCAL = 'This chat is not using a local model';
 export const NO_FRESH = 'No fresh readings';
 export const NO_FRESH_DETAIL = 'Older readings are not current. Scope is waiting for an update.';
-/** A poll with no body: the host or the service failed. The detail is 1.6's message (panel/host-errors.ts), unchanged. */
+export const CHAT_UNAVAILABLE = 'Chat identity unavailable';
+/** A read with no body: a host/service failure or deliberately withheld collection. */
 export const FRAME_TITLE: Partial<Record<string, string>> = {
+  chat_unavailable: CHAT_UNAVAILABLE,
   service_failed: 'MLX Scope’s service isn’t running', host_unavailable: 'OpenChamber can’t reach MLX Scope’s service',
   host_timeout: 'MLX Scope’s service didn’t answer in time', host_disconnected: 'OpenChamber disconnected MLX Scope',
   host_rejected: 'OpenChamber rejected Scope’s request', unparseable_snapshot: 'Scope couldn’t read its service’s reply',

@@ -214,6 +214,21 @@ test('session shortcuts never put a chat title on screen', async ({ page }) => {
   await expect(frame.locator('#scope')).not.toContainText('Local coding session');
 });
 
+test('an unidentified chat withholds local reads until Whole engine is chosen explicitly', async ({ page }) => {
+  await page.goto('/?chat=1&chatModel=Unidentified-model');
+  const frame = page.frameLocator('iframe');
+  await expect(frame.locator('#startup-fallback')).toHaveCount(0);
+  await expect(frame.locator('#scope')).toBeVisible();
+  await expect(frame.locator('#panel-live')).toContainText('This chat’s identity is unavailable. Choose Whole engine to inspect a local connection.');
+  await expect(frame.locator('#phase')).toHaveText('Chat identity unavailable');
+  await expect(frame.locator('#panel-live')).not.toContainText('read its service');
+  expect(await requests(page)).toBe(0);
+  await openMenu(frame);
+  await frame.getByRole('combobox', { name: 'Measurement scope' }).selectOption('engine');
+  await expect.poll(() => requests(page)).toBeGreaterThan(0);
+  await expect(frame.locator('#phase')).toHaveText('Generating');
+});
+
 test('energy saving reduces polling without pausing the model', async ({ page }) => {
   const frame = await openPanel(page);
   await menu(frame, '#efficiency');

@@ -1,4 +1,4 @@
-import type { HostClient } from '@openchamber/sdk';
+import type { HostClient } from '../../host/types.ts';
 import type { SnapshotV2, Surface } from '../../../src/contract/snapshot.ts';
 
 // Owner: ui-core. How a tab or surface view plugs into the shell; heavy views load lazily. History (ui-history) uses it.
@@ -14,6 +14,8 @@ export interface ViewContext {
 }
 export interface ViewHandle {
   update(snapshot: SnapshotV2 | null): void;
+  /** Open the shared inspector without starting another collection loop. */
+  inspect?(current?: boolean): void;
   /** Refresh view-owned storage when entered, without replacing in-progress work. */
   activate?(): void;
   /** A view-owned timed capture stays reachable while its workspace is hidden. */

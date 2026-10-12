@@ -4,7 +4,7 @@ import { sessionMarkup } from '../render/views/session.ts';
 import { liveMarkup } from '../render/views/live.ts';
 import { esc } from '../render/html.ts';
 import { MOCK_NOW, MOCK_STATES, mockBody } from '../testing/mock-states.ts';
-import { fromSnapshot } from './reading.ts';
+import { frameReading, fromSnapshot } from './reading.ts';
 import { presentSessionSection } from './session.ts';
 import { presentLive } from './live.ts';
 import { SERVER_WIDE } from './scope.ts';
@@ -509,4 +509,11 @@ test('every mock glance omits unmeasured lanes while retaining its truthful supp
     expect(error, state).toContain('Could not open Scope.');
     expect(error, state).not.toContain('class="ws-line ws-support');
   }
+});
+
+
+test('unknown chat identity explains withheld collection without claiming a failed connection', () => {
+  const message = 'Choose Whole engine to inspect a local connection.';
+  const input = inputOf('decode', { snapshot: null, last: null, reading: frameReading('chat_unavailable', message, MOCK_NOW) });
+  expect(presentSessionSection(input)).toMatchObject({ phase: 'Chat identity unavailable', note: message, measurement: null, held: null });
 });

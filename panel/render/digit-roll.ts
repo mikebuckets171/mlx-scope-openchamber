@@ -10,24 +10,25 @@ export const digitMarkup = (value: string): Raw => html`${[...value].map((char, 
 
 /** Motion is presentation-only: no interpolated number, timer, sampling or extra live announcement. */
 export class DigitRoll {
-  private previous = new Map<string, { value: string; context: string }>();
-  private animations = new Set<Animation>();
-  private readonly reduced = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
-  constructor(private readonly root: HTMLElement) { this.reduced?.addEventListener('change', this.reset); }
+  #previous = new Map<string, { value: string; context: string }>();
+  #animations = new Set<Animation>();
+  readonly #reduced = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  readonly #root: HTMLElement;
+  constructor(root: HTMLElement) { this.#root = root; this.#reduced?.addEventListener('change', this.reset); }
   readonly reset = (): void => {
-    for (const animation of this.animations) animation.cancel();
-    this.animations.clear(); this.previous.clear();
-    this.root.querySelectorAll('.digit-before').forEach(node => node.remove());
+    for (const animation of this.#animations) animation.cancel();
+    this.#animations.clear(); this.#previous.clear();
+    this.#root.querySelectorAll('.digit-before').forEach(node => node.remove());
   };
   sync(context: string, visible: boolean): void {
-    if (!visible || this.reduced?.matches) { this.reset(); return; }
-    for (const animation of this.animations) animation.cancel();
-    this.animations.clear(); this.root.querySelectorAll('.digit-before').forEach(node => node.remove());
+    if (!visible || this.#reduced?.matches) { this.reset(); return; }
+    for (const animation of this.#animations) animation.cancel();
+    this.#animations.clear(); this.#root.querySelectorAll('.digit-before').forEach(node => node.remove());
     const next = new Map<string, { value: string; context: string }>();
-    for (const node of Array.from(this.root.querySelectorAll<HTMLElement>('[data-roll-value]'))) {
+    for (const node of Array.from(this.#root.querySelectorAll<HTMLElement>('[data-roll-value]'))) {
       if (!node.checkVisibility() || !node.closest('[data-live="true"]')) continue;
       const value = node.dataset.rollValue!, local = `${context}\0${node.dataset.rollContext ?? ''}`;
-      const key = node.id, old = this.previous.get(key);
+      const key = node.id, old = this.#previous.get(key);
       next.set(key, { value, context: local });
       if (!old || old.context !== local) continue;
       for (const index of changedDigits(old.value, value)) {
@@ -37,14 +38,14 @@ export class DigitRoll {
         const previous = document.createElement('span'); previous.className = 'digit-before'; previous.textContent = old.value[index]!; previous.setAttribute('aria-hidden', 'true'); cell.append(previous);
         const animate = (element: HTMLElement, frames: Keyframe[]): void => {
           const animation = element.animate(frames, { duration: 160, easing: 'cubic-bezier(.2,.7,.2,1)' });
-          this.animations.add(animation);
-          void animation.finished.catch(() => {}).finally(() => { this.animations.delete(animation); if (element === previous) previous.remove(); });
+          this.#animations.add(animation);
+          void animation.finished.catch(() => {}).finally(() => { this.#animations.delete(animation); if (element === previous) previous.remove(); });
         };
         animate(current, [{ transform: 'translateY(55%)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }]);
         animate(previous, [{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-55%)', opacity: 0 }]);
       }
     }
-    this.previous = next;
+    this.#previous = next;
   }
-  dispose(): void { this.reset(); this.reduced?.removeEventListener('change', this.reset); }
+  dispose(): void { this.reset(); this.#reduced?.removeEventListener('change', this.reset); }
 }

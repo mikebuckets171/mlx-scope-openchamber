@@ -3,7 +3,7 @@ import { parseAlertLog, parseAlerts, type AlertLogEntryV2, type AlertV2 } from '
 import { parseCapabilities, type Capabilities, type CapabilityKey } from './capabilities.ts';
 import { parseCompletionsV2, type CompletionsV2 } from './completion.ts';
 import {
-  at, bool, classAKeys, connectionId, count, defined, fraction, hex8, label, list, modelLabel, nonneg, obj, oneOf, opt, type Json,
+  at, bool, classAKeys, connectionId, count, defined, fraction, hex8, label, list, modelLabel, nonneg, obj, oneOf, opt, optionalFields, type Json,
 } from './guards.ts';
 import { parseHostV2, type HostV2 } from './host.ts';
 import { parseParams, STATUS_PARAMS, statusReason, statusState, type ReasonParams, type StatusReason, type StatusState } from './reasons.ts';
@@ -115,29 +115,29 @@ export interface EngineV2 { name: string; version: string; selected: boolean; fo
 export interface LeaseV2 { leader: boolean; epoch: number; ttlMs: number; leaderSurface: 'page' | 'panel' | 'status' | null }
 
 /** Field → capability (P3). A present value without its capability is removed by `parseSnapshotV2`. */
+// Expand shared path prefixes once, retaining the public field/capability allowlist.
+const capabilityFields = (path: string, capability: string, groups: Record<string, string>): Array<readonly [string, CapabilityKey]> =>
+  Object.entries(groups).flatMap(([key, fields]) => fields.split(' ').map(field => [path + field, capability + key] as [string, CapabilityKey]));
 export const HONESTY: ReadonlyArray<readonly [string, CapabilityKey]> = [
-  ['runtime.request.decodeTps', 'request.decodeRate'], ['runtime.request.prefillTps', 'request.prefillRate'],
-  ['runtime.request.prefillFraction', 'request.prefillProgress'], ['runtime.request.prefillProcessedTokens', 'request.prefillProgress'],
-  ['runtime.request.prefillTotalTokens', 'request.prefillProgress'], ['runtime.request.prefillStale', 'request.prefillProgress'],
-  ['runtime.request.prefillObservedAt', 'request.prefillProgress'],
-  ['runtime.request.prefillEtaMs', 'request.prefillEta'], ['runtime.request.ttftMs', 'request.ttft'],
-  ['runtime.request.promptTokens', 'request.tokens'], ['runtime.request.cachedTokens', 'request.tokens'],
-  ['runtime.request.outputTokens', 'request.tokens'], ['runtime.request.elapsedMs', 'request.elapsed'],
-  ['runtime.request.contextWindowTokens', 'request.context'], ['runtime.request.contextUsedTokens', 'request.context'],
-  ['runtime.server.active', 'server.requests'], ['runtime.server.queued', 'server.requests'],
-  ['runtime.server.averages', 'server.averages'], ['runtime.server.histograms', 'server.latency'],
-  ['runtime.server.cache', 'server.cache'], ['runtime.server.speculative', 'server.speculative'], ['runtime.server.rates', 'server.rates'],
-  ['runtime.memory.processBytes', 'server.memory.process'], ['runtime.memory.modelBytes', 'server.memory.model'],
-  ['runtime.memory.metalBytes', 'server.memory.metal'], ['runtime.memory.metalPeakBytes', 'server.memory.metal'],
-  ['runtime.memory.ceilingBytes', 'server.memory.ceiling'], ['runtime.memory.guard', 'server.memory.process'],
-  ['runtime.residency', 'server.residency'], ['runtime.residencyCount', 'server.residency'], ['runtime.slots', 'server.slots'],
-  ['runtime.catalog', 'server.catalog'], ['runtime.engines', 'server.engines'], ['completions.items', 'server.completions'],
-  ['host.cpuFraction', 'host.cpu'], ['host.memUsedBytes', 'host.memory'], ['host.memTotalBytes', 'host.memory'],
-  ['host.mac.wiredBytes', 'host.memory'], ['host.mac.compressedBytes', 'host.memory'],
-  ['host.mac.swapUsedBytes', 'host.swap'], ['host.mac.swapTotalBytes', 'host.swap'], ['host.mac.pressureLevel', 'host.pressure'],
-  ['host.mac.wiredLimitBytes', 'host.wiredLimit'], ['host.gpu.busyFraction', 'host.gpuBusy'],
-  ['host.gpu.allocBytes', 'host.gpuMemory'], ['host.gpu.inUseBytes', 'host.gpuMemory'], ['host.thermal', 'host.thermal'],
-  ['host.runtimeProcess', 'host.footprint'], ['host.power', 'host.power'],
+  ...capabilityFields('runtime.request.', 'request.', {
+    decodeRate: 'decodeTps', prefillRate: 'prefillTps',
+    prefillProgress: 'prefillFraction prefillProcessedTokens prefillTotalTokens prefillStale prefillObservedAt',
+    prefillEta: 'prefillEtaMs', ttft: 'ttftMs', tokens: 'promptTokens cachedTokens outputTokens', elapsed: 'elapsedMs',
+    context: 'contextWindowTokens contextUsedTokens',
+  }),
+  ...capabilityFields('runtime.server.', 'server.', {
+    requests: 'active queued', averages: 'averages', latency: 'histograms', cache: 'cache', speculative: 'speculative', rates: 'rates',
+  }),
+  ...capabilityFields('runtime.memory.', 'server.memory.', {
+    process: 'processBytes guard', model: 'modelBytes', metal: 'metalBytes metalPeakBytes', ceiling: 'ceilingBytes',
+  }),
+  ...capabilityFields('runtime.', 'server.', { residency: 'residency residencyCount', slots: 'slots', catalog: 'catalog', engines: 'engines' }),
+  ['completions.items', 'server.completions'],
+  ...capabilityFields('host.', 'host.', {
+    cpu: 'cpuFraction', memory: 'memUsedBytes memTotalBytes mac.wiredBytes mac.compressedBytes',
+    swap: 'mac.swapUsedBytes mac.swapTotalBytes', pressure: 'mac.pressureLevel', wiredLimit: 'mac.wiredLimitBytes',
+    gpuBusy: 'gpu.busyFraction', gpuMemory: 'gpu.allocBytes gpu.inUseBytes', thermal: 'thermal', footprint: 'runtimeProcess', power: 'power',
+  }),
 ];
 const valueAt = (root: unknown, path: string): unknown => path.split('.').reduce<unknown>((value, key) => obj(value)?.[key], root);
 const present = (value: unknown): boolean => value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0);
@@ -165,6 +165,15 @@ const num = (value: unknown): number | undefined => opt(nonneg(value));
 const nonEmpty = <T extends object>(value: T): T | undefined => Object.keys(value).length ? value : undefined;
 const limit = (value: unknown): number | null => { const n = count(value); return n ? n : null; };
 
+const requestFields = optionalFields({ decodeTps: nonneg, promptTokens: count, cachedTokens: count, outputTokens: count,
+  elapsedMs: nonneg, ttftMs: nonneg, contextWindowTokens: limit, contextUsedTokens: count });
+const residencyFields = optionalFields({ queued: count, bytes: count, gpuResidentBytes: count, unloadsAt: at, contextWindowTokens: limit });
+const slotFields = optionalFields({ decodedTokens: count, remainingTokens: count, promptTokens: count, decodeTps: nonneg });
+const averageFields = optionalFields({ decodeTps: nonneg, prefillTps: nonneg, cacheEfficiencyFraction: fraction,
+  requestsTotal: count, failedTotal: count, uptimeMs: nonneg });
+const cacheFields = optionalFields({ ramBytes: count, ssdBytes: count, ramEntries: count, ssdEntries: count,
+  lastLookup: oneOf(['hit', 'miss'] as const) });
+
 /** Cross-field rules ported from the 1.6 panel parser (src/telemetry.ts parseTelemetrySnapshot). */
 const request = (value: unknown, current: Phase): RequestV2 | null => {
   const item = obj(value);
@@ -175,14 +184,11 @@ const request = (value: unknown, current: Phase): RequestV2 | null => {
   const progress = hasCounts ? done !== null && total !== null && total > 0 && done <= total ? done / total : null : fraction(item.prefillFraction);
   const prefill = current === 'prefill' ? progress : null, stale = item.prefillStale === true, prefillTps = nonneg(item.prefillTps);
   return defined({
-    model: modelLabel(item.model), decodeTps: num(item.decodeTps), prefillTps: opt(prefillTps),
+    ...requestFields(item), model: modelLabel(item.model), prefillTps: opt(prefillTps),
     prefillProcessedTokens: prefill !== null ? opt(done) : undefined, prefillTotalTokens: prefill !== null ? opt(total) : undefined,
     prefillFraction: opt(prefill), prefillStale: stale || undefined,
     prefillObservedAt: prefill !== null && count(item.prefillObservedAt) !== null ? opt(at(item.prefillObservedAt)) : undefined,
     prefillEtaMs: prefill !== null && prefill < 1 && !stale && (prefillTps ?? 0) > 0 ? num(item.prefillEtaMs) : undefined,
-    promptTokens: int(item.promptTokens), cachedTokens: int(item.cachedTokens), outputTokens: int(item.outputTokens),
-    elapsedMs: num(item.elapsedMs), ttftMs: num(item.ttftMs),
-    contextWindowTokens: opt(limit(item.contextWindowTokens)), contextUsedTokens: int(item.contextUsedTokens),
   });
 };
 const residency = (value: unknown): ResidencyV2 | null => {
@@ -192,8 +198,7 @@ const residency = (value: unknown): ResidencyV2 | null => {
   // Per-model speed and progress only while that model has at most one request.
   const single = (active ?? 0) <= 1;
   return defined({
-    model, phase: current, source, active: opt(active), queued: int(item.queued), bytes: int(item.bytes),
-    gpuResidentBytes: int(item.gpuResidentBytes), unloadsAt: opt(at(item.unloadsAt)), contextWindowTokens: opt(limit(item.contextWindowTokens)),
+    ...residencyFields(item), model, phase: current, source, active: opt(active),
     decodeTps: single && current === 'decode' ? num(item.decodeTps) : undefined,
     prefillFraction: single && current === 'prefill' ? opt(fraction(item.prefillFraction)) : undefined,
     prefillTps: single && current === 'prefill' && !stale ? num(item.prefillTps) : undefined, prefillStale: stale || undefined,
@@ -202,9 +207,7 @@ const residency = (value: unknown): ResidencyV2 | null => {
 const slots = (value: unknown): SlotV2[] => {
   const parsed = list(value, LIMITS.slots, raw => {
     const item = obj(raw), id = count(item?.id), busy = bool(item?.busy), context = count(item?.contextWindowTokens);
-    return item && id !== null && busy !== null && context !== null ? defined({ id, busy, contextWindowTokens: context,
-      decodedTokens: int(item.decodedTokens), remainingTokens: int(item.remainingTokens), promptTokens: int(item.promptTokens),
-      decodeTps: num(item.decodeTps) }) : null;
+    return item && id !== null && busy !== null && context !== null ? defined({ ...slotFields(item), id, busy, contextWindowTokens: context }) : null;
   });
   // An observed per-slot rate is only honest while exactly one slot is busy.
   const single = parsed.filter(slot => slot.busy).length === 1;
@@ -230,12 +233,9 @@ const server = (value: unknown): RuntimeV2['server'] => {
   const acceptance = fraction(speculative?.acceptanceFraction), specWindow = nonneg(speculative?.windowMs), rateWindow = nonneg(rates?.windowMs);
   return defined({
     active: count(item.active), queued: count(item.queued),
-    averages: averages ? nonEmpty(defined({ decodeTps: num(averages.decodeTps), prefillTps: num(averages.prefillTps),
-      cacheEfficiencyFraction: opt(fraction(averages.cacheEfficiencyFraction)), requestsTotal: int(averages.requestsTotal),
-      failedTotal: int(averages.failedTotal), uptimeMs: num(averages.uptimeMs) })) : undefined,
+    averages: averages ? nonEmpty(averageFields(averages)) : undefined,
     histograms: histograms ? nonEmpty(defined({ ttftMs: quantiles(histograms.ttftMs), itlMs: quantiles(histograms.itlMs) })) : undefined,
-    cache: cache ? nonEmpty(defined({ ramBytes: int(cache.ramBytes), ssdBytes: int(cache.ssdBytes), ramEntries: int(cache.ramEntries),
-      ssdEntries: int(cache.ssdEntries), lastLookup: opt(oneOf(['hit', 'miss'] as const)(cache.lastLookup)) })) : undefined,
+    cache: cache ? nonEmpty(cacheFields(cache)) : undefined,
     speculative: drafted !== null && accepted !== null && accepted <= drafted && acceptance !== null && specWindow !== null
       ? { draftedTokens: drafted, acceptedTokens: accepted, acceptanceFraction: acceptance, windowMs: specWindow } : undefined,
     rates: rateWindow !== null ? defined({ promptTps: num(rates!.promptTps), decodeTps: num(rates!.decodeTps), windowMs: rateWindow,

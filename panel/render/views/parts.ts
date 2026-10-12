@@ -26,6 +26,8 @@ export const ICON = {
   mark: icon(ICON_PATH.mark, 'scope-mark'),
   info: icon(ICON_PATH.info),
 } as const;
+/** Inline glyphs work inside the panel's image-free content security policy. */
+export const DISCLOSURE_ARROW = html`<span class="disclosure-arrow" aria-hidden="true">${ICON.right}</span>`;
 /** Legacy Turn-stats markup constructs its glyphs only when that unbundled renderer is used. */
 export const legacyIcon = (name: 'close' | 'down' | 'up'): Raw => icon({
   close: 'M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z',
@@ -67,3 +69,13 @@ export const section = (prefix: string, key: string, title: string, right: Part,
   return html`<section class="insight-section${extra}" data-key="${prefix}-${key}"><div class="section-heading"><div class="title-row"><h2>${title}</h2>${btn}</div>${right ? html`<span>${right}</span>` : ''}</div>${pop}${body}</section>`;
 };
 export const meter = (fraction: number, style = ''): Raw => html`<div class="meter" aria-hidden="true"${style ? html` style="${style}"` : ''}><i style="width:${pct100(fraction)}"></i></div>`;
+
+/** Native disclosures share markup and preserve their own expanded state between readings. */
+export const disclosure = (id: string, title: Part, body: Part, open: Open, className = 'reading-details'): Raw =>
+  html`<details class="${className}" id="${id}"${flag('open', open.has(id))}><summary>${title}${DISCLOSURE_ARROW}</summary>${body}</details>`;
+
+/** One escaped action button keeps navigation and detail controls consistent. */
+export const actionButton = (action: string, label: Part, attributes: Part = '', className = 'btn quiet'): Raw =>
+  html`<button class="${className}" type="button" data-action="${action}"${attributes}>${label}</button>`;
+
+export const paragraph = (body: Part): Raw => html`<p class="insight-note">${body}</p>`;

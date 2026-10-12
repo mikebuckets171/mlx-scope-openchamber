@@ -1,4 +1,5 @@
-import { HostRequestError, isJsonValue, type HostClient, type JsonValue } from '@openchamber/sdk';
+import { HostRequestError, isJsonValue } from '../host/openchamber.ts';
+import type { HostClient, JsonValue } from '../host/types.ts';
 
 // Owner: ledger. A fake host.storage enforcing the host limits and the whole-file rewrite (S5), shared by ledger,
 // ui-history and ui-core tests. Every failure is the same HOST_REJECTED, as the host sends it.

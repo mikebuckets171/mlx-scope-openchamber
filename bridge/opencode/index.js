@@ -3,6 +3,7 @@ import { COMPANION_VERSION, PROTOCOL } from './chat.js';
 import { randomUUID } from 'node:crypto';
 import { createStore, key } from './store.js';
 import { observeStream } from './stream.js';
+import { featureSupport, profileFor } from './compatibility.js';
 
 const sharedKey = revision => Symbol.for(`mlx-scope.prompt-progress.${COMPANION_VERSION}.${PROTOCOL}.${typeof revision === 'string' && /^[a-f0-9]{64}$/.test(revision) ? revision : 'unmanaged'}`);
 const PATHS = new Set(['/v1/chat/completions', '/v1/responses', '/v1/messages']);
@@ -56,12 +57,33 @@ export function makePlugin({ storeFactory = createStore, observerFactory = creat
     id: 'mlx-scope-prompt-progress',
     async setup(ctx) {
       const SHARED = sharedKey(ctx.options?.scopeRevision);
-      const config = ctx.options?.promptProgress === false ? null : options(ctx.options), active = new Map(), prepared = new WeakSet();
+      const active = new Map(), prepared = new WeakSet();
+      const features = featureSupport(ctx.app?.version), qualified = !!profileFor(ctx.app?.version);
+      let config = null;
+      if (qualified && ctx.options?.promptProgress !== false) {
+        try { config = options(ctx.options); }
+        catch { features['prompt-progress'].support = 'unavailable'; warn('MLX Scope prompt progress options are unavailable; chat observation remains available.'); }
+      }
       const holder = shared[SHARED] ??= { store: storeFactory({ warn }), refs: 0 };
       holder.refs += 1;
       const store = holder.store;
       let detach;
       const registrations = [];
+      const chatRegistrations = [];
+      const install = async (id, action, chat = false) => {
+        if (!qualified) return;
+        const added = [];
+        try {
+          if (typeof ctx.session?.hook !== 'function') throw new Error('No hook API');
+          await action(async (...args) => { const registration = await ctx.session.hook(...args); added.push(registration); });
+          registrations.push(...added); if (chat) chatRegistrations.push(...added);
+          features[id].available = true;
+        } catch {
+          for (const registration of added) try { await registration?.dispose?.(); } catch { /* release this feature only */ }
+          features[id] = { support: 'unavailable', available: false };
+          warn(`MLX Scope ${id} is unavailable; other monitoring remains available.`);
+        }
+      };
       let released = false;
       const teardown = async () => {
         if (released) return; released = true;
@@ -74,31 +96,48 @@ export function makePlugin({ storeFactory = createStore, observerFactory = creat
         }
       };
       try {
-        if (ctx.app && ctx.event?.subscribe) {
-          holder.chat ??= observerFactory({ warn });
-          detach = await holder.chat.attach(ctx);
-          registrations.push(await ctx.session.hook('http.request', event => holder.chat.authorizeHttp(event, ctx)));
-          // Released 2.0.25 invokes this metadata hook for every model call, including socket reuse.
-          // Observe the destination only; frames, headers and the socket itself remain untouched.
-          if (ctx.app.version === '2.0.25') registrations.push(await ctx.session.hook('experimental.ws.handshake', event => holder.chat.authorizeWebSocket(event, ctx)));
+        if (ctx.app) {
+          try { holder.chat ??= observerFactory({ warn }); }
+          catch { warn('MLX Scope chat observation is unavailable; runtime monitoring remains available.'); }
+          if (holder.chat && typeof ctx.event?.subscribe === 'function') {
+            await install('http-delivery', hook => hook('http.request', event => holder.chat.authorizeHttp(event, ctx)), true);
+            // This experimental adapter is qualified independently, including per-call metadata on reused sockets.
+            await install('websocket-delivery', hook => hook('experimental.ws.handshake', event => holder.chat.authorizeWebSocket(event, ctx)), true);
+          } else if (qualified) for (const id of ['http-delivery', 'websocket-delivery']) features[id].support = 'unavailable';
         }
         if (config) {
-          registrations.push(await ctx.session.hook('http.request', async event => {
+          await install('prompt-progress', async hook => {
+          await hook('http.request', async event => {
+            if (released || !features['prompt-progress'].available) return;
             if (!eligible(event, config) || event.request.signal.aborted) return;
             const body = await jsonBody(event.request);
             if (!body || body.stream !== true || event.request.signal.aborted) return;
             const headers = new Headers(event.request.headers); headers.delete('content-length');
             event.request = new Request(event.request, { headers, body: JSON.stringify({ ...body, return_progress: true }) });
             prepared.add(event.request);
-          }, { providerID: config.providerID }));
-          registrations.push(await ctx.session.hook('http.response', event => {
+          }, { providerID: config.providerID });
+          await hook('http.response', event => {
+            if (released) return;
             if (!eligible(event, config) || !prepared.has(event.request)) return;
             const requestID = randomUUID();
             const metadata = { requestID, sessionKey: key('session', event.sessionID), providerID: config.providerID,
               endpointKey: config.endpointKey, modelKey: key('model', event.model.id), kind: event.kind };
             event.response = observeStream(event.response, { metadata, store, signal: event.request.signal,
               onObserver: finish => active.set(requestID, finish), onClose: () => active.delete(requestID) });
-          }, { providerID: config.providerID }));
+          }, { providerID: config.providerID });
+          });
+        }
+        // A qualified watcher contract is not proof that this process activated a newly installed revision.
+        if (ctx.app && holder.chat) {
+          try { detach = await holder.chat.attach(ctx, features); }
+          catch {
+            for (const registration of chatRegistrations) {
+              registrations.splice(registrations.indexOf(registration), 1);
+              try { await registration?.dispose?.(); } catch { /* leave the prompt observer intact */ }
+            }
+            for (const id of ['http-delivery', 'websocket-delivery']) features[id] = { support: 'unavailable', available: false };
+            warn('MLX Scope chat observation is unavailable; runtime monitoring remains available.');
+          }
         }
         return teardown;
       } catch (error) {

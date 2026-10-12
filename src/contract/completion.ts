@@ -1,5 +1,5 @@
 import { basis, type Basis } from './capabilities.ts';
-import { at, bool, count, defined, fraction, hex8, list, modelLabel, nonneg, obj, oneOf, opt, signedInt } from './guards.ts';
+import { at, bool, count, defined, fraction, hex8, list, modelLabel, nonneg, obj, oneOf, opt, optionalFields, signedInt } from './guards.ts';
 import { thermalLevel, type PressureLevel, type ThermalLevel } from './host.ts';
 import { withholdReason, type WithholdReason } from './reasons.ts';
 
@@ -49,15 +49,16 @@ const completionHost = (value: unknown): CompletionV2['host'] => {
   });
 };
 
+const completionFields = optionalFields({ promptTokens: count, cachedTokens: count, outputTokens: count,
+  ttftMs: nonneg, prefillMs: nonneg, decodeTps: nonneg, prefillTps: nonneg });
+
 export const parseCompletionV2 = (value: unknown): CompletionV2 | null => {
   const item = obj(value), seq = count(item?.seq), finishedAt = at(item?.finishedAt), kind = basis(item?.basis), overlapped = bool(item?.overlapped);
   if (!item || !seq || finishedAt === null || !kind || overlapped === null) return null;
   const startedAt = at(item.startedAt), aggregate = count(item.aggregateOf);
   return defined({
     seq, finishedAt, startedAt: startedAt !== null && startedAt <= finishedAt ? startedAt : null, model: modelLabel(item.model), basis: kind,
-    promptTokens: opt(count(item.promptTokens)), cachedTokens: opt(count(item.cachedTokens)),
-    outputTokens: opt(count(item.outputTokens)), ttftMs: opt(nonneg(item.ttftMs)), prefillMs: opt(nonneg(item.prefillMs)),
-    decodeTps: opt(nonneg(item.decodeTps)), prefillTps: opt(nonneg(item.prefillTps)), overlapped,
+    ...completionFields(item), overlapped,
     aggregateOf: aggregate !== null && aggregate > 1 ? aggregate : undefined, verdict: verdict(item.verdict), host: completionHost(item.host),
   });
 };

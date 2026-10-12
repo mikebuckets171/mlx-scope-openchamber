@@ -2,6 +2,7 @@
 // Starts an isolated released OpenCode process with its built-in OpenAI default transport.
 // All requests are rerouted to a synthetic loopback Responses server; no credential or real model is used.
 import assert from 'node:assert/strict';
+import { profileFor } from './compatibility.js';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, unlink, writeFile } from 'node:fs/promises';
@@ -19,9 +20,10 @@ if (!binary) throw new Error('Pass the absolute path to an OpenCode 2.0.25 binar
 const remote = true;
 const remoteBase = 'http://scope-protocol-fixture.invalid/v1';
 const remoteWS = 'ws://scope-protocol-fixture.invalid/v1';
-assert.equal(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim(), 'opencode v2.0.25');
+const profile = profileFor(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim().replace(/^opencode v/, ''));
+assert.ok(profile, 'This OpenCode version has no qualified compatibility profile.');
 const bridge = dirname(fileURLToPath(import.meta.url));
-const companionFiles = ['index.js', 'demand.js', 'chat.js', 'chat-store.js', 'store.js', 'stream.js', 'package.json'];
+const companionFiles = ['index.js', 'demand.js', 'chat.js', 'chat-store.js', 'store.js', 'stream.js', 'compatibility.js', 'package.json'];
 const hashes = async () => Object.fromEntries(await Promise.all(companionFiles.map(async name => [name, createHash('sha256').update(await readFile(join(bridge, name))).digest('hex')])));
 const companionSha256 = await hashes();
 // The isolated plugin must not live under a node_modules ancestor: OpenCode excludes those local sources and
@@ -147,7 +149,7 @@ try {
     if (!heartbeat) await pause(500);
   }
   if (!heartbeat) throw new Error(`The isolated companion never published a heartbeat.\n${logs}`);
-  assert.ok(heartbeat.supported); assert.equal(heartbeat.runtimeVersion, '2.0.25');
+  assert.ok(heartbeat.supported); assert.equal(heartbeat.runtimeVersion, profile.runtimeVersion);
   const { data: session } = await api('/api/session', { title: 'Scope protocol fixture', model: { providerID: 'openai', id: 'gpt-6.1-sol' } });
   assert.ok(session.id);
   // Every measurement is delivery observed through OpenCode and carries no session, model or endpoint identity.

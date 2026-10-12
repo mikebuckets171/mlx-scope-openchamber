@@ -2,6 +2,7 @@
 // Copies the previous companion, then hot-updates that isolated copy during a synthetic stream.
 // No real model, live configuration, or application process is changed.
 import assert from 'node:assert/strict';
+import { profileFor } from './compatibility.js';
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, unlink, writeFile, copyFile, rename } from 'node:fs/promises';
 import http from 'node:http';
@@ -15,20 +16,23 @@ const binary = process.argv[2], installedBridge = process.argv[3];
 if (!binary || !installedBridge || !installedBridge.startsWith('/')) throw new Error('Pass absolute paths to an OpenCode 2.0.25 binary and the previous companion. Its files are read-only inputs.');
 const remote = process.argv.includes('--remote');
 const remoteBase = 'http://scope-protocol-fixture.invalid/v1';
-assert.equal(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim(), 'opencode v2.0.25');
+const profile = profileFor(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim().replace(/^opencode v/, ''));
+assert.ok(profile, 'This OpenCode version has no qualified compatibility profile.');
 const bundleBridge = dirname(fileURLToPath(import.meta.url)), repo = resolve(bundleBridge, '../..');
 // OpenCode deliberately excludes node_modules dependencies from its local-source watcher.
 // Match the managed addon's actual location outside that boundary.
 const cache = join(repo, 'tests', '.cache'); await mkdir(cache, { recursive: true });
 const base = await mkdtemp(join(cache, 'scope-hotreload-'));
 const bridge=join(base,'managed-companion');
-const companionFiles=['package.json','README.md','index.js','store.js','stream.js','chat.js','demand.js','chat-store.js'];
+const companionFiles=['package.json','README.md','index.js','store.js','stream.js','chat.js','demand.js','chat-store.js','compatibility.js'];
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 let child, fixture, logs = '', fixtureRequests = 0, completedStreams = 0;
 try {
   for (const dir of ['config/opencode', 'home', 'cache', 'data', 'state', 'workspace', 'plugin', 'telemetry', 'progress', 'managed-companion'])
     await mkdir(join(base, dir), { recursive: true });
-  for(const name of companionFiles) await copyFile(join(installedBridge,name),join(bridge,name));
+  for(const name of companionFiles) await copyFile(join(installedBridge,name),join(bridge,name)).catch(error => {
+    if (name !== 'compatibility.js' || error.code !== 'ENOENT') throw error; // previous helpers predate the profile module
+  });
   await writeFile(join(base, 'plugin/package.json'), JSON.stringify({ name: 'scope-isolated-smoke', type: 'module', exports: './index.js' }));
   await writeFile(join(base, 'plugin/index.js'), `
     import {makePlugin} from ${JSON.stringify(join(bridge, 'index.js'))};
@@ -98,7 +102,7 @@ try {
   };
   await api('/api/plugin'); await pause(1500);
   const heartbeat = JSON.parse(await readFile(join(base, 'telemetry/heartbeat.json'), 'utf8'));
-  assert.ok(heartbeat.supported); assert.equal(heartbeat.runtimeVersion, '2.0.25');
+  assert.ok(heartbeat.supported); assert.equal(heartbeat.runtimeVersion, profile.runtimeVersion);
   const { data: session } = await api('/api/session', { title: 'Scope protocol fixture', model: { providerID: 'scopefixture', id: 'fixture' } });
   assert.ok(session.id);
   const summaries = [];
@@ -135,14 +139,14 @@ try {
       for(let poll=0;poll<80&&!activated;poll++){
         await pause(100);
         const receipt=JSON.parse(await readFile(join(base,'telemetry/heartbeat.json'),'utf8'));
-        activated=receipt.companionVersion==='3.2.0'&&receipt.loadedAtMs>heartbeat.loadedAtMs;
+        activated=receipt.companionVersion==='3.3.0'&&receipt.loadedAtMs>heartbeat.loadedAtMs;
       }
       assert.ok(activated,'source watcher activated updated helper');
       for(let poll=0;poll<60&&completedStreams<1;poll++)await pause(100);
       assert.equal(completedStreams,1,'existing response completed through update');
       assert.equal(fixtureRequests,1,'update did not duplicate the request');
       assert.equal(child.pid,beforePid);assert.equal(child.exitCode,null);assert.equal(child.signalCode,null);
-      console.log(JSON.stringify({hotReload:'pass',serverRestarted:false,existingSyntheticStreamCompleted:true,duplicateRequests:0,loadedCompanion:'3.2.0'}));
+      console.log(JSON.stringify({hotReload:'pass',serverRestarted:false,existingSyntheticStreamCompleted:true,duplicateRequests:0,loadedCompanion:'3.3.0'}));
       await pause(600);continue;
     }
     const seen = [];

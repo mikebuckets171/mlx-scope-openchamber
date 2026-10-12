@@ -1,4 +1,4 @@
-import type { HostClient } from '@openchamber/sdk';
+import type { HostClient } from '../host/types.ts';
 import { obj } from '../../src/contract/guards.ts';
 import { parseSnapshotV2, SURFACES, type Surface } from '../../src/contract/snapshot.ts';
 import { CONTRACT_VERSION, ROUTES } from '../../src/contract/version.ts';
@@ -8,7 +8,7 @@ import { frameReading, fromSnapshot, type Reading } from '../present/reading.ts'
 
 /** `mark`/`attr` are pre-encoded comma lists (src/contract/query.ts encodeMarks/encodeAttrs); `tier` defaults to full. */
 export type SnapshotQuery = { provider?: string; runtime?: string; frame: string; surface: string; since?: number;
-  tier?: 'glance' | 'full'; detail?: 'server'; mark?: string; attr?: string; chat?: string; chatModel?: string; chatBusy?: string };
+  tier?: 'glance' | 'full'; detail?: 'server'; mark?: string; attr?: string; chat?: string; chatModel?: string; chatBusy?: string; chatUnavailable?: string };
 const OFFSET_SAMPLES = 5;
 
 /** 8 hex characters per frame mount, memory only: the service's lease key. `getRandomValues` works on plain HTTP hosts. */
@@ -46,17 +46,22 @@ const median = (values: number[]): number => {
  * into a reading. The service clock's offset is the median of the last five `serverNow − rtt midpoint`.
  */
 export class SnapshotClient {
-  private offsets: number[] = [];
-  constructor(private readonly host: Pick<HostClient, 'serviceRequest'>, private readonly clock: () => number = () => Date.now()) {}
+  #offsets: number[] = [];
+  #host: Pick<HostClient, 'serviceRequest'>;
+  #clock: () => number;
+  constructor(host: Pick<HostClient, 'serviceRequest'>, clock: () => number = () => Date.now()) {
+    this.#host = host; this.#clock = clock;
+  }
   /** Service clock minus frame clock, in whole ms; 0 until a body arrives. */
-  get offsetMs(): number { return this.offsets.length ? Math.round(median(this.offsets)) : 0; }
+  get offsetMs(): number { return this.#offsets.length ? Math.round(median(this.#offsets)) : 0; }
   /** The frame's current time on the service clock, which every `*At` field uses. */
-  now(): number { return this.clock() + this.offsetMs; }
+  now(): number { return this.#clock() + this.offsetMs; }
   async read(query: SnapshotQuery): Promise<Reading> {
-    const sent = this.clock();
-    const response = await this.host.serviceRequest({ method: 'GET', path: ROUTES.snapshot, query: snapshotQuery(query) });
-    const received = this.clock(), reading = readResponse(response.status, response.body, this.now());
-    if (reading.body) this.offsets = [...this.offsets, reading.body.serverNow - (sent + received) / 2].slice(-OFFSET_SAMPLES);
+    if (query.chatUnavailable === '1') return frameReading('chat_unavailable', 'This chat’s identity is unavailable. Choose Whole engine to inspect a local connection.', this.now());
+    const sent = this.#clock();
+    const response = await this.#host.serviceRequest({ method: 'GET', path: ROUTES.snapshot, query: snapshotQuery(query) });
+    const received = this.#clock(), reading = readResponse(response.status, response.body, this.now());
+    if (reading.body) this.#offsets = [...this.#offsets, reading.body.serverNow - (sent + received) / 2].slice(-OFFSET_SAMPLES);
     return reading;
   }
   failure(error: unknown): Reading {

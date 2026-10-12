@@ -1,4 +1,4 @@
-import { DISCLOSURE_ARROW } from '../disclosure.ts';
+import { disclosure } from './parts.ts';
 import type { Block, ServerView } from '../../present/server.ts';
 import { flag, html, type Raw } from '../html.ts';
 import { callouts, chip, chips, meter, pct100, section, val, type Open } from './parts.ts';
@@ -21,5 +21,5 @@ const block = (b: Block): Raw => {
 export const serverMarkup = (view: ServerView, open: Open): Raw => {
   const runtime = view.cards.find(card => card.key === 'runtime');
   return html`${callouts(P, view.callouts, open)}${view.cards.filter(card => card !== runtime).map(card =>
-    section(P, card.key, card.title, card.right, card.blocks.map(block), card.tip, open))}${runtime ? html`<details class="runtime-details" id="server-runtime-details"${flag('open', open.has('server-runtime-details'))}><summary><span>Server details</span><span>${runtime.right}</span>${DISCLOSURE_ARROW}</summary>${section(P, runtime.key, runtime.title, '', runtime.blocks.map(block), runtime.tip, open)}</details>` : ''}`;
+    section(P, card.key, card.title, card.right, card.blocks.map(block), card.tip, open))}${runtime ? disclosure('server-runtime-details', html`<span>Server details</span><span>${runtime.right}</span>`, section(P, runtime.key, runtime.title, '', runtime.blocks.map(block), runtime.tip, open), open, 'runtime-details') : ''}`;
 };

@@ -1,4 +1,4 @@
-import type { HostClient, ToastRequest } from '@openchamber/sdk';
+import type { HostClient, ToastRequest } from '../host/types.ts';
 import type { AlertV2 } from '../../src/contract/alerts.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { RegressionFlag } from '../history/regress.ts';
@@ -19,39 +19,43 @@ export const toastFor = (alert: AlertV2, preference: ToastPreference): ToastRequ
 };
 
 export class Signals {
-  private seen = new Map<string, number>();    // alert id → newest toastSeq this frame accounted for
-  private badge: number | null | undefined;    // undefined: not set by this frame since it last led
-  private primed = false;
-  constructor(private readonly host: Pick<HostClient, 'setBadge' | 'toast'>, private readonly preference: () => ToastPreference,
-    private readonly surface = 'panel') {}
+  #seen = new Map<string, number>();    // alert id → newest toastSeq this frame accounted for
+  #badge: number | null | undefined;    // undefined: not set by this frame since it last led
+  #primed = false;
+  readonly #host: Pick<HostClient, 'setBadge' | 'toast'>;
+  readonly #preference: () => ToastPreference;
+  readonly #surface: string;
+  constructor(host: Pick<HostClient, 'setBadge' | 'toast'>, preference: () => ToastPreference, surface = 'panel') {
+    this.#host = host; this.#preference = preference; this.#surface = surface;
+  }
   /** Applies one snapshot: toasts each new toastSeq and sets the badge only when `snapshot.lease.leader`. */
   apply(snapshot: SnapshotV2, flags: readonly RegressionFlag[]): void {
     const alive = new Set<string>(snapshot.alerts.map(alert => alert.id));
-    for (const id of this.seen.keys()) if (!alive.has(id)) this.seen.delete(id);
+    for (const id of this.#seen.keys()) if (!alive.has(id)) this.#seen.delete(id);
     if (!snapshot.lease.leader) {
       // Not the leader: remember what is already up, so a handover never repeats the old leader's toasts, and forget the
       // badge, which the leader may change meanwhile.
-      for (const alert of snapshot.alerts) if (!this.seen.has(alert.id)) this.seen.set(alert.id, alert.toastSeq ?? 0);
-      this.primed = true;
-      this.badge = undefined;
+      for (const alert of snapshot.alerts) if (!this.#seen.has(alert.id)) this.#seen.set(alert.id, alert.toastSeq ?? 0);
+      this.#primed = true;
+      this.#badge = undefined;
       return;
     }
     for (const alert of snapshot.alerts) {
-      const seq = alert.toastSeq, before = this.seen.get(alert.id);
+      const seq = alert.toastSeq, before = this.#seen.get(alert.id);
       if (seq === undefined || before !== undefined && seq <= before) continue;
-      this.seen.set(alert.id, seq);
+      this.#seen.set(alert.id, seq);
       // The first leader snapshot of a frame that never saw these alerts toasts only ones that started just now.
-      if (!this.primed && before === undefined && snapshot.serverNow - alert.since > 10_000) continue;
-      const request = toastFor(alert, this.preference());
-      if (request) void this.host.toast(request).catch(() => {});
+      if (!this.#primed && before === undefined && snapshot.serverNow - alert.since > 10_000) continue;
+      const request = toastFor(alert, this.#preference());
+      if (request) void this.#host.toast(request).catch(() => {});
     }
-    this.primed = true;
+    this.#primed = true;
     // A visible rail panel shows its alerts itself, so as leader it keeps the badge clear, also one the page set before a
     // handover; the badge is for when it is closed (page or Work Status leads).
-    const count = badgeCount(snapshot.alerts) + (this.preference() === 'all' ? flags.length : 0), next = count > 0 && this.surface !== 'panel' ? count : null;
-    if (next !== this.badge) { this.badge = next; void this.host.setBadge(next).catch(() => {}); }
+    const count = badgeCount(snapshot.alerts) + (this.#preference() === 'all' ? flags.length : 0), next = count > 0 && this.#surface !== 'panel' ? count : null;
+    if (next !== this.#badge) { this.#badge = next; void this.#host.setBadge(next).catch(() => {}); }
   }
   /** A visible panel mounted: setBadge(null). */
-  panelMounted(): void { this.badge = null; void this.host.setBadge(null).catch(() => {}); }
+  panelMounted(): void { this.#badge = null; void this.#host.setBadge(null).catch(() => {}); }
   dispose(): void {}
 }

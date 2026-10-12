@@ -1,3 +1,4 @@
+import { value as v } from './parts.ts';
 import type { CapabilityKey } from '../../src/contract/capabilities.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { connName, PHASE, rtName } from './copy.ts';
@@ -19,10 +20,18 @@ export type Block =
 export interface ServerCard { key: string; title: string; right: string; tip: Tip | null; blocks: Block[] }
 export interface ServerView { callouts: Callout[]; cards: ServerCard[] }
 
-const v = (text: string, basis: Val['basis'] = 'reported', note?: string): Val => ({ text, basis, ...note ? { note } : {} });
+
 type ValueBlock = Extract<Block, { kind: 'values' }>;
 const labelled = <T>(label: string, value: T, small?: string): { label: string; value: T; small?: string } => ({ label, value, ...small !== undefined ? { small } : {} });
 const values = (items: ValueBlock['items'], cols: 2 | 3, big?: boolean): ValueBlock => ({ kind: 'values', cols, items, ...big !== undefined ? { big } : {} });
+/** A missing reading contributes no cell; a measured zero remains a reading. */
+const readings = (entries: [string, number | null | undefined, (value: number) => string, string?][], basis: Val['basis'] = 'reported'): ValueBlock['items'] => {
+  const items: ValueBlock['items'] = [];
+  for (const [label, value, format, small] of entries) if (value != null) items.push(labelled(label, v(format(value), basis), small));
+  return items;
+};
+const speed = (value: number): string => `${tps(value)} tok/s`;
+
 const card = (key: string, title: string, right: string, detail: Tip | string[] | null, blocks: Block[], tipKey = key): ServerCard =>
   ({ key, title, right, tip: Array.isArray(detail) ? tip(tipKey, title, detail) : detail, blocks });
 const REPORTS: ReadonlyArray<readonly [CapabilityKey, string]> = [['request.decodeRate', 'per-request speed'], ['request.prefillProgress', 'prompt progress'],
@@ -46,10 +55,9 @@ const runtimeCard = (s: SnapshotV2): ServerCard => {
 };
 const memoryCard = (s: SnapshotV2): ServerCard | null => {
   const m = s.runtime.memory, held = heldBySource(s);
-  if (m.metalBytes != null) return card('memory', 'Model memory', `Splash · ${held ? 'last reading' : 'from server'}`, ['Splash reports memory used for GPU work separately from its process memory. This Mac compares it with the macOS limit for GPU work.'], [values([labelled('GPU allocations', v(size(m.metalBytes))), ...m.metalPeakBytes != null ? [labelled('Peak GPU allocations', v(size(m.metalPeakBytes)))] : []], 2)], 'mem');
+  if (m.metalBytes != null) return card('memory', 'Model memory', `Splash · ${held ? 'last reading' : 'from server'}`, ['Splash reports memory used for GPU work separately from its process memory. This Mac compares it with the macOS limit for GPU work.'], [values(readings([['GPU allocations', m.metalBytes, size], ['Peak GPU allocations', m.metalPeakBytes, size]]), 2)], 'mem');
   if (m.modelBytes == null && m.processBytes == null) return null;
-  const items = [...m.modelBytes != null ? [labelled('Model memory', v(size(m.modelBytes)))] : [],
-    ...m.ceilingBytes != null ? [labelled('Model memory limit', v(size(m.ceilingBytes)))] : m.processBytes != null ? [labelled('Process memory', v(size(m.processBytes)))] : []];
+  const items = readings([['Model memory', m.modelBytes, size], m.ceilingBytes != null ? ['Model memory limit', m.ceilingBytes, size] : ['Process memory', m.processBytes, size]]);
   return card('memory', 'Model memory', `${rtName(s.connection)} · from server`, [`${rtName(s.connection)}’s memory use${m.ceilingBytes != null ? ' and model memory limit' : ''} across all requests.`,
       'This Mac shows process memory and the macOS limit for GPU work.'], [{ kind: 'values', cols: 2, items }, ...m.modelBytes != null && m.ceilingBytes ? [{ kind: 'meter' as const, fraction: Math.min(1, m.modelBytes / m.ceilingBytes) }] : []], 'mem');
 };
@@ -57,8 +65,8 @@ const cacheCard = (s: SnapshotV2): ServerCard | null => {
   const request = s.runtime.request, c = s.runtime.server.cache;
   if (!c) return null;
   const reuse = request?.promptTokens && request.cachedTokens != null ? request : null;
-  const cacheItems = [...c.ramBytes != null ? [labelled('RAM cache', v(size(c.ramBytes)), c.ramEntries != null ? `${int(c.ramEntries)} entries` : undefined)] : [],
-    ...c.ssdBytes != null ? [labelled('SSD cache', v(size(c.ssdBytes)), c.ssdEntries != null ? `${int(c.ssdEntries)} entries` : undefined)] : []];
+  const cacheItems = readings([['RAM cache', c.ramBytes, size, c.ramEntries != null ? `${int(c.ramEntries)} entries` : undefined],
+    ['SSD cache', c.ssdBytes, size, c.ssdEntries != null ? `${int(c.ssdEntries)} entries` : undefined]]);
   return card('cache', 'Cache & input', reuse ? 'Current request' : 'Server cache', ['From server counts for this request. Input that was not reused can differ from the tokens read during prefill.'], [...reuse ? [values([labelled('Reused tokens', v(int(reuse.cachedTokens!))),
       labelled('Not reused', v(int(reuse.promptTokens! - reuse.cachedTokens!)))], 2 as const, true), { kind: 'bar' as const, fraction: reuse.cachedTokens! / reuse.promptTokens! }] : [],
     ...cacheItems.length ? [values(cacheItems, 2 as const)] : []]);
@@ -89,10 +97,8 @@ const sessionCard = (s: SnapshotV2, now: number): ServerCard | null => {
   const held = heldBySource(s), basis = held ? 'last-observed' as const : 'reported' as const;
   const since = held && s.status.sinceAt ? `before ${clock(s.status.sinceAt, now)}` : a.uptimeMs ? `${dur(a.uptimeMs)} · since start`
     : s.connection.runtime === 'lmstudio' ? 'Since the log stream started' : 'Since the server started';
-  const items = [...a.decodeTps != null ? [labelled('Generation speed', v(`${tps(a.decodeTps)} tok/s`, basis))] : [],
-    ...a.prefillTps != null ? [labelled('Prefill speed', v(`${tps(a.prefillTps)} tok/s`, basis))] : [],
-    ...a.cacheEfficiencyFraction != null ? [labelled('Cache efficiency', v(pct(a.cacheEfficiencyFraction), basis))] : [],
-    ...a.requestsTotal != null ? [labelled('Completed', v(int(a.requestsTotal), basis), a.failedTotal ? `${int(a.failedTotal)} failed` : undefined)] : []];
+  const items = readings([['Generation speed', a.decodeTps, speed], ['Prefill speed', a.prefillTps, speed],
+    ['Cache efficiency', a.cacheEfficiencyFraction, pct], ['Completed', a.requestsTotal, int, a.failedTotal ? `${int(a.failedTotal)} failed` : undefined]], basis);
   return items.length ? card('session', 'Overall average', s.connection.runtime === 'splash' ? `${held ? 'Last reading · ' : ''}Since this model started` : since, [s.connection.runtime === 'splash' ? 'Since this model started, across all requests.' : 'From server totals across models and apps.'], [{ kind: 'values', cols: 2, items }]) : null;
 };
 const latencyCard = (s: SnapshotV2): ServerCard | null => {
@@ -118,8 +124,8 @@ const ratesCard = (s: SnapshotV2): ServerCard | null => {
   return card('rates', splash ? 'Recent speeds' : 'All server speeds', splash ? `All server activity · last ${dur(window)}` : `last ${Math.round(window / 1_000)} s`,
     splash ? tip('rates', 'How speeds are measured', SPLASH_SPEED_HELP)
       : tip('rates', 'All server speeds', [`Calculated from ${rtName(s.connection)} totals. Counts that reset at each update are excluded.`]),
-    [values([...prompt != null ? [labelled('Prefill speed', v(`${tps(prompt)} tok/s`, 'derived'), splash ? `last ${dur(r.promptWindowMs ?? window)}` : undefined)] : [],
-      ...decode != null ? [labelled('Generation speed', v(`${tps(decode)} tok/s`, 'derived'), splash ? `last ${dur(r.windowMs)}` : undefined)] : [],
+    [values([...readings([['Prefill speed', prompt, speed, splash ? `last ${dur(r.promptWindowMs ?? window)}` : undefined],
+      ['Generation speed', decode, speed, splash ? `last ${dur(r.windowMs)}` : undefined]], 'derived'),
       ...server.active != null ? [labelled('Processing · deferred', v(`${server.active} · ${server.queued ?? 0}`))] : []], splash ? 2 : 3)]);
 };
 const specCard = (s: SnapshotV2): ServerCard | null => {

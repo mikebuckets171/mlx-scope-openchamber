@@ -10,6 +10,7 @@ test.beforeEach(async ({ page }) => { await page.addInitScript(() => sessionStor
 // Read the shared state list so a new runtime state automatically joins this coverage.
 const geometry = () => {
   const failures: string[] = [];
+  if (document.documentElement.scrollWidth > innerWidth + 1) failures.push('content overflows the surface horizontally');
   const shown = (node: HTMLElement) => {
     if (!node.getClientRects().length || getComputedStyle(node).visibility === 'hidden') return false;
     // Closed details can retain descendant rects in the layout tree, but only their summary occupies visible space.
@@ -32,6 +33,15 @@ const geometry = () => {
     if (!content(region) && occupied > 1) failures.push(`${name(region)} occupies ${occupied.toFixed(1)} px without content`);
     if (region.matches('.instrument-measure, .instrument-evidence') && region.dataset.quiet === 'true' && height > 1)
       failures.push(`${name(region)} is quiet but reserves ${height.toFixed(1)} px`);
+    if (region.matches('.instrument-measure, .instrument-evidence')) {
+      const children = Array.from(region.children).filter((node): node is HTMLElement => node instanceof HTMLElement && shown(node));
+      if (children.length) {
+        const first = children[0]!, last = children[children.length - 1]!;
+        const natural = last.getBoundingClientRect().bottom - first.getBoundingClientRect().top
+          + parseFloat(getComputedStyle(first).marginTop) + parseFloat(getComputedStyle(last).marginBottom);
+        if (height > natural + 1) failures.push(`${name(region)} reserves ${(height - natural).toFixed(1)} px beyond its content`);
+      }
+    }
     if (region.matches('.media-setup-source > .insight-actions') && !content(region))
       failures.push('a source with no setup actions retains an empty action wrapper');
   }
@@ -49,22 +59,31 @@ const geometry = () => {
   return failures;
 };
 const clean = async (frame: Frame, context: string): Promise<void> => { expect(await frame.evaluate(geometry), context).toEqual([]); };
-const load = async (page: Page, query: string, width: number): Promise<{ frame: Frame; ui: FrameLocator }> => {
+const load = async (page: Page, query: string, width: number, fontSize?: number): Promise<{ frame: Frame; ui: FrameLocator }> => {
   await page.setViewportSize({ width, height: 1000 });
   await page.goto(`/v2?${query}&tracking=ready`);
   const ui = page.frameLocator('iframe');
   await expect(ui.locator('#scope')).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as any).previewRequests)).toBeGreaterThan(0);
   const frame = page.mainFrame().childFrames()[0]!;
+  if (fontSize) await ui.locator('html').evaluate((node, size) => { node.style.fontSize = `${size}px`; }, fontSize);
   if (query.includes('surface=status')) await expect(ui.locator('.ws-phase')).not.toHaveText('Connecting');
   else await expect(ui.locator('#phase')).not.toHaveText('Connecting');
   return { frame, ui };
 };
 
-for (const width of [320, 1160]) test(`all mock states have content or collapse across the page and secondary views at ${width}px`, async ({ page }) => {
+// A finite cross-surface matrix covers every state at ordinary, enlarged and 200% text, in both themes.
+const SURFACES = [
+  { surface: 'page', width: 320, theme: 'dark', font: 16 },
+  { surface: 'page', width: 1160, theme: 'light', font: 16 },
+  { surface: 'panel', width: 430, theme: 'light', font: 24 },
+  { surface: 'panel', width: 320, theme: 'dark', font: 32 },
+  { surface: 'page', width: 1160, theme: 'dark', font: 32 },
+] as const;
+for (const { surface, width, theme, font } of SURFACES) test(`all mock states use natural content height on ${surface} at ${width}px, ${font}px text, ${theme}`, async ({ page }) => {
   test.setTimeout(240_000);
   for (const state of MOCK_STATES) await test.step(state, async () => {
-    const { frame, ui } = await load(page, `surface=page&state=${state}&media=active`, width);
+    const { frame, ui } = await load(page, `surface=${surface}&state=${state}&media=active&theme=${theme}`, width, font);
     if (state === 'paused') await ui.getByRole('button', { name: 'Pause monitoring', exact: true }).click();
     await clean(frame, `${state}: page hero and media`);
     const server = ui.getByRole('button', { name: 'Server & Mac details', exact: true });
@@ -100,10 +119,10 @@ for (const width of [320, 1160]) test(`all mock states have content or collapse 
   });
 });
 
-test('every mock status glance folds absent rows without hiding notes or media', async ({ page }) => {
+for (const [theme, font] of [['dark', 16], ['light', 32]] as const) test(`every mock status glance folds absent rows in ${theme} at ${font}px without hiding notes or media`, async ({ page }) => {
   test.setTimeout(120_000);
   for (const state of MOCK_STATES) await test.step(state, async () => {
-    const { frame, ui } = await load(page, `surface=status&state=${state}&media=active`, 300);
+    const { frame, ui } = await load(page, `surface=status&state=${state}&media=active&theme=${theme}`, 280, font);
     await expect(ui.locator('.ws-phase')).not.toBeEmpty();
     await clean(frame, `${state}: status`);
   });

@@ -76,3 +76,13 @@ test('NO_SERVICE after an update is the needs-approval state (S11); other host e
   expect(failing(null).failure(new Error('raw detail'))).toMatchObject({ reason: 'host_unavailable',
     message: 'OpenChamber did not return a service response. Reopen the panel and try again.' });
 });
+
+test('an unresolved chat identity does not send a request for an unrelated local engine', async () => {
+  let requests = 0;
+  const client = new SnapshotClient({ serviceRequest: async () => { requests++; throw new Error('must not read'); } }, () => 7_000);
+  expect(await client.read({ frame: 'c0ffee42', surface: 'panel', chatUnavailable: '1' })).toMatchObject({
+    available: false, body: null, reason: 'chat_unavailable', sampledAt: 7_000,
+  });
+  expect(requests).toBe(0);
+  expect(snapshotQuery({ frame: 'c0ffee42', surface: 'panel', chatUnavailable: '1' })).not.toHaveProperty('chatUnavailable');
+});

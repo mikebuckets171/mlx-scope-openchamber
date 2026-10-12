@@ -1,11 +1,11 @@
-import { presentSpeeds, type SpeedsView } from './speeds.ts';
+import type { SpeedsView } from './speeds.ts';
 import type { Basis } from '../../src/contract/capabilities.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { AttributionLabel } from '../attribution/join.ts';
 import { liveChart, type ChartView } from '../render/chart.ts';
 import { connName, PRESSURE, RT, rtName, statusCopy, THERMAL, THERMAL_WARN, thermalLevel, type Level } from './copy.ts';
 import { ago, delta, dur, int, kt, mmss, pct, size, tps } from './format.ts';
-import { attrChip, attrTip, callouts, splashRateTip, tip, weightedTps, type Callout, type Chip, type Tip, type Val } from './parts.ts';
+import { attrChip, attrTip, callouts, splashRateTip, tip, value, weightedTps, type Callout, type Chip, type Tip, type Val } from './parts.ts';
 export { weightedTps } from './parts.ts';
 import { heldBySource, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING, type ScopeInput } from './scope.ts';
 import { presentSessionSection, type SessionSectionView } from './session.ts';
@@ -157,19 +157,19 @@ const presentHero = (s: ScopeInput): HeroView | null => {
   if (!snapshot) return null;
   // The full page takes the same at-rest facts the glance uses, so an idle engine shows its labelled record here too.
   const instrument = presentSessionSection({ ...s, reading: fromSnapshot(snapshot), chatIsLocal: s.chatIsLocal ?? null, restingFacts: true });
-  if (s.measurementScope !== 'engine' && s.chatIsLocal === false) return { instrument, speeds: instrument.speeds, title: 'This chat', chatOnly: true,
-    attr: null, body: null, engineTrend: null, firstToken: null, context: null, reply: null };
+  const base = { instrument, speeds: instrument.speeds, attr: null, body: null, engineTrend: null, firstToken: null, context: null, reply: null };
+  if (s.measurementScope !== 'engine' && s.chatIsLocal === false) return { ...base, title: 'This chat', chatOnly: true };
   const kind = heroKind(s), title = modelOf(snapshot) ?? connName(snapshot.connection), body = kind ? heroBody(kind, s) : null;
   // Keep the disclosure in place across lifecycle changes. Only compatible engine readings enter its chart.
   const engineTrend = snapshot.capabilities['request.decodeRate'] || snapshot.capabilities['server.rates']
     ? { chart: liveChart(s.samples, s.now, snapshot.connection.runtime === 'splash' ? null : s.turnStartAt,
       snapshot.connection.runtime === 'splash' ? 'server' : 'request') } : null;
-  if (s.paused) return { instrument, speeds: presentSpeeds(s), title, attr: null, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, engineTrend, firstToken: null, context: null, reply: null };
+  if (s.paused) return { ...base, speeds: instrument.speeds, title, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, engineTrend };
   const reply = replyView(s);
 
   const live = kind === 'decode' || kind === 'prefill', label = kind ? liveLabel(kind, s) : SERVER_WIDE;
   return {
-    instrument, speeds: presentSpeeds(s), title, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
+    instrument, speeds: instrument.speeds, title, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
     body, engineTrend,
     firstToken: kind && ACTIVE.has(snapshot.runtime.phase) && snapshot.runtime.request?.ttftMs != null && snapshot.capabilities['request.ttft']
       ? { text: 'First token', strong: dur(snapshot.runtime.request.ttftMs), basis: snapshot.capabilities['request.ttft'].basis } : null,
@@ -177,27 +177,31 @@ const presentHero = (s: ScopeInput): HeroView | null => {
   };
 };
 
+/** The same metric shape is used by current and retained facts. */
+export const tile = (label: string, value: string, detail = '', meter: number | null = null, basis?: Basis): Tile =>
+  ({ label, value, detail, meter, ...basis ? { basis } : {} });
+
 const presentTiles = (s: ScopeInput): Tile[] => {
   const snapshot = s.snapshot, request = snapshot?.runtime.request, server = snapshot?.runtime.server;
   if (!snapshot || s.paused || !s.fresh || heroKind(s) === null) return [];
   const tiles: Tile[] = [];
   if (!request || !snapshot.capabilities['request.tokens']) {
-    if (server?.active != null && snapshot.capabilities['server.requests']) tiles.push({ label: 'Active requests', value: String(server.active), detail: server.queued ? `${server.queued} queued` : 'Queue clear', meter: null, basis: snapshot.capabilities['server.requests']!.basis });
+    if (server?.active != null && snapshot.capabilities['server.requests']) tiles.push(tile('Active requests', String(server.active), server.queued ? `${server.queued} queued` : 'Queue clear', null, snapshot.capabilities['server.requests']!.basis));
     const memory = snapshot.runtime.memory, allocation = memory.modelBytes ?? memory.metalBytes;
     const memoryCap = snapshot.capabilities[memory.modelBytes != null ? 'server.memory.model' : 'server.memory.metal'];
-    if (allocation != null && memoryCap) tiles.push({ label: memory.modelBytes != null ? 'Model memory' : 'Metal allocations', value: size(allocation), detail: 'engine allocations', meter: null, basis: memoryCap.basis });
+    if (allocation != null && memoryCap) tiles.push(tile(memory.modelBytes != null ? 'Model memory' : 'Metal allocations', size(allocation), 'engine allocations', null, memoryCap.basis));
     const latency = server?.histograms?.ttftMs;
-    if (latency && snapshot.capabilities['server.latency']) tiles.push({ label: 'Median first token', value: dur(latency.p50), detail: `${latency.n} recent requests`, meter: null, basis: snapshot.capabilities['server.latency']!.basis });
+    if (latency && snapshot.capabilities['server.latency']) tiles.push(tile('Median first token', dur(latency.p50), `${latency.n} recent requests`, null, snapshot.capabilities['server.latency']!.basis));
     return tiles;
   }
   // While prefill runs there is no output yet, and the prompt size is the prefill line: three tiles.
-  if (request.outputTokens != null) tiles.push({ label: 'Output', value: kt(request.outputTokens), detail: 'tokens so far', meter: null });
-  if (request.elapsedMs != null) tiles.push({ label: 'Elapsed', value: dur(request.elapsedMs), detail: 'since it started', meter: null });
+  if (request.outputTokens != null) tiles.push(tile('Output', kt(request.outputTokens), 'tokens so far'));
+  if (request.elapsedMs != null) tiles.push(tile('Elapsed', dur(request.elapsedMs), 'since it started'));
   if (request.promptTokens && request.cachedTokens != null) {
     const reused = request.cachedTokens / request.promptTokens;
-    tiles.push({ label: 'Input reused', value: pct(reused), detail: `${kt(request.cachedTokens)} cached`, meter: reused });
+    tiles.push(tile('Input reused', pct(reused), `${kt(request.cachedTokens)} cached`, reused));
   }
-  if (server?.active != null) tiles.push({ label: 'Requests', value: String(server.active), detail: server.queued ? `${server.queued} queued` : 'Queue clear', meter: null });
+  if (server?.active != null) tiles.push(tile('Requests', String(server.active), server.queued ? `${server.queued} queued` : 'Queue clear'));
   return tiles;
 };
 
@@ -221,23 +225,23 @@ export const presentMac = (s: ScopeInput): MacView | null => {
   const rows: MacRow[] = [];
   if (mac?.pressureLevel) {
     const [word, level] = PRESSURE[mac.pressureLevel];
-    rows.push(row('pressure', 'Memory pressure', { text: word, basis: 'reported' }, { level }));
+    rows.push(row('pressure', 'Memory pressure', value(word), { level }));
   }
   if (host.thermal) {
     const level = host.thermal.level;
-    rows.push(row('thermal', 'Heat status', { text: THERMAL[level]![0], basis: 'reported' }, { level: thermalLevel(level),
+    rows.push(row('thermal', 'Heat status', value(THERMAL[level]![0]), { level: thermalLevel(level),
       tip: tip('thermal', 'Heat status', [`macOS reports heat level ${level} of 4 (“${THERMAL[level]![1]}”).`,
         `Scope warns from ${THERMAL[THERMAL_WARN]![0]} (level ${THERMAL_WARN}) up.`]) }));
   }
   const details: MacRow[] = [];
-  if (host.gpu?.busyFraction != null) details.push(row('gpu-busy', 'GPU busy', { text: pct(host.gpu.busyFraction), basis: 'reported' }, { meter: host.gpu.busyFraction }));
-  if (host.gpu?.allocBytes != null) details.push(row('gpu-mem', SHORT.gpuMem, { text: size(host.gpu.allocBytes), basis: 'reported' }));
+  if (host.gpu?.busyFraction != null) details.push(row('gpu-busy', 'GPU busy', value(pct(host.gpu.busyFraction)), { meter: host.gpu.busyFraction }));
+  if (host.gpu?.allocBytes != null) details.push(row('gpu-mem', SHORT.gpuMem, value(size(host.gpu.allocBytes))));
   if (model != null && mac?.wiredLimitBytes) details.push(row('wired', `${rt} ${kind} / GPU memory limit`,
-    { text: `${pct(model / mac.wiredLimitBytes)} of ${size(mac.wiredLimitBytes)}`, basis: heldBySource(snapshot) ? 'last-observed' : 'reported' }, { meter: Math.min(1, model / mac.wiredLimitBytes) }));
+    value(`${pct(model / mac.wiredLimitBytes)} of ${size(mac.wiredLimitBytes)}`, heldBySource(snapshot) ? 'last-observed' : 'reported'), { meter: Math.min(1, model / mac.wiredLimitBytes) }));
   if (host.runtimeProcess) details.push(row('footprint', `${RT[host.runtimeProcess.runtime]} process memory (:${host.runtimeProcess.port})`,
-    { text: size(host.runtimeProcess.footprintBytes), basis: 'observed', note: 'macOS measurement' }));
-  if (host.power) details.push(row('power', SHORT.power, { text: `${host.power.chipW.toFixed(1)} W`, basis: 'estimate' }));
-  if (perJ !== null) details.push(row('tokj', 'Tokens per joule · this request', { text: perJ.toFixed(2), basis: 'estimate' }));
+    value(size(host.runtimeProcess.footprintBytes), 'observed', 'macOS measurement')));
+  if (host.power) details.push(row('power', SHORT.power, value(`${host.power.chipW.toFixed(1)} W`, 'estimate')));
+  if (perJ !== null) details.push(row('tokj', 'Tokens per joule · this request', value(perJ.toFixed(2), 'estimate')));
   return {
     title: macOS ? 'This Mac' : 'This computer', stale: !s.fresh, line, rows, details,
     tip: tip('mac', macOS ? 'This Mac' : 'This computer', ['Whole machine. Memory allocated is physical memory minus free memory. Includes memory macOS can reuse; differs from Activity Monitor’s Memory Used.',

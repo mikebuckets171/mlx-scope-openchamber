@@ -1,11 +1,21 @@
 # Optional OpenCode companion
 
-The 3.2 companion observes demand-gated HTTP and WebSocket chat delivery on **OpenCode 2.0.25**, for local and cloud
+The 3.3 companion observes demand-gated HTTP and WebSocket chat delivery on **OpenCode 2.0.25**, for local and cloud
 chats alike, and retains the existing Splash prompt-progress observer. Unsupported OpenCode versions disable chat
 estimates while native runtime monitoring remains available. The plugin ID remains `mlx-scope-prompt-progress` to
 update existing installations in place.
 
-**3.2 scope:** local and cloud chat delivery. A cloud reading is delivery observed through OpenCode, including network
+Scope 4 centralizes this qualification in `compatibility.js`. HTTP delivery, experimental WebSocket delivery and
+Splash prompt observation install independently; a missing optional hook leaves other monitoring available. Unknown
+OpenCode versions install no prompt-request mutation. Companion package version, compatibility profile and the legacy
+telemetry protocol spelling remain separate. Feature support and demanded heartbeat activity are reported separately.
+From the repository, `bun run qualify:compatibility` runs isolated fixtures, privacy checks, source/artifact comparison
+and reproducible package verification. Native checks remain not run; it never launches native OpenCode, sends a prompt
+or changes live configuration. `--candidate` labels a proposed version without broadening runtime support.
+See the repository's `docs/COMPATIBILITY.md`. The native protocol commands below are
+separate, explicitly invoked operations, and native WebSocket cancellation remains unqualified.
+
+**Delivery scope:** local and cloud chat delivery. A cloud reading is delivery observed through OpenCode, including network
 and provider buffering; it is never engine throughput, and a cloud chat never borrows a local engine measurement.
 
 The Splash observer enables Splash's `return_progress` option on existing streaming requests. It observes the same HTTP response, without changing the model route, starting a proxy, or submitting a prompt. Scope can then show **Prompt progress** from `processed / total`; the completed portion includes cached prompt tokens. Native oMLX metrics do not require the companion.
@@ -118,7 +128,7 @@ Only matching watched sessions are tracked. A demand file that is not private to
 ```ts
 type CompanionHeartbeat = {
   schemaVersion: 1;
-  companionVersion: '3.2.0';
+  companionVersion: '3.3.0';
   protocol: 'opencode-2.0.25' | 'unsupported';
   runtimeVersion: string;
   loadedAtMs: number;
@@ -136,7 +146,7 @@ Each process also owns `<writerUUID>.json`, updated at most every 200 ms during 
 type ChatTelemetryFile = {
   schemaVersion: 1;
   writerID: string;
-  companionVersion: '3.2.0';
+  companionVersion: '3.3.0';
   protocol: 'opencode-2.0.25';
   runtimeVersion: '2.0.25';
   updatedAtMs: number;

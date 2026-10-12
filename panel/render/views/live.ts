@@ -1,20 +1,20 @@
+import { actionButton } from './parts.ts';
 import { digitMarkup } from '../digit-roll.ts';
-import { DISCLOSURE_ARROW } from '../disclosure.ts';
 import { BASIS_WORD, tip } from '../../present/parts.ts';
 import { dur, kt } from '../../present/format.ts';
 import { SPLASH_SPEED_HELP } from '../../present/speeds.ts';
-import type { HeroView, LiveView, MacRow, MacView, NextView, ReplyView, Tile } from '../../present/live.ts';
+import { tile, type HeroView, LiveView, MacRow, MacView, NextView, ReplyView, Tile } from '../../present/live.ts';
 import type { ChartView } from '../chart.ts';
-import { html, flag, type Part, type Raw } from '../html.ts';
+import { html, type Part, type Raw } from '../html.ts';
 import { averagesMarkup, compactRate, speedsMarkup } from './speeds.ts';
 import { READOUT_ID, scopeMenuMarkup } from './session.ts';
-import { callouts, chip, ICON, meter, pct100, tipParts, val, type Open } from './parts.ts';
+import { callouts, chip, disclosure, ICON, meter, pct100, tipParts, val, type Open } from './parts.ts';
 
 // Activity, speed and available engine context share one flat instrument.
 
 const P = 'live';
 const chartMarkup = (chart: ChartView): Raw => html`<figure class="signal" id="signal"><div class="chart-top"><span>Engine trend · 90 seconds</span><span id="ceiling">${chart.ceiling}</span></div><div class="plot" role="img" aria-label="${chart.label}"><svg viewBox="0 0 600 120" preserveAspectRatio="none" aria-hidden="true"><path class="grid" d="M4 4H596 M4 60H596 M4 116H596"/><path class="trace-area" d="${chart.area}"/><path class="trace" d="${chart.line}"/>${chart.mark === null ? '' : html`<line class="mark" x1="${chart.mark}" x2="${chart.mark}" y1="4" y2="116"/>`}</svg></div><figcaption><span>−90s</span><span>${chart.title.startsWith('Recent generation speed') ? 'Each reading covers up to 5 s' : 'Recent generation speed'}${chart.mark === null ? '' : ' · turn start ┊'}</span><span>now</span></figcaption></figure>`;
-const nextButton = (action: string, label: Part): Raw => html`<button class="btn quiet" type="button" data-action="${action}">${label}</button>`;
+const nextButton = actionButton;
 const nextCancel = nextButton('next-cancel', 'Cancel');
 const nextRowBody = (next: NextView, tip: Part): Raw => {
   switch (next.kind) {
@@ -35,7 +35,7 @@ const replyStrip = (reply: ReplyView | null, open: Open, currentModel: string): 
   if (reply.empty) return '';
   const t = tipParts(P, reply.tip, open), details = reply.values.filter(v => v.unit !== 'tok/s' && v.text !== 'First token');
   const primary = reply.values.filter(v => v.unit === 'tok/s' || v.text === 'First token');
-  return html`<div class="reply-strip"><div class="reply-head"><span class="label">Last reply</span>${chip(reply.chip)}${t.btn}${reply.when ? html`<time>${reply.when}</time>` : ''}</div>${t.pop}${reply.model && reply.model !== currentModel ? html`<p class="reply-model" translate="no">${reply.model}</p>` : ''}<div class="reply-values">${primary.map(val)}${chip(reply.usual)}</div>${details.length || reply.split.length ? html`<details class="reading-details" id="reply-details"${flag('open', open.has('reply-details'))}><summary>Reply details${DISCLOSURE_ARROW}</summary><div class="reply-values">${details.map(val)}</div>${reply.split.length ? html`<div class="split">${reply.split.map(val)}</div>` : ''}</details>` : ''}</div>`;
+  return html`<div class="reply-strip"><div class="reply-head"><span class="label">Last reply</span>${chip(reply.chip)}${t.btn}${reply.when ? html`<time>${reply.when}</time>` : ''}</div>${t.pop}${reply.model && reply.model !== currentModel ? html`<p class="reply-model" translate="no">${reply.model}</p>` : ''}<div class="reply-values">${primary.map(val)}${chip(reply.usual)}</div>${details.length || reply.split.length ? disclosure('reply-details', 'Reply details', html`<div class="reply-values">${details.map(val)}</div>${reply.split.length ? html`<div class="split">${reply.split.map(val)}</div>` : ''}`, open) : ''}</div>`;
 };
 const hero = (h: HeroView | null, list: readonly Tile[], open: Open, mac: MacView | null): Raw | string => {
   if (!h) return '';
@@ -51,10 +51,10 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open, mac: MacVie
     ['Output', result.outputTokens, kt, 'reported'],
     [result.timing === 'step' ? 'Step duration' : 'Duration', result.durationMs, dur, 'derived'],
     ['First token', result.ttftMs, dur, reading!.basis],
-  ] as const).flatMap(([label, value, format, basis]) => value == null ? [] : [{ label, value: format(value), detail: label === 'Output' ? 'tokens' : '', meter: null, basis }]) : fallback.length ? fallback.slice(0, 3) : reading?.live && !prefill ? list.filter(tile => tile.label === 'Output' || tile.label === 'Elapsed' && reading.kind !== 'elapsed') : [];
-  if (reading?.live && !prefill && h.firstToken && facts.length < 3) facts.push({ label: 'First token', value: h.firstToken.strong!, detail: '', meter: null, basis: h.firstToken.basis });
-  // Each part of the readout folds its reserved height only when it holds nothing true — an at-rest reading, the held
-  // line or a resting fact counts as content, so a filled readout keeps its shape and nothing jumps when a reply starts.
+  ] as const).flatMap(([label, value, format, basis]) => value == null ? [] : [tile(label, format(value), label === 'Output' ? 'tokens' : '', null, basis)]) : fallback.length ? fallback.slice(0, 3) : reading?.live && !prefill ? list.filter(tile => tile.label === 'Output' || tile.label === 'Elapsed' && reading.kind !== 'elapsed') : [];
+  if (reading?.live && !prefill && h.firstToken && facts.length < 3) facts.push(tile('First token', h.firstToken.strong!, '', null, h.firstToken.basis));
+  // A reading, held line, support fact or note keeps its part present. Only a wholly empty readout sheds its outer spacing;
+  // populated parts take their natural height, including when enlarged text wraps.
   const hasSupport = !!(instrument.support && !instrument.alert);
   const noteShown = !!(instrument.note && !instrument.alert) || (h.body?.kind === 'word' && !reading && h.speeds.source !== 'Splash') || h.body?.kind === 'paused';
   const measureQuiet = !reading && !instrument.held && !hasSupport && !noteShown;
@@ -72,11 +72,11 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open, mac: MacVie
       <div class="instrument-evidence" data-quiet="${String(evidenceQuiet)}">${prefill ? html`<div class="instrument-prefill" id="prefill-progress"><div class="progress-track" role="progressbar" aria-label="Prompt progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${prefill.fraction * 100}"><span style="width:${pct100(prefill.fraction)}"></span></div>${prefill.counts ? html`<p class="coverage-note">Engine · ${prefill.counts}</p>` : ''}${prefill.eta ? html`<p class="coverage-note" data-basis="estimate">About ${prefill.eta} left · <span class="basis">Server estimate</span></p>` : ''}</div>` : tiles(facts, result?.label ?? 'Engine')}</div>
     </div>
     ${h.engineTrend?.chart ? html`<div id="engine-trend">${chartMarkup(h.engineTrend.chart)}</div>` : ''}
-    ${h.chatOnly ? '' : html`<div id="reply-strip" class="instrument-support"><details class="instrument-detail-container" id="measurement-details"${flag('open', open.has('measurement-details'))}><summary>Measurement details${DISCLOSURE_ARROW}</summary><div class="instrument-detail-content">
-    <details class="instrument-details" id="engine-readings"${flag('open', open.has('engine-readings'))}><summary>Engine readings${DISCLOSURE_ARROW}</summary><p class="instrument-model" id="model" translate="no">${h.title}</p>${h.attr ? html`<span class="title-row" id="attribution">${chip(h.attr.chip)}${a!.btn}</span>${a!.pop}` : ''}${speedsMarkup(h.speeds, false)}<div class="instrument-basis">${h.speeds.source} · All engine activity ${explanation?.btn ?? ''}</div>${explanation?.pop ?? ''}${averagesMarkup(h.speeds)}</details>
-    ${remaining.length || h.context ? html`<details class="reading-details" id="request-details"${flag('open', open.has('request-details'))}><summary>Request details${DISCLOSURE_ARROW}</summary>${h.context ? html`<div class="context-headroom" id="context-headroom"><div class="context-line"><span class="title-row">Context used ${c!.btn}</span><span data-basis="${h.context.basis}"><strong>${h.context.used}</strong>${h.context.basis !== 'reported' ? html` <small class="basis">${BASIS_WORD[h.context.basis]}</small>` : ''}</span></div>${c!.pop}${meter(h.context.fraction)}</div>` : ''}${tiles(remaining)}</details>` : ''}
-    ${h.reply && !h.reply.empty ? html`<details class="reading-details" id="last-reply"${flag('open', open.has('last-reply'))}><summary>Last reply${DISCLOSURE_ARROW}</summary>${replyStrip(h.reply, open, h.title)}</details>` : ''}${machineSummary(mac)}
-    </div></details>${nextRow(h.reply?.next ?? null, open)}</div>`}
+    ${h.chatOnly ? '' : html`<div id="reply-strip" class="instrument-support">${disclosure('measurement-details', 'Measurement details', html`<div class="instrument-detail-content">
+    ${disclosure('engine-readings', 'Engine readings', html`<p class="instrument-model" id="model" translate="no">${h.title}</p>${h.attr ? html`<span class="title-row" id="attribution">${chip(h.attr.chip)}${a!.btn}</span>${a!.pop}` : ''}${speedsMarkup(h.speeds, false)}<div class="instrument-basis">${h.speeds.source} · All engine activity ${explanation?.btn ?? ''}</div>${explanation?.pop ?? ''}${averagesMarkup(h.speeds)}`, open, 'instrument-details')}
+    ${remaining.length || h.context ? disclosure('request-details', 'Request details', html`${h.context ? html`<div class="context-headroom" id="context-headroom"><div class="context-line"><span class="title-row">Context used ${c!.btn}</span><span data-basis="${h.context.basis}"><strong>${h.context.used}</strong>${h.context.basis !== 'reported' ? html` <small class="basis">${BASIS_WORD[h.context.basis]}</small>` : ''}</span></div>${c!.pop}${meter(h.context.fraction)}</div>` : ''}${tiles(remaining)}`, open) : ''}
+    ${h.reply && !h.reply.empty ? disclosure('last-reply', 'Last reply', html`${replyStrip(h.reply, open, h.title)}`, open) : ''}${machineSummary(mac)}
+    </div>`, open, 'instrument-detail-container')}${nextRow(h.reply?.next ?? null, open)}</div>`}
   </section>${h.chatOnly ? html`<p class="coverage-note cloud-scope">Cloud speed is delivery observed through OpenCode, including network and provider buffering. Not engine throughput.</p>` : ''}`;
 };
 const tiles = (list: readonly Tile[], primary: string | null = null): Raw | string => list.length ? html`<div class="metrics${primary ? ' engine-facts' : ''}" id="${primary ? primary === 'Engine' ? 'engine-facts' : 'completed-facts' : 'metrics'}" data-count="${list.length}" aria-label="${primary ?? 'Engine request'}">${primary ? html`<span class="engine-facts-heading">${primary}</span>` : ''}${list.map(tile =>
@@ -88,7 +88,7 @@ const macRow = (row: MacRow, open: Open): Raw => {
 export const macCard = (mac: MacView | null, open: Open): Raw | string => {
   if (!mac) return '';
   const t = tipParts(P, mac.tip, open), detailsId = 'mac-details';
-  return html`<section class="machine" id="machine" aria-label="${mac.title}" data-stale="${String(mac.stale)}"><div class="title-row"><h2 class="machine-title">${mac.title}</h2>${t.btn}</div>${t.pop}${mac.line.length ? html`<div class="machine-line">${mac.line.map(item => html`<div><span class="machine-label">${item.label}</span><strong>${item.value}</strong>${item.meter === null ? '' : meter(item.meter)}</div>`)}</div>` : ''}${mac.rows.length ? html`<div class="mac-rows">${mac.rows.map(row => macRow(row, open))}</div>` : ''}${mac.details.length ? html`<details class="host-details" id="${detailsId}"${flag('open', open.has(detailsId))}><summary>Mac details${DISCLOSURE_ARROW}</summary><div class="mac-rows">${mac.details.map(row => macRow(row, open))}</div></details>` : ''}</section>`;
+  return html`<section class="machine" id="machine" aria-label="${mac.title}" data-stale="${String(mac.stale)}"><div class="title-row"><h2 class="machine-title">${mac.title}</h2>${t.btn}</div>${t.pop}${mac.line.length ? html`<div class="machine-line">${mac.line.map(item => html`<div><span class="machine-label">${item.label}</span><strong>${item.value}</strong>${item.meter === null ? '' : meter(item.meter)}</div>`)}</div>` : ''}${mac.rows.length ? html`<div class="mac-rows">${mac.rows.map(row => macRow(row, open))}</div>` : ''}${mac.details.length ? disclosure(detailsId, 'Mac details', html`<div class="mac-rows">${mac.details.map(row => macRow(row, open))}</div>`, open, 'host-details') : ''}</section>`;
 };
 
 const machineSummary = (mac: MacView | null): Raw | string => {

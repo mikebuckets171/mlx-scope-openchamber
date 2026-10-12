@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChatTelemetry, type ChatTarget, type RemoteChatTarget } from './chat-telemetry.ts';
 import { version as companionVersion } from '../bridge/opencode/package.json';
+import { featureSupport } from '../bridge/opencode/compatibility.js';
 const homes: string[] = [];
 afterEach(async () => { await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true }))); });
 const at = 100_000, writer = '00000000-2222-4333-8444-555555555555';
@@ -29,9 +30,22 @@ test('wrong endpoint, stale or future observations and unknown protocols have no
   const f=await fixture(), telemetry=new ChatTelemetry(f.home,()=>at);
   for (const body of [
     {...f.body,entries:[{...target,endpointKey:'e'.repeat(64),measurement}]},
-    {...f.body,updatedAtMs:at+1}, {...f.body,expiresAtMs:at}, {...f.body,protocol:'future'}, {...f.body,companionVersion:'2.1.6'}, {...f.body,companionVersion:'3.0.0'},
+    {...f.body,updatedAtMs:at+1}, {...f.body,expiresAtMs:at}, {...f.body,protocol:'future'}, {...f.body,runtimeVersion:'2.0.26'}, {...f.body,companionVersion:'2.1.6'}, {...f.body,companionVersion:'3.0.0'},
     {...f.body,entries:[{...target,measurement:{...measurement,expiresAtMs:at}}]},
   ]) { await f.write(body); expect(await telemetry.observe('11111111',target)).toBeNull(); }
+  await telemetry.dispose();
+});
+
+test('legacy heartbeats still parse and optional feature metadata is allowlisted', async () => {
+  const f = await fixture(), telemetry = new ChatTelemetry(f.home, () => at);
+  const heartbeat = { schemaVersion: 1, companionVersion, protocol: 'opencode-2.0.25', runtimeVersion: '2.0.25', supported: true, loadedAtMs: at };
+  await f.write(heartbeat, 'heartbeat.json');
+  expect(await telemetry.probe()).toMatchObject({ companionVersion, supported: true });
+  const features = featureSupport('2.0.25'); features['http-delivery'].available = true;
+  await f.write({ ...heartbeat, features: { ...features, privateContent: 'not retained' } }, 'heartbeat.json');
+  expect((await telemetry.probe())?.features).toEqual(features);
+  await f.write({ ...heartbeat, runtimeVersion: '2.0.26', features }, 'heartbeat.json');
+  expect((await telemetry.probe())?.features).toBeUndefined();
   await telemetry.dispose();
 });
 test('multiple matching writers never double count; extra fields never escape to the snapshot',async()=>{

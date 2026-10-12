@@ -1,6 +1,7 @@
 import { MediaController } from './media/controller.ts';
 import { mountMediaSetup } from './media/setup.ts';
-import { connectHost, type HostReadyContext } from '@openchamber/sdk';
+import { connectScopeHost } from './host/openchamber.ts';
+import type { HostReadyContext } from './host/types.ts';
 import { applyHostReady } from './sdk-theme.ts';
 import { version } from '../package.json';
 import { ConnectionHelp } from './connection-help.ts';
@@ -38,12 +39,15 @@ const showStartupFailure = (): void => {
 };
 window.addEventListener('error', () => showStartupFailure(), true);
 window.addEventListener('unhandledrejection', () => showStartupFailure());
-const host = connectHost();
+const host = connectScopeHost();
 const client = new SnapshotClient(host);
 let monitor: Monitor | null = null, pipeline: Pipeline | null = null, render = (): void => {}, disposeSurface = (): void => {};
 let reportPreferenceFailure = (): void => {};
 const mediaJobs = new MediaController(host, () => { if (state.mounted) render(); }, () => client.now());
-const visibility = new Visibility(document, window, () => { monitor?.sync(); if (state.mounted) render(); });
+const visibility = new Visibility(document, window, () => {
+  host.setVisible(visibility.visible); monitor?.sync(); if (state.mounted) render();
+});
+host.setVisible(visibility.visible);
 const prefs = new PrefsV2(host.storage), preferences = new Preferences(host.storage);
 const follow = new FollowChat();
 const resetSelection = (): void => {
@@ -220,7 +224,7 @@ let started = false;
 host.onReady(ready => {
   applyHostReady(ready, document.documentElement);
   document.documentElement.style.colorScheme = ready.theme.mode;
-  if (started) { render(); return; }
+  if (started) { if (visibility.visible) render(); return; }
   started = true;
   startupStatus.textContent = 'Loading saved settings…';
   follow.update(ready.session);
@@ -228,6 +232,7 @@ host.onReady(ready => {
   (ready.surface === 'status' ? mountStatus(ready) : mountScope(ready)).catch(() => showStartupFailure());
 });
 window.addEventListener('pagehide', event => {
+  host.setVisible(false);
   pipeline?.hidden(); mediaJobs.sync(false);
   monitor?.poller.stop(); monitor?.clearFreshness(); state.signal.break(); state.generation += 1;
   state.interrupted = true; state.awaitingFresh = true;
@@ -238,4 +243,6 @@ window.addEventListener('pagehide', event => {
     host.dispose();
   }
 });
-window.addEventListener('pageshow', event => { if (event.persisted && state.mounted && monitor) { monitor.sync(); monitor.poller.start(); } });
+window.addEventListener('pageshow', event => {
+  if (event.persisted && state.mounted && monitor) { host.setVisible(visibility.visible); monitor.sync(); monitor.poller.start(); }
+});

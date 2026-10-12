@@ -3,7 +3,7 @@ import { connectionsMarkup } from '../connections-view.ts';
 import { APPROVAL, RESTART } from '../present/copy.ts';
 import type { HeaderView } from '../present/header.ts';
 import { html, raw, type Part, type Raw } from './html.ts';
-import { ICON } from './views/parts.ts';
+import { ICON, actionButton } from './views/parts.ts';
 
 // The rail panel's and the page's static shell: masthead with the status pill, pause and ⋯, then one column of truth —
 // This chat and its engine, then Media only while it has jobs — with History and Server & Mac details as secondary views
@@ -13,6 +13,10 @@ import { ICON } from './views/parts.ts';
 const menuButton = (id: string, attributes: Raw, label: Part): Raw =>
   html`<button id="${id}" type="button"${attributes}><span class="menu-check" aria-hidden="true"></span>${label}</button>`;
 const menu = html`<details class="monitor-menu" id="monitor-menu"><summary class="icon-btn" aria-label="More options">${ICON.more}</summary><div class="monitor-menu-content"><div id="measurement-choice"></div>${menuButton('refresh', html` disabled`, 'Refresh readings')}${menuButton('compact', html` aria-pressed="false"`, 'Compact view')}${menuButton('efficiency', html` aria-pressed="false"`, 'Energy-saving updates')}${menuButton('toasts', html` aria-describedby="toasts-state"`, html`Pop-up alerts: <span id="toasts-state">critical only</span>`)}<div id="share-actions" class="share-actions" aria-label="Share readings"></div><p class="menu-about"><span>MLX Scope <span id="scope-version"></span></span><span id="cadence">Adaptive updates</span><span>Private local monitoring · Chat delivery remains estimated</span></p></div></details>`;
+
+/** Secondary views keep Back, title and optional actions in one predictable row. */
+export const secondaryHeading = (id: string, title: string, back = 'Back', action = 'back-live', extra: Part = ''): Raw =>
+  html`<div class="secondary-heading">${actionButton(action, back)}<h2 id="${id}-title" tabindex="-1">${title}</h2>${extra}</div>`;
 
 /** The 3.0 shell keeps navigation quiet; the active instrument owns activity and measurement. */
 export const shellMarkup = (): Raw => html`<main class="scope" id="scope" aria-labelledby="scope-title" hidden>
@@ -26,10 +30,10 @@ export const shellMarkup = (): Raw => html`<main class="scope" id="scope" aria-l
   <div id="next-activity" class="next-activity" hidden></div><div id="capture-activity" class="next-activity" role="region" aria-label="Active timed capture" hidden></div>
   <div id="panels">
     <div class="column" id="panel-live" aria-label="This chat, engine and media" hidden><div class="view" id="view-live"></div><section class="column-block" id="view-media" aria-label="Media" hidden></section>
-      <nav class="column-foot" id="column-foot" aria-label="More from Scope"><button class="btn quiet" type="button" data-action="open-history">History</button><button class="btn quiet" type="button" data-action="open-server" id="open-server">Server &amp; Mac details</button></nav></div>
+      <nav class="column-foot" id="column-foot" aria-label="More from Scope">${actionButton('open-run', 'Run details')}${actionButton('open-history', 'History')}${actionButton('open-server', 'Server & Mac details', html` id="open-server"`)}</nav></div>
     <section class="view secondary-view" id="panel-server" aria-labelledby="server-title" hidden></section>
-    <section class="view secondary-view" id="panel-history" aria-labelledby="history-title" hidden><div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-live">Back</button><h2 id="history-title" tabindex="-1">History</h2><button class="btn quiet secondary-action" type="button" data-action="open-captures">Captures</button></div><div class="view" id="view-history"></div></section>
-    <section class="view secondary-view" id="panel-captures" aria-labelledby="captures-title" hidden><div class="secondary-heading"><button class="btn quiet" type="button" data-action="back-history">Back to History</button><h2 id="captures-title" tabindex="-1">Captures</h2></div><div id="captures-content"></div></section>
+    <section class="view secondary-view" id="panel-history" aria-labelledby="history-title" hidden>${secondaryHeading('history', 'History', 'Back', 'back-live', actionButton('open-captures', 'Captures', '', 'btn quiet secondary-action'))}<div class="view" id="view-history"></div></section>
+    <section class="view secondary-view" id="panel-captures" aria-labelledby="captures-title" hidden>${secondaryHeading('captures', 'Captures', 'Back to History', 'back-history')}<div id="captures-content"></div></section>
   </div>
   <div id="media-glance"></div>
   <section class="compact-glance" id="compact-glance" aria-label="MLX Scope glance" hidden></section>

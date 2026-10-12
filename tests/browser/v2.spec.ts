@@ -43,11 +43,17 @@ test('a still-running 1.6 service or another contract version asks for a restart
 });
 
 test('the synthetic host honours the since cursor: completions the frame has are not sent again', async ({ page }) => {
+  await page.clock.install();
   await page.addInitScript(() => { if (window === window.top) (window as unknown as { previewAutoProvider: string }).previewAutoProvider = 'bionic'; });
   await page.goto('/?connections=1&bionic=idle');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#reply-strip')).toContainText('38.6');
-  await expect.poll(async () => (await queries(page)).filter(query => query.since === '1').length).toBeGreaterThan(1);
+  // Idle polls are 2 s apart. Advance each interval separately so two polls and the predicate's host RPC do not
+  // race the default 5 s assertion deadline; waiting for each response also lets the next poll arm its timer.
+  for (let count = 1; count <= 2; count += 1) {
+    await page.clock.runFor(2_100);
+    await expect.poll(async () => (await queries(page)).filter(query => query.since === '1').length).toBeGreaterThanOrEqual(count);
+  }
   const bodies = await page.evaluate(() => (window as unknown as { previewBodies: Array<{ since?: string; items: number }> }).previewBodies);
   expect(bodies.filter(body => body.since === '1').every(body => body.items === 0)).toBe(true);
   // The reply stays on screen from the frame's own copy.

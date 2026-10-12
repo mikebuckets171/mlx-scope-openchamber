@@ -1,6 +1,7 @@
 // Optional qualification: node bridge/opencode/protocol-smoke.mjs /absolute/path/to/opencode [--remote]
 // Starts an isolated released OpenCode process and a synthetic loopback SSE provider. No real model is used.
 import assert from 'node:assert/strict';
+import { profileFor } from './compatibility.js';
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import http from 'node:http';
@@ -15,7 +16,8 @@ const binary = process.argv[2];
 if (!binary) throw new Error('Pass the absolute path to an OpenCode 2.0.25 binary.');
 const remote = process.argv.includes('--remote');
 const remoteBase = 'http://scope-protocol-fixture.invalid/v1';
-assert.equal(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim(), 'opencode v2.0.25');
+const profile = profileFor(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim().replace(/^opencode v/, ''));
+assert.ok(profile, 'This OpenCode version has no qualified compatibility profile.');
 const bridge = dirname(fileURLToPath(import.meta.url));
 // The isolated plugin must not live under a node_modules ancestor: OpenCode excludes those local sources and
 // would silently load nothing. The temporary root is canonicalized because the companion refuses to write
@@ -95,7 +97,7 @@ try {
   };
   await api('/api/plugin'); await pause(1500);
   const heartbeat = JSON.parse(await readFile(join(base, 'telemetry/heartbeat.json'), 'utf8'));
-  assert.ok(heartbeat.supported); assert.equal(heartbeat.runtimeVersion, '2.0.25');
+  assert.ok(heartbeat.supported); assert.equal(heartbeat.runtimeVersion, profile.runtimeVersion);
   const { data: session } = await api('/api/session', { title: 'Scope protocol fixture', model: { providerID: 'scopefixture', id: 'fixture' } });
   assert.ok(session.id);
   const summaries = [];

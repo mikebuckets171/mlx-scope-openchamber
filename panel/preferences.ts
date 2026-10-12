@@ -1,4 +1,4 @@
-import type { HostClient } from '@openchamber/sdk';
+import type { HostClient } from './host/types.ts';
 import { PrefStore, type PrefPatch } from './history/prefs.ts';
 
 export type PreferenceKey = 'compact' | 'efficient';
@@ -6,22 +6,23 @@ type Storage = { get(key: string): Promise<unknown>; set(key: string, value: boo
 
 /** Two tiny SDK values. Read once; write only on clicks. No subscriptions or polling. */
 export class Preferences {
-  private revisions = { compact: 0, efficient: 0 };
-  private writes: Record<PreferenceKey, Promise<void>> = { compact: Promise.resolve(), efficient: Promise.resolve() };
-  constructor(private readonly storage: Storage) {}
+  #revisions = { compact: 0, efficient: 0 };
+  #writes: Record<PreferenceKey, Promise<void>> = { compact: Promise.resolve(), efficient: Promise.resolve() };
+  readonly #storage: Storage;
+  constructor(storage: Storage) { this.#storage = storage; }
   async load(apply: (key: PreferenceKey, value: boolean) => void): Promise<void> {
     await Promise.all((['compact', 'efficient'] as const).map(async key => {
-      const revision = this.revisions[key];
+      const revision = this.#revisions[key];
       try {
-        const value = await this.storage.get(`view.${key}`);
-        if (typeof value === 'boolean' && revision === this.revisions[key]) apply(key, value);
+        const value = await this.#storage.get(`view.${key}`);
+        if (typeof value === 'boolean' && revision === this.#revisions[key]) apply(key, value);
       } catch { /* A missing/unsupported store must never block monitoring. */ }
     }));
   }
   set(key: PreferenceKey, value: boolean): Promise<void> {
-    this.revisions[key] += 1;
-    const next = this.writes[key].catch(() => {}).then(() => this.storage.set(`view.${key}`, value));
-    this.writes[key] = next;
+    this.#revisions[key] += 1;
+    const next = this.#writes[key].catch(() => {}).then(() => this.#storage.set(`view.${key}`, value));
+    this.#writes[key] = next;
     return next;
   }
 }
@@ -41,18 +42,18 @@ export interface PrefV2 {
   history?: boolean;                         // false: recording paused
 }
 export class PrefsV2 {
-  private readonly store: PrefStore;
-  private overlay: PrefPatch = {};
-  constructor(storage: HostClient['storage']) { this.store = new PrefStore(storage); }
+  readonly #store: PrefStore;
+  #overlay: PrefPatch = {};
+  constructor(storage: HostClient['storage']) { this.#store = new PrefStore(storage); }
   get value(): PrefV2 {
-    const v = { ...this.store.value, ...this.overlay };
+    const v = { ...this.#store.value, ...this.#overlay };
     return { statusExpanded: v.statusExpanded, tipDismissed: v.tipDismissed, firstRunDismissed: v.noticeDismissed, toasts: v.toasts,
       autoLabel: v.autoLabel, retentionDays: v.retentionDays, history: v.history, measurementScope: v.measurementScope };
   }
-  async load(): Promise<PrefV2> { await this.store.load(); return this.value; }
+  async load(): Promise<PrefV2> { await this.#store.load(); return this.value; }
   set(patch: PrefV2): Promise<void> {
     const { firstRunDismissed, ...rest } = patch, next: PrefPatch = { ...rest, ...firstRunDismissed !== undefined ? { noticeDismissed: firstRunDismissed } : {} };
-    this.overlay = { ...this.overlay, ...next };
-    return this.store.update(next).then(() => undefined);
+    this.#overlay = { ...this.#overlay, ...next };
+    return this.#store.update(next).then(() => undefined);
   }
 }

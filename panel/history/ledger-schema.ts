@@ -8,6 +8,14 @@ import { runtimeKind, type RuntimeKind } from '../../src/contract/runtime.ts';
 // Owner: ledger. Row tuples and keys (plan §5.6). No session tag is persisted; model names only as dictionary refs.
 
 export const LEDGER_SCHEMA = 2;
+/** A different major owns its stored data. Older readers may monitor, but must not reset or migrate it. */
+export class HistoryVersionError extends Error {
+  constructor() { super('History uses a different format. Recording is unavailable; existing data is preserved.'); }
+}
+export const assertHistoryVersion = (value: unknown, field = 'v'): void => {
+  const version = obj(value)?.[field];
+  if (version !== undefined && version !== LEDGER_SCHEMA) throw new HistoryVersionError();
+};
 export const KEYS = {
   meta: 'meta.v2', pref: 'pref.v2', models: 'ledger.v2.models', chunkPrefix: 'ledger.v2.c.', baseline: 'baseline.v2',
   capturePrefix: 'capture.v2.', legacyObservationPrefix: 'observation.v1.',
