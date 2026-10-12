@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.0.0
+
+- Shared typography, controls and content-sized regions keep Live, Session, Media, Connections, History and Captures consistent at ordinary and enlarged text sizes. Empty regions collapse while useful status and measured facts remain.
+- Run details opens the same inspector from Live and saved History. It shows available facts and their basis, observation gaps and eligible per-metric reply comparisons without another collection loop.
+- A host adapter owns event replay, visibility and disposal. A shared OpenCode feature profile isolates optional-hook failures and makes unsupported paths explicit. The standalone compatibility command produces a synthetic qualification report without launching a native host or granting a new version support.
+- History and preferences preserve unknown major formats instead of overwriting them. Existing wire/storage versions, supported runtime measurements and host permissions remain.
+- Shared rendering and parsing helpers, private implementation fields and cheaper motion bookkeeping reclaim bundle and polling work. Final resource acceptance is recorded separately from functional fixture coverage.
+
+Existing users need **Connections → Update chat speed** and loaded-version confirmation for chat delivery. The companion is version 3.3.0; its wire schema remains 1, and History/Captures remain schema 2. OpenCode support stays pinned to the qualified 2.0.25 profile. Synthetic upgrade checks do not establish native-host compatibility with newer upstream releases.
+
+Release qualification uses the synthetic OpenChamber browser host, isolated compatibility fixtures and CPU-only resource measurements. Native extension installation and live llama-swap prompt percentage were not verified for this release. These checks do not establish native-host overhead, GPU cost or inference impact.
+
 ## 3.2.3
 
 - The Session sidebar no longer leaves a blank block at rest. With a local engine idle, it shows the engine's overall average speed (dimmed and labelled **Engine · overall avg.**, never live) and what the engine holds, such as model or GPU memory and its typical first-token time, so the section keeps the same height when a reply starts. With nothing true to show — a cloud chat at rest, no model loaded, or paused — the empty rows fold away. During a reply the layout is unchanged.

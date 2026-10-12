@@ -51,6 +51,7 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   first-token facts; chat step timing stays distinct. **Measurement details** groups deeper engine readings, request
   details and the last reply; engine charts never mix in chat estimates. The column's foot opens **History** and
   **Server & Mac details**, each with **Back**.
+  **Run details** opens current observations and their basis. History reply/turn **Details** opens the same inspector, with eligible reply comparisons and explicit observation gaps.
   History retains recent replies, trends, insights, alerts, and storage. **Captures** opens from History with
   **Back to History**, a **Reply / Timed window** selector, and saved captures. Active recordings remain cancellable
   while you navigate. Resizing preserves your selected destination. Open the rail from the Session action or the full
@@ -167,9 +168,9 @@ them at a time, and a sent chip stays in the chat's session record like any atta
 
 ## Install
 
-OpenChamber 2.0.4 or newer is required. The extension uses the 2.0.4 SDK and is exercised in OpenChamber 2.2.0. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
+OpenChamber 2.0.4 or newer is required. The extension uses the 2.0.4 SDK; earlier releases were exercised in OpenChamber 2.2.0. See [Compatibility](docs/COMPATIBILITY.md) for the exact evidence and upgrade requirements. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
 
-1. Open **Settings → Extensions** in OpenChamber and add this repository, or install the named ZIP from [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest).
+1. Open **Settings → Extensions** in OpenChamber and add this repository, or install **mlx-scope-openchamber-4.0.0.zip** from [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest).
 2. Review OpenChamber’s local-service permissions. The ZIP contains built JavaScript and needs no build toolchain.
 3. Open **MLX Scope** from the Session sidebar. **This chat** follows the selected chat automatically.
 
