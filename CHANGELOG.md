@@ -2,15 +2,15 @@
 
 ## 4.0.0
 
-- Shared typography, controls and content-sized regions keep Live, Session, Media, Connections, History and Captures consistent at ordinary and enlarged text sizes. Empty regions collapse while useful status and measured facts remain.
-- Run details opens the same inspector from Live and saved History. It shows available facts and their basis, observation gaps and eligible per-metric reply comparisons without another collection loop.
-- A host adapter owns event replay, visibility and disposal. A shared OpenCode feature profile isolates optional-hook failures and makes unsupported paths explicit. The standalone compatibility command produces a synthetic qualification report without launching a native host or granting a new version support.
-- History and preferences preserve unknown major formats instead of overwriting them. Existing wire/storage versions, supported runtime measurements and host permissions remain.
+- Readings, labels and controls now look and behave alike across Live, Session, Media, Connections, History and Captures. Sections take up only the space their contents need, including at larger text sizes.
+- Run details opens from Live and saved History. It shows only what was recorded, explains how each reading was measured and notes what is missing. It adds no background checks.
+- The extension handles OpenChamber updates in one place. If an optional OpenCode connection method is unavailable, other monitoring can continue. The compatibility check reports what is known without starting OpenCode or treating an untested version as supported.
+- Newer saved History, preferences and Captures are left unchanged rather than overwritten. Existing readings and permissions continue to work.
 - The panel remains within its size limit without removing features. The behavior tests and package checks pass, but the performance goals have not all been met.
 
-Existing users need **Connections → Update chat speed** and loaded-version confirmation for chat delivery. The companion is version 3.3.0; its wire schema remains 1, and History/Captures remain schema 2. OpenCode support stays pinned to the qualified 2.0.25 profile. Synthetic upgrade checks do not establish native-host compatibility with newer upstream releases.
+To keep chat speed reports working, choose **Connections → Update chat speed** and confirm that version 3.3.0 is loaded. Existing History and Captures are unchanged. Only OpenCode 2.0.25 was tested; a successful test with a simulated host does not prove that newer versions work in a real installation.
 
-Testing used a synthetic OpenChamber browser host and CPU-only fixtures. Across three readings, measured main-thread time in the browser panel was 2.3165% for Scope 4 and 1.8596% for version 3.1. Scope 4 was about a quarter higher and above the agreed 1.62–1.70% target under current machine load, so that target was not met. We did not measure the service's CPU use or memory for this release. No earlier reading was used in its place, and no limits were raised. Trying the extension in a real installation and measuring prompt progress through a live llama-swap remain unverified. These results do not show the effect on a real OpenChamber host, graphics processing or model speed.
+In a browser test, the page used 2.3165% of one processor core for version 4.0, compared with 1.8596% for version 3.1—about a quarter more. This was above the 1.62–1.70% target, so the target was not met. The test used a simulated OpenChamber host. We did not measure the service's processor use or memory for this release, and we did not replace a result or raise a limit. We have not installed the extension in a real setup or checked prompt progress through a live llama-swap. These tests do not show the effect on the real app, graphics processor or model replies.
 
 ## 3.2.3
 
