@@ -17,6 +17,8 @@ An initial 4.0.0 candidate was installed through the real OpenChamber 2.3.0 UI o
 
 The revised ZIP was then reinstalled through Settings → Extensions. Its installed production bundles match the tested source. The live helper loaded 3.3.0 on OpenCode 2.0.27; configuration comparison confirmed only Scope's revision changed. History navigation was checked in the real browser client. Read-only observation of existing local work captured advancing llama-swap prompt counters, but did not prove the selected chat's rendered percentage or pre-upgrade saved-data preservation. All 520 Chromium/WebKit browser cases passed; fixture storage tests cover preservation separately.
 
+A second final-bundle service overhead run also passed all limits: active CPU ≤0.971%, idle/glance ≤0.440%, service RSS ≤57.8 MiB, with the same synthetic-runtime limitations.
+
 ## 3.2.3
 
 - The Session sidebar no longer leaves a blank block at rest. With a local engine idle, it shows the engine's overall average speed (dimmed and labelled **Engine · overall avg.**, never live) and what the engine holds, such as model or GPU memory and its typical first-token time, so the section keeps the same height when a reply starts. With nothing true to show — a cloud chat at rest, no model loaded, or paused — the empty rows fold away. During a reply the layout is unchanged.
