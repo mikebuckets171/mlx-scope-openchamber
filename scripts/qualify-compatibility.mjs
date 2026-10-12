@@ -87,7 +87,9 @@ export function qualificationReport(checks, hashes, at, context = {}) {
     support: profile ? 'qualified' : 'unqualified',
     fixtures: checks.find(check => check.id === (id === 'managed-reload' ? 'service' : 'bridge'))?.result ?? 'not-run', nativeRuntime: 'not-run',
     limitation: id === 'managed-reload' ? 'File/configuration mocks do not prove native watcher activation or uninterrupted live replies.'
-      : id === 'websocket-delivery' ? 'Mock hooks and interruption only; native cancellation remains unqualified.'
+      : id === 'websocket-delivery' ? profile?.websocketCancellation === 'native'
+        ? 'Mock hooks and interruption only; native cancellation has a separate version-specific receipt.'
+        : 'Mock hooks and interruption only; native cancellation remains unqualified.'
         : id === 'prompt-progress' ? 'Synthetic counters and byte passthrough do not prove progress through a live llama-swap backend.'
           : 'Synthetic event fixtures do not prove semantics of another OpenCode release.',
   }]));

@@ -29,18 +29,18 @@ export function parseCompanionSetup(value: unknown): CompanionSetupStatus | null
 /** Qualification describes understood semantics; demand and hook availability are separate observations. */
 export function companionCompatibilityMarkup(value: CompanionSetupStatus): string {
   const c = value.compatibility;
-  return html`${c ? [paragraph(`${ACTIVITY[c.activity]}. A fresh heartbeat does not prove a new runtime version.`),
+  return html`${c ? [paragraph(`${ACTIVITY[c.activity]}. Heartbeat activity is not qualification.`),
     html`<ul>${Object.entries(FEATURES).map(([id, label]) => { const feature = c.features[id as FeatureId];
       return html`<li data-companion-feature="${id}">${label}: ${feature.support}${feature.available ? ' · available' : ''}</li>`; })}</ul>`]
-    : paragraph('Feature qualification was not reported by this helper.')}
-    ${c && profileFor(value.runtimeVersion)?.websocketCancellation === 'unit-only' ? paragraph('WebSocket cancellation has unit coverage; native runtime behavior is unqualified.') : ''}
-    ${paragraph(html`From the Scope repository: <code>bun run qualify:compatibility</code>. Runs synthetic checks; it does not qualify a live host.`)}`.markup;
+    : paragraph('Feature qualification was not reported.')}
+    ${c && profileFor(value.runtimeVersion)?.websocketCancellation === 'unit-only' ? paragraph('WebSocket cancellation: unit-tested; native behavior unqualified.') : ''}
+    ${paragraph(html`In the Scope repository: <code>bun run qualify:compatibility</code>. Synthetic checks only; does not qualify a live host.`)}`.markup;
 }
 export const companionSetupMarkup = (): string => html`<div class="companion-setup" data-companion-setup>
-  ${paragraph('Estimates delivery speed for local and cloud chats from streamed text and observable reasoning on your computer. Scope never saves chat content.')}
+  ${paragraph('Estimates local and cloud chats’ delivery speed from text and observable reasoning on your computer. Scope never saves chat content.')}
   <p class="insight-note" data-companion-status role="status">Checking chat speed…</p>
   <div class="insight-actions"><button type="button" class="btn" data-companion-action="enable" hidden>Enable chat speed</button><button type="button" class="btn quiet" data-companion-action="disable" hidden>Disable and remove</button><button type="button" class="btn quiet" data-companion-action="check">Check status</button></div>
-  <details class="setup-versions"><summary>Compatibility &amp; privacy</summary>${paragraph('Enable installs a small companion through OpenCode plugins. It preserves existing plugins and provider settings. No active chat is restarted.')}<p class="insight-note" data-companion-version hidden></p><div data-companion-compatibility hidden></div></details>
+  <details class="setup-versions"><summary>Compatibility &amp; privacy</summary>${paragraph('Enable installs a companion through OpenCode plugins. Other plugins and provider settings are kept; no active chat is restarted.')}<p class="insight-note" data-companion-version hidden></p><div data-companion-compatibility hidden></div></details>
 </div>`.markup;
 
 /** Mount only in the expanded setup disclosure. No polling or writes occur until an explicit action. */

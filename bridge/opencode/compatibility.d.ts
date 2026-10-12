@@ -4,7 +4,7 @@ export type FeatureId = 'http-delivery' | 'websocket-delivery' | 'prompt-progres
 export type FeatureStatus = { support: 'qualified' | 'unqualified' | 'unavailable'; available: boolean };
 export type FeatureStatuses = Record<FeatureId, FeatureStatus>;
 export const FEATURE_IDS: FeatureId[];
-export function profileFor(runtimeVersion: unknown): { id: string; runtimeVersion: string; protocol: typeof CHAT_PROTOCOL; websocketCancellation: 'unit-only' } | null;
+export function profileFor(runtimeVersion: unknown): { id: string; runtimeVersion: string; protocol: typeof CHAT_PROTOCOL; websocketCancellation: 'unit-only' | 'native' } | null;
 export function acceptsChatProtocol(runtimeVersion: unknown, protocol: unknown): boolean;
 export function featureSupport(runtimeVersion: unknown): FeatureStatuses;
 export function parseFeatures(value: unknown, runtimeVersion: unknown): FeatureStatuses | undefined;

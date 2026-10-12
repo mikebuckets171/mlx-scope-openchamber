@@ -32,6 +32,14 @@ test('a candidate outside the finite registry stays unqualified even when every 
   expect(result.evidenceKey).not.toBe(qualificationReport(checks(), hashes, '', context).evidenceKey);
 });
 
+test('the native-tested 2.0.27 profile keeps fixture and native results distinct', () => {
+  const result = qualificationReport(checks(), hashes, '', { ...context, candidate: '2.0.27' });
+  expect(result.candidate).toEqual({ runtime: 'OpenCode', version: '2.0.27', profile: 'opencode-2.0.27-v1', support: 'qualified' });
+  expect(result.fixtureRuntime).toBe('2.0.25');
+  expect(result.features['websocket-delivery'].nativeRuntime).toBe('not-run');
+  expect(result.features['websocket-delivery'].limitation).toContain('separate version-specific receipt');
+});
+
 test('every required suite, hash inventory and source-consistency check must pass', () => {
   for (const id of REQUIRED_CHECKS) {
     const omitted = checks().filter((check: { id: string }) => check.id !== id);

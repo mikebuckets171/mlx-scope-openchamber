@@ -272,6 +272,22 @@ describe('explicit companion setup', () => {
     expect(await readFile(f.config, 'utf8')).toBe(config);
   });
 
+  it('updates a helper that predates a qualified runtime without trusting its unsupported telemetry', async () => {
+    let at = 30_000; const f = await fixture('{"plugins":["other-plugin"]}', { now: () => at });
+    await writeFile(join(f.bundle, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.2.0' }));
+    await f.setup.enable();
+    await writeFile(join(f.bundle, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: companionVersion }));
+    let probe = receipt(at, { runtimeVersion: '2.0.27', companionVersion: '3.2.0', protocol: 'unsupported', supported: false });
+    const setup = createCompanionSetup({ ...f.options, now: () => at, probe: async () => probe });
+    expect(await setup.status()).toMatchObject({ state: 'pending', live: false, canEnable: true,
+      message: 'Update chat speed to install the current tracking helper.', compatibility: { profile: 'opencode-2.0.27-v1' } });
+    at += 100;
+    expect(await setup.enable()).toMatchObject({ state: 'pending', live: false });
+    expect(parse(await readFile(f.config, 'utf8')).plugins[0]).toBe('other-plugin');
+    at += 100; probe = receipt(at, { runtimeVersion: '2.0.27', features: featureSupport('2.0.27') });
+    expect(await setup.status()).toMatchObject({ state: 'ready', live: false, compatibility: { profile: 'opencode-2.0.27-v1' } });
+  });
+
   it('replaces each changed file by rename in the same directory; unchanged files and no-op updates stay untouched', async () => {
     const f = await fixture('{}'); await f.setup.enable();
     const names = [...COMPANION_FILES, '.mlx-scope-owner.json'];

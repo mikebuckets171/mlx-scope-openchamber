@@ -35,6 +35,17 @@ test('wrong endpoint, stale or future observations and unknown protocols have no
   ]) { await f.write(body); expect(await telemetry.observe('11111111',target)).toBeNull(); }
   await telemetry.dispose();
 });
+test('2.0.27 retains the wire format but only accepts the current companion and exact qualified runtime', async () => {
+  const f = await fixture(), telemetry = new ChatTelemetry(f.home, () => at);
+  await f.write({ ...f.body, runtimeVersion: '2.0.27' });
+  expect(await telemetry.observe('11111111', target)).toEqual(measurement);
+  for (const extra of [{ companionVersion: '3.2.0' }, { protocol: 'unsupported' }, { runtimeVersion: '2.0.28' },
+    { runtimeVersion: '2.0.27-custom' }]) {
+    await f.write({ ...f.body, runtimeVersion: '2.0.27', ...extra });
+    expect(await telemetry.observe('11111111', target)).toBeNull();
+  }
+  await telemetry.dispose();
+});
 
 test('legacy heartbeats still parse and optional feature metadata is allowlisted', async () => {
   const f = await fixture(), telemetry = new ChatTelemetry(f.home, () => at);

@@ -89,7 +89,7 @@ section and the full view show the percentage. It clears when the response start
 The companion is bundled and does not activate automatically. Open **Connections → Enable chat speed** for detected
 compatibility and a deliberate setup action, or follow the [manual setup](bridge/opencode/README.md). Setup preserves
 existing plugins and JSONC comments and provides **Disable and remove**. It never restarts an active inference session.
-Chat delivery estimates initially qualify OpenCode **2.0.25** only; other versions retain ordinary runtime monitoring.
+Chat delivery estimates qualify exact OpenCode **2.0.25 and 2.0.27**; other versions retain ordinary runtime monitoring.
 The existing Splash HTTP observer remains separate. New replies acquire observations after activation; an already
 running reply cannot acquire them retroactively.
 

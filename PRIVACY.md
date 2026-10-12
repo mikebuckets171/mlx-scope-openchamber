@@ -43,7 +43,7 @@ The service reads a bounded set of matching records and sends only numeric progr
 views. Matching keys and response IDs never reach Scope history or shared diagnostics. See the
 [companion data contract](bridge/opencode/README.md) for limits and validation.
 
-For chat delivery estimates, the companion subscribes to OpenCode 2.0.25's supported plugin events only while a
+For chat delivery estimates, the companion subscribes to qualified OpenCode plugin events only while a
 visible Scope view requests them. Text and observable reasoning deltas are counted transiently in memory; their
 content is never written, logged, or sent to Scope. Tool payloads, title generation, compaction, and ambiguous usage
 accounting are excluded. Calibration keeps at most ten comparable character/token totals in memory, never content.
