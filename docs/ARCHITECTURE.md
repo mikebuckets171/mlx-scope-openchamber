@@ -7,8 +7,27 @@ JavaScript. There is no separate daemon or runtime SDK to install.
 |---|---|---|---|
 | Views | `panel/` | `panel/main.js` (≤ 304 KB) | One bundle for the rail panel, the full page and the Work Status section; `ctx.surface` picks the renderer |
 | `/scope` | `background/` | `background/main.js` (≤ 25 KB) | The background entry: answers the slash command, nothing else |
-| Service | `service/` | `service/main.js` (≤ 244 KB) | Node service the host starts on demand; reads runtimes and the Mac |
+| Service | `service/` | `service/main.js` (≤ 250 KB) | Node service the host starts on demand; reads runtimes and the Mac |
 | Contract | `src/contract/` | (in each bundle) | Wire contract v2 (`docs/design/2.0-contract.md`): types, allowlist parsers, reason codes |
+
+## Compatibility and presentation boundaries
+
+`panel/host/openchamber.ts` owns host ready/session/lifecycle subscriptions and normalizes them into Scope-owned
+`panel/host/types.ts`. Visibility removes unnecessary subscriptions; replay and disposal are idempotent. Missing
+chat identity cannot select a local collector. The background has its own minimal transport adapter. SDK-internal
+theme handling stays isolated in `panel/sdk-theme.ts`; domain components do not import SDK contracts.
+
+`bridge/opencode/compatibility.js` defines the finite feature profile consumed by the companion, telemetry reader,
+setup and qualification CLI. HTTP, experimental WebSocket observation and prompt instrumentation register independently;
+a missing optional hook withdraws only dependent facts. A profile describes support, while heartbeat activity describes
+whether the loaded companion is currently observing demand. Unknown upstream semantics remain unqualified.
+
+The shared run inspector uses pure `panel/present/run.ts` presentation and `panel/render/views/run.ts` markup from Live
+and History. It reads existing observations only. Current detail does not start history/trend/usage reads; recorded
+detail reuses the bounded ledger. Per-metric comparison preserves runtime, model, basis and input/context groups.
+Missing stored provenance or phase boundaries remain missing. Storage mutations recheck format immediately before
+writing or deleting a value; an unknown major stops recording without clearing it. The host storage API offers no
+atomic compare-and-swap, so the final read cannot eliminate a concurrent write in the interval before mutation.
 
 ## Pipeline
 

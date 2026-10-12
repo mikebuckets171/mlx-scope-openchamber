@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { ChatMeasurement } from '../../src/contract/chat.ts';
+import { parseSnapshotV2 } from '../../src/contract/snapshot.ts';
+import { mockBody, MOCK_STATES } from '../../panel/testing/mock-states.ts';
 import { unread } from '../server.ts';
 import { composeSnapshot, snapshotPollMs, type ComposeInput } from './compose.ts';
 
@@ -85,4 +87,54 @@ test('snapshot composition preserves the independent chat basis without fabricat
   expect(snapshot.runtime.phase).toBe('idle'); expect(snapshot.runtime.server.rates).toBeUndefined();
   expect(snapshot.capabilities['server.rates']).toBeUndefined(); expect(snapshot.nextPollMs).toBe(1_000);
   expect(composeSnapshot(value).chat).toBeUndefined();
+});
+
+/** Freeze and collect every input object: parsing must rebuild nested facts, arrays and capability entries too. */
+const freezeGraph = (value: unknown, objects = new Set<object>()): Set<object> => {
+  if (value && typeof value === 'object' && !objects.has(value)) {
+    objects.add(value);
+    for (const child of Object.values(value)) freezeGraph(child, objects);
+    Object.freeze(value);
+  }
+  return objects;
+};
+
+test('composition preserves every fixture wire body while rebuilding frozen inputs without shared objects', () => {
+  for (const state of MOCK_STATES) {
+    const wire = parseSnapshotV2(mockBody(state, { now: NOW }))!;
+    const reading = unread(NOW), sampledAt = wire.runtime.sampledAt ?? NOW;
+    const value: ComposeInput = {
+      ...input(), reading: { ...reading, at: sampledAt, status: wire.status, runtime: wire.runtime,
+        capabilities: wire.capabilities, meta: { ...reading.meta, connection: wire.connection } },
+      host: wire.host, completions: wire.completions, alerts: { alerts: wire.alerts, alertLog: wire.alertLog },
+      service: wire.service, serverNow: wire.serverNow, lease: { ...wire.lease, yielded: false },
+      marksHead: wire.marksHead, nextPollMs: wire.nextPollMs, chat: wire.chat,
+    };
+    const before = JSON.stringify(value), inputs = freezeGraph(value), actual = composeSnapshot(value);
+    // The old JSON normalization path produces this same detached, capability-gated wire shape.
+    const expected = parseSnapshotV2(JSON.parse(JSON.stringify({ ...wire, runtime: { ...wire.runtime, sampledAt } })));
+    expect(expected, state).not.toBeNull();
+    expect(actual, state).toEqual(expected!);
+    const outputs = freezeGraph(actual);
+    expect([...outputs].some(object => inputs.has(object)), state).toBe(false);
+    expect(JSON.stringify(value), state).toBe(before);
+  }
+});
+
+test('composition sanitizes optional non-JSON values without mutating the reading and rejects forbidden keys', () => {
+  const value = input();
+  value.reading.runtime.request = { model: null, decodeTps: NaN, prefillTps: Infinity, outputTokens: undefined, ttftMs: -Infinity };
+  value.reading.runtime.memory = { processBytes: undefined, modelBytes: NaN, metalBytes: Infinity };
+  value.reading.capabilities = { 'request.decodeRate': { scope: 'request', basis: 'reported' },
+    'request.prefillRate': { scope: 'request', basis: 'reported' }, 'request.ttft': { scope: 'request', basis: 'reported' } };
+  const expected = composeSnapshot(JSON.parse(JSON.stringify(value)) as ComposeInput);
+  freezeGraph(value);
+  expect(composeSnapshot(value)).toEqual(expected);
+  expect(value.reading.runtime.request.decodeTps).toBeNaN();
+  expect(value.reading.runtime.memory.metalBytes).toBe(Infinity);
+  for (const forbidden of ['private value', undefined, NaN]) {
+    const invalid = input();
+    Object.assign(invalid.reading.runtime.memory, { secret: forbidden });
+    expect(() => composeSnapshot(invalid)).toThrow('The reading could not form a v2 snapshot.');
+  }
 });

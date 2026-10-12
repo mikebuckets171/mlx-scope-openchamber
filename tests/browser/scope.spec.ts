@@ -76,5 +76,5 @@ test('2.0.4 emulation: status height, badge and toast recorders, lifecycle repla
 
   // Leader handover is a service fact: the next bodies carry the lease the test sets.
   await host(page, `window.setPreviewExtras({ lease: { leader: false, epoch: 2, ttlMs: 12000, leaderSurface: 'page' } })`);
-  await expect.poll(() => host(page, 'window.previewLastResponse.body.lease')).toEqual({ leader: false, epoch: 2, ttlMs: 12_000, leaderSurface: 'page' });
+  await expect.poll(() => host(page, 'window.previewLastResponse?.body?.lease')).toEqual({ leader: false, epoch: 2, ttlMs: 12_000, leaderSurface: 'page' });
 });

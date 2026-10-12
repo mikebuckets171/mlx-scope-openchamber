@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { version as companionVersion } from '../bridge/opencode/package.json';
 import { parseChatMeasurement, type ChatMeasurement } from '../src/contract/chat.ts';
+import { acceptsChatProtocol, parseFeatures, type FeatureStatuses } from '../bridge/opencode/compatibility.js';
 
 const TTL = 15_000, MAX_BYTES = 65_536, HEX = /^[a-f0-9]{64}$/, UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const object = (v: unknown): Record<string, any> | null => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, any> : null;
@@ -26,6 +27,7 @@ const matchesTarget = (entry: Record<string, any>, target: ChatTarget): boolean 
 export interface CompanionProbe {
   companionVersion: string; protocol: string; runtimeVersion: string; supported: boolean;
   loadedAtMs: number; updatedAtMs?: number; expiresAtMs?: number;
+  features?: FeatureStatuses;
 }
 /** Small, private transport. No timer and no runtime IO: a visible frame renews demand when it polls. */
 export class ChatTelemetry {
@@ -70,6 +72,7 @@ export class ChatTelemetry {
       || !Number.isSafeInteger(value.loadedAtMs) || value.loadedAtMs > this.now()) return null;
     return { companionVersion: value.companionVersion.slice(0,32), protocol: value.protocol.slice(0,64), runtimeVersion: value.runtimeVersion.slice(0,32),
       supported: value.supported, loadedAtMs: value.loadedAtMs,
+      features: parseFeatures(value.features, value.runtimeVersion),
       ...Number.isSafeInteger(value.updatedAtMs) && value.updatedAtMs <= this.now() ? { updatedAtMs: value.updatedAtMs } : {},
       ...Number.isSafeInteger(value.expiresAtMs) ? { expiresAtMs: value.expiresAtMs } : {} };
   }
@@ -109,8 +112,8 @@ export class ChatTelemetry {
         if (!file.isFile() || !file.name.endsWith('.json') || !UUID.test(file.name.slice(0,-5))) continue;
         const value = await this.json(file.name);
         const checkedAt = this.now();
-        if (!value || value.schemaVersion !== 1 || value.companionVersion !== companionVersion || value.writerID !== file.name.slice(0,-5) || value.protocol !== 'opencode-2.0.25'
-          || value.runtimeVersion !== '2.0.25' || !Number.isSafeInteger(value.updatedAtMs) || !Number.isSafeInteger(value.expiresAtMs)
+        if (!value || value.schemaVersion !== 1 || value.companionVersion !== companionVersion || value.writerID !== file.name.slice(0,-5) || !acceptsChatProtocol(value.runtimeVersion, value.protocol)
+          || !Number.isSafeInteger(value.updatedAtMs) || !Number.isSafeInteger(value.expiresAtMs)
           || value.updatedAtMs > checkedAt || value.expiresAtMs <= checkedAt || value.expiresAtMs - value.updatedAtMs > TTL
           || !Array.isArray(value.entries) || value.entries.length > 16) continue;
         if (++count > 16) return null;

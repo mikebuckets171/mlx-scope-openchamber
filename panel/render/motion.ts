@@ -8,51 +8,60 @@ const BEAT: Keyframe[] = [{ transform: 'scale(1)' }, { transform: 'scale(1.24)',
 const STAGGER_MS = 40;
 
 export class Motion {
-  private arrived = new WeakSet<Element>();
-  private texts = new WeakMap<Element, string>();
-  private beatKey: string | null = null;
-  private readonly animations = new Set<Animation>();
-  private readonly reduced = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
-  constructor(private readonly root: HTMLElement) { this.reduced?.addEventListener('change', this.reset); }
+  #arrived = new WeakSet<Element>();
+  #texts = new WeakMap<Element, string>();
+  #beatKey: string | null = null;
+  readonly #animations = new Set<Animation>();
+  readonly #reduced = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  readonly #root: HTMLElement;
+  constructor(root: HTMLElement) { this.#root = root; this.#reduced?.addEventListener('change', this.reset); }
 
   /**
    * After each render. `active`: the frame is visible and monitoring is not paused. `beat` identifies the fresh
    * measurement now shown live (the reading's own sample time), or null when nothing live is shown.
    */
   sync(active: boolean, beat: string | null): void {
-    const still = !active || !!this.reduced?.matches;
-    let order = 0;
+    const still = !active || !!this.#reduced?.matches;
+    if (still) this.reset();
+    const freshBeat = beat !== this.#beatKey;
+    this.#beatKey = beat;
+    const arrivals: HTMLElement[] = [], changes: HTMLElement[] = [], marks: HTMLElement[] = [];
+    // Read visibility before starting any animation: animation writes must not make the next visibility read flush styles.
+    // A nonempty crossfade key describes the visible label when its node also contains changing hidden explanation text.
+    for (const node of Array.from(this.#root.querySelectorAll<HTMLElement>('[data-arrive], [data-crossfade], [data-heartbeat]'))) {
+      const arrive = node.hasAttribute('data-arrive') && !this.#arrived.has(node);
+      if (arrive) this.#arrived.add(node);
+      let changed = false;
+      if (node.hasAttribute('data-crossfade')) {
+        const text = node.getAttribute('data-crossfade') || node.textContent || '', before = this.#texts.get(node);
+        this.#texts.set(node, text);
+        changed = before !== undefined && before !== text;
+      }
+      const mark = freshBeat && beat !== null && node.hasAttribute('data-heartbeat');
+      if (still || !(arrive || changed || mark) || !this.#shown(node)) continue;
+      if (arrive) arrivals.push(node);
+      if (changed) changes.push(node);
+      if (mark) marks.push(node);
+    }
     // M1: a block that appears fades in and rises 4 px once, staggered down the column; then it is still.
-    for (const node of Array.from(this.root.querySelectorAll<HTMLElement>('[data-arrive]'))) {
-      if (this.arrived.has(node)) continue;
-      this.arrived.add(node);
-      if (!still && this.shown(node)) this.run(node, ARRIVE, { duration: 120, delay: STAGGER_MS * order++, easing: 'ease-out', fill: 'backwards' });
-    }
+    arrivals.forEach((node, order) => this.#run(node, ARRIVE, { duration: 120, delay: STAGGER_MS * order, easing: 'ease-out', fill: 'backwards' }));
     // M5: a changed phase, unit or label crossfades; an unchanged one never moves.
-    for (const node of Array.from(this.root.querySelectorAll<HTMLElement>('[data-crossfade]'))) {
-      const text = node.textContent ?? '', before = this.texts.get(node);
-      this.texts.set(node, text);
-      if (!still && before !== undefined && before !== text && this.shown(node)) this.run(node, CROSSFADE, { duration: 120, easing: 'ease-out' });
-    }
+    for (const node of changes) this.#run(node, CROSSFADE, { duration: 120, easing: 'ease-out' });
     // M3: the mark beats once per fresh measurement arrival, in any phase — the only recurring motion, caused by truth.
-    if (beat === this.beatKey) return;
-    this.beatKey = beat;
-    if (beat === null || still) return;
-    for (const mark of Array.from(this.root.querySelectorAll<HTMLElement>('[data-heartbeat]')))
-      if (this.shown(mark)) this.run(mark, BEAT, { duration: 260, easing: 'cubic-bezier(.2,.7,.3,1)' });
+    for (const mark of marks) this.#run(mark, BEAT, { duration: 260, easing: 'cubic-bezier(.2,.7,.3,1)' });
   }
-  private shown(node: HTMLElement): boolean { return typeof node.animate === 'function' && (node.checkVisibility?.() ?? true); }
-  private run(node: HTMLElement, frames: Keyframe[], options: KeyframeAnimationOptions): void {
+  #shown(node: HTMLElement): boolean { return typeof node.animate === 'function' && (node.checkVisibility?.() ?? true); }
+  #run(node: HTMLElement, frames: Keyframe[], options: KeyframeAnimationOptions): void {
     const animation = node.animate(frames, options);
-    this.animations.add(animation);
-    void animation.finished.catch(() => {}).finally(() => this.animations.delete(animation));
+    this.#animations.add(animation);
+    void animation.finished.catch(() => {}).finally(() => this.#animations.delete(animation));
   }
   /** Stops every running motion; the next sync treats current blocks as already arrived. */
   readonly reset = (): void => {
-    for (const animation of this.animations) animation.cancel();
-    this.animations.clear();
+    for (const animation of this.#animations) animation.cancel();
+    this.#animations.clear();
   };
-  dispose(): void { this.reset(); this.reduced?.removeEventListener('change', this.reset); }
+  dispose(): void { this.reset(); this.#reduced?.removeEventListener('change', this.reset); }
 }
 
 type BeatSnapshot = { serverNow: number; runtime: { sampledAt?: number }; chat?: { observedAtMs: number; freshness: string } | null };

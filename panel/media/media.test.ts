@@ -149,6 +149,21 @@ test('source, job, and helper messages are escaped; enable actions follow verifi
   const markup = mediaSetupMarkup({ schemaVersion: 1, sources: [{ id: 'comfy', label: 'ComfyUI', state: 'pending', message: 'Installed · activates next time ComfyUI starts', canEnable: false, canDisable: true, managed: true, helperVersion: '3.1.0', runtimeVersion: '0.38.0', locations: [] }] }, false).markup;
   expect(markup).toContain('activates next time'); expect(markup).not.toContain('data-media-setup="enable"'); expect(markup).toContain('Disable and remove helper');
 });
+test('media setup reserves an action row only when a source offers an action', () => {
+  const source = { id: 'local-video', kind: 'local-video' as const, label: 'Local video', state: 'ready' as const, message: 'Ready',
+    canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: '1.0', locations: [] };
+  for (const state of ['ready', 'unsupported'] as const) {
+    const markup = mediaSetupMarkup({ schemaVersion: 1, sources: [{ ...source, state }] }, false).markup;
+    // Only the page-level check action needs a row; connection details still hold the pause action.
+    expect(markup.match(/class="insight-actions"/g)).toHaveLength(1);
+    expect(markup).toContain('Pause monitoring this connection');
+  }
+  for (const change of [{ enabled: false }, { canEnable: true }, { canDisable: true }]) {
+    const markup = mediaSetupMarkup({ schemaVersion: 1, sources: [{ ...source, ...change }] }, true).markup;
+    expect(markup.match(/class="insight-actions"/g)).toHaveLength(2);
+    expect(markup).toMatch(/data-source="local-video" disabled/);
+  }
+});
 test('hidden frames perform no reads, and responses from before hiding cannot revive live progress', async () => {
   let calls = 0, finish!: (value: { status: number; body: string }) => void;
   const host = { serviceRequest: () => { calls++; return new Promise(resolve => { finish = resolve; }); } } as Pick<HostClient, 'serviceRequest'>;

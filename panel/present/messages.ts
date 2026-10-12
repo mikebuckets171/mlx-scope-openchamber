@@ -7,10 +7,6 @@ export const PHASES: Record<ReadingPhase, string> = {
   connecting: 'Connecting', reconnecting: 'Reconnecting', offline: 'Offline', notLoaded: 'No model', idle: 'Ready', queued: 'Queued',
   prefill: 'Reading prompt', decode: 'Generating', processing: 'Processing', unknown: 'Unavailable',
 };
-/** Resident model rows use their own shorter vocabulary. */
-export const RESIDENT_PHASES: Partial<Record<ReadingPhase, string>> = {
-  decode: 'Generating', prefill: 'Reading prompt', idle: 'Ready', queued: 'Queued', processing: 'Processing', unknown: 'Unavailable',
-};
 
 /** What is actually being monitored, e.g. "Splash via Bionic" rather than "LM Studio". */
 export const connectionName = (runtime: RuntimeKind | null | undefined, link?: Pick<Link, 'engine' | 'host'> | null): string => {

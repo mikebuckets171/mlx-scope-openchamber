@@ -50,10 +50,10 @@ export const vsUsual = (row: ReplyRow, baselines: Baselines, metric: BaselineMet
 
 /** Keeps each flag's `since` across evaluations; one per frame, fed the same rows the History view reads. */
 export class RegressionTracker {
-  private flags: RegressionFlag[] = [];
-  get current(): readonly RegressionFlag[] { return this.flags; }
+  #flags: RegressionFlag[] = [];
+  get current(): readonly RegressionFlag[] { return this.#flags; }
   update(recent: readonly ReplyRow[], baselines: Baselines, now: number): readonly RegressionFlag[] {
-    return this.flags = evaluateRegression(recent, baselines, now, this.flags);
+    return this.#flags = evaluateRegression(recent, baselines, now, this.#flags);
   }
-  clear(): void { this.flags = []; }
+  clear(): void { this.#flags = []; }
 }

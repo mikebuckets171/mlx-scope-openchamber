@@ -2,7 +2,7 @@ import type { Severity } from '../../src/contract/alerts.ts';
 import type { Basis } from '../../src/contract/capabilities.ts';
 import { sameModel } from '../attribution/join.ts';
 import { prefillReading } from '../progress.ts';
-import { alertCopy, APPROVAL, RESTART, statusGlanceNote } from './copy.ts';
+import { alertCopy, APPROVAL, CHAT_UNAVAILABLE, RESTART, statusGlanceNote } from './copy.ts';
 import { ago, dur, kt, mmss, size, tps } from './format.ts';
 import { visibleAlerts } from './parts.ts';
 import { presentSpeeds, type SpeedsView } from './speeds.ts';
@@ -29,11 +29,14 @@ export interface SessionSectionView {
   cancelMeasurement: boolean;
 }
 const positive = (value: number | null | undefined): value is number => value != null && Number.isFinite(value) && value > 0;
-/** Phases where nothing is happening; anything mid-turn keeps its reserved rows so the glance never jumps during a reply. */
+/** Phases where fresh engine records can support a resting glance. */
 const RESTING = new Set(['Idle', 'Ready', 'No model loaded', 'Connected', 'Paused']);
 /** Whole seconds, rounded down: an elapsed time never runs ahead of the clock. */
 const elapsedText = (ms: number): string => (ms < 60_000 ? `${Math.floor(ms / 1_000)} s` : dur(Math.floor(ms / 1_000) * 1_000)).replace(/ /g, '\u00a0');
 type SessionSectionInput = Omit<StatusSectionInput, 'turn' | 'vsUsual' | 'sparkline' | 'expanded' | 'tipDismissed'> & Partial<StatusSectionInput>;
+
+const speedMeasurement = (label: string, text: string, basis: Basis, detail: string, live = true): SessionMeasurement =>
+  ({ label, text, basis, detail, live, unit: 'tok/s', kind: 'speed' });
 
 export const presentSessionSection = (input: SessionSectionInput): SessionSectionView => {
   const snapshot = input.snapshot, next = input.next, measurementScope = input.measurementScope ?? 'chat';
@@ -69,21 +72,17 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
       basis: snapshot!.capabilities['request.prefillProgress']?.basis ?? 'reported' };
     measurement = { label: `${source} · prompt${reading.stale ? ' · last seen' : ''}`, ...progress, unit: null, live: !reading.stale, kind: 'progress' };
   } else if (usable && !chatStopped && matched && activeSpeed?.value !== null && activeSpeed) {
-    measurement = { label: source, text: activeSpeed.value!, unit: 'tok/s', basis: activeSpeed.basis,
-      detail: `${sourceDetail} ${activeSpeed.detail}`, live: true, kind: 'speed' };
+    measurement = speedMeasurement(source, activeSpeed.value!, activeSpeed.basis, `${sourceDetail} ${activeSpeed.detail}`);
   } else if (chat?.freshness === 'live' && ['generating', 'reasoning'].includes(chat.phase) && positive(chat.tokensPerSecond)) {
-    measurement = { label: nonLocal ? 'Cloud · est.' : 'Chat · est.', text: tps(chat.tokensPerSecond), unit: 'tok/s', basis: 'estimate', live: true, kind: 'speed',
-      detail: `Estimated delivery over ${dur(chat.observation.endedAtMs - chat.observation.startedAtMs)}${chat.basis === 'calibrated-characters' ? ' · calibrated from reported output' : ' · four characters per token'}. Includes observable reasoning${nonLocal ? ', network delivery and provider buffering' : ''}.` };
+    measurement = speedMeasurement(nonLocal ? 'Cloud · est.' : 'Chat · est.', tps(chat.tokensPerSecond), 'estimate', `Estimated delivery over ${dur(chat.observation.endedAtMs - chat.observation.startedAtMs)}${chat.basis === 'calibrated-characters' ? ' · calibrated from reported output' : ' · four characters per token'}. Includes observable reasoning${nonLocal ? ', network delivery and provider buffering' : ''}.`);
   } else if (usable && !chatStopped && activeSpeed?.value !== null && activeSpeed) {
-    measurement = { label: 'Engine', text: activeSpeed.value!, unit: 'tok/s', basis: activeSpeed.basis,
-      detail: `All engine requests · ${activeSpeed.detail}`, live: true, kind: 'speed' };
+    measurement = speedMeasurement('Engine', activeSpeed.value!, activeSpeed.basis, `All engine requests · ${activeSpeed.detail}`);
   }
   if (chat) {
     phase = readingPrompt ? 'Reading prompt' : chat.phase === 'complete' && input.chatActivity === 'busy' ? 'Waiting'
       : { generating: 'Generating', reasoning: 'Reasoning', tool: 'Using tools', waiting: 'Waiting', complete: 'Complete', cancelled: 'Stopped' }[chat.phase];
     if (chat.phase === 'complete' && input.chatActivity !== 'busy' && positive(chat.tokensPerSecond)) {
-      measurement = { label: nonLocal ? 'Last cloud · avg.' : 'Last chat · avg.', text: tps(chat.tokensPerSecond), unit: 'tok/s', basis: 'derived', live: false, kind: 'speed',
-        detail: `Reported output tokens divided by observed step duration, including waiting before delivery${nonLocal ? '; cloud engine timing is unknown' : ''}.`,
+      measurement = { ...speedMeasurement(nonLocal ? 'Last cloud · avg.' : 'Last chat · avg.', tps(chat.tokensPerSecond), 'derived', `Reported output tokens divided by observed step duration, including waiting before delivery${nonLocal ? '; cloud engine timing is unknown' : ''}.`, false),
         result: { label: nonLocal ? 'Last cloud result' : 'Last chat result', durationMs: chat.observation.endedAtMs - chat.observation.startedAtMs, timing: 'step' } };
       age = ago(chat.observedAtMs, input.now);
     }
@@ -97,8 +96,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     const lastMatched = !engine && last.label.kind !== 'server-wide' && snapshot.connection.runtime !== 'splash'
       && window && last.completion.startedAt !== null && last.completion.startedAt >= (window.startedAt ?? window.joinedAt ?? Infinity)
       && last.completion.finishedAt <= (window.endedAt ?? input.now);
-    measurement = { label: `Last ${lastMatched ? 'chat · matched' : 'engine'} · avg.`, text: tps(last.completion.decodeTps), unit: 'tok/s',
-      basis: last.completion.basis, live: false, kind: 'speed', detail: `Completed request average · ${ago(last.completion.finishedAt, input.now)}`,
+    measurement = { ...speedMeasurement(`Last ${lastMatched ? 'chat · matched' : 'engine'} · avg.`, tps(last.completion.decodeTps), last.completion.basis, `Completed request average · ${ago(last.completion.finishedAt, input.now)}`, false),
       result: { label: `Last ${lastMatched ? 'chat · matched' : 'engine'} result`, timing: 'request',
         outputTokens: last.completion.outputTokens, ttftMs: last.completion.ttftMs,
         ...last.completion.startedAt !== null ? { durationMs: last.completion.finishedAt - last.completion.startedAt } : {} } };
@@ -120,7 +118,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   else if (!engine && input.chatActivity === 'busy' && usable && !chat && snapshot.runtime.phase === 'idle') phase = 'Waiting';
   if (frame === 'needs_approval') { phase = 'Needs approval'; note = APPROVAL.glance; }
   else if (frame === 'contract_mismatch') { phase = 'Needs restart'; note = RESTART.glance; }
-  else if (frame) { phase = 'Reconnecting'; note = input.reading.message; }
+  else if (frame) { phase = frame === 'chat_unavailable' ? CHAT_UNAVAILABLE : 'Reconnecting'; note = input.reading.message; }
   else if (input.paused) phase = 'Paused';
   else if (input.fresh === false) phase = 'Waiting for update';
   else if (snapshot && (snapshot.status.reason !== null || snapshot.status.state !== 'ready')) {
@@ -159,8 +157,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   if (input.restingFacts && atRest && usable && !measurement && !support) {
     const server = snapshot.runtime.server, memory = snapshot.runtime.memory, caps = snapshot.capabilities;
     const average = server.averages?.decodeTps, averaged = caps['server.averages'];
-    if (positive(average) && averaged) measurement = { label: 'Engine · overall avg.', text: tps(average), unit: 'tok/s', basis: averaged.basis,
-      live: false, kind: 'speed', detail: `Average generation speed across all requests · ${speeds.averageNote}. Not a live reading.` };
+    if (positive(average) && averaged) measurement = speedMeasurement('Engine · overall avg.', tps(average), averaged.basis, `Average generation speed across all requests · ${speeds.averageNote}. Not a live reading.`, false);
     const bytes = memory.modelBytes ?? memory.metalBytes, bytesCap = caps[memory.modelBytes != null ? 'server.memory.model' : 'server.memory.metal'];
     const firstToken = server.histograms?.ttftMs?.p50, latency = caps['server.latency'];
     const facts = [bytes != null && bytesCap ? `${size(bytes)} ${memory.modelBytes != null ? 'model' : 'GPU'} memory` : null,
@@ -168,7 +165,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     if (facts.length) restingSupport = { text: facts.join(' · '), detail: 'What the engine holds now and its typical first-token time across recent requests.' };
   }
   const shownSupport = support ?? restingSupport;
-  // Missing readings leave the activity area's geometry intact without inventing a measurement row.
+  // Missing readings never invent a measurement row.
   return { measurementScope, measurement, support: shownSupport, speeds, progress, held,
     resting: atRest && !measurement && !shownSupport && !held,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',

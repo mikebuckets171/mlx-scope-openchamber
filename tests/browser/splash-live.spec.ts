@@ -28,7 +28,11 @@ test('Splish/Splash live rate stays server-wide and clears when the source stops
   await page.evaluate(() => (window as any).setPreviewState('idle'));
   await expect(frame.locator('#last-reply')).toContainText('Last reply');
   await expect(frame.locator('#last-reply')).not.toContainText('43.8');
-  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('#hero')).not.toContainText('43.8');
+  await expect(frame.locator('#rate')).toHaveText('23.2');
+  await expect(frame.locator('.instrument-primary')).toHaveAttribute('data-live', 'false');
+  await expect(frame.locator('.instrument-source')).toContainText('Engine · overall avg.');
+  await expect(frame.locator('.instrument-source .basis')).toContainText('Not a live reading.');
 });
 
 test('a freshness deadline clears recent speed from the screen and copied statistics', async ({ page }) => {

@@ -6,10 +6,10 @@ export type SignalPoint = { at: number; rate: number; phase: 'decode' | 'prefill
 
 export class SignalHistory {
   points: SignalPoint[] = [];
-  private identity = '';
-  private segment = 0;
+  #identity = '';
+  #segment = 0;
 
-  break(): void { this.identity = ''; }
+  break(): void { this.#identity = ''; }
 
   observe(reading: Reading, intervalMs = 500, observedRate: number | null = null): void {
     this.prune(reading.sampledAt);
@@ -20,7 +20,7 @@ export class SignalHistory {
     const rate = server ?? (reading.phase === 'decode' ? decode ?? observedRate
       : reading.phase === 'prefill' ? reading.request?.prefillTps ?? null : null);
     if (!reading.available || rate === null || !Number.isFinite(rate) || rate < 0) {
-      this.identity = '';
+      this.#identity = '';
       return;
     }
     if (phase !== 'decode' && phase !== 'prefill') return;
@@ -29,9 +29,9 @@ export class SignalHistory {
     const last = this.points.at(-1);
     if (last && reading.sampledAt <= last.at) return;
     const allowedGap = Number.isFinite(intervalMs) ? Math.max(2_500, Math.min(5_000, intervalMs + 1_000)) : 2_500;
-    if (identity !== this.identity || !last || reading.sampledAt - last.at > allowedGap) this.segment += 1;
-    this.identity = identity;
-    this.points.push({ at: reading.sampledAt, rate, phase, segment: this.segment, ...(basis ? { basis } : {}) });
+    if (identity !== this.#identity || !last || reading.sampledAt - last.at > allowedGap) this.#segment += 1;
+    this.#identity = identity;
+    this.points.push({ at: reading.sampledAt, rate, phase, segment: this.#segment, ...(basis ? { basis } : {}) });
     // At the maximum two observations/second this retains a full 90s window.
     if (this.points.length > 200) this.points.splice(0, this.points.length - 200);
   }

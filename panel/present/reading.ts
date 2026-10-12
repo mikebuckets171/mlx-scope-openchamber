@@ -12,7 +12,7 @@ type V1Diagnostic = 'ready' | 'missing' | 'invalid' | 'unreadable' | 'authentica
  * frame-side state (a host error, a contract mismatch, a missed deadline) that has no body. Units stay v2 (bytes,
  * ms, fractions); only the vocabulary is the panel's. Nothing is read from `compat`: the 2.0 panel consumes v2 natively.
  */
-export type PanelReason = V1Reason | 'contract_mismatch' | 'needs_approval';
+export type PanelReason = V1Reason | 'contract_mismatch' | 'needs_approval' | 'chat_unavailable';
 export type ReadingPhase = 'connecting' | 'reconnecting' | 'offline' | 'notLoaded' | 'idle' | 'queued' | 'prefill' | 'decode' | 'processing' | 'unknown';
 export type Coverage = 'requests' | 'inventory' | 'server';
 export type Choice = { id: string; label: string; runtime: RuntimeKind | null };

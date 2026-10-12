@@ -6,7 +6,7 @@ import { summarizeTurn } from '../attribution/turn.ts';
 import { CAPTURE_LIMIT, type CaptureV2 } from '../captures/store.ts';
 import { windowRate, type WindowCaptureState, type WindowLengthMs } from '../captures/window.ts';
 import { clamp, redact, SCOPE_TEXT_MAX_CHARS } from '../share/report.ts';
-import { gibText, mmss } from './format.ts';
+import { clock, gibText, mmss } from './format.ts';
 import { basisNote, weightedTps } from './parts.ts';
 import { ago, delta, dur, HISTORY_TEXT, int, pct, tps, type AttrChip, type HistoryText } from './history.ts';
 
@@ -68,33 +68,33 @@ const nameOf = (runtime: string | null): string => { const kind = runtimeKind(ru
 export const CAPTURE_MEASUREMENTS = ['decodeTps', 'decodeBasis', 'outputTokens', 'promptTokens', 'cachedTokens', 'ttftMs', 'wholeMs', 'modelMs', 'toolMs', 'steps',
   'windowMs', 'observedMs', 'samples', 'decodeMs', 'completions', 'cpuMeanFraction', 'cpuPeakFraction', 'memMeanBytes', 'memPeakBytes', 'footprintPeakBytes', 'swapDeltaBytes'] as const;
 export type CaptureMeasurement = typeof CAPTURE_MEASUREMENTS[number];
-const numbers = (entries: Array<[CaptureMeasurement, number | null | undefined]>): Record<string, number> =>
-  Object.fromEntries(entries.filter((entry): entry is [CaptureMeasurement, number] => entry[1] != null && Number.isFinite(entry[1])));
+const numbers = (values: Partial<Record<CaptureMeasurement, number | null | undefined>>): Record<string, number> =>
+  Object.fromEntries(Object.entries(values).filter((entry): entry is [CaptureMeasurement, number] => entry[1] != null && Number.isFinite(entry[1])));
 /** Token-weighted Σtok / Σ(tok/tps): a multi-step rate is Scope's arithmetic, so it is `derived`. */
 const weighted = (steps: readonly CompletionV2[]): { tps: number; basis: Basis } | null => {
   const tps = weightedTps(steps);
   return tps === null ? null : { tps, basis: steps.length === 1 ? steps[0]!.basis : 'derived' };
 };
-const sum = (steps: readonly CompletionV2[], pick: (step: CompletionV2) => number | undefined): number | null =>
-  steps.every(step => pick(step) !== undefined) && steps.length ? steps.reduce((total, step) => total + pick(step)!, 0) : null;
+const sum = (steps: readonly CompletionV2[], key: 'outputTokens' | 'promptTokens' | 'cachedTokens'): number | null =>
+  steps.every(step => step[key] !== undefined) && steps.length ? steps.reduce((total, step) => total + step[key]!, 0) : null;
 type Result = Extract<NextReplyState, { kind: 'result' }>;
 export const nextReplyCapture = (result: Result, runtime: RuntimeKind | null, savedAt: number): CaptureV2 => {
   const rate = weighted(result.steps), first = result.steps[0];
   const turn = summarizeTurn({ tag: '', startedAt: result.startedAt, endedAt: result.endedAt, outcome: 'completed' }, result.steps);
   return { v: 2, savedAt, kind: 'next-reply', runtime, label: result.attributed ? 'armed' : 'server-wide', state: 'finished',
-    measurements: numbers([['decodeTps', rate?.tps], ['decodeBasis', rate ? BASES.indexOf(rate.basis) : null], ['outputTokens', sum(result.steps, step => step.outputTokens)],
-      ['promptTokens', sum(result.steps, step => step.promptTokens)], ['cachedTokens', sum(result.steps, step => step.cachedTokens)],
-      ['ttftMs', first && first.basis !== 'last-observed' ? first.ttftMs : null], ['wholeMs', result.endedAt - result.startedAt],
-      ['modelMs', turn?.modelMs], ['toolMs', turn?.toolMs], ['steps', result.steps.length]]) };
+    measurements: numbers({ decodeTps: rate?.tps, decodeBasis: rate ? BASES.indexOf(rate.basis) : null, outputTokens: sum(result.steps, 'outputTokens'),
+      promptTokens: sum(result.steps, 'promptTokens'), cachedTokens: sum(result.steps, 'cachedTokens'),
+      ttftMs: first && first.basis !== 'last-observed' ? first.ttftMs : null, wholeMs: result.endedAt - result.startedAt,
+      modelMs: turn?.modelMs, toolMs: turn?.toolMs, steps: result.steps.length }) };
 };
 export const windowCapture = (state: WindowCaptureState, savedAt: number): CaptureV2 => {
   const rate = windowRate(state);
   return { v: 2, savedAt, kind: 'window', runtime: state.runtime, label: 'server-wide', state: state.status === 'finished' ? 'finished' : 'interrupted',
-    measurements: numbers([['decodeTps', rate], ['decodeBasis', rate === null ? null : BASES.indexOf('observed')], ['outputTokens', state.decodeTokens],
-      ['decodeMs', state.decodeMs], ['windowMs', state.targetMs], ['observedMs', state.endedAt - state.startedAt], ['samples', state.samples],
-      ['completions', state.completions], ['cpuMeanFraction', state.cpuMean], ['cpuPeakFraction', state.cpuPeak], ['memMeanBytes', state.memMeanBytes && Math.round(state.memMeanBytes)],
-      ['memPeakBytes', state.memPeakBytes], ['footprintPeakBytes', state.footprintPeakBytes],
-      ['swapDeltaBytes', state.swapStartBytes !== null && state.swapEndBytes !== null ? state.swapEndBytes - state.swapStartBytes : null]]) };
+    measurements: numbers({ decodeTps: rate, decodeBasis: rate === null ? null : BASES.indexOf('observed'), outputTokens: state.decodeTokens,
+      decodeMs: state.decodeMs, windowMs: state.targetMs, observedMs: state.endedAt - state.startedAt, samples: state.samples,
+      completions: state.completions, cpuMeanFraction: state.cpuMean, cpuPeakFraction: state.cpuPeak, memMeanBytes: state.memMeanBytes && Math.round(state.memMeanBytes),
+      memPeakBytes: state.memPeakBytes, footprintPeakBytes: state.footprintPeakBytes,
+      swapDeltaBytes: state.swapStartBytes !== null && state.swapEndBytes !== null ? state.swapEndBytes - state.swapStartBytes : null }) };
 };
 
 /** The headline rate. Migrated 1.x windows carry `observedDecodeTps`; older records may keep their 1.6 names. */
@@ -118,18 +118,22 @@ const presentNext = (input: CapturesInput): NextCard => {
   const arm = { action: 'arm' as const, label: 'Measure next reply', primary: true };
   const blocked = input.paused ? 'Resume monitoring to measure a reply.' : !input.completions ? `${rt} doesn’t report replies, so Next reply can’t measure one.`
     : !state ? 'Next reply needs an open chat in OpenChamber.' : null;
-  if (blocked) return { state: 'unavailable', chip: null, note: blocked, time: null, result: null, actions: [] };
-  const base = { chip: null, time: null, result: null };
+  const card: NextCard = { state: blocked || state!.kind === 'refused' ? 'unavailable' : state!.kind, chip: null, note: blocked ?? note,
+    time: null, result: null, actions: blocked ? [] : [arm] };
+  if (blocked) return card;
   switch (state!.kind) {
-    case 'idle': return { ...base, state: 'idle', note, actions: [arm] };
-    case 'offer-watch': return { ...base, state: 'offer-watch', note: 'Choose this chat’s server to measure its next reply.', actions: [{ action: 'watch', label: `Watch ${state!.runtime}` }] };
-    case 'armed': return { ...base, state: 'armed', chip: ARMED, note, time: { value: mmss(Math.max(0, REPLY_WAIT_MS - (input.now - state!.at))), suffix: ' left' },
-      actions: [{ action: 'cancel', label: 'Cancel' }] };
-    case 'measuring': return { ...base, state: 'measuring', note: 'Measuring next reply', time: { value: dur(Math.max(0, input.now - state!.startedAt)), suffix: '' },
-      actions: [{ action: 'cancel', label: 'Cancel' }] };
-    case 'cancelled': return { ...base, state: 'cancelled', note: CANCELLED[state!.reason], actions: [arm] };
+    case 'idle': break;
+    case 'offer-watch': card.note = 'Choose this chat’s server to measure its next reply.'; card.actions = [{ action: 'watch', label: `Watch ${state!.runtime}` }]; break;
+    case 'armed':
+    case 'measuring':
+      card.time = state!.kind === 'armed'
+        ? { value: mmss(Math.max(0, REPLY_WAIT_MS - (input.now - state!.at))), suffix: ' left' }
+        : { value: dur(Math.max(0, input.now - state!.startedAt)), suffix: '' };
+      if (state!.kind === 'armed') card.chip = ARMED; else card.note = 'Measuring next reply';
+      card.actions = [{ action: 'cancel', label: 'Cancel' }]; break;
+    case 'cancelled': card.note = CANCELLED[state!.reason]; break;
     // Won't arm: the chat's model differs or is unknown, or the runtime can't count requests.
-    case 'refused': return { ...base, state: 'unavailable', note: `Next reply can’t measure this chat: ${(input.text ?? HISTORY_TEXT).withheld(state!.reason).replace(/^All server activity · /, '')}.`, actions: [] };
+    case 'refused': card.note = `Next reply can’t measure this chat: ${(input.text ?? HISTORY_TEXT).withheld(state!.reason).replace(/^All server activity · /, '')}.`; card.actions = []; break;
     case 'result': {
       const capture = nextReplyCapture(state!, input.runtime, input.now), m = capture.measurements, rate = captureRate(capture);
       const values = [rate ? value(`${tps(rate.tps)} tok/s`, rate.basis) : null, m.outputTokens !== undefined ? value(`${int(m.outputTokens)} out`, 'reported') : null,
@@ -139,11 +143,12 @@ const presentNext = (input: CapturesInput): NextCard => {
       // A failed step keeps its own reason, so the chip says why the reply stayed server-wide.
       const reason = state!.steps.find(step => step.verdict?.attr === 'withheld')?.verdict?.reason ?? 'not-observed';
       const chip: AttrChip = state!.attributed ? ARMED : { attr: 'server', text: (input.text ?? HISTORY_TEXT).withheld(reason), reason };
-      return { ...base, state: 'result', note: state!.attributed ? 'Recorded with Measure next reply.' : 'A step couldn’t be matched to this chat. Readings cover all server activity.',
-        result: { chip, ago: ago(state!.endedAt, input.now), values, split },
-        actions: [...input.nextSaved ? [] : [{ action: 'save-next' as const, label: 'Save to Captures' }], { ...arm, label: 'Measure again', primary: false }] };
+      card.note = state!.attributed ? 'Recorded with Measure next reply.' : 'A step couldn’t be matched to this chat. Readings cover all server activity.';
+      card.result = { chip, ago: ago(state!.endedAt, input.now), values, split };
+      card.actions = [...input.nextSaved ? [] : [{ action: 'save-next' as const, label: 'Save to Captures' }], { ...arm, label: 'Measure again', primary: false }];
     }
   }
+  return card;
 };
 const presentWindow = (input: CapturesInput): WindowCard => {
   const w = input.window, rate = windowRate(w);
@@ -159,11 +164,11 @@ const presentWindow = (input: CapturesInput): WindowCard => {
     state: w.status === 'recording' ? `${Math.floor(elapsed / 1000)} / ${w.targetMs / 1000} s` : w.status === 'finished' ? `Captured · ${dur(elapsed)}`
       : `Partial · ${w.stopReason ?? 'stopped'}` };
 };
+const iso = (at: number): string => new Date(at).toISOString();
 const rows = (list: readonly CaptureV2[], input: CapturesInput, legacy: boolean, reference: CaptureV2 | null, text: HistoryText): SavedRow[] => list.map(capture => {
   const rate = captureRate(capture), key = captureKey(capture, legacy), ref = reference && captureRate(reference);
-  const at = new Date(capture.savedAt), today = at.toDateString() === new Date(input.now).toDateString();
-  return { key, iso: at.toISOString(), title: title(capture), chip: labelChip(capture.label, text), comparing: key === input.reference,
-    at: today ? at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+  return { key, iso: iso(capture.savedAt), title: title(capture), chip: labelChip(capture.label, text), comparing: key === input.reference,
+    at: clock(capture.savedAt, input.now),
     rate: rate ? value(`${tps(rate.tps)} tok/s`, rate.basis) : null,
     delta: rate && ref && reference !== capture ? value(`${delta(rate.tps / ref.tps)} vs reference`, 'derived') : null };
 });
@@ -172,9 +177,10 @@ export const presentCaptures = (input: CapturesInput): CapturesView => {
   const text = input.text ?? HISTORY_TEXT;
   // A 1.x capture copied into capture.v2 by the migration shows once, in the read-only 1.x list.
   const migrated = new Set(input.legacy.map(capture => capture.savedAt));
-  const saved = input.saved.filter(capture => !migrated.has(capture.savedAt)).sort((a, b) => b.savedAt - a.savedAt).slice(0, CAPTURE_LIMIT);
-  const legacy = [...input.legacy].sort((a, b) => b.savedAt - a.savedAt);
-  const reference = [...saved.map(c => [captureKey(c), c] as const), ...legacy.map(c => [captureKey(c, true), c] as const)].find(([key]) => key === input.reference)?.[1] ?? null;
+  const newest = (a: CaptureV2, b: CaptureV2): number => b.savedAt - a.savedAt;
+  const saved = input.saved.filter(capture => !migrated.has(capture.savedAt)).sort(newest).slice(0, CAPTURE_LIMIT);
+  const legacy = [...input.legacy].sort(newest);
+  const reference = saved.find(c => captureKey(c) === input.reference) ?? legacy.find(c => captureKey(c, true) === input.reference) ?? null;
   return {
     next: presentNext(input), window: presentWindow(input),
     saved: { right: `${saved.length} of ${CAPTURE_LIMIT} · oldest replaced when full`, rows: rows(saved, input, false, reference, text), share: saved.length > 0,
@@ -183,15 +189,18 @@ export const presentCaptures = (input: CapturesInput): CapturesView => {
   };
 };
 
+const REPORT_VALUES: readonly [CaptureMeasurement, (n: number) => string, string, string?][] = [
+  ['outputTokens', int, '', ' output tokens'], ['wholeMs', dur, 'turn '], ['completions', int, '', ' replies finished'],
+  ['cpuMeanFraction', pct, 'CPU average '], ['memPeakBytes', gibText, 'RAM peak '],
+];
+
 /** Copy and Add to chat draft: runtime kinds and numbers only, through the one sanitizer. */
 export const capturesReport = (captures: readonly CaptureV2[], version: string, forbidden: readonly string[]): string => {
   const line = (capture: CaptureV2): string => {
     const m = capture.measurements, rate = captureRate(capture);
-    return [`${new Date(capture.savedAt).toISOString()} · ${title(capture)} · ${capture.label === 'armed' ? 'Next reply' : 'all server activity'}:`,
+    return [`${iso(capture.savedAt)} · ${title(capture)} · ${capture.label === 'armed' ? 'Next reply' : 'all server activity'}:`,
       rate ? `${tps(rate.tps)} tok/s${rate.basis === 'reported' ? '' : ` (${basisNote(rate.basis)})`}` : 'no output speed',
-      m.outputTokens !== undefined ? `${int(m.outputTokens)} output tokens` : null, m.wholeMs !== undefined ? `turn ${dur(m.wholeMs)}` : null,
-      m.completions !== undefined ? `${int(m.completions)} replies finished` : null, m.cpuMeanFraction !== undefined ? `CPU average ${pct(m.cpuMeanFraction)}` : null,
-      m.memPeakBytes !== undefined ? `RAM peak ${gibText(m.memPeakBytes)}` : null].filter(Boolean).join(' ');
+      ...REPORT_VALUES.map(([key, format, before, after = '']) => m[key] === undefined ? null : `${before}${format(m[key]!)}${after}`)].filter(Boolean).join(' ');
   };
   const text = [`MLX Scope ${version} — saved captures`,
     'Readings cover all server activity unless marked “Next reply”. Other apps and chats can affect comparisons. No model names.',

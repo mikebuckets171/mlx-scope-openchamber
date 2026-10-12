@@ -1,4 +1,4 @@
-import type { HostClient } from '@openchamber/sdk';
+import type { HostClient } from './host/types.ts';
 import { RUNTIMES, runtimeKind as runtimeValue, runtimeNames, type RuntimeKind } from '../src/contract/runtime.ts';
 import { isConnectionId, label, obj } from '../src/contract/guards.ts';
 import { unavailableForHostError } from './host-errors.ts';
@@ -35,153 +35,153 @@ export const choiceLabel = (choice: Pick<Choice, 'label' | 'runtime'>): string =
 };
 
 const selectionValue = (value: unknown): RuntimeSelection | null => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const item = value as Record<string, unknown>;
-  if (typeof item.provider !== 'string' || item.provider.length > 120 || /[\u0000-\u001f\u007f]/.test(item.provider)
+  const item = obj(value);
+  if (!item || typeof item.provider !== 'string' || item.provider.length > 120 || /[\u0000-\u001f\u007f]/.test(item.provider)
     || item.runtime !== null && runtimeValue(item.runtime) === null) return null;
   return {provider:item.provider, runtime:runtimeValue(item.runtime)};
+};
+
+const selectionQuery = (selection: RuntimeSelection): Record<string, string> | undefined => {
+  const query: Record<string, string> = {};
+  if (selection.provider) query.provider = selection.provider;
+  if (selection.runtime) query.runtime = selection.runtime;
+  return Object.keys(query).length ? query : undefined;
 };
 
 /** The saved selection as a query, for surfaces without the connection chooser (the Work Status section). */
 export const readSelection = async (storage: HostClient['storage']): Promise<Record<string, string> | undefined> => {
   try {
     const selection = selectionValue(await storage.get(STORAGE_KEY));
-    if (!selection) return undefined;
-    const query: Record<string, string> = {};
-    if (selection.provider) query.provider = selection.provider;
-    if (selection.runtime) query.runtime = selection.runtime;
-    return Object.keys(query).length ? query : undefined;
+    return selection ? selectionQuery(selection) : undefined;
   } catch { return undefined; }
 };
 
 /** One saved selection; metadata arrives through the existing snapshot request. */
 export class ConnectionsView {
   selection: RuntimeSelection = {provider:'', runtime:null};
-  private choices: Choice[] = [];
-  private metadata: 'ready' | 'unavailable' | null = null;
-  private inspecting: Promise<void> | null = null;
-  private disposed = false;
-  private revision = 0;
-  private pending: Promise<void> = Promise.resolve();
-  private readonly provider: HTMLSelectElement;
-  private readonly runtime: HTMLSelectElement;
-  private readonly setup: HTMLElement;
-  private readonly trigger: HTMLButtonElement;
+  #choices: Choice[] = [];
+  #metadata: 'ready' | 'unavailable' | null = null;
+  #inspecting: Promise<void> | null = null;
+  #disposed = false;
+  #revision = 0;
+  #pending: Promise<void> = Promise.resolve();
+  #provider: HTMLSelectElement;
+  #runtime: HTMLSelectElement;
+  #setup: HTMLElement;
+  #trigger: HTMLButtonElement;
   onOpen: () => void = () => {};
   onVisibility: (open: boolean) => void = () => {};
-  get isOpen(): boolean { return !this.setup.hidden; }
-  constructor(private readonly root: HTMLElement, private readonly storage: HostClient['storage'],
-    private readonly change: () => void, private readonly status: (message: string) => void) {
-    this.provider = this.node('connection-provider') as HTMLSelectElement;
-    this.runtime = this.node('connection-runtime') as HTMLSelectElement;
-    this.setup = this.node('connection-setup');
-    this.trigger = this.node('connection-change') as HTMLButtonElement;
-    this.trigger.addEventListener('click', () => this.setOpen(this.setup.hidden));
-    this.node('connection-close').addEventListener('click', () => this.setOpen(false, true));
-    this.node('connection-configure').addEventListener('click', () => this.setOpen(true, true));
-    this.setup.addEventListener('keydown', event => {
-      if (event.key === 'Escape') { event.preventDefault(); this.setOpen(false, true); }
+  get isOpen(): boolean { return !this.#setup.hidden; }
+  #root: HTMLElement;
+  #storage: HostClient['storage'];
+  #change: () => void;
+  #status: (message: string) => void;
+  constructor(root: HTMLElement, storage: HostClient['storage'],
+    change: () => void, status: (message: string) => void) {
+    this.#root = root; this.#storage = storage; this.#change = change; this.#status = status;
+    this.#provider = this.#node('connection-provider') as HTMLSelectElement;
+    this.#runtime = this.#node('connection-runtime') as HTMLSelectElement;
+    this.#setup = this.#node('connection-setup');
+    this.#trigger = this.#node('connection-change') as HTMLButtonElement;
+    this.#trigger.addEventListener('click', () => this.#setOpen(this.#setup.hidden));
+    this.#node('connection-close').addEventListener('click', () => this.#setOpen(false, true));
+    this.#node('connection-configure').addEventListener('click', () => this.#setOpen(true, true));
+    this.#setup.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { event.preventDefault(); this.#setOpen(false, true); }
     });
-    this.node('connection-apply').addEventListener('click', () => {
-      const next = {provider:this.provider.value, runtime:runtimeValue(this.runtime.value)};
-      this.revision += 1;
-      this.commit(next);
-      this.setOpen(false, true);
-      this.persist(() => this.storage.set(STORAGE_KEY, next));
+    this.#node('connection-apply').addEventListener('click', () => {
+      const next = {provider:this.#provider.value, runtime:runtimeValue(this.#runtime.value)};
+      this.#commit(next);
+      this.#setOpen(false, true);
+      this.#persist(() => this.#storage.set(STORAGE_KEY, next));
     });
   }
-  private node(id: string): HTMLElement { return this.root.querySelector<HTMLElement>(`#${id}`)!; }
+  #node(id: string): HTMLElement { return this.#root.querySelector<HTMLElement>(`#${id}`)!; }
   /** Every explicit choice also chooses Whole engine, even if the saved connection already matches. */
-  private commit(next: RuntimeSelection): void {
+  #commit(next: RuntimeSelection): void {
+    this.#revision += 1;
     this.selection = next;
-    this.change();
+    this.#change();
   }
-  private persist(write: () => Promise<void>): void {
-    const save = this.pending.catch(() => {}).then(write);
-    this.pending = save;
-    void save.catch(() => this.status('Connection changed here, but OpenChamber could not save the preference.'));
+  #persist(write: () => Promise<void>): void {
+    const save = this.#pending.catch(() => {}).then(write);
+    this.#pending = save;
+    void save.catch(() => this.#status('Connection changed here, but OpenChamber could not save the preference.'));
   }
   /** "Looks like Splash now · Switch": keep the chosen connection and watch the runtime that answers now. */
   switchRuntime(runtime: RuntimeSelection['runtime']): void {
     const next = {provider:this.selection.provider, runtime};
-    this.revision += 1;
-    this.commit(next);
-    this.persist(() => this.storage.set(STORAGE_KEY, next));
+    this.#commit(next);
+    this.#persist(() => this.#storage.set(STORAGE_KEY, next));
   }
   /** "Watch …": monitor the connection the open chat uses, read as whatever answers there. */
   watch(provider: string): void {
-    this.revision += 1;
-    this.commit({ provider, runtime: null });
-    this.persist(() => this.storage.set(STORAGE_KEY, this.selection));
+    this.#commit({ provider, runtime: null });
+    this.#persist(() => this.#storage.set(STORAGE_KEY, this.selection));
   }
   /** Opens the connection chooser, as the callout's Connection… link does. */
-  openSetup(): void { this.setOpen(true, true); }
+  openSetup(): void { this.#setOpen(true, true); }
   async load(): Promise<void> {
-    const revision = this.revision;
+    const revision = this.#revision;
     try {
-      const selection = selectionValue(await this.storage.get(STORAGE_KEY));
+      const selection = selectionValue(await this.#storage.get(STORAGE_KEY));
       // Restoring a saved connection is not a user action and must not change the measurement scope.
-      if (selection && revision === this.revision) this.selection = selection;
+      if (selection && revision === this.#revision) this.selection = selection;
     } catch { /* An unavailable preference store must not block monitoring. */ }
   }
-  query(): Record<string, string> | undefined {
-    const query: Record<string, string> = {};
-    if (this.selection.provider) query.provider = this.selection.provider;
-    if (this.selection.runtime) query.runtime = this.selection.runtime;
-    return Object.keys(query).length ? query : undefined;
-  }
+  query(): Record<string, string> | undefined { return selectionQuery(this.selection); }
   update(info: Pick<Link, 'choices'> | null): void {
     if (!info) return;
     // A chat-only response intentionally omits local choices; it cannot erase discovered configuration.
-    if ((info.choices.length || this.metadata === null) && JSON.stringify(info.choices) !== JSON.stringify(this.choices)) {
-      this.choices = info.choices; this.paintChoices();
+    if ((info.choices.length || this.#metadata === null) && JSON.stringify(info.choices) !== JSON.stringify(this.#choices)) {
+      this.#choices = info.choices; this.#paintChoices();
     }
-    this.describe();
+    this.#describe();
   }
-  private describe(): void {
-    this.node('connection-choice-note').textContent = this.metadata === 'unavailable'
+  #describe(): void {
+    this.#node('connection-choice-note').textContent = this.#metadata === 'unavailable'
       ? 'Local connection discovery is unavailable. Check Scope’s service under Advanced, then reopen Connections.'
-      : this.choices.length ? `${this.choices.length} local ${this.choices.length === 1 ? 'connection' : 'connections'} found. This chat chooses its matching server automatically.`
-      : this.metadata === 'ready' ? 'No local model server was found in your OpenCode configuration. Cloud chat speed and media tools work independently.'
+      : this.#choices.length ? `${this.#choices.length} local ${this.#choices.length === 1 ? 'connection' : 'connections'} found. This chat chooses its matching server automatically.`
+      : this.#metadata === 'ready' ? 'No local model server was found in your OpenCode configuration. Cloud chat speed and media tools work independently.'
       : 'Scope follows this chat. Checking which local servers are configured…';
   }
   refresh(host: Pick<HostClient, 'serviceRequest'>): Promise<void> {
-    if (this.inspecting) return this.inspecting;
-    this.inspecting = (async () => {
+    if (this.#inspecting) return this.#inspecting;
+    this.#inspecting = (async () => {
       try {
         const response = await host.serviceRequest({ method: 'GET', path: '/v2/connections' });
-        if (this.disposed) return;
+        if (this.#disposed) return;
         const value = response.status === 200 ? parseConnections(JSON.parse(response.body)) : null;
-        if (!value) { this.metadata = 'unavailable'; this.describe(); return; }
-        this.metadata = value.state;
-        if (value.state === 'ready') { this.choices = value.choices; this.paintChoices(); }
-        this.describe();
-      } catch (error) { if (!this.disposed) { this.metadata = 'unavailable'; this.node('connection-choice-note').textContent = unavailableForHostError(error).message; } }
-      finally { this.inspecting = null; }
+        if (!value) { this.#metadata = 'unavailable'; this.#describe(); return; }
+        this.#metadata = value.state;
+        if (value.state === 'ready') { this.#choices = value.choices; this.#paintChoices(); }
+        this.#describe();
+      } catch (error) { if (!this.#disposed) { this.#metadata = 'unavailable'; this.#node('connection-choice-note').textContent = unavailableForHostError(error).message; } }
+      finally { this.#inspecting = null; }
     })();
-    return this.inspecting;
+    return this.#inspecting;
   }
-  dispose(): void { this.disposed = true; }
-  private paintChoices(): void {
-    const selected = this.setup.hidden ? this.selection.provider : this.provider.value;
-    const entries = [{id:'',label:'Automatic',runtime:null}, ...this.choices];
+  dispose(): void { this.#disposed = true; }
+  #paintChoices(): void {
+    const selected = this.#setup.hidden ? this.selection.provider : this.#provider.value;
+    const entries = [{id:'',label:'Automatic',runtime:null}, ...this.#choices];
     if (selected && !entries.some(choice => choice.id === selected)) entries.push({id:selected,label:`${selected} · not currently found`,runtime:null});
-    this.provider.replaceChildren(...entries.map(choice => {
+    this.#provider.replaceChildren(...entries.map(choice => {
       const option = document.createElement('option'); option.value = choice.id;
       option.textContent = choiceLabel(choice);
       return option;
     }));
-    this.provider.value = selected;
+    this.#provider.value = selected;
   }
-  private setOpen(open: boolean, focus = false): void {
+  #setOpen(open: boolean, focus = false): void {
     if (open) {
-      this.paintChoices(); this.provider.value = this.selection.provider;
-      this.runtime.value = this.selection.runtime ?? '';
+      this.#paintChoices(); this.#provider.value = this.selection.provider;
+      this.#runtime.value = this.selection.runtime ?? '';
       this.onOpen();
     }
-    this.setup.hidden = !open; this.onVisibility(open); this.trigger.setAttribute('aria-expanded', String(open));
+    this.#setup.hidden = !open; this.onVisibility(open); this.#trigger.setAttribute('aria-expanded', String(open));
     // The trigger lives in the ⋯ menu, which closes once an action is chosen; return focus to the menu button then.
-    const visibleTrigger = this.trigger.checkVisibility() ? this.trigger : this.root.querySelector<HTMLElement>('#monitor-menu > summary') ?? this.trigger;
-    if (focus) (open ? this.node('connection-setup-title') : visibleTrigger).focus({preventScroll:true});
+    const visibleTrigger = this.#trigger.checkVisibility() ? this.#trigger : this.#root.querySelector<HTMLElement>('#monitor-menu > summary') ?? this.#trigger;
+    if (focus) (open ? this.#node('connection-setup-title') : visibleTrigger).focus({preventScroll:true});
   }
 }

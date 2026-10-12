@@ -56,6 +56,35 @@ test('every mock state renders every view without a raw placeholder', () => {
   }
 });
 
+test('the full page fills its readout at rest and folds only the parts that hold nothing true', () => {
+  // A local engine at rest shows the same labelled record the glance does: overall average plus what it holds.
+  const rest = inputOf('idle', body => {
+    body.runtime.server.averages = { decodeTps: 35.73, prefillTps: 284.2 };
+    body.capabilities['server.averages'] = { scope: 'server', basis: 'reported' };
+    body.runtime.memory = { metalBytes: 25_663_782_912 };
+    body.capabilities['server.memory.metal'] = { scope: 'server', basis: 'reported' };
+    delete body.capabilities['server.memory.model'];
+    body.runtime.server.histograms = { ttftMs: { p50: 410, p95: 900, n: 64, window: 'native-last-4096' } };
+    body.capabilities['server.latency'] = { scope: 'server', basis: 'derived' };
+  }, { chatActivity: 'idle', last: null, measurementScope: 'engine' });
+  const filled = liveMarkup(presentLive(rest), new Set()).markup;
+  expect(filled).toContain('Engine · overall avg.');
+  expect(filled).toContain('23.9 GiB');
+  expect(filled).toMatch(/class="instrument-measure" data-quiet="false"/);
+  expect(filled).toMatch(/class="instrument-evidence" data-quiet="false"/);
+  // No model loaded: neither part holds anything true, so both fold to their line instead of a blank block.
+  const unloaded = liveMarkup(presentLive(inputOf('model-unloaded')), new Set()).markup;
+  expect(unloaded).toMatch(/class="instrument-measure" data-quiet="true"/);
+  expect(unloaded).toMatch(/class="instrument-evidence" data-quiet="true"/);
+  // A cloud chat at rest borrows nothing local; the readout folds under its phase line.
+  const cloud = liveMarkup(presentLive(inputOf('idle', undefined, { chatIsLocal: false, chatActivity: 'idle', last: null, measurementScope: 'chat' })), new Set()).markup;
+  expect(cloud).toMatch(/class="instrument-measure" data-quiet="true"/);
+  expect(cloud).toMatch(/class="instrument-evidence" data-quiet="true"/);
+  // A live reading never folds its measure, even without evidence tiles.
+  const live = liveMarkup(presentLive(inputOf('decode')), new Set()).markup;
+  expect(live).toMatch(/class="instrument-measure" data-quiet="false"/);
+});
+
 test('one column of truth: no workspace tabs; History, Captures and Server are secondary views with Back', () => {
   const shell = shellMarkup().markup;
   expect(shell).not.toMatch(/role="tab"|role="tablist"|role="tabpanel"/);
@@ -80,7 +109,7 @@ test('runtime diagnostics are available in a disclosure without displacing serve
   expect(serverMarkup(view, new Set(['server-runtime-details'])).markup).toContain('id="server-runtime-details" open>');
 });
 
-test('full Live reserves the readout through freshness changes and shows no empty trend', () => {
+test('full Live retains the readout structure through freshness changes and shows no empty trend', () => {
   for (const state of ['decode', 'prefill', 'idle']) {
     const input = inputOf(state), markup = liveMarkup(presentLive(input), new Set()).markup;
     expect(markup, state).toContain('class="instrument-readout"');
@@ -190,4 +219,21 @@ test('completed chat facts never borrow output or first-token timing from an eng
     expect(visible).not.toContain('id="engine-facts"');
     if (!chatIsLocal) expect(markup).not.toContain('id="measurement-details"');
   }
+});
+
+
+test('the machine summary omits empty health and measurement regions without hiding reported facts', () => {
+  const view = presentLive(inputOf('decode'));
+  expect(view.mac).not.toBeNull();
+  const mac = view.mac!;
+  const healthy = { ...mac, rows: mac.rows.map(row => ({ ...row, level: 'normal' as const })) };
+  const filled = liveMarkup({ ...view, mac: healthy }, new Set()).markup;
+  expect(filled).toContain('class="machine-summary-values"');
+  expect(filled).not.toContain('class="machine-health"');
+  const empty = liveMarkup({ ...view, mac: { ...healthy, line: [] } }, new Set()).markup;
+  expect(empty).not.toContain('class="machine-summary-values"');
+  expect(empty).not.toContain('class="machine-health"');
+  expect(empty).toContain(esc(mac.title));
+  const warning = liveMarkup(presentLive(inputOf('pressure')), new Set()).markup;
+  expect(warning).toContain('class="machine-health"');
 });

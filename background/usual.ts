@@ -1,4 +1,4 @@
-import type { HostClient } from '@openchamber/sdk';
+import type { HostClient } from '../panel/host/types.ts';
 import { nonneg, obj } from '../src/contract/guards.ts';
 import { runtimeKind } from '../src/contract/runtime.ts';
 import type { BaselineMetric } from '../panel/history/baselines.ts';

@@ -1,7 +1,7 @@
-import type { HostClient } from '@openchamber/sdk';
+import type { HostClient } from '../host/types.ts';
 import { at, finite, obj, oneOf } from '../../src/contract/guards.ts';
 import { runtimeKind } from '../../src/contract/runtime.ts';
-import { KEYS, rand4 } from '../history/ledger-schema.ts';
+import { assertHistoryVersion, KEYS, rand4 } from '../history/ledger-schema.ts';
 
 // Owner: ledger. Saved captures (capture.v2.<ts36>, ≤ 12), successor of panel/saved.ts. Class B: no model names stored.
 
@@ -78,36 +78,48 @@ const newest = (a: CaptureV2, b: CaptureV2): number => b.savedAt - a.savedAt;
 const LIST_KEYS = 4 * CAPTURE_LIMIT;
 
 export class CaptureStore {
-  private queue: Promise<unknown> = Promise.resolve();
-  constructor(private readonly storage: HostClient['storage'], private readonly suffix: () => string = rand4) {}
+  #queue: Promise<unknown> = Promise.resolve();
+  #storage: HostClient['storage'];
+  #suffix: () => string;
+  constructor(storage: HostClient['storage'], suffix: () => string = rand4) {
+    this.#storage = storage; this.#suffix = suffix;
+  }
   /** Newest first: saved captures and the migrated 1.x ones (`origin: 'v1'`). */
-  list(): Promise<StoredCapture[]> { return this.enqueue(() => this.read()); }
+  list(): Promise<StoredCapture[]> { return this.#enqueue(() => this.#read()); }
   /** One `set`, then the oldest saved capture beyond 12 is deleted; migrated ones are never pruned here. */
   save(capture: CaptureV2): Promise<string> {
     const clean = parseCapture({ ...capture, origin: undefined });
     if (!clean) return Promise.reject(new Error('Invalid capture'));
-    return this.enqueue(async () => {
-      const keys = new Set((await this.storage.keys()).filter(key => key.startsWith(KEYS.capturePrefix)));
-      let key = captureKey(clean.savedAt, this.suffix());
-      while (keys.has(key)) key = captureKey(clean.savedAt, rand4());
-      await this.storage.set(key, clean as never);
-      const saved = (await this.read()).filter(item => item.origin !== 'v1');
-      for (const obsolete of saved.slice(CAPTURE_LIMIT)) await this.storage.delete(obsolete.key);
+    return this.#enqueue(async () => {
+      let key = captureKey(clean.savedAt, this.#suffix()), attempts = 0;
+      // Check the chosen key itself: another writer can create it after a keys() inventory.
+      while (await this.#storage.get(key) !== undefined) {
+        if (++attempts === 8) throw new Error('Capture key unavailable');
+        key = captureKey(clean.savedAt, rand4());
+      }
+      await this.#storage.set(key, clean as never);
+      const saved = (await this.#read()).filter(item => item.origin !== 'v1');
+      for (const obsolete of saved.slice(CAPTURE_LIMIT)) await this.#delete(obsolete.key);
       return key;
     });
   }
   remove(key: string): Promise<void> {
     if (!key.startsWith(KEYS.capturePrefix)) return Promise.reject(new Error('Not a capture'));
-    return this.enqueue(() => this.storage.delete(key));
+    return this.#enqueue(() => this.#delete(key));
   }
-  private async read(): Promise<StoredCapture[]> {
-    const keys = (await this.storage.keys()).filter(key => key.startsWith(KEYS.capturePrefix)).sort().reverse().slice(0, LIST_KEYS);
-    const items = await Promise.all(keys.map(async key => { const item = parseCapture(await this.storage.get(key)); return item ? { ...item, key } : null; }));
+  async #delete(key: string): Promise<void> {
+    // A listed capture may have changed format before removal or retention pruning.
+    assertHistoryVersion(await this.#storage.get(key));
+    await this.#storage.delete(key);
+  }
+  async #read(): Promise<StoredCapture[]> {
+    const keys = (await this.#storage.keys()).filter(key => key.startsWith(KEYS.capturePrefix)).sort().reverse().slice(0, LIST_KEYS);
+    const items = await Promise.all(keys.map(async key => { const item = parseCapture(await this.#storage.get(key)); return item ? { ...item, key } : null; }));
     return items.filter((item): item is StoredCapture => item !== null).sort(newest);
   }
-  private enqueue<T>(work: () => Promise<T>): Promise<T> {
-    const next = this.queue.catch(() => undefined).then(work);
-    this.queue = next;
+  #enqueue<T>(work: () => Promise<T>): Promise<T> {
+    const next = this.#queue.catch(() => undefined).then(work);
+    this.#queue = next;
     return next;
   }
 }

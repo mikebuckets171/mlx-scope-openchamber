@@ -73,3 +73,23 @@ test('two leaders racing through the migration write the same keys, not duplicat
   await Promise.all([migrateV1(storage, NOW), migrateV1(storage, NOW)]);
   expect(Object.keys(storage.dump()).filter(key => key.startsWith(KEYS.capturePrefix)).sort()).toEqual(Object.keys(golden).sort());
 });
+
+test('migration preserves metadata that changes major while captures are being copied', async () => {
+  const storage = createFakeStorage({ initial: recorded }), future = { schema: 3, future: true };
+  await expect(migrateV1({ ...storage, set: async (key, value) => {
+    if (key.startsWith(KEYS.capturePrefix)) await storage.set(KEYS.meta, future);
+    await storage.set(key, value);
+  } }, NOW)).rejects.toThrow('different format');
+  expect(storage.dump()[KEYS.meta]).toEqual(future);
+  for (const key of Object.keys(recorded)) expect(storage.dump()[key]).toEqual(recorded[key]);
+});
+
+test('migration preserves a target that appears after its initial key list', async () => {
+  const [key, original] = Object.entries(recorded)[0]!, target = migratedKey(key, captureFromObservation(original)!.savedAt);
+  const future = { v: 3, future: true }, storage = createFakeStorage({ initial: { [key]: original } });
+  await migrateV1({ ...storage, get: async name => {
+    if (name === key) await storage.set(target, future);
+    return storage.get(name);
+  } }, NOW);
+  expect(storage.dump()[target]).toEqual(future); expect(storage.dump()[key]).toEqual(original);
+});

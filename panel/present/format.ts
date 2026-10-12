@@ -51,9 +51,11 @@ const grouped = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 export const tps = (value: number): string => value >= 100 ? grouped.format(Math.round(value)) : value.toFixed(1);
 /** Whole numbers with grouping: `1,104`. */
 export const int = (value: number): string => grouped.format(Math.round(value));
+/** Shared token thresholds; the caller owns its surface’s established grouping locale. */
+export const shortTokens = (value: number, integer: (value: number) => string): string => value >= 1e6 ? `${(value / 1e6).toFixed(value >= 1e7 ? 1 : 2)}M`
+  : value >= 1e5 ? `${Math.round(value / 1e3)}K` : value >= 1e4 ? `${(value / 1e3).toFixed(1)}K` : integer(value);
 /** Token counts: `52.7K`, `1.31M`, `612`. */
-export const kt = (value: number): string => value >= 1e6 ? `${(value / 1e6).toFixed(value >= 1e7 ? 1 : 2)}M`
-  : value >= 1e5 ? `${Math.round(value / 1e3)}K` : value >= 1e4 ? `${(value / 1e3).toFixed(1)}K` : int(value);
+export const kt = (value: number): string => shortTokens(value, int);
 export const pct = (value: number): string => `${Math.round(value * 100)}%`;
 /** A signed change: `+2%`, `−17%`, `±0%`. */
 export const delta = (value: number): string => `${value > 0.004 ? '+' : value < -0.004 ? '−' : '±'}${Math.abs(Math.round(value * 100))}%`;
@@ -68,7 +70,9 @@ export const ago = (at: number, now: number): string => {
   return d < 5_000 ? 'just now' : d < 60_000 ? `${Math.round(d / 1_000)} s ago` : d < 3_600_000 ? `${Math.round(d / 60_000)} min ago` : `${Math.round(d / 3_600_000)} h ago`;
 };
 const time = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-const day = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+export const dayFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+/** A local calendar-day key, also used to group hourly usage buckets. */
+export const localDay = (at: number): string => new Date(at).toDateString();
 /** A wall-clock time today (`14:01`), otherwise the day (`Sep 28`). */
-export const clock = (at: number, now: number): string => new Date(at).toDateString() === new Date(now).toDateString() ? time.format(at) : day.format(at);
+export const clock = (at: number, now: number): string => localDay(at) === localDay(now) ? time.format(at) : dayFormat.format(at);
 export const mmss = (ms: number): string => `${Math.floor(ms / 60_000)}:${String(Math.floor(ms % 60_000 / 1_000)).padStart(2, '0')}`;

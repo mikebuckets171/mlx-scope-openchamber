@@ -50,6 +50,14 @@ export const opt = <T>(value: T | null | undefined): T | undefined => value ?? u
 export const defined = <T extends object>(value: T): T =>
   Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 
+/** Compile an optional-field allowlist once; cross-field rules remain with each contract parser. */
+export const optionalFields = <T extends Record<string, (value: unknown) => unknown>>(shape: T) =>
+  (item: Json): { [K in keyof T]?: NonNullable<ReturnType<T[K]>> } => {
+    const result: Json = {};
+    for (const key in shape) { const value = shape[key]!(item[key]); if (value != null) result[key] = value; }
+    return result as { [K in keyof T]?: NonNullable<ReturnType<T[K]>> };
+  };
+
 /** The SDK response limit (contract §1). Every body must stay strictly below it. */
 export const MAX_BODY_CHARS = 256_000;
 export const bodyChars = (value: unknown): number => (typeof value === 'string' ? value : JSON.stringify(value)).length;

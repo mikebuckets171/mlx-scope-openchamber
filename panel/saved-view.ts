@@ -1,4 +1,4 @@
-import type { HostClient } from '@openchamber/sdk';
+import type { HostClient } from './host/types.ts';
 import { SavedObservations, SAVED_LIMIT, measurementLabels, observationReport, observationTitle, type Observation } from './saved.ts';
 
 export const savedMarkup = `<section id="view-saved" role="tabpanel" aria-labelledby="tab-saved" tabindex="0" hidden>

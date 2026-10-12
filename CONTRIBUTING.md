@@ -18,7 +18,7 @@ bun run test:browser
 
 `check` type-checks, scans committed files, runs unit, contract and fixture tests, builds all three bundles, and verifies
 the install archive: the SDK 2.0.4 manifest, the frozen permission set, the two-way exec match, bundle ceilings (panel
-264 KB, service 170 KB, background 25 KB), the background page's CSP, host-only code in guest bundles, and a start of the
+304 KB, service 250 KB, background 25 KB), the background page's CSP, host-only code in guest bundles, and a start of the
 extracted service under Node without `node_modules`. macOS checks exercise the real memory commands within the
 production deadline. Browser tests cover Chromium (the host's engine, the primary gate) and WebKit; `bun run
 test:goldens` runs the pixel and text goldens in Chromium on macOS. `bun run overhead` measures the service and every
@@ -33,6 +33,13 @@ installation uses these built files.
 **Development seams.** An explicitly launched service reads `MLX_SCOPE_BASE_URL`, `MLX_SCOPE_API_KEY`, `MLX_SCOPE_MODEL`,
 `MLX_SCOPE_RUNTIME` and the `OPENCODE_*` variables described in [Configuration](docs/CONFIGURATION.md). The overhead
 harness and service tests use them; they are not extension settings.
+
+## Upgrade qualification
+
+After building, `bun run qualify:compatibility` checks synthetic host, bridge and storage behavior, source/bundle
+consistency, privacy and the reproducible package. `--candidate` labels a proposed OpenCode version; it never launches
+that version or grants it support. Save receipts outside the repository. Browser, resource and native-runtime proof
+remain separate gates; see [Compatibility](docs/COMPATIBILITY.md).
 
 ## Changes
 

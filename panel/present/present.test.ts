@@ -171,6 +171,29 @@ test('Server: the server card with its detection basis, then only the cards the 
   expect(everything(cards('splash-recovering'))).toContain('Splash · last reading');
 });
 
+test('Server optional readings preserve measured zero and omit absent values with their labels', () => {
+  const snapshot = snapshotOf('decode');
+  snapshot.runtime.memory = { modelBytes: 0, processBytes: 1024 };
+  snapshot.runtime.server.averages = { decodeTps: 0, cacheEfficiencyFraction: 0, requestsTotal: 0 };
+  snapshot.runtime.server.cache = { ramBytes: 0, ramEntries: 0, ssdEntries: 12 };
+  snapshot.runtime.request = null;
+  const cards = presentServer(snapshot, MOCK_NOW).cards;
+  expect(cards.find(card => card.key === 'memory')!.blocks).toEqual([{ kind: 'values', cols: 2, items: [
+    { label: 'Model memory', value: { text: '0.0 GiB', basis: 'reported' } },
+    { label: 'Process memory', value: { text: '0.0 GiB', basis: 'reported' } },
+  ] }]);
+  expect(cards.find(card => card.key === 'session')!.blocks).toEqual([{ kind: 'values', cols: 2, items: [
+    { label: 'Generation speed', value: { text: '0.0 tok/s', basis: 'reported' } },
+    { label: 'Cache efficiency', value: { text: '0%', basis: 'reported' } },
+    { label: 'Completed', value: { text: '0', basis: 'reported' } },
+  ] }]);
+  expect(cards.find(card => card.key === 'cache')!.blocks).toEqual([{ kind: 'values', cols: 2, items: [
+    { label: 'RAM cache', value: { text: '0.0 GiB', basis: 'reported' }, small: '0 entries' },
+  ] }]);
+  snapshot.runtime.server.averages = {};
+  expect(presentServer(snapshot, MOCK_NOW).cards.some(card => card.key === 'session')).toBe(false);
+});
+
 const statusOf = (state: string, extra: Partial<StatusSectionInput> = {}) => {
   const snapshot = snapshotOf(state), last = snapshot.completions.items.at(-1) ?? null;
   return presentStatusSection({ now: MOCK_NOW, reading: fromSnapshot(snapshot), snapshot, attribution: { kind: 'inferred' }, turn: null, vsUsual: null,
@@ -260,4 +283,10 @@ test('captures, recent generations and saved values format bytes through the one
     elapsedMs: 1_000, promptTokens: null, cachedTokens: null, peakProcessBytes: 34.5e9, coverage: 'monitoring-gap' }))
     .toMatchObject({ name: 'model', speed: '24 tok/s', tokens: '1,234 tokens last seen', note: 'Monitoring gap · 32.1 GiB peak server memory' });
   expect([savedValue('prefillRemaining', 0.4), savedValue('memory', 36.10000000037253), savedValue('cpu', null)]).toEqual(['<1', '36.1', '—']);
+});
+
+
+test('an unidentified chat does not claim a reconnecting service or local connection', () => {
+  const view = presentHeader(inputOf('decode', { snapshot: null, frame: { reason: 'chat_unavailable', message: 'Choose Whole engine' } }));
+  expect(view).toMatchObject({ phase: 'Chat identity unavailable', connection: null, data: { phase: 'unknown' } });
 });

@@ -1,0 +1,10 @@
+export const CHAT_PROTOCOL: 'opencode-2.0.25';
+export const TELEMETRY_SCHEMA_VERSION: 1;
+export type FeatureId = 'http-delivery' | 'websocket-delivery' | 'prompt-progress' | 'managed-reload';
+export type FeatureStatus = { support: 'qualified' | 'unqualified' | 'unavailable'; available: boolean };
+export type FeatureStatuses = Record<FeatureId, FeatureStatus>;
+export const FEATURE_IDS: FeatureId[];
+export function profileFor(runtimeVersion: unknown): { id: string; runtimeVersion: string; protocol: typeof CHAT_PROTOCOL; websocketCancellation: 'unit-only' | 'native' } | null;
+export function acceptsChatProtocol(runtimeVersion: unknown, protocol: unknown): boolean;
+export function featureSupport(runtimeVersion: unknown): FeatureStatuses;
+export function parseFeatures(value: unknown, runtimeVersion: unknown): FeatureStatuses | undefined;

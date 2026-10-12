@@ -20,7 +20,7 @@ interface Sample {
 }
 
 export class ActivityTrack {
-  private samples: Sample[] = [];
+  #samples: Sample[] = [];
 
   /**
    * One poll. `null` (a failed poll) and an unavailable runtime break the stretch. `cadenceMs` is the frame's own
@@ -30,25 +30,25 @@ export class ActivityTrack {
     if (!body) { this.break(at); return; }
     const healthy = AVAILABLE.has(body.status.state), sampled = body.runtime.sampledAt ?? body.serverNow;
     const key = healthy ? `${body.service.instance}\u0000${body.connection.id}\u0000${body.connection.generation}` : null;
-    const last = this.samples.at(-1);
+    const last = this.#samples.at(-1);
     // A reading the scheduler served from its cache is the same sample; an older one adds nothing.
     if (last && (sampled < last.at || sampled === last.at && last.key === key)) return;
-    this.push({ at: sampled, key, cadenceMs: Math.max(cadenceMs, body.nextPollMs),
+    this.#push({ at: sampled, key, cadenceMs: Math.max(cadenceMs, body.nextPollMs),
       active: body.capabilities['server.requests'] ? body.runtime.server.active : null,
       stream: body.capabilities['server.completions']?.basis === 'reported' });
   }
 
   /** The frame stopped looking (hidden, paused): whatever happens next is not continuous with what came before. */
-  break(at: number): void { this.push({ at: Math.max(at, this.latest() ?? at), active: null, cadenceMs: 0, key: null, stream: false }); }
+  break(at: number): void { this.#push({ at: Math.max(at, this.latest() ?? at), active: null, cadenceMs: 0, key: null, stream: false }); }
 
-  reset(): void { this.samples = []; }
+  reset(): void { this.#samples = []; }
 
   /** The newest reading's time, or null before the first. */
-  latest(): number | null { return this.samples.at(-1)?.at ?? null; }
+  latest(): number | null { return this.#samples.at(-1)?.at ?? null; }
 
   /** One unbroken stretch of usable readings runs from at or before `from` to at or after `to`. */
   covered(from: number, to: number): boolean {
-    const samples = this.samples;
+    const samples = this.#samples;
     let index = samples.length - 1;
     while (index >= 0 && samples[index]!.at > from) index -= 1;
     if (index < 0) return false;
@@ -64,7 +64,7 @@ export class ActivityTrack {
   /** The most requests any usable reading in [from, to] saw; null when one of them could not count. */
   activeMax(from: number, to: number): number | null {
     let max = 0;
-    for (const sample of this.samples) {
+    for (const sample of this.#samples) {
       if (sample.at < from || sample.at > to || sample.key === null) continue;
       if (sample.active === null) return null;
       max = Math.max(max, sample.active);
@@ -77,8 +77,8 @@ export class ActivityTrack {
    * that finished at `at` without a reported start began after this. Null when unknown.
    */
   idleBefore(at: number): number | null {
-    for (let index = this.samples.length - 1; index >= 0; index -= 1) {
-      const sample = this.samples[index]!;
+    for (let index = this.#samples.length - 1; index >= 0; index -= 1) {
+      const sample = this.#samples[index]!;
       if (sample.at >= at) continue;
       if (sample.key === null || sample.active === null) return null;
       if (sample.active === 0) return sample.at;
@@ -86,12 +86,12 @@ export class ActivityTrack {
     return null;
   }
 
-  private push(sample: Sample): void {
-    this.samples.push(sample);
+  #push(sample: Sample): void {
+    this.#samples.push(sample);
     const oldest = sample.at - SAMPLE_AGE_MS;
-    let drop = Math.max(0, this.samples.length - SAMPLE_LIMIT);
-    while (drop < this.samples.length && this.samples[drop]!.at < oldest) drop += 1;
-    if (drop) this.samples.splice(0, drop);
+    let drop = Math.max(0, this.#samples.length - SAMPLE_LIMIT);
+    while (drop < this.#samples.length && this.#samples[drop]!.at < oldest) drop += 1;
+    if (drop) this.#samples.splice(0, drop);
   }
 }
 

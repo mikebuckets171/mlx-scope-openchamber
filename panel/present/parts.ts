@@ -12,6 +12,8 @@ import { dur } from './format.ts';
 
 /** Anything but `reported` carries its basis in the UI (P3); `note` replaces the default word. */
 export interface Val { text: string; strong?: string; unit?: string; basis: Basis; note?: string }
+/** A plain value always carries its measurement basis. */
+export const value = (text: string, basis: Basis = 'reported', note?: string): Val => ({ text, basis, ...note ? { note } : {} });
 export const BASIS_WORD: Record<Basis, string> = { reported: '', derived: 'calculated', observed: 'measured', 'last-observed': 'last reading', estimate: 'estimate' };
 export const basisNote = (basis: Basis, note?: string): string | null => basis === 'reported' ? null : note ?? BASIS_WORD[basis];
 /** Token-weighted speed across the steps that contain both token and speed readings. */

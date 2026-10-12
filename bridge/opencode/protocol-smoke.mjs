@@ -1,6 +1,7 @@
 // Optional qualification: node bridge/opencode/protocol-smoke.mjs /absolute/path/to/opencode [--remote]
 // Starts an isolated released OpenCode process and a synthetic loopback SSE provider. No real model is used.
 import assert from 'node:assert/strict';
+import { profileFor } from './compatibility.js';
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import http from 'node:http';
@@ -12,17 +13,18 @@ import { key } from './store.js';
 import { atomicPrivateJSON } from './chat-store.js';
 
 const binary = process.argv[2];
-if (!binary) throw new Error('Pass the absolute path to an OpenCode 2.0.25 binary.');
+if (!binary) throw new Error('Pass the absolute path to a qualified OpenCode binary.');
 const remote = process.argv.includes('--remote');
 const remoteBase = 'http://scope-protocol-fixture.invalid/v1';
-assert.equal(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim(), 'opencode v2.0.25');
+const profile = profileFor(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim().replace(/^opencode v/, ''));
+assert.ok(profile, 'This OpenCode version has no qualified compatibility profile.');
 const bridge = dirname(fileURLToPath(import.meta.url));
 // The isolated plugin must not live under a node_modules ancestor: OpenCode excludes those local sources and
 // would silently load nothing. The temporary root is canonicalized because the companion refuses to write
 // through a symlinked ancestor, and the system temporary directory is one on macOS.
 const base = await realpath(await mkdtemp(join(tmpdir(), 'scope-protocol-')));
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
-let child, fixture, logs = '', fixtureRequests = 0;
+let child, fixture, fixtureFailure, logs = '', fixtureRequests = 0;
 try {
   for (const dir of ['config/opencode', 'home', 'cache', 'data', 'state', 'workspace', 'plugin', 'telemetry', 'progress'])
     await mkdir(join(base, dir), { recursive: true });
@@ -55,11 +57,20 @@ try {
         choices: [{ index: 0, message: { role: 'assistant', content: 'Protocol fixture' }, finish_reason: 'stop' }],
         usage: { prompt_tokens: 10, completion_tokens: 70, total_tokens: 80 } })); return;
     }
+    if (!remote && body.return_progress !== true) {
+      fixtureFailure = new Error('Native request hook did not enable fixture prompt progress.');
+      response.writeHead(500); response.end(); return;
+    }
     response.writeHead(200, { 'content-type': 'text/event-stream' });
     const frame = (delta, finish = null, usage) => response.write('data: ' + JSON.stringify({ id: 'fixture',
       object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model: 'fixture',
       choices: [{ index: 0, delta, finish_reason: finish }], ...(usage ? { usage } : {}) }) + '\n\n');
     frame({ role: 'assistant' });
+    if (!remote) for (const processed of [200, 500, 900]) {
+      response.write('data: ' + JSON.stringify({ model: 'fixture', choices: [{ delta: {} }],
+        prompt_progress: { total: 1000, cache: 100, processed, time_ms: processed } }) + '\n\n');
+      await pause(300);
+    }
     for (let i = 0; i < 14; i++) { await pause(220); if (response.destroyed) return; frame({ content: 'x'.repeat(20) }); }
     frame({}, 'stop', { prompt_tokens: 10, completion_tokens: 70, total_tokens: 80 }); response.end('data: [DONE]\n\n');
   });
@@ -70,7 +81,8 @@ try {
     model: 'scopefixture/fixture', providers: { scopefixture: { package: '@opencode/ai/providers/openai-compatible',
       settings: { baseURL: providerBase }, models: { fixture: { name: 'Protocol fixture',
         capabilities: { tools: false, input: ['text'], output: ['text'] }, limit: { context: 262144, output: 8192 } } } } },
-    plugins: [{ package: join(base, 'plugin'), options: { promptProgress: false } }] }));
+    plugins: [{ package: join(base, 'plugin'), options: remote ? { promptProgress: false }
+      : { providerID: 'scopefixture', baseURL: providerBase } }] }));
   const reservation = net.createServer(); await new Promise(resolve => reservation.listen(0, '127.0.0.1', resolve));
   const port = reservation.address().port; await new Promise(resolve => reservation.close(resolve));
   const env = { PATH: process.env.PATH, TMPDIR: process.env.TMPDIR, HOME: process.env.HOME,
@@ -95,7 +107,7 @@ try {
   };
   await api('/api/plugin'); await pause(1500);
   const heartbeat = JSON.parse(await readFile(join(base, 'telemetry/heartbeat.json'), 'utf8'));
-  assert.ok(heartbeat.supported); assert.equal(heartbeat.runtimeVersion, '2.0.25');
+  assert.ok(heartbeat.supported); assert.equal(heartbeat.runtimeVersion, profile.runtimeVersion);
   const { data: session } = await api('/api/session', { title: 'Scope protocol fixture', model: { providerID: 'scopefixture', id: 'fixture' } });
   assert.ok(session.id);
   const summaries = [];
@@ -106,9 +118,24 @@ try {
         ...remote ? { destination: 'remote' } : {} }] });
     if (round === 0) await pause(1300);
     await api(`/api/session/${session.id}/prompt`, { text: 'Protocol fixture: no tools.' });
-    const seen = [];
+    const seen = [], progress = new Set();
     for (let sample = 0; sample < 65; sample++) {
       await pause(150);
+      if (fixtureFailure) throw fixtureFailure;
+      if (!remote) for (const file of await readdir(join(base, 'progress'))) {
+        if (!/^[a-f0-9-]{36}\.json$/.test(file)) continue;
+        const document = await readFile(join(base, 'progress', file), 'utf8').then(JSON.parse).catch(error => {
+          if (error.code === 'ENOENT') return null; throw error;
+        });
+        for (const entry of document?.entries ?? []) if (entry.observedAtMs >= started) {
+          assert.equal(entry.sessionKey, key('session', session.id));
+          assert.equal(entry.providerID, 'scopefixture');
+          assert.equal(entry.modelKey, key('model', 'fixture'));
+          assert.equal(entry.endpointKey, key('endpoint', new URL(providerBase).origin));
+          assert.equal(entry.total, 1000); assert.equal(entry.cache, 100);
+          assert.ok([200, 500, 900].includes(entry.processed)); progress.add(entry.processed);
+        }
+      }
       for (const file of await readdir(join(base, 'telemetry'))) {
         if (!/^[a-f0-9-]{36}\.json$/.test(file)) continue;
         let document;
@@ -136,7 +163,12 @@ try {
     assert.ok(duration > 0 && Number.isFinite(duration), 'completion has a valid observed step duration');
     assert.ok(Number.isFinite(complete.tokensPerSecond) && complete.tokensPerSecond > 0, 'eligible completion has an average');
     assert.ok(Math.abs(complete.tokensPerSecond - 70_000 / duration) < 1e-8, 'completion average uses the known seventy output tokens');
-    summaries.push({ basis: active.basis, calibrationSteps: active.calibrationSteps, liveTps: active.tokensPerSecond, completedTps: complete.tokensPerSecond });
+    if (!remote) {
+      assert.ok(progress.size >= 2, 'native response hook observes advancing prompt counters');
+      assert.ok(!(await readdir(join(base, 'progress'))).some(file => /^[a-f0-9-]{36}\.json$/.test(file)), 'output clears prompt progress');
+    }
+    summaries.push({ basis: active.basis, calibrationSteps: active.calibrationSteps, liveTps: active.tokensPerSecond,
+      completedTps: complete.tokensPerSecond, ...remote ? {} : { promptProgress: [...progress] } });
   }
   await unlink(join(base, 'telemetry/demand.json')); await pause(1300);
   assert.ok(!(await readdir(join(base, 'telemetry'))).some(file => /^[a-f0-9-]{36}\.json$/.test(file)), 'hidden demand removes telemetry writer');

@@ -15,9 +15,12 @@ const CHATS = 4, IDLE_MS = 6_000, VISIBLE_MS = 10_000, HIDDEN_MS = 6_000, DELTA_
 const UUID_FILE = /^[a-f0-9-]{36}\.json$/;
 const watched = Array.from({ length: CHATS }, (_, i) => ({ sessionKey: digest('session', `ses_fixture_${i}`),
   providerKey: digest('provider', 'fixture'), modelKey: digest('model', 'fixture'), ...i % 2 ? { destination: 'remote' } : {} }));
-const companionFiles = ['index.js', 'chat.js', 'demand.js', 'chat-store.js', 'store.js', 'stream.js', 'package.json'];
+const companionFiles = ['index.js', 'chat.js', 'demand.js', 'chat-store.js', 'store.js', 'stream.js', 'compatibility.js', 'package.json'];
 const companionDigests = async directory => Object.fromEntries(await Promise.all(companionFiles.map(async name =>
-  [name, createHash('sha256').update(await readFile(join(directory, name))).digest('hex')])));
+  [name, await readFile(join(directory, name)).then(bytes => createHash('sha256').update(bytes).digest('hex'), error => {
+    if (name === 'compatibility.js' && error.code === 'ENOENT') return null; // frozen older companion
+    throw error;
+  })])));
 async function demand(directory, ttl = 15_000) {
   const now = Date.now(), temp = join(directory, `.${randomUUID()}.tmp`);
   await writeFile(temp, JSON.stringify({ schemaVersion: 1, updatedAtMs: now, expiresAtMs: now + ttl, watched }), { mode: 0o600 });

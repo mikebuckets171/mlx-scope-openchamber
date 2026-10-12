@@ -1,12 +1,82 @@
 # Compatibility
 
+## Scope 4 policy and safe default checks
+
+Scope evaluates optional OpenCode features independently from native runtime monitoring. The standalone
+`bridge/opencode/compatibility.js` profiles are shared by hook registration, telemetry parsing and setup. Exact
+OpenCode **2.0.25 and 2.0.27** are qualified; adjacent versions and custom suffixes do not inherit support. The companion
+package version, profile revision and Scope telemetry wire version are separate. Schema 1 and the legacy protocol
+spelling `opencode-2.0.25` remain unchanged for existing readers. The module ships inside the addon; its declaration
+file is only needed for development type checking.
+
+| Feature | Qualification and unavailable behavior |
+|---|---|
+| HTTP delivery | Documented native HTTP hooks plus the released event protocol. Hook failure leaves WebSocket observation and native engine monitoring available. |
+| WebSocket delivery | An explicitly experimental handshake hook, qualified separately for metadata on reused sockets. Hook failure leaves HTTP available. Native cancellation passes on 2.0.27; 2.0.25 retains unit-only interruption coverage. |
+| Splash prompt progress | Qualified profile, configured loopback provider and validated streaming counters. Unknown versions install no request mutation. Failed response-hook registration removes its paired request hook. |
+| Managed reload | Native file-rename checks on 2.0.27 verify an older unsupported helper and same-version revisions update while a fixture reply completes, without restart or duplicate requests. Configuration tests alone do not establish this. No automatic restart is attempted. |
+
+Optional heartbeat feature entries carry `support` (`qualified`, `unqualified`, `unavailable`) and `available` (the
+hook/API is installed). An available feature must be qualified. Readers discard unrelated metadata and reject
+contradictory entries. Legacy heartbeats remain readable. Setup's optional `compatibility` extension separates these
+features from activity: not loaded, awaiting demand, listening, or unavailable. Listening means demanded heartbeat
+activity; it does not prove output or transport semantics. Malformed optional metadata does not discard an otherwise
+valid legacy setup response. Installed fingerprints, loaded companion metadata and current liveness remain distinct.
+
+Scope 4 requires companion **3.3.0** for chat delivery. Existing 3.2.0 companions must be updated through **Connections → Update chat speed**, then confirmed loaded. The reader intentionally rejects a different companion package version even when the wire schema matches; native engine monitoring remains independent during that gap.
+
+The runtime profile and the loaded helper's protocol are checked separately. An older helper reporting `unsupported`
+on a now-qualified runtime can be updated; its telemetry is still rejected until the current helper is loaded.
+
+Connections → Chat speed → Compatibility & privacy shows support and activity separately. From the repository, run:
+
+```sh
+bun run qualify:compatibility
+```
+
+To save a new private receipt without overwriting a file:
+
+```sh
+node scripts/qualify-compatibility.mjs --output qualification.json
+```
+
+Add `--candidate 2.0.26` to label a proposed OpenCode version. Only the finite bundled registry determines support;
+an unknown candidate remains `unqualified` even if every reference fixture passes. The command never executes that candidate.
+
+The command runs isolated bridge, service, host replay and storage fixtures, the committed-source privacy scan,
+an in-memory comparison of source against the existing built artifacts, and reproducible package verification with
+an extracted synthetic service smoke. Run the normal build first; qualification does not overwrite stale bundles.
+Package verification creates the local installation ZIP but does not publish it. It does **not** execute a native
+OpenCode or OpenChamber binary, submit a prompt, run inference, download a model, install a plugin or edit live
+configuration. Test stores/configuration use temporary directories. There is no live mode or executable override.
+The panel displays this command as text and cannot execute it.
+
+Reports contain relative source, fixture, profile, dependency and packaged-asset hashes, a ZIP digest, the pinned SDK/API
+identity, candidate policy status, independent fixture outcomes, `runtimeExecuted: false`,
+`supportChanged: false`, and `nativeRuntime: not-run` for every feature. Success is named `synthetic-pass`; failed or
+missing suites, stale bundles and inputs changed during the run cannot pass. Changing a relevant version, profile,
+adapter, contract, fixture, dependency or artifact invalidates the receipt. No private host paths, conversation content
+or correlation identities enter it. Browser, resource and native protocol gates remain explicitly unrun. This does
+not qualify a new runtime, real transport behavior, application reload or performance.
+
+The historical protocol harnesses below launch an isolated real OpenCode process. They are excluded from the default
+command and need separate authorization appropriate to the task. Their older receipts retain their original limits.
+The unreleased 3.3 measurements likewise retain unresolved gates and do not become Scope 4 release qualification.
+
+To support another release, inspect its documented schema, add normalized event fixtures and an explicit profile,
+then independently qualify dispatch identity, event ordering/timestamps, reasoning/token accounting, completion,
+reused sockets, tools, retries, replay, interruption, multiple locations and hidden work. API presence alone is not
+semantic proof. When authorized, native synthetic-provider receipts should record runtime identity/build fingerprint
+when available, adapter/companion hashes and passed/skipped/unqualified outcomes. Preserve wire/storage compatibility,
+privacy limits and independent fallback; measure overhead before adding continuous collection.
+
 ## Host
 
-MLX Scope 3.1 requires **OpenChamber 2.0.4 or newer** (`engines.openchamber` `>=2.0.4`) and pins
+MLX Scope 4 retains the manifest requirement **OpenChamber 2.0.4 or newer** (`engines.openchamber` `>=2.0.4`) and pins
 [SDK 2.0.4](https://github.com/openchamber/openchamber/tree/main/packages/sdk), which keeps manifest API 1 and wire v1.
 It uses the panel, the full page, a Work Status section (`statusSection`, OpenChamber 2.0.1+), a `/scope` slash command
 answered by a background entry, the session-menu action, badges, toasts, host-managed storage and a local service.
-The inherited 2.0.4 qualification remains the compatibility floor; 2.0.2 showed a black status surface. The 3.1 candidate retains this SDK floor and is checked in the installed OpenChamber 2.2.0 host. Desktop and
+The inherited 2.0.4 qualification is historical evidence for the manifest floor; 2.0.2 showed a black status surface. The 3.1 candidate was checked in OpenChamber 2.2.0. Neither observation qualifies a new Scope 4 artifact in a native host. An initial 4.0 candidate was reinstalled through the OpenChamber 2.3.0 UI: Live, Run details, Connections and Session rendered, and Session reported activity through a loaded llama-swap backend. This was a limited install smoke, not an exhaustive host or workload qualification. Desktop and
 web clients expose these surfaces; mobile and VS Code clients load no extensions. Runtime and Mac readings belong to the
 OpenChamber server's computer.
 
@@ -20,8 +90,8 @@ OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and c
 
 ## Optional chat delivery estimates
 
-Chat estimates support the released **OpenCode 2.0.25** plugin-event protocol for local and cloud chats alike. An
-isolated 2.0.25 server with synthetic streaming providers exercises waiting, generation, completion, calibration and
+Chat estimates support exact **OpenCode 2.0.25 and 2.0.27** for local and cloud chats alike, retaining the same wire protocol. An
+isolated servers with synthetic streaming providers exercise waiting, generation, completion, calibration and
 hidden shutdown over both transports. Unsupported versions disable estimates while runtime adapters continue to
 operate. Guided setup distinguishes installed/pending from a fresh loaded companion and supports native v2 and legacy
 local provider configuration.
@@ -37,8 +107,9 @@ and every runtime adapter keep working during cloud chats.
 installed binary with a synthetic provider rerouted to loopback: request start, live delivery timing, three- and
 four-step calibration, a completed-step average, one reused native WebSocket, a native tool continuation, and hidden
 shutdown with telemetry writes stopped. The remote HTTP variant is `node bridge/opencode/protocol-smoke.mjs
-/absolute/path/to/opencode --remote`. Interrupting a live cloud step on the installed host produced no readable
-delivery state, so the protocol smoke claims nothing about cancellation; the companion test suite covers it.
+/absolute/path/to/opencode --remote`. On 2.0.27 the WebSocket smoke also interrupts a fixture step after observing live
+speed, verifies speed clears and rejects a completed-step average. The earlier 2.0.25 cancellation attempt produced no
+readable delivery state and retains its original unit-only coverage; a new result does not retroactively qualify it.
 
 Managed updates preserve JSONC comments, unrelated options and plugins. The reproducible developer check is
 `node bridge/opencode/protocol-hot-reload-smoke.mjs /absolute/path/to/opencode /absolute/path/to/previous/companion`;

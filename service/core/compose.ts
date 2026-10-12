@@ -61,7 +61,9 @@ export const composeSnapshot = (input: ComposeInput): SnapshotV2 => {
     nextPollMs: input.nextPollMs ?? snapshotPollMs(input),
     ...(input.chat ? { chat: input.chat } : {}),
   };
-  const snapshot = parseSnapshotV2(JSON.parse(JSON.stringify(body)));
+  // The parser reconstructs every allowlisted object and withholds unsupported fields. A JSON round trip would
+  // duplicate that allocation and serialization on every poll; the HTTP boundary serializes the validated result.
+  const snapshot = parseSnapshotV2(body);
   if (!snapshot) throw new TypeError('The reading could not form a v2 snapshot.');
   return snapshot;
 };

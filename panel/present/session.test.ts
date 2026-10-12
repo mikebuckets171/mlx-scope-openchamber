@@ -4,7 +4,7 @@ import { sessionMarkup } from '../render/views/session.ts';
 import { liveMarkup } from '../render/views/live.ts';
 import { esc } from '../render/html.ts';
 import { MOCK_NOW, MOCK_STATES, mockBody } from '../testing/mock-states.ts';
-import { fromSnapshot } from './reading.ts';
+import { frameReading, fromSnapshot } from './reading.ts';
 import { presentSessionSection } from './session.ts';
 import { presentLive } from './live.ts';
 import { SERVER_WIDE } from './scope.ts';
@@ -480,9 +480,9 @@ test('at rest the glance shows the engine’s own record instead of empty rows, 
   expect(markup).toContain('data-live="false"'); expect(markup).toContain('data-resting="false"');
   // The same rest in This chat scope is the labelled engine fallback for a local chat.
   expect(rest({ measurementScope: 'chat' }).measurement?.label).toBe('Engine · overall avg.');
-  // The full panel keeps its own hero; only the sidebar and compact glance opt in.
+  // The presenter never fills by itself; the sidebar/compact glance and the full-page hero opt in where they render.
   expect(rest({ restingFacts: false }).measurement).toBeNull();
-  // A reply in progress keeps its reserved rows and never shows the resting record.
+  // A reply in progress never borrows the resting record.
   expect(rest({ chatActivity: 'busy', measurementScope: 'chat' })).toMatchObject({ resting: false, measurement: null });
   // A cloud chat never borrows a local engine's record; with nothing true to show, the rows fold away.
   const cloud = rest({ chatIsLocal: false, measurementScope: 'chat' });
@@ -493,4 +493,27 @@ test('at rest the glance shows the engine’s own record instead of empty rows, 
     .toMatchObject({ measurement: null, support: null, resting: true });
   expect(rest({ paused: true })).toMatchObject({ phase: 'Paused', measurement: null, resting: true });
   expect(rest({ fresh: false })).toMatchObject({ measurement: null, resting: false });
+});
+
+
+test('every mock glance omits unmeasured lanes while retaining its truthful support or priority note', () => {
+  for (const state of MOCK_STATES) {
+    const view = presentSessionSection(inputOf(state, { restingFacts: true, paused: state === 'paused' }));
+    const markup = sessionMarkup(view).markup;
+    expect(markup.includes('class="ws-line ws-measurement"'), state).toBe(view.measurement !== null);
+    const support = !view.alert && !view.note ? view.support?.text ?? view.held?.text : null;
+    expect(markup.includes('class="ws-line ws-support'), state).toBe(!!support);
+    if (support) expect(markup, state).toContain(esc(support));
+    if (view.alert || view.note) expect(markup, state).toContain(esc(view.alert?.label ?? view.note!));
+    const error = sessionMarkup(view, 'Could not open Scope.').markup;
+    expect(error, state).toContain('Could not open Scope.');
+    expect(error, state).not.toContain('class="ws-line ws-support');
+  }
+});
+
+
+test('unknown chat identity explains withheld collection without claiming a failed connection', () => {
+  const message = 'Choose Whole engine to inspect a local connection.';
+  const input = inputOf('decode', { snapshot: null, last: null, reading: frameReading('chat_unavailable', message, MOCK_NOW) });
+  expect(presentSessionSection(input)).toMatchObject({ phase: 'Chat identity unavailable', note: message, measurement: null, held: null });
 });

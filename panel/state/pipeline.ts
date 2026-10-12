@@ -1,4 +1,4 @@
-import type { HostClient } from '@openchamber/sdk';
+import type { HostClient } from '../host/types.ts';
 import type { CompletionV2 } from '../../src/contract/completion.ts';
 import type { RuntimeKind } from '../../src/contract/runtime.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
@@ -33,21 +33,22 @@ const safe = <T>(run: () => T, fallback: T): T => { try { return run(); } catch 
 export class Pipeline {
   readonly attribution: Attribution;
   readonly ledger: Ledger;
-  private readonly recorder: LedgerRecorder;
-  private readonly signals: Signals;
-  private readonly stopChatBoundary: () => void;
-  private sent: number | undefined;
-  private visible = true;
-  private turnKey = '';
+  readonly #recorder: LedgerRecorder;
+  readonly #signals: Signals;
+  readonly #stopChatBoundary: () => void;
+  #sent: number | undefined;
+  #visible = true;
+  #turnKey = '';
   flags: readonly RegressionFlag[] = [];
   /** The ledger dictionary's model names (class B), kept out of every share this frame makes. */
   ledgerModels: readonly string[] = [];
-  private usual: { baselines: Baselines; models: readonly string[] } | null = null;
-  private usualAt = -Infinity;
-  constructor(private readonly o: PipelineOptions) {
+  #usual: { baselines: Baselines; models: readonly string[] } | null = null;
+  #usualAt = -Infinity;
+  readonly #o: PipelineOptions;
+  constructor(o: PipelineOptions) { this.#o = o;
     this.attribution = new Attribution({ host: o.host, now: o.now, auto: o.auto });
     let lastEnd = '';
-    this.stopChatBoundary = this.attribution.feed.onChange(() => {
+    this.#stopChatBoundary = this.attribution.feed.onChange(() => {
       const window = this.frame().windows.at(-1);
       if (window?.endedAt === null && o.state.beginChat(window.startedAt ?? window.joinedAt ?? o.now())) o.changed?.();
       else if (window?.outcome) {
@@ -56,8 +57,8 @@ export class Pipeline {
       }
     });
     this.ledger = new Ledger({ storage: o.host.storage, now: o.now });
-    this.recorder = new LedgerRecorder(this.ledger, completion => ledgerAttr(this.label(completion)));
-    this.signals = new Signals(o.host, o.toasts, o.surface);
+    this.#recorder = new LedgerRecorder(this.ledger, completion => ledgerAttr(this.label(completion)));
+    this.#signals = new Signals(o.host, o.toasts, o.surface);
   }
 
   /** `mark` and `attr` for the next poll (pre-encoded comma lists, contract §7). */
@@ -67,55 +68,55 @@ export class Pipeline {
    * another frame posts still relabels a row (INTERFACES §4.3).
    */
   since(frame: number | undefined): number | undefined {
-    const connection = this.o.state.snapshot?.connection.id;
-    const ledger = connection === undefined ? undefined : safe(() => this.recorder.since(connection, this.o.now()), undefined);
-    this.sent = ledger === undefined ? frame : frame === undefined ? ledger : Math.min(frame, ledger);
-    return this.sent;
+    const connection = this.#o.state.snapshot?.connection.id;
+    const ledger = connection === undefined ? undefined : safe(() => this.#recorder.since(connection, this.#o.now()), undefined);
+    this.#sent = ledger === undefined ? frame : frame === undefined ? ledger : Math.min(frame, ledger);
+    return this.#sent;
   }
   /** After a 200: acknowledge what was sent, observe the body, then the leader's signals and ledger. */
   received(snapshot: SnapshotV2, _fresh: readonly CompletionV2[], visible: boolean, cadenceMs = 0): void {
-    if (visible && this.o.now() - this.usualAt >= USUAL_EVERY_MS) void this.readUsual();
+    if (visible && this.#o.now() - this.#usualAt >= USUAL_EVERY_MS) void this.#readUsual();
     safe(() => this.attribution.acknowledge(), undefined);
     safe(() => this.attribution.observe(snapshot, cadenceMs), undefined);
-    safe(() => this.signals.apply(snapshot, this.flags), undefined);
-    if (snapshot.lease.leader && visible) void this.record(snapshot);
-    else void this.recorder.observe({ ...snapshot, lease: { ...snapshot.lease, leader: false } }, this.o.now()).catch(() => {});
+    safe(() => this.#signals.apply(snapshot, this.flags), undefined);
+    if (snapshot.lease.leader && visible) void this.#record(snapshot);
+    else void this.#recorder.observe({ ...snapshot, lease: { ...snapshot.lease, leader: false } }, this.#o.now()).catch(() => {});
   }
   /** A poll without a body: the readings so far no longer run up to now. */
   failed(): void { safe(() => this.attribution.observe(null), undefined); }
-  private async record(snapshot: SnapshotV2): Promise<void> {
+  async #record(snapshot: SnapshotV2): Promise<void> {
     try {
-      await this.recorder.observe(snapshot, this.o.now(), this.sent);
-      this.recordTurn(snapshot);
-      if (this.recorder.recording) this.ledgerModels = await this.ledger.models();
+      await this.#recorder.observe(snapshot, this.#o.now(), this.#sent);
+      this.#recordTurn(snapshot);
+      if (this.#recorder.recording) this.ledgerModels = await this.ledger.models();
     } catch { /* Storage trouble never stops monitoring; the ledger backs off on its own. */ }
   }
   /** baseline.v2 and the model dictionary: two reads, at most every 10 min, only while visible. */
-  private async readUsual(): Promise<void> {
-    this.usualAt = this.o.now();
+  async #readUsual(): Promise<void> {
+    this.#usualAt = this.#o.now();
     try {
-      const [baselines, models] = await Promise.all([this.ledger.storedBaselines(), this.o.host.storage.get(KEYS.models)]);
-      this.usual = baselines ? { baselines, models: parseModels(models) } : null;
-    } catch { this.usual = null; }
+      const [baselines, models] = await Promise.all([this.ledger.storedBaselines(), this.#o.host.storage.get(KEYS.models)]);
+      this.#usual = baselines ? { baselines, models: parseModels(models) } : null;
+    } catch { this.#usual = null; }
   }
   /**
    * A reply's decode speed against its usual (p50 with n) and the regression flag that covers it, from the stored
    * baselines; null without a baseline for this runtime, model and context bucket.
    */
   usualFor(completion: CompletionV2, runtime: RuntimeKind | null): { vsUsual: VsUsual | null; flag: RegressionFlag | null } {
-    const usual = this.usual, index = usual && completion.model ? usual.models.indexOf(completion.model) : -1;
+    const usual = this.#usual, index = usual && completion.model ? usual.models.indexOf(completion.model) : -1;
     if (!usual || !runtime || index < 0) return { vsUsual: null, flag: null };
     const row = replyRow(completion, '00000000', runtime, index, 'not-observed'), reading = replyMetric(row, 'decodeTps');
     const key = reading ? baselineKey('decodeTps', reading.key) : null;
     return { vsUsual: safe(() => vsUsual(row, usual.baselines, 'decodeTps'), null), flag: this.flags.find(flag => flag.key === key) ?? null };
   }
   /** A settled, fully attributed turn becomes one `t` row, once. */
-  private recordTurn(snapshot: SnapshotV2): void {
+  #recordTurn(snapshot: SnapshotV2): void {
     const view = safe(() => this.attribution.turn(), null), summary = view?.summary, rt = snapshot.connection.runtime;
     if (!view || view.live || !summary || !rt || view.window.startedAt === null || view.window.endedAt === null) return;
     const key = `${view.window.tag}\u0000${view.window.startedAt}\u0000${view.window.endedAt}`;
-    if (key === this.turnKey) return;
-    this.turnKey = key;
+    if (key === this.#turnKey) return;
+    this.#turnKey = key;
     const model = view.steps.find(step => step.model)?.model ?? null;
     this.ledger.appendTurn(turnRowOf({ startedAt: view.window.startedAt, endedAt: view.window.endedAt, rt, modelRef: this.ledger.modelRef(model),
       steps: summary.steps, outputTokens: summary.outputTokens, firstTtftMs: summary.firstTtftMs, decodeTps: summary.decodeTps,
@@ -123,16 +124,16 @@ export class Pipeline {
   }
   /** Visibility gate: a hidden frame cancels Next reply and stops listening; a leader flushes what it holds. */
   setVisible(visible: boolean): void {
-    if (visible === this.visible) return;
-    this.visible = visible;
+    if (visible === this.#visible) return;
+    this.#visible = visible;
     safe(() => this.attribution.setVisible(visible), undefined);
   }
   /** The frame is going out of view: a leader flushes (hide flushes ≥ 10 s apart, the ledger decides). */
   hidden(): void {
     this.setVisible(false);
-    void this.recorder.hidden(this.o.now()).catch(() => {});
+    void this.#recorder.hidden(this.#o.now()).catch(() => {});
   }
-  panelMounted(): void { safe(() => this.signals.panelMounted(), undefined); }
+  panelMounted(): void { safe(() => this.#signals.panelMounted(), undefined); }
 
   frame(): FrameSessionState { return safe(() => this.attribution.frame(), { connected: false, observedFrom: null, chat: null, windows: [] }); }
   /** A completion's label: this frame's armed step, else the service's recorded verdict, else this frame's own join. */
@@ -157,6 +158,6 @@ export class Pipeline {
   arm(_snapshot?: SnapshotV2 | null): void { safe(() => this.attribution.arm(), undefined); }
   cancel(): void { safe(() => this.attribution.cancel(), undefined); }
   get firstRun(): boolean { return safe(() => this.ledger.firstRun, false); }
-  get recording(): boolean { return this.recorder.recording; }
-  dispose(): void { this.stopChatBoundary(); safe(() => this.attribution.dispose(), undefined); safe(() => this.signals.dispose(), undefined); safe(() => this.recorder.dispose(), undefined); }
+  get recording(): boolean { return this.#recorder.recording; }
+  dispose(): void { this.#stopChatBoundary(); safe(() => this.attribution.dispose(), undefined); safe(() => this.#signals.dispose(), undefined); safe(() => this.#recorder.dispose(), undefined); }
 }

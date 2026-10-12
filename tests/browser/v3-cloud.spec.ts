@@ -1,7 +1,7 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 
 // 3.2 restores cloud delivery estimates through the qualified OpenCode 2.0.25 handshake. They are labelled
-// Cloud · est., keep a stable layout through every phase, expire on time and never borrow a local engine reading.
+// Cloud · est., keep filled readings stable, collapse empty rows, expire on time and never borrow a local engine reading.
 type Phase = 'generating' | 'reasoning' | 'tool' | 'waiting' | 'complete' | 'cancelled';
 const phase = (page: Page, value: Phase, rate?: number) => page.evaluate(({ value, rate }) => {
   const now = Date.now();
@@ -35,7 +35,9 @@ for (const surface of ['status', 'page']) for (const theme of ['light', 'obsidia
       await expect(frame.locator('#phase')).toHaveText('Generating');
       await expect(frame.locator('#connection')).toBeHidden();
     }
-    const stable = await anchor(frame, surface === 'status' ? '.ws-actions' : '#hero');
+    const region = surface === 'status' ? '.ws-actions' : '#hero', heading = surface === 'status' ? '.ws-context' : '.instrument-heading';
+    const control = surface === 'status' ? '.ws-actions' : '.instrument-heading .scope-choice';
+    const stable = await anchor(frame, region), headingY = (await anchor(frame, heading)).y, controlHeight = (await anchor(frame, control)).height;
     for (const [value, label, rate] of [
       ['reasoning', 'Reasoning', 18.2], ['tool', 'Using tools', undefined], ['waiting', 'Waiting', undefined],
       ['complete', 'Complete', 5.6], ['cancelled', 'Stopped', undefined],
@@ -45,7 +47,28 @@ for (const surface of ['status', 'page']) for (const theme of ['light', 'obsidia
       if (rate === undefined) await expect(frame.locator('#rate')).toHaveCount(0);
       else await expect(frame.locator('#rate')).toHaveText(String(rate));
       if (value === 'complete') await expect(frame.locator(source)).toContainText('Last cloud · avg.');
-      expect(await anchor(frame, surface === 'status' ? '.ws-actions' : '#hero')).toEqual(stable);
+      expect((await anchor(frame, heading)).y).toBe(headingY);
+      expect((await anchor(frame, control)).height).toBe(controlHeight);
+      if (value === 'reasoning') expect(await anchor(frame, region)).toEqual(stable);
+      // A phase without a reading gives its row back; a true support note can still occupy its own row.
+      if (rate === undefined && surface === 'status') {
+        const rows = await frame.locator('.ws-activity').evaluate(node => {
+          const sizes = getComputedStyle(node).gridTemplateRows.split(/\s+/).map(Number.parseFloat);
+          return { measurement: sizes[1] ?? 0, support: sizes[2] ?? 0,
+            hasSupport: !!node.querySelector('.ws-support, .ws-note, .ws-warning, .ws-action-error') };
+        });
+        expect(rows.measurement).toBe(0);
+        if (!rows.hasSupport) expect(rows.support).toBe(0);
+      } else if (rate === undefined) {
+        for (const selector of ['.instrument-measure', '.instrument-evidence', '.instrument-readout']) {
+          const part = frame.locator(selector);
+          if (await part.getAttribute('data-quiet') === 'true') expect((await anchor(frame, selector)).height).toBe(0);
+        }
+        if (await frame.locator('.instrument-readout').getAttribute('data-quiet') === 'true') {
+          await expect(frame.locator('.instrument-readout')).toHaveCSS('margin-top', '0px');
+          await expect(frame.locator('.instrument-readout')).toHaveCSS('margin-bottom', '0px');
+        }
+      }
     }
     if (surface === 'page') {
       await expect(frame.locator('#measurement-details')).toHaveCount(0);

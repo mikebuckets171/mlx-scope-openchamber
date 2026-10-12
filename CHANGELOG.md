@@ -1,5 +1,24 @@
 # Changelog
 
+## 4.0.0
+
+- Readings, labels and controls now look and behave alike across Live, Session, Media, Connections, History and Captures. Sections take up only the space their contents need, including at larger text sizes.
+- Run details opens from Live and saved History. It shows only what was recorded, explains how each reading was measured and notes what is missing. It adds no background checks.
+- The extension handles OpenChamber updates in one place. If an optional OpenCode connection method is unavailable, other monitoring can continue. The compatibility check reports what is known without starting OpenCode or treating an untested version as supported.
+- Newer saved History, preferences and Captures are left unchanged rather than overwritten. Existing readings and permissions continue to work.
+- The panel remains within its size limit without removing features. The behavior tests and package checks pass, but the performance goals have not all been met.
+- Chat delivery and Splash prompt progress also support exact OpenCode 2.0.27. Native checks with isolated local fixtures verify HTTP and WebSocket delivery, calibration, completion, prompt counters, cancellation, and helper updates without restarting the server. An older helper that reports the runtime unsupported can now be updated through Connections.
+
+To keep chat speed reports working, choose **Connections → Update chat speed** and confirm that version 3.3.0 is loaded. Existing History and Captures are unchanged. Exact OpenCode 2.0.25 and 2.0.27 are qualified; other versions do not inherit support. Native fixture checks do not establish every provider, model or real workload.
+
+In an earlier browser test, the page used 2.3165% of one processor core for version 4.0, compared with 1.8596% for version 3.1—about a quarter more. Three new paired samples had a 2.1246% median for 4.0 versus 1.7120% for 3.1. Both missed the 1.62–1.70% target; neither result was replaced or its limit raised. The final-bundle service overhead run passed all existing limits with synthetic runtimes: active CPU at most 1.067% of one core, idle/glance at most 0.475%, and service RSS at most 75 MiB. These tests do not show the effect on real inference, the graphics processor or the complete OpenChamber app.
+
+An initial 4.0.0 candidate was installed through the real OpenChamber 2.3.0 UI on macOS, replacing an earlier version. The extension loaded, its service restarted on 4.0.0, Live, Run details and Connections navigated, and the Session panel showed activity from a loaded local model behind llama-swap. This initial install did not submit a model reply; live llama-swap prompt percentage remains a separate check. Qualification of 2.0.27 was subsequently performed against its real binary with synthetic providers, not a paid cloud account or real model.
+
+The revised ZIP was then reinstalled through Settings → Extensions. Its installed production bundles match the tested source. The live helper loaded 3.3.0 on OpenCode 2.0.27; configuration comparison confirmed only Scope's revision changed. History navigation was checked in the real browser client. Read-only observation of existing local work captured advancing llama-swap prompt counters, but did not prove the selected chat's rendered percentage or pre-upgrade saved-data preservation. All 520 Chromium/WebKit browser cases passed; fixture storage tests cover preservation separately.
+
+A second final-bundle service overhead run also passed all limits: active CPU ≤0.971%, idle/glance ≤0.440%, service RSS ≤57.8 MiB, with the same synthetic-runtime limitations.
+
 ## 3.2.3
 
 - The Session sidebar no longer leaves a blank block at rest. With a local engine idle, it shows the engine's overall average speed (dimmed and labelled **Engine · overall avg.**, never live) and what the engine holds, such as model or GPU memory and its typical first-token time, so the section keeps the same height when a reply starts. With nothing true to show — a cloud chat at rest, no model loaded, or paused — the empty rows fold away. During a reply the layout is unchanged.

@@ -35,29 +35,16 @@ export const small = (...children: Child[]): HTMLElement => el('small', {}, ...c
 export const group = (...children: Child[]): HTMLDivElement => el('div', {}, ...children);
 export const box = (className: string, ...children: Child[]): HTMLDivElement => el('div', { class: className }, ...children);
 
-/** Patches `live` to match `next` in place: same-shaped nodes keep their identity (and focus); the rest are replaced. */
-export const morph = (live: Element, next: Element): void => {
-  const nodes = Array.from(next.childNodes);
-  nodes.forEach((child, index) => {
-    const current = live.childNodes[index];
-    if (!current) { live.appendChild(child); return; }
-    if (current.nodeType !== child.nodeType || current.nodeName !== child.nodeName) { live.replaceChild(child, current); return; }
-    if (current.nodeType !== Node.ELEMENT_NODE) { if (current.nodeValue !== child.nodeValue) current.nodeValue = child.nodeValue; return; }
-    const a = current as Element, b = child as Element;
-    Array.from(a.attributes).forEach(({ name }) => { if (!b.hasAttribute(name)) a.removeAttribute(name); });
-    Array.from(b.attributes).forEach(({ name, value }) => { if (a.getAttribute(name) !== value) a.setAttribute(name, value); });
-    morph(a, b);
-  });
-  while (live.childNodes.length > nodes.length) live.lastChild!.remove();
-};
+export { morphNodes as morph } from '../html.ts';
 
 /** ⓘ disclosures: a 24 px button whose explanation opens in flow below its row; open state is kept across renders. */
 export class Tips {
   readonly open = new Set<string>();
-  constructor(private readonly prefix: string) {}
+  readonly #prefix: string;
+  constructor(prefix: string) { this.#prefix = prefix; }
   toggle(key: string): void { if (!this.open.delete(key)) this.open.add(key); }
   make(key: string, title: string, paras: readonly string[]): { btn: HTMLElement; pop: HTMLElement } {
-    const id = `${this.prefix}-tip-${key}`, open = this.open.has(key);
+    const id = `${this.#prefix}-tip-${key}`, open = this.open.has(key);
     return {
       btn: el('button', { class: 'info', type: 'button', 'aria-expanded': String(open), 'aria-controls': id, 'aria-label': `About ${title}`, 'data-action': 'tip', 'data-arg': key }, scopeIcon('info')),
       pop: el('div', { class: 'pop', id, role: 'note', hidden: !open }, el('strong', {}, title), paras.map(p => el('p', {}, p))),

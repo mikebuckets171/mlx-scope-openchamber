@@ -1,5 +1,5 @@
 import type { CapabilityDescriptor } from './capabilities.ts';
-import { at, count, defined, fraction, label, nonneg, obj, oneOf, opt } from './guards.ts';
+import { at, count, defined, fraction, label, nonneg, obj, oneOf, opt, optionalFields } from './guards.ts';
 
 export const PLATFORMS = ['macOS', 'Linux', 'Windows', 'Host'] as const;
 export type Platform = typeof PLATFORMS[number];
@@ -35,13 +35,17 @@ export interface PowerV2 {
   sysW?: number; coverageFraction: number;   // macmon; absent without macmon (Scope never installs it)
 }
 
-const bytes = (value: unknown): number | undefined => opt(count(value));
 const pressureLevel = oneOf([1, 2, 4] as const);
 export const thermalLevel = oneOf([0, 1, 2, 3, 4] as const);
 const part = <T extends object>(value: unknown, build: (item: Record<string, unknown>, sampledAt: number) => T | null): T | undefined => {
   const item = obj(value), sampledAt = at(item?.sampledAt);
   return item && sampledAt !== null ? opt(build(item, sampledAt)) : undefined;
 };
+
+const macFields = optionalFields({ pressureLevel, wiredLimitBytes: count, swapUsedBytes: count, swapTotalBytes: count,
+  wiredBytes: count, compressedBytes: count });
+const gpuFields = optionalFields({ busyFraction: fraction, allocBytes: count, inUseBytes: count });
+const powerFields = optionalFields({ cpuW: nonneg, gpuW: nonneg, aneW: nonneg });
 
 export const parseHostV2 = (value: unknown): HostV2 | null => {
   const item = obj(value), sampledAt = at(item?.sampledAt);
@@ -54,12 +58,8 @@ export const parseHostV2 = (value: unknown): HostV2 | null => {
     memTotalBytes: total ? total : undefined,
     // Used above total is a broken reading, not a full machine.
     memUsedBytes: used !== null && (total === null || used <= total) ? used : undefined,
-    mac: platform === null || platform === 'macOS' ? part(item.mac, (mac, at): MacV2 => defined({ sampledAt: at,
-      pressureLevel: opt(pressureLevel(mac.pressureLevel)), wiredLimitBytes: bytes(mac.wiredLimitBytes),
-      swapUsedBytes: bytes(mac.swapUsedBytes), swapTotalBytes: bytes(mac.swapTotalBytes),
-      wiredBytes: bytes(mac.wiredBytes), compressedBytes: bytes(mac.compressedBytes) })) : undefined,
-    gpu: part(item.gpu, (gpu, at) => defined({ sampledAt: at, busyFraction: opt(fraction(gpu.busyFraction)),
-      allocBytes: bytes(gpu.allocBytes), inUseBytes: bytes(gpu.inUseBytes) })),
+    mac: platform === null || platform === 'macOS' ? part(item.mac, (mac, at): MacV2 => ({ sampledAt: at, ...macFields(mac) })) : undefined,
+    gpu: part(item.gpu, (gpu, at) => ({ sampledAt: at, ...gpuFields(gpu) })),
     thermal: part(item.thermal, (thermal, at) => { const level = thermalLevel(thermal.level); return level === null ? null : { sampledAt: at, level }; }),
     runtimeProcess: part(item.runtimeProcess, (process, at) => {
       const port = count(process.port), footprint = count(process.footprintBytes);
@@ -69,7 +69,7 @@ export const parseHostV2 = (value: unknown): HostV2 | null => {
     power: part(item.power, (power, at): PowerV2 | null => {
       const chip = nonneg(power.chipW), coverage = fraction(power.coverageFraction), sys = nonneg(power.sysW);
       return power.field === 'all_power' && chip !== null && coverage !== null ? defined({ sampledAt: at, field: 'all_power' as const,
-        chipW: chip, cpuW: opt(nonneg(power.cpuW)), gpuW: opt(nonneg(power.gpuW)), aneW: opt(nonneg(power.aneW)),
+        chipW: chip, ...powerFields(power),
         // macmon writes 0 when the SMC estimate is unavailable; zero is "not reported", not zero watts.
         sysW: sys ? sys : undefined, coverageFraction: coverage }) : null;
     }),

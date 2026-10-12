@@ -2,6 +2,7 @@
 // Starts an isolated released OpenCode process with its built-in OpenAI default transport.
 // All requests are rerouted to a synthetic loopback Responses server; no credential or real model is used.
 import assert from 'node:assert/strict';
+import { profileFor } from './compatibility.js';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, unlink, writeFile } from 'node:fs/promises';
@@ -15,13 +16,14 @@ import { key } from './store.js';
 import { atomicPrivateJSON } from './chat-store.js';
 
 const binary = process.argv[2];
-if (!binary) throw new Error('Pass the absolute path to an OpenCode 2.0.25 binary.');
+if (!binary) throw new Error('Pass the absolute path to a qualified OpenCode binary.');
 const remote = true;
 const remoteBase = 'http://scope-protocol-fixture.invalid/v1';
 const remoteWS = 'ws://scope-protocol-fixture.invalid/v1';
-assert.equal(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim(), 'opencode v2.0.25');
+const profile = profileFor(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim().replace(/^opencode v/, ''));
+assert.ok(profile, 'This OpenCode version has no qualified compatibility profile.');
 const bridge = dirname(fileURLToPath(import.meta.url));
-const companionFiles = ['index.js', 'demand.js', 'chat.js', 'chat-store.js', 'store.js', 'stream.js', 'package.json'];
+const companionFiles = ['index.js', 'demand.js', 'chat.js', 'chat-store.js', 'store.js', 'stream.js', 'compatibility.js', 'package.json'];
 const hashes = async () => Object.fromEntries(await Promise.all(companionFiles.map(async name => [name, createHash('sha256').update(await readFile(join(bridge, name))).digest('hex')])));
 const companionSha256 = await hashes();
 // The isolated plugin must not live under a node_modules ancestor: OpenCode excludes those local sources and
@@ -146,8 +148,8 @@ try {
     heartbeat = await readFile(join(base, 'telemetry/heartbeat.json'), 'utf8').then(JSON.parse).catch(() => null);
     if (!heartbeat) await pause(500);
   }
-  if (!heartbeat) throw new Error(`The isolated companion never published a heartbeat.\n${logs}`);
-  assert.ok(heartbeat.supported); assert.equal(heartbeat.runtimeVersion, '2.0.25');
+   if (!heartbeat) throw new Error('The isolated companion never published a heartbeat.');
+  assert.ok(heartbeat.supported); assert.equal(heartbeat.runtimeVersion, profile.runtimeVersion);
   const { data: session } = await api('/api/session', { title: 'Scope protocol fixture', model: { providerID: 'openai', id: 'gpt-6.1-sol' } });
   assert.ok(session.id);
   // Every measurement is delivery observed through OpenCode and carries no session, model or endpoint identity.
@@ -212,9 +214,28 @@ try {
   assert.equal(fixtureRequests, 6, 'five prompts plus one native tool continuation');
   assert.ok(dispatches.slice(1).some(value => value.continuation), 'native response checkpoint enables continuation');
 
-  // Cancellation is deliberately not qualified here. Interrupting a live step on this host produced no delivery
-  // reading at all, so this receipt claims nothing about it; bridge/opencode/websocket.test.js covers interruption,
-  // speed removal and the absence of a completed average against the released event protocol.
+   // Retain the historical unit-only limit on profiles without native cancellation evidence.
+   if (profile.websocketCancellation === 'native') {
+    const interruptedAt = Date.now();
+   await demand(interruptedAt);
+   await api(`/api/session/${session.id}/prompt`, { text: 'Interrupt this fixture only.' });
+   let live = false;
+   for (let sample = 0; sample < 70 && !live; sample++) {
+     await pause(100);
+     live = (await readings(interruptedAt)).some(value => value.freshness === 'live' && value.tokensPerSecond > 0);
+   }
+   assert.ok(live, 'interruption test first observes a native live speed');
+   const interrupted = await api(`/api/session/${session.id}/interrupt`, {});
+   assert.equal(interrupted.interrupted, true, 'native API interrupted this isolated execution');
+   let stopped = false;
+   for (let sample = 0; sample < 30 && !stopped; sample++) {
+     await pause(100);
+     const seen = await readings(interruptedAt);
+     assert.ok(!seen.some(value => value.phase === 'complete'), 'interrupted step has no completed average');
+     stopped = !seen.some(value => value.tokensPerSecond > 0);
+   }
+    assert.ok(stopped, 'native interruption removes live speed');
+   }
   await unlink(join(base, 'telemetry/demand.json')); await pause(1300);
   assert.ok(!(await readdir(join(base, 'telemetry'))).some(file => /^[a-f0-9-]{36}\.json$/.test(file)), 'hidden demand removes telemetry writer');
   const hiddenHeartbeat = (await stat(join(base, 'telemetry/heartbeat.json'))).mtimeMs;
@@ -222,7 +243,7 @@ try {
   assert.deepEqual(await hashes(), companionSha256, 'Companion changed during qualification');
   console.log(JSON.stringify({ result: 'pass', companionSha256, destination: remote ? 'synthetic-remote-routed-to-loopback' : 'local',
     runtimeVersion: heartbeat.runtimeVersion, companionVersion: heartbeat.companionVersion, fixtureRequests, connections, dispatches, summaries,
-    cancellation: 'not qualified against this host; interruption is covered by bridge/opencode/websocket.test.js',
+     cancellation: profile.websocketCancellation === 'native' ? 'pass' : 'unit-only; native check not run',
     hiddenWritesStopped: true }, null, 2));
 } finally {
   for (const socket of sockets?.clients ?? []) socket.terminate(); sockets?.close();

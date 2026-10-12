@@ -35,81 +35,81 @@ export const armRefusal = (chat: Chat, context: JoinContext): WithholdReason | n
 };
 
 export class NextReply {
-  private current: NextReplyState = { kind: 'idle' };
-  private tag: string | null = null;
-  private context: JoinContext | null = null;
-  private clock = -Infinity;
-  private seen = new Set<number>();
-  private pending: Array<{ seq: number; attr: 'armed'; reason: null }> = [];
+  #current: NextReplyState = { kind: 'idle' };
+  #tag: string | null = null;
+  #context: JoinContext | null = null;
+  #clock = -Infinity;
+  #seen = new Set<number>();
+  #pending: Array<{ seq: number; attr: 'armed'; reason: null }> = [];
 
-  get state(): NextReplyState { return this.current; }
-  get active(): boolean { return this.current.kind === 'armed' || this.current.kind === 'measuring'; }
+  get state(): NextReplyState { return this.#current; }
+  get active(): boolean { return this.#current.kind === 'armed' || this.#current.kind === 'measuring'; }
 
   /** Arms on the open chat, or says why not. Arming during a running turn waits for the next one. */
   arm(now: number, frame: FrameSessionState, context: JoinContext): NextReplyState {
-    if (this.active) return this.current;
+    if (this.active) return this.#current;
     const chat = frame.chat, refusal = !frame.connected || !chat ? 'not-observed' : armRefusal(chat, context);
     if (refusal === 'other-provider' && chat?.provider && context.connection.choices?.includes(chat.provider)) {
-      return this.current = { kind: 'offer-watch', runtime: chat.provider };
+      return this.#current = { kind: 'offer-watch', runtime: chat.provider };
     }
-    if (refusal) return this.current = { kind: 'refused', reason: refusal };
-    this.tag = chat!.tag; this.context = context; this.clock = now; this.seen = new Set();
-    return this.current = { kind: 'armed', at: now };
+    if (refusal) return this.#current = { kind: 'refused', reason: refusal };
+    this.#tag = chat!.tag; this.#context = context; this.#clock = now; this.#seen = new Set();
+    return this.#current = { kind: 'armed', at: now };
   }
 
   observe(completions: readonly CompletionV2[], frame: FrameSessionState, now: number, extra: NextReplyObservation = {}): NextReplyState {
-    if (!this.active) return this.current;
-    if (extra.context) this.context = extra.context;
-    if (now < this.clock - CLOCK_TOLERANCE_MS) return this.stop('clock');
-    this.clock = Math.max(this.clock, now);
-    if (frame.chat?.tag !== this.tag) return this.stop('switched');
-    let state = this.current as Extract<NextReplyState, { kind: 'armed' | 'measuring' }>;
+    if (!this.active) return this.#current;
+    if (extra.context) this.#context = extra.context;
+    if (now < this.#clock - CLOCK_TOLERANCE_MS) return this.#stop('clock');
+    this.#clock = Math.max(this.#clock, now);
+    if (frame.chat?.tag !== this.#tag) return this.#stop('switched');
+    let state = this.#current as Extract<NextReplyState, { kind: 'armed' | 'measuring' }>;
     if (state.kind === 'armed') {
-      if (now >= state.at + REPLY_WAIT_MS) return this.stop('timeout');
-      const at = state.at, started = frame.windows.find(window => window.tag === this.tag && window.startedAt !== null && window.startedAt >= at);
-      if (!started) return this.current;
-      state = this.current = { kind: 'measuring', startedAt: started.startedAt!, steps: [] };
+      if (now >= state.at + REPLY_WAIT_MS) return this.#stop('timeout');
+      const at = state.at, started = frame.windows.find(window => window.tag === this.#tag && window.startedAt !== null && window.startedAt >= at);
+      if (!started) return this.#current;
+      state = this.#current = { kind: 'measuring', startedAt: started.startedAt!, steps: [] };
     }
-    if (now >= state.startedAt + REPLY_LIMIT_MS) return this.stop('limit');
-    const startedAt = state.startedAt, window = frame.windows.find(item => item.tag === this.tag && item.startedAt === startedAt);
+    if (now >= state.startedAt + REPLY_LIMIT_MS) return this.#stop('limit');
+    const startedAt = state.startedAt, window = frame.windows.find(item => item.tag === this.#tag && item.startedAt === startedAt);
     // A window cut by a switch or hide: observation stopped mid-reply.
-    if (!window || window.endedAt !== null && window.outcome === null) return this.stop('switched');
-    const steps = [...state.steps, ...this.steps(completions, window, frame, now)]
+    if (!window || window.endedAt !== null && window.outcome === null) return this.#stop('switched');
+    const steps = [...state.steps, ...this.#steps(completions, window, frame, now)]
       .sort((a, b) => a.finishedAt - b.finishedAt || a.seq - b.seq);
     // The last step arrives with the first reading after the runtime went idle; wait for one taken after the end.
     const settled = window.endedAt !== null && now >= window.endedAt + LIFECYCLE_HOLD_MS && (extra.sampledAt ?? now) >= window.endedAt + CLOCK_TOLERANCE_MS;
-    if (!settled) return this.current = { kind: 'measuring', startedAt, steps };
+    if (!settled) return this.#current = { kind: 'measuring', startedAt, steps };
     const attributed = steps.length > 0 && steps.every(step => step.verdict?.attr === 'armed');
-    this.tag = null; this.context = null;
-    return this.current = { kind: 'result', startedAt, endedAt: window.endedAt!, steps, attributed, summary: attributed ? summarizeTurn(window, steps) : null };
+    this.#tag = null; this.#context = null;
+    return this.#current = { kind: 'result', startedAt, endedAt: window.endedAt!, steps, attributed, summary: attributed ? summarizeTurn(window, steps) : null };
   }
 
   /** `user` also dismisses a result, refusal or offer. Other reasons stop only an armed or measuring capture. */
   cancel(reason: NextReplyCancel): void {
-    if (this.active) this.stop(reason);
-    else if (reason === 'user') this.current = { kind: 'idle' };
+    if (this.active) this.#stop(reason);
+    else if (reason === 'user') this.#current = { kind: 'idle' };
   }
 
   /** `attr=` entries for steps this capture verified (`armed`), newest last. */
-  drainAttrs(): Array<{ seq: number; attr: 'armed'; reason: null }> { return this.pending.splice(0); }
+  drainAttrs(): Array<{ seq: number; attr: 'armed'; reason: null }> { return this.#pending.splice(0); }
 
   /** Each new completion inside the measured window is one step, checked on its own; a failing step stays server-wide. */
-  private steps(completions: readonly CompletionV2[], window: TurnWindow, frame: FrameSessionState, now: number): CompletionV2[] {
+  #steps(completions: readonly CompletionV2[], window: TurnWindow, frame: FrameSessionState, now: number): CompletionV2[] {
     const steps: CompletionV2[] = [];
     for (const completion of completions) {
-      const end = completion.finishedAt, start = completion.startedAt ?? this.context?.idleBefore?.(end) ?? end;
-      if (this.seen.has(completion.seq) || !inside(window, start, end)) continue;
-      this.seen.add(completion.seq);
-      const reason = stepReason(completion, window, frame, this.context!);
-      if (!reason) this.pending.push({ seq: completion.seq, attr: 'armed', reason: null });
+      const end = completion.finishedAt, start = completion.startedAt ?? this.#context?.idleBefore?.(end) ?? end;
+      if (this.#seen.has(completion.seq) || !inside(window, start, end)) continue;
+      this.#seen.add(completion.seq);
+      const reason = stepReason(completion, window, frame, this.#context!);
+      if (!reason) this.#pending.push({ seq: completion.seq, attr: 'armed', reason: null });
       steps.push(reason ? { ...completion, overlapped: completion.overlapped || reason === 'overlap', verdict: { attr: 'withheld', reason, at: now } }
         : { ...completion, verdict: { attr: 'armed', at: now } });
     }
     return steps;
   }
 
-  private stop(reason: NextReplyCancel): NextReplyState {
-    this.tag = null; this.context = null;
-    return this.current = { kind: 'cancelled', reason };
+  #stop(reason: NextReplyCancel): NextReplyState {
+    this.#tag = null; this.#context = null;
+    return this.#current = { kind: 'cancelled', reason };
   }
 }

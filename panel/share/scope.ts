@@ -1,4 +1,4 @@
-import type { AttachIssueRequest } from '@openchamber/sdk';
+import type { AttachIssueRequest } from '../host/types.ts';
 import { arr as list, count, nonneg, obj, oneOf, type Json } from '../../src/contract/guards.ts';
 import { runtimeNames, runtimeKind } from '../../src/contract/runtime.ts';
 import { CONTRACT_VERSION } from '../../src/contract/version.ts';

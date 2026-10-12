@@ -1,4 +1,4 @@
-import { HostRequestError, isHostRequestErrorCode } from '@openchamber/sdk';
+import { hostErrorCode } from './host/openchamber.ts';
 import type { PanelReason } from './present/reading.ts';
 
 /** Why the frame has no reading, in the 1.6 vocabulary; the message never carries raw host error text. */
@@ -39,7 +39,7 @@ const diagnosticForCode = (code: string): Diagnostic => {
 };
 
 export const unavailableForHostError = (error: unknown): Diagnostic => {
-  const code = error instanceof HostRequestError && isHostRequestErrorCode(error.code) ? error.code : null;
+  const code = hostErrorCode(error);
   return code === null
     ? { reason: 'host_unavailable', message: 'OpenChamber did not return a service response. Reopen the panel and try again.' }
     : diagnosticForCode(code);

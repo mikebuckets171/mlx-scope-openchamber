@@ -5,11 +5,13 @@ import { TREND_WINDOWS_MS, type TrendV2, type TrendWindowMs } from '../../src/co
 import { USAGE_RANGES, type UsageRange, type UsageV2 } from '../../src/contract/usage.ts';
 import type { LedgerAccounting } from '../history/accounting.ts';
 import { baselineFor, type Baseline, type BaselineKey, type Baselines } from '../history/baselines.ts';
-import type { GapRow, LedgerAttr, LedgerRow, ReplyRow, SizeBucket, TurnRow } from '../history/ledger-schema.ts';
+import { rowIdentity, type GapRow, type LedgerAttr, type LedgerRow, type ReplyRow, type SizeBucket, type TurnRow } from '../history/ledger-schema.ts';
 import type { RegressionFlag } from '../history/regress.ts';
 import { SIZE_LABELS } from '../history/summary.ts';
 import { trendGaps, trendGeometry, type TrendGeometry } from '../render/trend-chart.ts';
-import { alertCopy, withheldWhy } from './copy.ts';
+import { alertCopy, SEVERITY_WORD, withheldWhy } from './copy.ts';
+import { ago, clock, dayFormat as md, delta as change, dur, localDay as day, pct, shortTokens, wholeText } from './format.ts';
+export { ago, clock, dur, pct } from './format.ts';
 import { BASIS_WORD } from './parts.ts';
 
 // Owner: ui-history. Pure History tab presenter: trend, replies (each with its attr chip), turn summaries, baselines,
@@ -89,31 +91,17 @@ export const HISTORY_LIST_LIMIT = 6;
 export const HISTORY_LIST_STEP = 24;
 export const RETENTION_OPTIONS = [7, 14, 30, 60, 90] as const;
 const TURN_NOTE = 'Reply times from OpenChamber · all server activity';
-const SEVERITY_WORD: Readonly<Record<Severity, string>> = { critical: 'Critical', warning: 'Warning', info: 'Notice' };
 const BASIS_ORDER: readonly Basis[] = ['reported', 'derived', 'observed', 'last-observed', 'estimate'];
 
 // ---------- formatting (the mock's rules; host locale for grouping) ----------
-const whole = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-export const int = (n: number): string => whole.format(Math.round(n));
-/** Token counts: 1,104 · 49.8K · 142K · 1.31M · 18.2M. */
-export const kt = (n: number): string => n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e7 ? 1 : 2)}M` : n >= 1e5 ? `${Math.round(n / 1e3)}K`
-  : n >= 1e4 ? `${(n / 1e3).toFixed(1)}K` : int(n);
+export const int = (n: number): string => wholeText(Math.round(n));
+/** Token counts use the shared thresholds while retaining History's host-locale grouping. */
+export const kt = (n: number): string => shortTokens(n, int);
 export const tps = (v: number): string => v >= 100 ? int(v) : v.toFixed(1);
-export const pct = (f: number): string => `${Math.round(f * 100)}%`;
 /** A ratio to usual as a signed percentage: 0.977 → "−2%". */
-export const delta = (ratio: number): string => { const d = ratio - 1; return `${d > 0.004 ? '+' : d < -0.004 ? '−' : '±'}${Math.abs(Math.round(d * 100))}%`; };
-export const dur = (ms: number): string => ms < 1000 ? `${(ms / 1000).toFixed(2)} s` : ms < 10_000 ? `${(ms / 1000).toFixed(1)} s` : ms < 60_000 ? `${Math.round(ms / 1000)} s`
-  : ms < 3_600_000 ? ms % 60_000 === 0 ? `${ms / 60_000} min` : `${Math.floor(ms / 60_000)} m ${String(Math.floor(ms % 60_000 / 1000)).padStart(2, '0')} s`
-    : `${Math.floor(ms / 3_600_000)} h ${Math.floor(ms % 3_600_000 / 60_000)} m`;
-export const ago = (at: number, now: number): string => { const d = now - at;
-  return d < 5000 ? 'just now' : d < 60_000 ? `${Math.round(d / 1000)} s ago` : d < 3_600_000 ? `${Math.round(d / 60_000)} min ago` : `${Math.round(d / 3_600_000)} h ago`; };
-const hm = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-const md = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+export const delta = (ratio: number): string => change(ratio - 1);
 const mdUtc = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
-const day = (at: number): string => { const d = new Date(at); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 const utcDay = (at: number): string => new Date(at).toISOString().slice(0, 10);
-/** Local wall time today ("14:04"), else the date ("Sep 28"). */
-export const clock = (at: number, now: number): string => day(at) === day(now) ? hm.format(at) : md.format(at);
 export const storageSize = (bytes: number): string => bytes >= 1_048_576 ? `${(bytes / 1_048_576).toFixed(2)} MiB` : `${Math.round(bytes / 1024)} KiB`;
 const plural = (n: number, one: string, many = `${one}s`): string => `${int(n)} ${n === 1 ? one : many}`;
 const iso = (at: number): string => new Date(at).toISOString();
@@ -136,7 +124,7 @@ const tokens = (output: number | null, prompt: number | null, cached: number | n
   [output !== null ? `${int(output)} out` : null, prompt !== null ? `${kt(prompt)} in${cached ? ` (${kt(cached)} cached)` : ''}` : null].filter(Boolean).join(' · ');
 const replyEntry = (row: ReplyRow, input: HistoryInput, text: HistoryText, named: boolean): HistoryEntry & { kind: 'reply' } => {
   const [, finishedS, , modelRef, , , prompt, cached, output, ttftMs, , decodeTps10, basis, attr, , , , id] = row, at = finishedS * 1000;
-  return { kind: 'reply', key: `r:${id}`, at: clock(at, input.now), iso: iso(at), rate: decodeTps10 === null ? null : `${tps(decodeTps10 / 10)} tok/s`,
+  return { kind: 'reply', key: rowIdentity(row), at: clock(at, input.now), iso: iso(at), rate: decodeTps10 === null ? null : `${tps(decodeTps10 / 10)} tok/s`,
     basis, basisLabel: basis === 'reported' ? null : BASIS_WORD[basis], output: output === null ? null : `${int(output)} out`,
     detail: decodeTps10 === null ? tokens(null, prompt, cached) : tokens(output, prompt, cached),
     ttft: ttftMs === null || basis === 'last-observed' ? null : `First token ${dur(ttftMs)}`, attr: attrChip(attr, text), model: named && modelRef !== null ? input.models[modelRef] ?? null : null };
@@ -148,7 +136,7 @@ const turnEntry = (row: TurnRow, replies: readonly ReplyRow[], input: HistoryInp
   const prompt = own.reduce((sum, r) => sum + (r[6] ?? NaN), 0), cached = own.reduce((sum, r) => sum + (r[7] ?? NaN), 0);
   const reuse = own.length === steps && prompt > 0 && Number.isFinite(cached) ? ` · ${pct(cached / prompt)} of input reused` : '';
   const wall = (endedS - startedS) * 1000 - (waitMs ?? 0);
-  return { kind: 'turn', key: `t:${startedS}:${endedS}`, at: clock(endedS * 1000, input.now), iso: iso(endedS * 1000), title: `Turn · ${plural(steps, 'step')}`,
+  return { kind: 'turn', key: rowIdentity(row), at: clock(endedS * 1000, input.now), iso: iso(endedS * 1000), title: `Turn · ${plural(steps, 'step')}`,
     time: wall > 0 ? dur(wall) : null, rate: wDecodeTps10 === null ? null : `${tps(wDecodeTps10 / 10)} tok/s token-weighted`,
     detail: `${int(output)} out${reuse}`, attr: attrChip(attr, text) };
 };
