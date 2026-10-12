@@ -36,6 +36,10 @@ const secondaryEntry = async (frame: FrameLocator, view: string, titleFocused = 
     }))).toBe(true);
 };
 
+// At double text size a poll can move a control between the moment a pointer click picks it and the moment the
+// click lands. Activating the focused control keeps this test about legibility and focus, not pointer timing.
+const activate = (frame: FrameLocator, name: string) => frame.getByRole('button', { name, exact: true }).press('Enter');
+
 for (const theme of ['light', 'dark']) for (const [width, font] of [[320, 32], [430, 24], [1160, 16]] as const) {
   test(`shared hierarchy and controls remain readable at ${width}px/${font}px in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 950 });
@@ -51,27 +55,27 @@ for (const theme of ['light', 'dark']) for (const [width, font] of [[320, 32], [
     await frame.locator('#measurement-details > summary').click();
     await frame.locator('#engine-readings > summary').click();
     await readable(frame, '#scope');
-    await frame.getByRole('button', { name: 'Run details', exact: true }).click();
+    await activate(frame, 'Run details');
     await expect(frame.getByRole('heading', { name: 'Current observation', exact: true })).toBeFocused();
     await secondaryEntry(frame, 'history', false);
     await readable(frame, '.run-detail');
     await frame.locator('#panel-history > .secondary-heading').getByRole('button', { name: 'Back', exact: true }).click();
     await expect(frame.getByRole('button', { name: 'Run details', exact: true })).toBeFocused();
-    await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+    await activate(frame, 'Server & Mac details');
     await secondaryEntry(frame, 'server');
     await readable(frame, '#panel-server');
     await frame.getByRole('button', { name: 'Back', exact: true }).click();
-    await frame.getByRole('button', { name: 'History', exact: true }).click();
+    await activate(frame, 'History');
     await secondaryEntry(frame, 'history');
     const historyList = frame.locator('#view-history > .view-host > :first-child');
     await expect(historyList).toHaveCSS('margin-top', '0px');
     expect(await historyList.evaluate(node => node.getBoundingClientRect().top - node.parentElement!.getBoundingClientRect().top)).toBe(0);
     await frame.locator('.history-insights > summary').click();
     await readable(frame, '#view-history');
-    await frame.getByRole('button', { name: 'Captures', exact: true }).click();
+    await activate(frame, 'Captures');
     await secondaryEntry(frame, 'captures');
     await readable(frame, '#captures-content');
-    await frame.getByRole('button', { name: 'Connections', exact: true }).click();
+    await activate(frame, 'Connections');
     await frame.locator('#runtime-connection-details > summary').click();
     await frame.locator('#connection-help > summary').click();
     await readable(frame, '#connection-setup');
