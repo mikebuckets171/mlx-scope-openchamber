@@ -1,6 +1,18 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 test.use({ timezoneId: 'UTC', locale: 'en-US' });
+
+// The panel finishes its first storage reads after the page opens, and a slower machine can still be doing
+// that when a test looks. Wait for quiet first, so these tests only see the work caused by what they do next.
+async function settleStorage(page: Page): Promise<void> {
+  let previous = -1;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const count = await page.evaluate(() => ((window as any).previewStorageOps ?? []).length);
+    if (count === previous) return;
+    previous = count;
+    await page.waitForTimeout(250);
+  }
+}
 
 for (const theme of ['light', 'dark']) for (const width of [320, 1160]) test(`recorded run detail and comparison preserve context at ${width}px in ${theme}`, async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
@@ -40,6 +52,7 @@ test('Now opens the shared current inspector without starting history collection
   await page.goto('/v2?surface=page&state=decode&chat=local');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#rate')).toHaveText('26.4');
+  await settleStorage(page);
   const reads = await page.evaluate(() => ({ storage: [...((window as any).previewStorageOps ?? [])],
     history: ((window as any).previewServicePaths ?? []).filter((path: string) => /trend|usage/.test(path)) }));
   await frame.getByRole('button', { name: 'Run details', exact: true }).click();
@@ -71,6 +84,7 @@ test('current inspection reuses History without refreshing expired reads and res
   await expect(frame.getByRole('button', { name: 'History', exact: true })).toBeFocused();
   // Make every view read due; a reused view must switch modes before update/activation.
   await page.clock.setFixedTime(now + 301_000);
+  await settleStorage(page);
   const reads = await page.evaluate(() => ({ storage: [...((window as any).previewStorageOps ?? [])],
     history: ((window as any).previewServicePaths ?? []).filter((path: string) => /trend|usage/.test(path)) }));
   await frame.getByRole('button', { name: 'Run details', exact: true }).click();
