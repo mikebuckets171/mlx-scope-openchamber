@@ -6,11 +6,11 @@
 - Run details opens the same inspector from Live and saved History. It shows available facts and their basis, observation gaps and eligible per-metric reply comparisons without another collection loop.
 - A host adapter owns event replay, visibility and disposal. A shared OpenCode feature profile isolates optional-hook failures and makes unsupported paths explicit. The standalone compatibility command produces a synthetic qualification report without launching a native host or granting a new version support.
 - History and preferences preserve unknown major formats instead of overwriting them. Existing wire/storage versions, supported runtime measurements and host permissions remain.
-- Shared rendering and parsing helpers, private implementation fields and cheaper motion bookkeeping reclaim bundle and polling work. Final resource acceptance is recorded separately from functional fixture coverage.
+- The panel remains within its size limit without removing features. The behavior tests and package checks pass, but the performance goals have not all been met.
 
 Existing users need **Connections → Update chat speed** and loaded-version confirmation for chat delivery. The companion is version 3.3.0; its wire schema remains 1, and History/Captures remain schema 2. OpenCode support stays pinned to the qualified 2.0.25 profile. Synthetic upgrade checks do not establish native-host compatibility with newer upstream releases.
 
-Release qualification uses the synthetic OpenChamber browser host, isolated compatibility fixtures and CPU-only resource measurements. Native extension installation and live llama-swap prompt percentage were not verified for this release. These checks do not establish native-host overhead, GPU cost or inference impact.
+Testing used a synthetic OpenChamber browser host and CPU-only fixtures. Across three readings, measured main-thread time in the browser panel was 2.3165% for Scope 4 and 1.8596% for version 3.1. Scope 4 was about a quarter higher and above the agreed 1.62–1.70% target under current machine load, so that target was not met. We did not measure the service's CPU use or memory for this release. No earlier reading was used in its place, and no limits were raised. Trying the extension in a real installation and measuring prompt progress through a live llama-swap remain unverified. These results do not show the effect on a real OpenChamber host, graphics processing or model speed.
 
 ## 3.2.3
 
