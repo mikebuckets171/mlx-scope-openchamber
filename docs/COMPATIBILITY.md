@@ -4,7 +4,7 @@
 
 Scope evaluates optional OpenCode features independently from native runtime monitoring. The standalone
 `bridge/opencode/compatibility.js` profiles are shared by hook registration, telemetry parsing and setup. Exact
-OpenCode **2.0.25 and 2.0.27** are qualified; adjacent versions and custom suffixes do not inherit support. The companion
+OpenCode **2.0.25, 2.0.27 and 2.0.28** are qualified; adjacent versions and custom suffixes do not inherit support. The companion
 package version, profile revision and Scope telemetry wire version are separate. Schema 1 and the legacy protocol
 spelling `opencode-2.0.25` remain unchanged for existing readers. The module ships inside the addon; its declaration
 file is only needed for development type checking.
@@ -12,9 +12,9 @@ file is only needed for development type checking.
 | Feature | Qualification and unavailable behavior |
 |---|---|
 | HTTP delivery | Documented native HTTP hooks plus the released event protocol. Hook failure leaves WebSocket observation and native engine monitoring available. |
-| WebSocket delivery | An explicitly experimental handshake hook, qualified separately for metadata on reused sockets. Hook failure leaves HTTP available. Native cancellation passes on 2.0.27; 2.0.25 retains unit-only interruption coverage. |
+| WebSocket delivery | An explicitly experimental handshake hook, qualified separately for metadata on reused sockets. Hook failure leaves HTTP available. Native cancellation passes on 2.0.27 and 2.0.28; 2.0.25 retains unit-only interruption coverage. |
 | Splash prompt progress | Qualified profile, configured loopback provider and validated streaming counters. Unknown versions install no request mutation. Failed response-hook registration removes its paired request hook. |
-| Managed reload | Native file-rename checks on 2.0.27 verify an older unsupported helper and same-version revisions update while a fixture reply completes, without restart or duplicate requests. Configuration tests alone do not establish this. No automatic restart is attempted. |
+| Managed reload | Native file-rename checks on 2.0.27 and 2.0.28 verify an older unsupported helper and same-version revisions update while a fixture reply completes, without restart or duplicate requests. Configuration tests alone do not establish this. No automatic restart is attempted. |
 
 Optional heartbeat feature entries carry `support` (`qualified`, `unqualified`, `unavailable`) and `available` (the
 hook/API is installed). An available feature must be qualified. Readers discard unrelated metadata and reject
@@ -70,6 +70,17 @@ semantic proof. When authorized, native synthetic-provider receipts should recor
 when available, adapter/companion hashes and passed/skipped/unqualified outcomes. Preserve wire/storage compatibility,
 privacy limits and independent fallback; measure overhead before adding continuous collection.
 
+## OpenCode 2.0.28 compatibility
+
+The binary bundled with OpenChamber 2.3.2 passes isolated native synthetic HTTP local/remote, WebSocket reuse,
+completion, calibration, tool continuation, interruption, and hidden-shutdown checks. Managed file-rename reload
+covers both an unsupported older helper and a same-version revision during a completing fixture reply, with
+no server restart or duplicated request. The same legacy wire/schema and existing exact profiles remain intact.
+Source review compares the exact upstream v2.0.27 and v2.0.28 tags; the consumed event/usage/transport schemas
+are unchanged. Version 4.0.1 was installed through OpenChamber 2.3.2's native Extensions settings. Connections
+confirmed companion 3.3.0 loaded on OpenCode 2.0.28, with HTTP, WebSocket and prompt-progress hooks available.
+Real-model performance qualification remains a separate check.
+
 ## Host
 
 MLX Scope 4 retains the manifest requirement **OpenChamber 2.0.4 or newer** (`engines.openchamber` `>=2.0.4`) and pins
@@ -90,7 +101,7 @@ OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and c
 
 ## Optional chat delivery estimates
 
-Chat estimates support exact **OpenCode 2.0.25 and 2.0.27** for local and cloud chats alike, retaining the same wire protocol. An
+Chat estimates support exact **OpenCode 2.0.25, 2.0.27 and 2.0.28** for local and cloud chats alike, retaining the same wire protocol. An
 isolated servers with synthetic streaming providers exercise waiting, generation, completion, calibration and
 hidden shutdown over both transports. Unsupported versions disable estimates while runtime adapters continue to
 operate. Guided setup distinguishes installed/pending from a fresh loaded companion and supports native v2 and legacy

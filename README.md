@@ -89,7 +89,7 @@ section and the full view show the percentage. It clears when the response start
 The companion is bundled and does not activate automatically. Open **Connections → Enable chat speed** for detected
 compatibility and a deliberate setup action, or follow the [manual setup](bridge/opencode/README.md). Setup preserves
 existing plugins and JSONC comments and provides **Disable and remove**. It never restarts an active inference session.
-Chat delivery estimates qualify exact OpenCode **2.0.25 and 2.0.27**; other versions retain ordinary runtime monitoring.
+Chat delivery estimates qualify exact OpenCode **2.0.25, 2.0.27 and 2.0.28**; other versions retain ordinary runtime monitoring.
 The existing Splash HTTP observer remains separate. New replies acquire observations after activation; an already
 running reply cannot acquire them retroactively.
 
@@ -170,7 +170,7 @@ them at a time, and a sent chip stays in the chat's session record like any atta
 
 OpenChamber 2.0.4 or newer is required. The extension uses the 2.0.4 SDK; earlier releases were exercised in OpenChamber 2.2.0. See [Compatibility](docs/COMPATIBILITY.md) for the exact evidence and upgrade requirements. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
 
-1. Open **Settings → Extensions** in OpenChamber and add this repository, or install **mlx-scope-openchamber-4.0.0.zip** from [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest).
+1. Open **Settings → Extensions** in OpenChamber and add this repository, or install **mlx-scope-openchamber-4.0.1.zip** from [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest).
 2. Review OpenChamber’s local-service permissions. The ZIP contains built JavaScript and needs no build toolchain.
 3. Open **MLX Scope** from the Session sidebar. **This chat** follows the selected chat automatically.
 

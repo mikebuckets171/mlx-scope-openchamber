@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.1
+
+- Adds one exact 2.0.28 profile while preserving qualified 2.0.25/2.0.27, companion 3.3.0 and the existing wire/schema. The extension service and bundled helper share the registry.
+- Native synthetic loopback checks cover local/remote HTTP, Splash progress, WebSocket reuse and tools, calibration, completion, cancellation, hidden shutdown, and helper reload without restart or duplicated requests.
+- Restores chat speed and Splash prompt progress after updating to OpenChamber 2.3.2. Install the extension, then choose **Connections → Update chat speed** to update the companion files. The companion remains version 3.3.0; exact OpenCode 2.0.25 and 2.0.27 support is retained.
+- Native fixture checks do not establish every provider, model or real-workload performance.
+
 ## 4.0.0
 
 - Readings, labels and controls now look and behave alike across Live, Session, Media, Connections, History and Captures. Sections take up only the space their contents need, including at larger text sizes.

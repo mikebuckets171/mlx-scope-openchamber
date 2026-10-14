@@ -35,13 +35,13 @@ test('wrong endpoint, stale or future observations and unknown protocols have no
   ]) { await f.write(body); expect(await telemetry.observe('11111111',target)).toBeNull(); }
   await telemetry.dispose();
 });
-test('2.0.27 retains the wire format but only accepts the current companion and exact qualified runtime', async () => {
+for (const runtimeVersion of ['2.0.27', '2.0.28']) test(`${runtimeVersion} retains the wire format but only accepts the current companion and exact qualified runtime`, async () => {
   const f = await fixture(), telemetry = new ChatTelemetry(f.home, () => at);
-  await f.write({ ...f.body, runtimeVersion: '2.0.27' });
+  await f.write({ ...f.body, runtimeVersion });
   expect(await telemetry.observe('11111111', target)).toEqual(measurement);
-  for (const extra of [{ companionVersion: '3.2.0' }, { protocol: 'unsupported' }, { runtimeVersion: '2.0.28' },
-    { runtimeVersion: '2.0.27-custom' }]) {
-    await f.write({ ...f.body, runtimeVersion: '2.0.27', ...extra });
+  for (const extra of [{ companionVersion: '3.2.0' }, { protocol: 'unsupported' }, { runtimeVersion: '2.0.29' },
+    { runtimeVersion: '2.0.27-custom' }, { runtimeVersion: '2.0.28-custom' }, { runtimeVersion: '2.0.280' }]) {
+    await f.write({ ...f.body, runtimeVersion, ...extra });
     expect(await telemetry.observe('11111111', target)).toBeNull();
   }
   await telemetry.dispose();

@@ -3,14 +3,13 @@
 export const CHAT_PROTOCOL = 'opencode-2.0.25';
 export const TELEMETRY_SCHEMA_VERSION = 1;
 export const FEATURE_IDS = ['http-delivery', 'websocket-delivery', 'prompt-progress', 'managed-reload'];
-const profile = Object.freeze({ id: 'opencode-2.0.25-v1', runtimeVersion: '2.0.25', protocol: CHAT_PROTOCOL,
-  websocketCancellation: 'unit-only' });
-const current = Object.freeze({ ...profile, id: 'opencode-2.0.27-v1', runtimeVersion: '2.0.27',
-  websocketCancellation: 'native' });
+const profiles = ['2.0.25', '2.0.27', '2.0.28'].map(runtimeVersion => Object.freeze({
+  id: `opencode-${runtimeVersion}-v1`, runtimeVersion, protocol: CHAT_PROTOCOL,
+  websocketCancellation: runtimeVersion === '2.0.25' ? 'unit-only' : 'native',
+}));
 
 /** Matching APIs alone do not qualify event ordering, token semantics, or a transport path. */
-export const profileFor = runtimeVersion => runtimeVersion === profile.runtimeVersion ? profile
-  : runtimeVersion === current.runtimeVersion ? current : null;
+export const profileFor = runtimeVersion => profiles.find(profile => runtimeVersion === profile.runtimeVersion) ?? null;
 export const acceptsChatProtocol = (runtimeVersion, protocol) => !!profileFor(runtimeVersion) && protocol === CHAT_PROTOCOL;
 export const featureSupport = runtimeVersion => Object.fromEntries(FEATURE_IDS.map(id =>
   [id, { support: profileFor(runtimeVersion) ? 'qualified' : 'unqualified', available: false }]));

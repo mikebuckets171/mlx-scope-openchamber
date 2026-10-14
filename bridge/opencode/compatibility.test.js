@@ -17,7 +17,11 @@ test('qualification is exact and independent from wire spelling and package vers
   assert.equal(profileFor('2.0.27').websocketCancellation, 'native');
   assert.equal(acceptsChatProtocol('2.0.27', CHAT_PROTOCOL), true);
   assert.equal(acceptsChatProtocol('2.0.27', 'future-wire'), false);
-  for (const version of ['2.0.28', '2.0.27-custom', '2.0.270', '3.0.0']) assert.equal(profileFor(version), null);
+  assert.equal(profileFor('2.0.28').id, 'opencode-2.0.28-v1');
+  assert.equal(profileFor('2.0.28').websocketCancellation, 'native');
+  assert.equal(acceptsChatProtocol('2.0.28', CHAT_PROTOCOL), true);
+  assert.equal(acceptsChatProtocol('2.0.28', 'future-wire'), false);
+  for (const version of ['2.0.29', '2.0.27-custom', '2.0.28-custom', '2.0.270', '2.0.280', '3.0.0']) assert.equal(profileFor(version), null);
 });
 
 test('feature status rejects contradictory qualification and strips unrelated metadata', () => {

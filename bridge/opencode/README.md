@@ -1,6 +1,6 @@
 # Optional OpenCode companion
 
-The 3.3 companion observes demand-gated HTTP and WebSocket chat delivery on exact **OpenCode 2.0.25 and 2.0.27**, for local and cloud
+The 3.3 companion observes demand-gated HTTP and WebSocket chat delivery on exact **OpenCode 2.0.25, 2.0.27 and 2.0.28**, for local and cloud
 chats alike, and retains the existing Splash prompt-progress observer. Unsupported OpenCode versions disable chat
 estimates while native runtime monitoring remains available. The plugin ID remains `mlx-scope-prompt-progress` to
 update existing installations in place.
@@ -13,7 +13,7 @@ From the repository, `bun run qualify:compatibility` runs isolated fixtures, pri
 and reproducible package verification. Native checks remain not run; it never launches native OpenCode, sends a prompt
 or changes live configuration. `--candidate` labels a proposed version without broadening runtime support.
 See the repository's `docs/COMPATIBILITY.md`. The native protocol commands below are
-separate, explicitly invoked operations. Native WebSocket cancellation passes on 2.0.27; 2.0.25 retains unit-only coverage.
+separate, explicitly invoked operations. Native WebSocket cancellation passes on 2.0.27 and 2.0.28; 2.0.25 retains unit-only coverage.
 
 **Delivery scope:** local and cloud chat delivery. A cloud reading is delivery observed through OpenCode, including network
 and provider buffering; it is never engine throughput, and a cloud chat never borrows a local engine measurement.
@@ -94,7 +94,7 @@ The observer uses the supported `ctx.event.subscribe({ signal })` API. OpenCode 
 
 The `http.request` hook reads primary POST request metadata. The qualified `experimental.ws.handshake` hook reads primary session/model/destination metadata on every model call, including cached WebSocket reuse. It does not read or change headers, socket frames, requests, responses, or the socket. This covers OpenCode 2.0.25's default OpenAI WebSocket transport. Local targets require a literal loopback origin; remote targets require an observed non-loopback origin. Each step needs its own corroborated destination. A primary dispatch refreshes demand before authorizing observation, so the first reply does not depend on the periodic poll's timing. The dispatch also seeds the observation of its own call: a `session.step.started` lost while a subscription restarts (demand arriving as a reply begins) cannot hide that reply, and a step announcement that does arrive upgrades it to a full step. A dispatch-seeded observation binds to the first reply published after the dispatch, ignores everything published before it, proves no later step, and without its step announcement reports no completed-step average and trains no calibration. The separate existing Splash HTTP observer still only adds `return_progress` for its explicitly configured provider.
 
-Protocol qualification is exact for **2.0.25 and 2.0.27**. The released schema uses `session.step.started`, `session.step.streamed`, `session.step.ended`, `session.text.*`, `session.reasoning.*`, `session.tool.*`, and `session.execution.*`, with the envelope's numeric `created` timestamp and ordinal text/reasoning parts. These are different from old `session.next.*` events; old payloads are not interpreted as current telemetry. Public primary sources inspected for this implementation:
+Protocol qualification is exact for **2.0.25, 2.0.27 and 2.0.28**. The released schema uses `session.step.started`, `session.step.streamed`, `session.step.ended`, `session.text.*`, `session.reasoning.*`, `session.tool.*`, and `session.execution.*`, with the envelope's numeric `created` timestamp and ordinal text/reasoning parts. These are different from old `session.next.*` events; old payloads are not interpreted as current telemetry. Public primary sources inspected for this implementation:
 
 - [OpenCode plugin event API](https://opencode.ai/v2/docs/build/plugins/#events)
 - [2.0.25 public session-event schema](https://github.com/anomalyco/opencode/blob/v2.0.25/packages/schema/src/session-event.ts)
@@ -112,6 +112,17 @@ consumed fields and boundaries. Isolated native checks verify local and remote-c
 advancement and clearing, WebSocket reuse and tools, calibration, completion, interruption and hidden shutdown.
 Native reload checks also verify updating an unsupported older helper and same-version revisions during a fixture reply.
 This does not qualify untested versions or establish real-model performance or every provider's behavior.
+
+OpenCode 2.0.28 compatibility was checked against the binary bundled in OpenChamber 2.3.2.
+Its tagged session-event schema, event envelope, usage normalization and model transport match 2.0.27;
+the request implementation changes tool-decline recovery outside the consumed HTTP metadata. Isolated native
+synthetic checks pass local HTTP with advancing/clearing prompt counters, remote-classified HTTP, WebSocket
+connection reuse and tool continuation, calibration, completion, cancellation, and hidden shutdown. Reload checks
+cover an unsupported older helper and a same-version revision while a synthetic response completes without
+restart or duplicate requests. Provider-configured request compression can make prompt-body observation
+unavailable; the default uncompressed fixture path is covered. The OpenChamber 2.3.2 native UI confirmed the
+updated helper connected with HTTP, WebSocket and prompt-progress hooks available. Real-model workloads
+remain a separate check.
 
 Live estimates count Unicode code points from observable text and reasoning deltas over a rolling five-second interval, requiring two seconds of observation. They begin at four characters per token. After three eligible steps, calibration uses the summed characters and reported tokens from the latest ten comparable steps for the same provider, model, and endpoint. HTTP(S) and WS(S) origins have separate calibration. It stays an estimate. Calibration requires complete observed parts, a streamed response boundary, unambiguous separate visible-output/reasoning counts, and no tool activity or missed/gapped output. Reasoning tokens without observable reasoning, tool payloads, title generation, compaction, auxiliary generation, replayed frames, and incompatible lifecycle events cannot train calibration. Calibration is bounded and lives only in process memory.
 
@@ -158,7 +169,7 @@ type ChatTelemetryFile = {
   writerID: string;
   companionVersion: '3.3.0';
   protocol: 'opencode-2.0.25';
-  runtimeVersion: '2.0.25' | '2.0.27';
+  runtimeVersion: '2.0.25' | '2.0.27' | '2.0.28';
   updatedAtMs: number;
   expiresAtMs: number; // update + 15000
   entries: Array<{ // <= 16
