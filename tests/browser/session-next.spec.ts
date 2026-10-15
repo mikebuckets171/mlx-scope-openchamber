@@ -158,7 +158,6 @@ test('prompt ETA uses existing fresh progress when the engine omits an estimate'
   await update(4_000); await expect(frame.locator('.prompt-eta')).toHaveCount(0);
   await update(4_200); await update(4_400);
   await expect(frame.locator('.prompt-eta')).toHaveText(/^Est\. .* left$/);
-  await expect(frame.locator('.prompt-eta')).toHaveAttribute('title', /recent token progress/);
   await update(4_500, true); await expect(frame.locator('.prompt-eta')).toHaveCount(0);
   expect(await page.evaluate('window.previewUnexpectedSends')).toBe(0);
 });

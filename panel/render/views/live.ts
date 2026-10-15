@@ -5,7 +5,7 @@ import { dur, kt } from '../../present/format.ts';
 import { SPLASH_SPEED_HELP } from '../../present/speeds.ts';
 import { tile, type HeroView, LiveView, MacRow, MacView, NextView, ReplyView, Tile } from '../../present/live.ts';
 import type { ChartView } from '../chart.ts';
-import { html, type Part, type Raw } from '../html.ts';
+import { flag, html, type Part, type Raw } from '../html.ts';
 import { averagesMarkup, compactRate, readoutWidth, speedsMarkup } from './speeds.ts';
 import { measurementLabel, READOUT_ID, scopeMenuMarkup } from './session.ts';
 import { callouts, chip, disclosure, ICON, meter, pct100, tipParts, val, type Open } from './parts.ts';
@@ -57,8 +57,8 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open, mac: MacVie
   const readingText = reading ? reading.kind === 'speed' ? compactRate(reading.text) : reading.text : '';
   const explanation = h.speeds.source === 'Splash' ? tipParts(P, tip('basis', 'How engine speeds are measured', SPLASH_SPEED_HELP), open)
     : h.body?.kind === 'decode' || h.body?.kind === 'prefill' ? tipParts(P, h.body.tip, open) : null;
-  const measurementTip = reading ? tipParts(P, tip('measurement', reading.label, [reading.detail]), open) : null;
-  const readingSource = reading ? html`<div class="instrument-source" data-crossfade="${reading.label}">${measurementLabel(reading, next)}${measurementTip!.btn}${instrument.eta ? html`<span class="prompt-eta" title="${instrument.eta.detail}">${instrument.eta.text}</span>` : ''}<span class="sr-only basis">${reading.detail}</span></div>` : '';
+  const measurementTip = reading ? tipParts(P, tip('measurement', reading.label, [reading.detail, ...instrument.eta ? [instrument.eta.detail] : []]), open) : null;
+  const readingSource = reading ? html`<div class="instrument-source" data-crossfade="${reading.label}">${measurementLabel(reading, next)}${measurementTip!.btn}${instrument.eta ? html`<span class="prompt-eta">${instrument.eta.text}</span>` : ''}<span class="sr-only basis">${reading.detail}</span></div>` : '';
   const prefill = reading?.kind === 'progress' && h.body?.kind === 'prefill' ? h.body : null;
   const result = reading?.result;
   const fallback = list.filter(tile => ['Active requests', 'Model memory', 'Metal allocations', 'Median first token'].includes(tile.label));
@@ -92,7 +92,7 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open, mac: MacVie
       </div>
       <div class="instrument-evidence" data-quiet="${String(evidenceQuiet)}">${prefill ? html`<div class="instrument-prefill" id="prefill-progress"><div class="progress-track" role="progressbar" aria-label="Prompt progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${prefill.fraction * 100}"><span style="width:${pct100(prefill.fraction)}"></span></div>${prefill.counts ? html`<p class="coverage-note">Engine · ${prefill.counts}</p>` : ''}${prefill.eta ? html`<p class="coverage-note" data-basis="estimate">About ${prefill.eta} left · <span class="basis">Server estimate</span></p>` : ''}</div>` : tiles(facts, result?.label ?? 'Engine', !next || !reading?.live || reading.label !== 'Engine')}</div>
     </div>
-    ${h.engineTrend?.chart ? html`<div id="engine-trend">${chartMarkup(h.engineTrend.chart, next && h.engineTrend.current === false, next)}</div>` : ''}
+    ${h.chatOnly ? '' : html`<div id="engine-trend"${flag('hidden', !h.engineTrend?.chart)}>${h.engineTrend?.chart ? chartMarkup(h.engineTrend.chart, next && h.engineTrend.current === false, next) : ''}</div>`}
     ${h.chatOnly ? '' : html`<div id="reply-strip" class="instrument-support">${disclosure('measurement-details', 'Measurement details', html`<div class="instrument-detail-content">
     ${disclosure('engine-readings', 'Engine readings', html`<p class="instrument-model" id="model" translate="no">${h.title}</p>${h.attr ? html`<span class="title-row" id="attribution">${chip(h.attr.chip)}${a!.btn}</span>${a!.pop}` : ''}${speedsMarkup(h.speeds, false)}<div class="instrument-basis">${h.speeds.source} · All engine activity ${explanation?.btn ?? ''}</div>${explanation?.pop ?? ''}${averagesMarkup(h.speeds)}`, open, 'instrument-details')}
     ${remaining.length || h.context ? disclosure('request-details', 'Request details', html`${h.context ? html`<div class="context-headroom" id="context-headroom"><div class="context-line"><span class="title-row">Context used ${c!.btn}</span><span data-basis="${h.context.basis}"><strong>${h.context.used}</strong>${h.context.basis !== 'reported' ? html` <small class="basis">${BASIS_WORD[h.context.basis]}</small>` : ''}</span></div>${c!.pop}${meter(h.context.fraction)}</div>` : ''}${tiles(remaining)}`, open) : ''}

@@ -113,12 +113,12 @@ test('full Live retains the readout structure through freshness changes and show
   for (const state of ['decode', 'prefill', 'idle']) {
     const input = inputOf(state), markup = liveMarkup(presentLive(input), new Set()).markup;
     expect(markup, state).toContain('class="instrument-readout"');
-    expect(markup, state).not.toContain('id="engine-trend"');
+    expect(markup, state).toContain('<div id="engine-trend" hidden></div>');
     expect(markup, state).not.toContain('id="signal"');
   }
   const stale = liveMarkup(presentLive(inputOf('decode', undefined, { fresh: false })), new Set()).markup;
   expect(stale).toContain('class="instrument-readout"');
-  expect(stale).not.toContain('id="engine-trend"');
+  expect(stale).toContain('<div id="engine-trend" hidden></div>');
   expect(stale).not.toContain('id="rate"');
 });
 

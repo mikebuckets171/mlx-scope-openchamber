@@ -103,3 +103,12 @@ The Session and Live measurement labels now include a compact, qualified **Est. 
 - Full package verification passes 1,939 Bun, 71 Node and 15 Python tests with the original bundle ceilings.
 - All 28 Session browser cases pass in Chromium and WebKit, including reported/observed ETA, 300/430px layouts, pause, stale progress, phase exit, popover explanation, and full Live.
 - All 20 navigation/layout cases pass in the isolated one-worker run. A preceding mixed-engine, two-worker local run had intermittent focus delivery failures (45/48 passed); these are retained in the task logs, not counted as a full-suite pass. The original hosted WebKit heading clipping is addressed with an 8px scroll margin, without weakening its bounds assertion. Complete hosted engine jobs remain the release gate.
+
+
+## ETA accessibility and first-trace focus correction
+
+Full hosted testing identified a genuine focus defect behind the earlier intermittent navigation failures: inserting the first engine trend replaced the following disclosure subtree. Live now retains a hidden, zero-height trend host so its neighboring controls keep their DOM identity and focus when samples arrive. A browser regression verifies identity, keyboard focus, and Enter activation across that transition. Cloud views still omit the engine host.
+
+ETA explanations are available through keyboard-accessible measurement details. The ETA label no longer relies on a pointer-only tooltip. The current focused Session, navigation, UI accessibility, and cloud suites pass all 108 cases across Chromium and WebKit. A further WebKit content-height/completion/consistency run passes all 50 cases. Hosted timing failures exposed tests publishing observations before their initial chat boundary settled; setup now waits for the actual Waiting state and advances simulated time before the new observation, and the cadence test freezes time before mounting. Measurement, expiry, and rate assertions are unchanged.
+
+Actual OpenChamber 2.3.3 checks on the preceding ETA artifact confirmed the compact Session, passive Splash generation, snapshot Details, Escape dismissal, and Pause/Resume. The final accessibility/focus artifact still requires exact-head hosted CI, final artifact performance checks, and a storage-preserving installed refresh. A real prompt-reading phase was observed, but a live numeric ETA was not captured; ETA values are verified with synthetic reported and observed progress fixtures.

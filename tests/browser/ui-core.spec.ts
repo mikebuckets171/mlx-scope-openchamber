@@ -353,6 +353,8 @@ test('polls send the since cursor, and the host answers only newer completions',
 
 test('no panel cap on the service cadence: a lower-priority frame backs off to the 10 s the service asks for', async ({ page }) => {
   await page.clock.install();
+  // Freeze before mounting so CI setup latency is not counted in the 10-second observation interval.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 1);
   await page.goto('/v2?state=decode&poll=10000&leader=0');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#scope')).toBeVisible();

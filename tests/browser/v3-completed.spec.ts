@@ -157,7 +157,8 @@ for (const surface of ['status', 'page']) for (const chat of ['local']) {
     await page.clock.install();
     await page.goto(`/v2?surface=${surface}&state=idle&chat=${chat}&poll=500`);
     const frame = page.frameLocator('iframe');
-    await expect(frame.locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toBeVisible();
+    await expect(frame.locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toHaveText('Waiting');
+    await page.clock.runFor(100);
     await page.evaluate(() => {
       const w = window as any, now = Date.now();
       w.setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' });
@@ -191,8 +192,9 @@ for (const surface of ['status', 'page']) {
   test(`an in-flight completed result cannot return after a new reply starts on ${surface}`, async ({ page }) => {
     await page.clock.install();
     await page.goto(`/v2?surface=${surface}&state=idle&chat=local&poll=500`);
-    // The idle session must reach a mounted panel; an update sent before it subscribes is not replayed.
-    await expect(page.frameLocator('iframe').locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toBeVisible();
+    // Wait for the initial observation and advance beyond its chat boundary before publishing a new step.
+    await expect(page.frameLocator('iframe').locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toHaveText('Waiting');
+    await page.clock.runFor(100);
     await page.evaluate(() => (window as any).setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' }));
     const frame = page.frameLocator('iframe');
     await page.evaluate(() => {
@@ -228,8 +230,9 @@ for (const surface of ['status', 'page']) for (const oldPhase of ['generating', 
   test(`lifecycle start clears an old ${oldPhase} chat reading on ${surface} before a held poll responds`, async ({ page }) => {
     await page.clock.install();
     await page.goto(`/v2?surface=${surface}&state=idle&chat=local&poll=500`);
-    // The idle session must reach a mounted panel; an update sent before it subscribes is not replayed.
-    await expect(page.frameLocator('iframe').locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toBeVisible();
+    // Wait for the initial observation and advance beyond its chat boundary before publishing a new step.
+    await expect(page.frameLocator('iframe').locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toHaveText('Waiting');
+    await page.clock.runFor(100);
     await page.evaluate(() => (window as any).setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' }));
     const frame = page.frameLocator('iframe');
     await page.evaluate(phase => {
@@ -254,8 +257,9 @@ for (const surface of ['status', 'page']) {
     await page.clock.install();
     await page.goto(`/v2?surface=${surface}&state=idle&chat=local&poll=500`);
     const frame = page.frameLocator('iframe'), phase = surface === 'status' ? '.ws-phase' : '.instrument-phase';
-    // The idle session must reach a mounted panel; an update sent before it subscribes is not replayed.
-    await expect(frame.locator(phase)).toBeVisible();
+    // Wait for the initial observation and advance beyond its chat boundary before publishing a new step.
+    await expect(frame.locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toHaveText('Waiting');
+    await page.clock.runFor(100);
     await page.evaluate(() => (window as any).setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' }));
     await page.evaluate(() => {
       const now = Date.now();

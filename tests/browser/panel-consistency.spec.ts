@@ -142,3 +142,19 @@ for (const width of [320, 1160]) test(`run comparison separates the metric group
   })).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
+
+
+test('the first engine trace preserves the focused details control and its DOM identity', async ({ page }) => {
+  await page.goto('/v2?surface=page&state=decode');
+  const frame = page.frameLocator('iframe');
+  await expect(frame.locator('#rate')).toBeVisible();
+  await frame.locator('#measurement-details > summary').click();
+  const control = frame.getByRole('button', { name: 'Run details', exact: true });
+  await control.focus();
+  await control.evaluate(node => { (node as any).scopeIdentity = 'initial-detail-control'; });
+  await expect(frame.locator('#engine-trend')).toBeVisible();
+  await expect(control).toBeFocused();
+  expect(await control.evaluate(node => (node as any).scopeIdentity)).toBe('initial-detail-control');
+  await control.press('Enter');
+  await expect(frame.getByRole('heading', { name: 'Current observation', exact: true })).toBeFocused();
+});

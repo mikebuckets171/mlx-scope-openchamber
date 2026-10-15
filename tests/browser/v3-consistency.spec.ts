@@ -125,6 +125,7 @@ for (const width of [320, 1160]) for (const fontSize of [16, 32]) test(`full Liv
   await page.setViewportSize({ width, height: 950 });
   await page.goto('/v2?surface=page&state=splash-decode&chat=local');
   const frame = page.frameLocator('iframe');
+  await expect(frame.locator('#rate')).toBeVisible();
   await frame.locator('html').evaluate((element, size) => { (element as HTMLElement).style.fontSize = `${size}px`; }, fontSize);
   await setPhase(page, 'generating', 17.8);
   await expect(frame.locator('#rate')).toHaveText('17.8');
