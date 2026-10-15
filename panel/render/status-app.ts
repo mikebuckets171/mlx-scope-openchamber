@@ -3,6 +3,7 @@ import { mediaGlanceMarkup } from '../media/view.ts';
 import { DigitRoll } from './digit-roll.ts';
 import { beatKey, Motion } from './motion.ts';
 import { html } from './html.ts';
+import { liveChart } from './chart.ts';
 import type { HostClient, SessionSnapshot } from '../host/types.ts';
 import type { SnapshotClient } from '../data/client.ts';
 import type { PrefsV2 } from '../preferences.ts';
@@ -10,7 +11,9 @@ import { presentSessionSection } from '../present/session.ts';
 import type { Pipeline } from '../state/pipeline.ts';
 import type { ScopeState } from '../state/scope-state.ts';
 import { morph } from './html.ts';
-import { sessionMarkup } from './views/session.ts';
+import { measurementLabel, sessionMarkup } from './views/session.ts';
+import { openReadingCard, readingCard, type ReadingCard } from '../next/popover.ts';
+import type { HostFeatures, StatusControl } from '../host/types.ts';
 
 // The Session summary (surface 'status') stays compact; its text action opens the full Scope panel.
 // Glance tier; it can lead, so it may record and toast.
@@ -32,18 +35,38 @@ export class StatusApp {
   #actionError: string | null = null;
   #resize: ResizeObserver | null;
   #unsubscribe: () => void;
+  #stopReady: () => void;
+  #stopControl: (() => void) | undefined;
+  #features: HostFeatures = {};
+  #directory: string | null | undefined;
+  #headerKey = '';
+  #headerActive = false;
+  #card: ReadingCard | null = null;
   #p: StatusParts;
   constructor(p: StatusParts, session: SessionSnapshot | null) {
     this.#p = p;
     this.#session = session;
     this.#digits = new DigitRoll(p.root);
     this.#motion = new Motion(p.root);
+    this.#stopControl = p.host.onStatusControl?.(event => {
+      if (event.id === 'scope') this.onMeasurementScope(event.value === 'engine' ? 'engine' : 'chat');
+      if (event.id === 'pause') { p.state.userPaused = !p.state.userPaused; this.onPauseChanged(); }
+      if (event.id === 'details') this.#details();
+      this.render();
+    });
+    this.#stopReady = p.host.onReady(ready => {
+      if (this.#directory !== ready.directory) { this.#directory = ready.directory; this.#headerKey = ''; this.#headerActive = false; }
+      this.#features = ready.features ?? {};
+      if (!this.#features.statusControls) this.#headerActive = false;
+      this.render();
+    });
     this.#unsubscribe = p.host.onSession(next => {
       if (!this.#sameSession(next)) this.#actionError = null;
       this.#session = next; this.render();
     });
     p.root.addEventListener('click', this.#onClick);
     p.root.addEventListener('change', this.#onChange);
+    p.root.addEventListener('keydown', this.#onKey);
     this.#resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => this.#fitHeight());
     this.#resize?.observe(p.root);
   }
@@ -60,22 +83,73 @@ export class StatusApp {
       chatActivity: this.#session ? window?.endedAt === null || this.#session.busy === true ? 'busy' : this.#session.busy === false ? 'idle' : null : null,
       lastChat: state.lastChat, restingFacts: true,
     });
-    const actionError = this.#actionError;
+    const actionError = this.#actionError, next = document.documentElement.dataset.designMode === 'next';
     this.#p.mediaJobs.sync(this.#p.visible() && !state.userPaused && state.frame?.reason !== 'needs_approval');
-    morph(this.#p.root, html`${sessionMarkup(view, actionError)}${mediaGlanceMarkup(this.#p.mediaJobs, this.#session?.id ?? null, client.now(), true)}`);
-    this.#digits.sync(`${state.generation}/${this.#session?.id ?? ''}/${this.#session?.model ?? ''}/${snapshot?.connection.id ?? ''}/${snapshot?.connection.generation ?? ''}/${snapshot?.runtime.phase ?? ''}/${window?.startedAt ?? ''}/${snapshot?.chat?.phase ?? ''}`, this.#p.visible() && !state.stale && !state.frame && !state.awaitingFresh && !state.userPaused);
+    const chart = next && view.measurement?.live && view.measurement.kind === 'speed' && view.measurement.label.startsWith('Engine')
+      ? liveChart(state.signal.points, client.now(), null, snapshot?.connection.runtime === 'splash' ? 'server' : 'request') : null;
+    const readingWasFocused = this.#p.root.querySelector('.ws-measurement') === document.activeElement;
+    const media = mediaGlanceMarkup(this.#p.mediaJobs, this.#session?.id ?? null, client.now(), true);
+    morph(this.#p.root, next
+      ? sessionMarkup(view, actionError, false, true, { chart, media, paused: state.userPaused, headerActive: this.#headerActive })
+      : html`${sessionMarkup(view, actionError)}${media}`);
+    this.#card = next ? readingCard(view, snapshot?.runtime.sampledAt ?? client.now()) : null;
+    this.#headers(next && this.#p.visible());
+    const fallback = this.#p.root.querySelector<HTMLElement>('.ws-toolbar');
+    if (fallback) fallback.hidden = this.#headerActive;
+    const reading = this.#p.root.querySelector<HTMLElement>('.ws-measurement');
+    if (reading && !reading.hidden && next && this.#features.popovers) {
+      reading.tabIndex = 0; reading.setAttribute('role', 'button'); reading.dataset.action = 'reading-details';
+      reading.setAttribute('aria-label', view.measurement ? `Measurement details: ${view.measurement.text}${view.measurement.unit ? ` ${view.measurement.unit}` : ''} · ${measurementLabel(view.measurement, true)}` : 'Measurement details');
+    }
+    if (readingWasFocused && reading?.hidden) this.#p.root.querySelector<HTMLElement>('[data-action="open-scope"]')?.focus({ preventScroll: true });
+    this.#digits.sync(`${state.generation}/${this.#session?.id ?? ''}/${this.#session?.model ?? ''}/${snapshot?.connection.id ?? ''}/${snapshot?.connection.generation ?? ''}/${snapshot?.runtime.phase ?? ''}/${window?.startedAt ?? ''}/${snapshot?.chat?.phase ?? ''}`, this.#p.visible() && !state.stale && !state.frame && !state.awaitingFresh && !state.userPaused && !next);
     const fresh = snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh && !state.userPaused;
-    this.#motion.sync(this.#p.visible() && !state.userPaused, fresh ? beatKey(this.#p.root, snapshot) : null);
+    this.#motion.sync(this.#p.visible() && !state.userPaused, fresh ? beatKey(this.#p.root, snapshot, next) : null);
     const select = this.#p.root.querySelector<HTMLSelectElement>('[data-action="measurement-scope"]');
     if (select && select.value !== view.measurementScope) select.value = view.measurementScope;
     this.#fitHeight();
   }
   /** Measure content so increased text size never clips the host's fixed-height iframe. */
   #fitHeight(): void {
-    const height = Math.min(320, Math.ceil(this.#p.root.getBoundingClientRect().height));
+    const root = this.#p.root, chart = root.querySelector<HTMLElement>('.ws-signal'), content = root.querySelector<HTMLElement>('.ws-scroll');
+    // The reading, warning and media take priority. The full-view action sits outside the scrollable content.
+    if (chart?.querySelector('svg') && content) { chart.hidden = false; if (content.scrollHeight > content.clientHeight + 1) chart.hidden = true; }
+    const height = Math.min(320, Math.ceil(root.getBoundingClientRect().height));
     if (height > 0 && height !== this.#height) { this.#height = height; void this.#p.host.setHeight(height).catch(() => {}); }
   }
   onMeasurementScope: (scope: 'chat' | 'engine') => void = () => {};
+  onPauseChanged: () => void = () => {};
+  #headers(next: boolean): void {
+    const { host, state, prefs } = this.#p;
+    if (!host.setStatusControls || !this.#features.statusControls || !next && !this.#headerKey) return;
+    const controls: StatusControl[] = next ? [
+      { kind: 'select', id: 'scope', label: 'Watch', value: prefs.value.measurementScope ?? 'chat', options: [{ value: 'chat', label: 'This chat' }, { value: 'engine', label: 'Whole engine' }] },
+      { kind: 'button', id: 'pause', label: state.userPaused ? 'Resume' : 'Pause' },
+      { kind: 'button', id: 'details', label: 'Details' },
+    ] : [];
+    const key = JSON.stringify(controls);
+    if (key === this.#headerKey) return;
+    this.#headerKey = key;
+    void host.setStatusControls(controls).then(() => {
+      if (this.#headerKey !== key) return;
+      this.#headerActive = next; this.render();
+    }).catch(() => { if (this.#headerKey === key) { this.#headerActive = false; this.render(); } });
+  }
+  #details(): void {
+    const anchor = this.#p.root.querySelector<HTMLElement>('.ws-measurement:not([hidden])') ?? this.#p.root.querySelector<HTMLElement>('#ws');
+    if (anchor && this.#features.popovers && this.#card) {
+      anchor.focus();
+      void openReadingCard(this.#p.host, anchor, this.#card).catch(() => this.#openScope());
+    } else this.#openScope();
+  }
+  #openScope(): void {
+    void this.#p.host.openSurface('plugin:mlx-scope').catch(() => { this.#actionError = 'Could not open Scope. Use the side icon.'; this.render(); });
+  }
+  #onKey = (event: KeyboardEvent): void => {
+    if ((event.key === 'Enter' || event.key === ' ') && (event.target as HTMLElement)?.dataset.action === 'reading-details') {
+      event.preventDefault(); this.#details();
+    }
+  };
   #sameSession(session: SessionSnapshot | null): boolean {
     return session?.id === this.#session?.id && session?.model === this.#session?.model;
   }
@@ -94,6 +168,8 @@ export class StatusApp {
   #onClick = (event: MouseEvent): void => {
     const action = (event.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action;
     if (!action) return;
+    if (action === 'reading-details') { this.#details(); return; }
+    if (action === 'pause') { this.#p.state.userPaused = !this.#p.state.userPaused; this.onPauseChanged(); }
     if (action === 'open-scope') {
       this.#actionError = null;
       const session = this.#session;
@@ -107,5 +183,5 @@ export class StatusApp {
     this.render();
     this.#p.root.querySelector<HTMLElement>(`[data-action="${action}"]`)?.focus({ preventScroll: true });
   };
-  dispose(): void { this.#digits.dispose(); this.#motion.dispose(); this.#unsubscribe(); this.#resize?.disconnect(); this.#p.root.removeEventListener('click', this.#onClick); this.#p.root.removeEventListener('change', this.#onChange); }
+  dispose(): void { this.#stopReady(); this.#stopControl?.(); this.#headerKey = ''; void this.#p.host.setStatusControls?.([]).catch(() => {}); this.#digits.dispose(); this.#motion.dispose(); this.#unsubscribe(); this.#resize?.disconnect(); this.#p.root.removeEventListener('click', this.#onClick); this.#p.root.removeEventListener('change', this.#onChange); this.#p.root.removeEventListener('keydown', this.#onKey); }
 }

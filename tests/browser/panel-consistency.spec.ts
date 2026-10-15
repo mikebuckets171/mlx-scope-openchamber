@@ -29,11 +29,13 @@ const readable = async (frame: FrameLocator, selector: string) => {
 // Entering a secondary view starts at its title and return action, even after leaving a long, enlarged Live view.
 const secondaryEntry = async (frame: FrameLocator, view: string, titleFocused = true) => {
   if (titleFocused) await expect(frame.locator(`#${view}-title`)).toBeFocused();
-  expect(await frame.locator(`#panel-${view} > .secondary-heading`).evaluate(root =>
-    [root, ...Array.from(root.querySelectorAll('h2, button'))].every(node => {
+  const bounds = () => frame.locator(`#panel-${view} > .secondary-heading`).evaluate(root =>
+    [root, ...Array.from(root.querySelectorAll('h2, button'))].map(node => {
       const rect = node.getBoundingClientRect();
-      return rect.top >= -1 && rect.bottom <= innerHeight + 1;
-    }))).toBe(true);
+      return { text: node.textContent?.trim(), top: rect.top, bottom: rect.bottom, fits: rect.top >= -1 && rect.bottom <= innerHeight + 1 };
+    }));
+  const initial = await bounds();
+  await expect.poll(async () => (await bounds()).filter(rect => !rect.fits), `${view} heading bounds: ${JSON.stringify(initial)}`).toEqual([]);
 };
 
 // At double text size a poll can move a control between the moment a pointer click picks it and the moment the

@@ -3,7 +3,7 @@
 export const CHAT_PROTOCOL = 'opencode-2.0.25';
 export const TELEMETRY_SCHEMA_VERSION = 1;
 export const FEATURE_IDS = ['http-delivery', 'websocket-delivery', 'prompt-progress', 'managed-reload'];
-const profiles = ['2.0.25', '2.0.27', '2.0.28'].map(runtimeVersion => Object.freeze({
+const profiles = ['2.0.25', '2.0.27', '2.0.28', '2.0.29'].map(runtimeVersion => Object.freeze({
   id: `opencode-${runtimeVersion}-v1`, runtimeVersion, protocol: CHAT_PROTOCOL,
   websocketCancellation: runtimeVersion === '2.0.25' ? 'unit-only' : 'native',
 }));

@@ -32,7 +32,7 @@ test('a candidate outside the finite registry stays unqualified even when every 
   expect(result.evidenceKey).not.toBe(qualificationReport(checks(), hashes, '', context).evidenceKey);
 });
 
-for (const version of ['2.0.27', '2.0.28']) test(`the native-tested ${version} profile keeps fixture and native results distinct`, () => {
+for (const version of ['2.0.27', '2.0.28', '2.0.29']) test(`the native-tested ${version} profile keeps fixture and native results distinct`, () => {
   const result = qualificationReport(checks(), hashes, '', { ...context, candidate: version });
   expect(result.candidate).toEqual({ runtime: 'OpenCode', version, profile: `opencode-${version}-v1`, support: 'qualified' });
   expect(result.fixtureRuntime).toBe('2.0.25');

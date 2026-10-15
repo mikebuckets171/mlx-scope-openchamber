@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>MLX Scope · synthetic preview</title><style>html,body{margin:0;background:#10151b;font:11px -apple-system,sans-serif}aside{height:24px;display:grid;place-items:center;background:#203044;color:#c4d6e9}iframe{display:block;width:100%;height:calc(100vh - 24px);border:0}</style></head>
-<body><aside>Synthetic preview · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script src="/convert-v1.js"></script><script src="/media-fixtures.js"></script><script>
+<body><aside>Synthetic preview · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script src="/next-host.js"></script><script src="/convert-v1.js"></script><script src="/media-fixtures.js"></script><script>
 const frame = document.querySelector('iframe');
 const params = new URLSearchParams(location.search);
 // A hidden rail tab: the frame mounts inside display:none and must not poll until shown.
@@ -54,7 +54,7 @@ function theme(name) {
 }
 window.previewTheme = theme(themeName);
 // OpenChamber 2.0.4 surfaces (plan §8.4): panel (default), page, the Work Status section, and the /scope background frame.
-const surface = ['page', 'status', 'background'].includes(params.get('surface')) ? params.get('surface') : 'panel';
+const surface = ['page', 'status', 'background', 'popover'].includes(params.get('surface')) ? params.get('surface') : 'panel';
 const entry = surface === 'background' ? '/background/index.html' : '/panel/index.html';
 // A status frame starts at the manifest height and follows setHeight, clamped like clampStatusSectionHeight (24–320).
 window.previewHeights = [];
@@ -81,12 +81,13 @@ window.pushPreviewLifecycle = (phase, times = 1) => {
   for (let index = 0; index < times; index += 1) post({type:'session-lifecycle',payload:{sessionId:currentSession.id,phase}});
 };
 const post = (message) => frame.contentWindow.postMessage({channel:'openchamber.sdk',v:1,...message}, '*');
-const ready = () => post({type:'ready',payload:{theme:window.previewTheme,locale:'en-US',directory:null,session:currentSession,surface,connection:{connected:true,account:''},settings:{},item:sessionItem}});
+const ready = () => post({type:'ready',payload:{theme:window.previewTheme,locale:'en-US',directory:null,session:currentSession,surface,connection:{connected:true,account:''},settings:{},item:sessionItem,...window.nextPreviewReady?.()}});
 window.setPreviewTheme = value => { window.previewTheme = theme(value); ready(); };
 window.setPreviewSession = value => { currentSession=value; post({type:'session',payload:{session:value}}); };
 window.addEventListener('message', async (event) => {
   if(event.source !== frame.contentWindow || event.data?.channel !== 'openchamber.sdk') return;
   const m = event.data;
+  if (window.handleNextPreview?.(m, post)) return;
 if(m.type === 'hello') {
     if(params.has('nohost')) return;
     ready();

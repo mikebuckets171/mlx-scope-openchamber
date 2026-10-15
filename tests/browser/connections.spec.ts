@@ -1,3 +1,4 @@
+import { openServerDetails, openConnections } from './standard-ui.ts';
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 
 
@@ -22,13 +23,13 @@ const open = async (page: Page, query = '') => {
 const selection = async (page: Page) => { const { provider, runtime } = await page.evaluate(() => (window as W).previewQueries.at(-1)); return { provider, runtime }; };
 const choose = async (page: Page, provider: string, runtime = '') => {
   const frame = page.frameLocator('iframe');
-  await frame.locator('#connection-change').click();
+  await openConnections(frame);
   if (!await frame.locator('#runtime-connection-details').evaluate(element => (element as HTMLDetailsElement).open)) await frame.locator('#runtime-connection-details > summary').click();
   await frame.getByLabel('Connection', { exact: true }).selectOption(provider);
   await frame.getByLabel('Server type', { exact: true }).selectOption(runtime);
   await frame.getByRole('button', { name: 'Use connection', exact: true }).click();
 };
-const server = async (frame: FrameLocator) => frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+const server = (frame: FrameLocator) => openServerDetails(frame);
 const live = async (frame: FrameLocator) => toColumn(frame);
 
 test('a chosen connection is stored without credentials, sent with each poll, and survives reload', async ({ page }) => {
@@ -37,11 +38,11 @@ test('a chosen connection is stored without credentials, sent with each poll, an
   await choose(page, 'studio');
   await expect(frame.locator('#connection')).toHaveText('LM Studio local');
   await expect(frame.locator('.instrument-phase')).toHaveText('Connected');
-  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('#rate')).toBeHidden();
   await expect(frame.locator('#hero')).toContainText('LM Studio lists its models · no live request readings');
   await expect(frame.locator('#metrics')).toHaveCount(0);
   await frame.locator('#measurement-details > summary').click();
-  await expect(frame.locator('.machine-summary')).toBeVisible();
+  await expect(frame.locator('#machine')).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('connection.selection')!))).toEqual({ provider: 'studio', runtime: null });
   expect(await selection(page)).toEqual({ provider: 'studio' });
   await server(frame);
@@ -97,8 +98,8 @@ test('a loading Splash server says so once and shows no decode rate', async ({ p
   const frame = await open(page, 'splashReady=0');
   await choose(page, 'splash');
   await expect(frame.locator('#phase')).toHaveText('Loading');
-  await expect(frame.locator('#view-live > .connection-diagnosis')).toContainText('Splash is loading a model');
-  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('#view-live .connection-diagnosis')).toContainText('Splash is loading a model');
+  await expect(frame.locator('#rate')).toBeHidden();
 });
 
 test('Splash in Bionic is named, keeps its last reply exact, and lists its Splash models', async ({ page }) => {
@@ -107,26 +108,26 @@ test('Splash in Bionic is named, keeps its last reply exact, and lists its Splas
   await expect(frame.locator('#connection')).toHaveText('Splash via Bionic');
   await expect(frame.locator('#phase')).toHaveText('Generating');
   await expect(frame.locator('#model')).toHaveText('local/qwen3.8-27b-splash-levels');
-  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('#rate')).toBeHidden();
   await expect(frame.locator('[data-stage="generation"]')).toContainText('Measuring…');
   await expect(frame.locator('#reply-strip')).toContainText('38.6');
   await expect(frame.locator('#reply-strip')).toContainText('0.50 s');
   await expect(frame.locator('#panel-live')).not.toContainText(/LM Studio|not reported/);
   await server(frame);
   await expect(frame.locator('[data-key="server-catalog"] .chip[data-tone="accent"]')).toHaveCount(5);
-  await menu(frame, '#connection-change');
+  await openConnections(frame);
   await expect(frame.getByLabel('Connection', { exact: true }).locator('option[value="bionic"]')).toHaveText('Splash (Bionic)');
   await expect(frame.locator('#connection-choice-note')).toContainText('This chat chooses its matching server automatically.');
 });
 
 test('connection setup closes on Escape back to Connections, and a custom provider takes an explicit runtime', async ({ page }) => {
   const frame = await open(page);
-  await openMenu(frame);
-  await frame.locator('#connection-change').focus(); await frame.locator('#connection-change').press('Enter');
+  const trigger = frame.locator('.next-nav [data-action=connection]');
+  await trigger.focus(); await trigger.press('Enter');
   await expect(frame.locator('#connection-setup')).toBeVisible();
   await frame.locator('#connection-setup-title').press('Escape');
   await expect(frame.locator('#connection-setup')).toBeHidden();
-  await expect(frame.locator('#connection-change')).toBeFocused();
+  await expect(trigger).toBeFocused();
   await choose(page, 'custom', 'lmstudio');
   await expect(frame.locator('#connection')).toHaveText('Custom local');
   expect(await selection(page)).toEqual({ provider: 'custom', runtime: 'lmstudio' });
@@ -138,10 +139,10 @@ test('a storage failure keeps the chosen connection usable; a missing setup poin
   await expect(frame.locator('#connection')).toHaveText('LM Studio local');
   await expect(frame.locator('#action-status')).toContainText('could not save the preference');
   frame = await open(page, 'setup=missing');
-  const callout = frame.locator('#view-live > .connection-diagnosis');
+  const callout = frame.locator('#view-live .connection-diagnosis');
   await expect(callout).toContainText('isn’t answering');
   await frame.locator('#measurement-details > summary').click();
-  await expect(frame.locator('.machine-summary')).toBeVisible();
+  await expect(frame.locator('#machine')).toBeVisible();
   await callout.getByRole('button', { name: 'Connection…' }).click();
   await expect(frame.locator('#connection-setup-title')).toBeFocused();
 });

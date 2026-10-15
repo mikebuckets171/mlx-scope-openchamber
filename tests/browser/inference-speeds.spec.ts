@@ -7,9 +7,9 @@ for (const theme of ['light', 'dark']) test(`Session shows the relevant stage an
     await page.goto(`/v2?surface=status&state=splash-mixed&theme=${theme}`);
     await page.locator('iframe').evaluate((el, w) => { (el as HTMLElement).style.width = `${w}px`; }, width);
     const frame = page.frameLocator('iframe');
-    await expect(frame.locator('.ws-reading')).toHaveText('43.8 tok/s');
+    await expect(frame.locator('.ws-reading')).toHaveText(/43\.8\s*tokens\/s$/);
     await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /Calculated · last 4.0 s/);
-    await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
+    await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · recent 4.0 s');
     await expect(frame.locator('#ws')).not.toContainText('47.2');
     await expect(frame.locator('.speed-row')).toHaveCount(0);
     for (const fontSize of [24, 32]) {
@@ -27,7 +27,7 @@ for (const theme of ['light', 'dark']) test(`Session shows the relevant stage an
     expect(await child.evaluate(inspect, { openAll: false, backdrop })).toEqual([]);
     await page.evaluate(() => (window as any).setPreviewState('splash-prefill-waiting'));
     await expect(frame.locator('.ws-phase')).toHaveText('Reading prompt');
-    await expect(frame.locator('.ws-measurement')).toHaveCount(0);
+    await expect(frame.locator('.ws-measurement')).toBeHidden();
     await expect(frame.locator('#ws')).not.toContainText('fresh output');
     await page.evaluate(() => (window as any).setPreviewState('splash-long-warning'));
     await expect(frame.locator('.ws-warning')).toContainText('Swap grew');
@@ -51,10 +51,10 @@ test('Energy saving explains absent rates without hiding a valid prefill reading
   await page.goto('/v2?surface=status&state=splash-prefill-waiting&theme=light');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-note')).toHaveText('Energy saving is on');
-  await expect(frame.locator('.ws-measurement')).toHaveCount(0);
+  await expect(frame.locator('.ws-measurement')).toBeHidden();
   await page.evaluate(() => (window as any).setPreviewState('splash-prefill'));
-  await expect(frame.locator('.ws-reading')).toHaveText('612 tok/s', { timeout: 8_000 });
-  await expect(frame.locator('.ws-note')).toHaveCount(0);
+  await expect(frame.locator('.ws-reading')).toHaveText(/612\s*tokens\/s$/, { timeout: 8_000 });
+  await expect(frame.locator('.ws-note')).toBeHidden();
 });
 
 test('pause and stale readings clear both current lanes without promoting averages', async ({ page }) => {
@@ -76,10 +76,10 @@ test('pause and stale readings clear both current lanes without promoting averag
   await expect(frame.locator('.speed-pair')).not.toContainText('tok/s');
 });
 
-test('extreme rates fit and retain their full accessible value; keyboard focus stays inside its target', async ({ page }, testInfo) => {
+test('extreme rates fit and retain their full accessible value; keyboard focus remains visible', async ({ page }, testInfo) => {
   await page.goto('/v2?surface=status&state=splash-extreme&theme=light');
   const frame = page.frameLocator('iframe');
-  await expect(frame.locator('.ws-reading')).toHaveText('2.3M tok/s');
+  await expect(frame.locator('.ws-reading')).toHaveText(/2\.3M\s*tokens\/s$/);
   await expect(frame.locator('.ws-reading')).toHaveAttribute('aria-hidden', 'true');
   await expect(frame.locator('.measurement-accessible')).toHaveText('2,340,000 tokens per second');
   expect(await frame.locator('.ws-measurement').ariaSnapshot()).toContain('2,340,000 tokens per second');
@@ -89,7 +89,15 @@ test('extreme rates fit and retain their full accessible value; keyboard focus s
   await frame.locator('body').evaluate(el => { el.tabIndex = -1; el.focus(); }); await page.keyboard.press(testInfo.project.name === 'webkit' ? 'Alt+Tab' : 'Tab');
   await expect(frame.getByLabel('Measurement scope')).toBeFocused();
   const scopeFocus = await frame.getByLabel('Measurement scope').evaluate(el => { const s = getComputedStyle(el); return { style: s.outlineStyle, offset: s.outlineOffset, width: s.outlineWidth }; });
-  expect(scopeFocus).toEqual({ style: 'solid', offset: '-2px', width: '2px' });
+  expect(scopeFocus).toMatchObject({ style: 'solid', width: '2px' });
+  expect(await frame.getByLabel('Measurement scope').evaluate(el => {
+    const r = el.getBoundingClientRect(), s = getComputedStyle(el), extent = Math.max(0, parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth));
+    return r.left - extent >= 0 && r.right + extent <= innerWidth && r.top - extent >= 0 && r.bottom + extent <= innerHeight;
+  })).toBe(true);
+  for (const control of [frame.getByRole('button', { name: 'Pause', exact: true }), frame.getByRole('button', { name: 'Details', exact: true })]) {
+    await page.keyboard.press(testInfo.project.name === 'webkit' ? 'Alt+Tab' : 'Tab');
+    await expect(control).toBeFocused();
+  }
   await page.keyboard.press(testInfo.project.name === 'webkit' ? 'Alt+Tab' : 'Tab');
   const action = frame.getByRole('button', { name: 'Open MLX Scope', exact: true });
   await expect(action).toBeFocused();
@@ -106,12 +114,12 @@ test('oMLX progress takes precedence while reading and stale input clears the me
   await expect(frame.locator('#ws')).not.toContainText('185');
   await page.evaluate(() => (window as any).setPreviewState('splash-prefill'));
   await page.clock.runFor(6_000);
-  await expect(frame.locator('.ws-reading')).toHaveText('612 tok/s');
+  await expect(frame.locator('.ws-reading')).toHaveText(/612\s*tokens\/s$/);
   await expect(frame.locator('#ws')).not.toContainText('Unavailable');
   await page.evaluate(() => (window as any).setPreviewState('splash-stale'));
   await page.clock.runFor(6_000);
   await expect(frame.locator('.ws-phase')).toHaveText('Waiting for update');
-  await expect(frame.locator('.ws-measurement')).toHaveCount(0);
+  await expect(frame.locator('.ws-measurement')).toBeHidden();
   await expect(frame.locator('#ws')).not.toContainText('Status stale');
 });
 
@@ -127,7 +135,7 @@ test('Splash progress uses reported counts, labels held observations, and never 
     await expect(frame.locator('.ws-label')).toContainText('last seen');
     await expect(frame.locator('.ws-measurement')).toHaveAttribute('data-live', 'false');
     await page.evaluate(() => (window as any).setPreviewState('splash-prefill'));
-    await expect(frame.locator('.ws-reading')).toHaveText('612 tok/s');
+    await expect(frame.locator('.ws-reading')).toHaveText(/612\s*tokens\/s$/);
     await expect(frame.locator('#ws')).not.toContainText('Unavailable');
   }
 });

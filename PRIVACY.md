@@ -119,13 +119,14 @@ the originals, so rolling back to 1.6 still shows them. See the
 **Uninstalling** MLX Scope in Settings → Extensions deletes all of its storage: reply history, baselines, captures and
 any 1.6 observations. This is OpenChamber's documented behaviour for extension storage. Backups keep their own copies.
 
-## Per-chat labels without the sessions permission
+## Per-chat labels and optional project awareness
 
-- MLX Scope requests no capabilities. Without OpenChamber's `sessions` permission it cannot list your projects,
-  worktrees or other chats.
+- Scope 5 declares `sessions` and `shells`. OpenChamber asks for update reapproval; both optional views start disabled. Enabling **Chats and subagents** subscribes to host-reported activity in the current project. Enabling **Agent commands** subscribes to command status. Both stop when Live is hidden, paused or closed.
+- Project activity may include titles, subagent relationships and command text. Scope holds it only in the visible view. **View output** reads at most the last 8 KiB on request, clears it when hidden or closed, and never stores or exports it. Scope never starts/stops a command or sends a session prompt.
+- Design and opt-in flags are stored in device-scoped preferences where supported, never mixed with saved measurement records.
 - It uses only what OpenChamber gives every extension about the **open** chat: its ID, whether it is busy, its model,
   and its turn start and finish events.
-- OpenChamber also passes the open chat's title. Scope never displays, stores or sends it.
+- The existing measurement pipeline does not use the open chat’s title. The optional activity view can show host-reported titles; they are transient and excluded from measurement storage, sharing and diagnostics.
 - To mark turns, a view sends the service a short hash of the open chat's ID, salted per service start. The service
   keeps it in memory only and never stores, displays or returns it.
 

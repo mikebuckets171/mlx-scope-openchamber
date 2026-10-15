@@ -138,11 +138,11 @@ requests and runs no commands.
 
 ## Official host integration
 
-The pinned SDK 2.0.4 supplies the panel, the full-page entry, the Work Status section (`statusSection`), the background
+The pinned panel SDK 2.3.3 supplies the panel, the full-page entry, the Work Status section (`statusSection`), the background
 entry and slash command, the session-menu action, live theme and typography, the local service and its status,
 storage, badges, toasts, clipboard, and append-only draft composition. MLX Scope applies every host-ready theme update
 without remounting. Connection selection stores only a provider ID and runtime choice. Attribution uses only the open
-chat's session and lifecycle events; the `sessions` capability is not requested.
+chat’s session and lifecycle events. Optional `sessions` and `shells` subscriptions normalize current-project/worktree activity in the host adapter; they never enter the measurement pipeline. They start disabled and stop when Live is hidden. Popovers render a passed snapshot before any collector initialization. Status-header controls are feature-detected and retain body fallbacks. The unchanged background command uses an isolated official SDK 2.0.4 alias to stay below 25,000 bytes; both SDKs retain API version 1.
 
 The guest CSP permits packaged scripts and styles over the host's HTTP(S) asset route and embedded `data:` transport.
 WebKit's opaque iframe origin cannot rely on `'self'` alone. Direct network connections, images, fonts, and form
@@ -151,12 +151,12 @@ submission stay blocked; runtime reads use the SDK service bridge. The backgroun
 ## Packaging and verification
 
 The SDK guest bundler builds the panel and background frames as browser IIFEs. A final minification pass
-with pinned Bun folds linked code to keep both guest bundles within their ceilings while retaining UI explanations. Bun builds an ESM service for the host's
+with pinned Terser and deterministic AST string interning keeps both guest bundles within their ceilings while retaining UI explanations. String values and protocol property spellings are preserved. Serialized SDK callback bodies are excluded from pooling, and real SDK serialization is roundtrip-tested. There is no runtime decoder or eval. The serializer guard follows lexical bindings and ordinary initializer/assignment aliases; arbitrary dynamic reflection, parameter rebinding or new serializer wrappers need explicit source review and a fresh-VM regression before qualification. The current SDK serializes its scrollbar installer through the covered direct function.toString path. Bun builds an ESM service for the host's
 Node-compatible runtime, including the JSONC parser. Bundles are tracked because repository installation does not
 compile TypeScript; Bun 1.4.2 makes them reproducible.
 
 `package.json` explicitly lists install files. `scripts/verify-package.ts` checks the manifest against the frozen set
-with SDK 2.0.4's parser, the two-way exec match (every declared path is spawned by the service bundle, and every
+with SDK 2.3.3’s parser, the two-way exec match (every declared path is spawned by the service bundle, and every
 executable path it names is declared), the bundle ceilings, the background CSP, host-only code in guest bundles,
 relative documentation links, archive contents, extracted bytes, and service startup without dependencies. Fixed entry
 order, permissions, and timestamps make repeated packaging of the same build byte-identical. The ZIP and SHA-256 file
@@ -187,4 +187,10 @@ Adapters normalize ComfyUI jobs, a private local-video queue, the authenticated 
 
 The optional ComfyUI helper reads its qualified registry only when requested. Connections manages version-qualified installation and rollback, verifies live readiness separately, and leaves activation pending ordinary application startup. It adds no producer hooks or background collection. See [Media](MEDIA.md) for the public integration contract.
 
-The guest digit controller animates changed glyphs directly between two valid received values for 160 ms. Context or phase changes reset it. It exposes one accessible value, observes Reduce Motion, and cancels animation on stale data, terminal states or hidden surfaces. Historical and elapsed-time labels never animate. Circular media indicators ease only inside a stable job, phase/node and counter format. Indeterminate arcs move only during freshly observed work. Retained percentages use separate historical fields, are labelled Last reported, and remain still.
+Circular media indicators ease only inside a stable job, phase/node and counter format. Indeterminate arcs move only during freshly observed work. Retained percentages use separate historical fields, are labelled Last reported, and remain still.
+
+The standard interface keeps readings and traces live while its status marks animate only on activity or phase changes. Short arrival and label transitions respect reduced motion. There is no user-facing design mode or appearance picker; earlier stored design choices do not change the current interface.
+
+The live display uses the existing presented measurements: activity and any reported model, one visibly qualified reading, the observed trace, then supporting facts. It removes a repeated current support fact only when its value and basis match a fact already visible. Retained, estimated and differently based facts keep their qualifiers. A paused or stale trace calls its endpoint the last reading. The trace fits the received observation interval, up to 90 seconds, without backfilling missing samples or joining gaps. Mac context forms a compact band below the instrument and stacks naturally with narrow space or enlarged text. These are presentation changes and add no requests, collectors or timers.
+
+The Session surface places measured content in one bounded scrolling region above a persistent full-view action. Its optional trace fits only the observed interval and declares its scale. The trace yields first when enlarged content needs the host's height budget; readings, qualifiers, warnings and media details remain available. When a focused reading disappears on a freshness change, focus moves to the full-view action. Snapshot Details is a data-only frame with the observation time and no collectors.

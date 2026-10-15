@@ -1,0 +1,359 @@
+{
+  "version": 1,
+  "description": "Shared Scope Next observable decision cases. Both Swift native clients/comparison and TypeScript adapters/comparison execute this exact corpus. Seconds and milliseconds are normalized in test adapters only.",
+  "capabilityCases": [
+    {
+      "name": "mlx-lm availability and catalogue only",
+      "kind": "mlx-lm",
+      "routes": {
+        "/health": {
+          "status": "ok"
+        },
+        "/v1/models": {
+          "object": "list",
+          "data": [
+            {
+              "id": "contract-model"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "catalogue": true,
+        "residency": false,
+        "requests": false
+      }
+    },
+    {
+      "name": "Ollama residency is not activity",
+      "kind": "ollama",
+      "routes": {
+        "/api/version": {
+          "version": "0.40.0"
+        },
+        "/api/ps": {
+          "models": [
+            {
+              "name": "contract-model",
+              "size": 1024,
+              "size_vram": 512,
+              "context_length": 8192
+            }
+          ]
+        }
+      },
+      "expected": {
+        "catalogue": true,
+        "residency": true,
+        "requests": false
+      }
+    }
+  ],
+  "vllmCases": [
+    {
+      "name": "recent advancement, stall, gap and overlap",
+      "steps": [
+        {
+          "advanceMs": 0,
+          "tokens": 10,
+          "active": 1,
+          "expectedPhase": "processing",
+          "expectedRate": null
+        },
+        {
+          "advanceMs": 1000,
+          "tokens": 30,
+          "active": 1,
+          "expectedPhase": "decode",
+          "expectedRate": 42
+        },
+        {
+          "advanceMs": 5000,
+          "tokens": 30,
+          "active": 1,
+          "expectedPhase": "decode",
+          "expectedRate": 42
+        },
+        {
+          "advanceMs": 1,
+          "tokens": 30,
+          "active": 1,
+          "expectedPhase": "processing",
+          "expectedRate": null
+        },
+        {
+          "advanceMs": 1000,
+          "tokens": 40,
+          "active": 2,
+          "expectedPhase": "processing",
+          "expectedRate": null
+        },
+        {
+          "advanceMs": 1000,
+          "tokens": 50,
+          "active": 1,
+          "expectedPhase": "processing",
+          "expectedRate": null
+        },
+        {
+          "advanceMs": 1000,
+          "tokens": 60,
+          "active": 1,
+          "expectedPhase": "decode",
+          "expectedRate": 42
+        },
+        {
+          "advanceMs": 5001,
+          "tokens": 70,
+          "active": 1,
+          "expectedPhase": "processing",
+          "expectedRate": null
+        }
+      ]
+    }
+  ],
+  "llamaCases": [
+    {
+      "name": "continuous slot rate and observed completion",
+      "steps": [
+        {
+          "advanceMs": 0,
+          "busy": true,
+          "tokens": 10,
+          "expectedPhase": "decode",
+          "expectedRate": null,
+          "expectedCompletion": false
+        },
+        {
+          "advanceMs": 1000,
+          "busy": true,
+          "tokens": 30,
+          "expectedPhase": "decode",
+          "expectedRate": 20,
+          "expectedCompletion": false
+        },
+        {
+          "advanceMs": 1000,
+          "busy": false,
+          "tokens": 0,
+          "expectedPhase": "idle",
+          "expectedRate": null,
+          "expectedCompletion": true,
+          "expectedOutput": 30
+        }
+      ]
+    },
+    {
+      "name": "gap breaks completion evidence",
+      "steps": [
+        {
+          "advanceMs": 0,
+          "busy": true,
+          "tokens": 10,
+          "expectedPhase": "decode",
+          "expectedRate": null,
+          "expectedCompletion": false
+        },
+        {
+          "advanceMs": 5001,
+          "busy": false,
+          "tokens": 0,
+          "expectedPhase": "idle",
+          "expectedRate": null,
+          "expectedCompletion": false
+        }
+      ]
+    }
+  ],
+  "comparisonCases": [
+    {
+      "name": "matching groups",
+      "a": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 30,
+        "firstToken": 0.2,
+        "overlap": false
+      },
+      "b": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 20,
+        "firstToken": 0.4,
+        "overlap": false
+      },
+      "expectedMetrics": [
+        "Generation speed",
+        "First token"
+      ]
+    },
+    {
+      "name": "different context",
+      "a": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 30,
+        "firstToken": 0.2,
+        "overlap": false
+      },
+      "b": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 1,
+        "inputBucket": 0,
+        "rate": 20,
+        "firstToken": 0.4,
+        "overlap": false
+      },
+      "expectedMetrics": [
+        "First token"
+      ]
+    },
+    {
+      "name": "different input",
+      "a": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 30,
+        "firstToken": 0.2,
+        "overlap": false
+      },
+      "b": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 1,
+        "rate": 20,
+        "firstToken": 0.4,
+        "overlap": false
+      },
+      "expectedMetrics": [
+        "Generation speed"
+      ]
+    },
+    {
+      "name": "different basis",
+      "a": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 30,
+        "firstToken": 0.2,
+        "overlap": false
+      },
+      "b": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "measured-output",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 20,
+        "firstToken": 0.4,
+        "overlap": false
+      },
+      "expectedMetrics": []
+    },
+    {
+      "name": "overlapped",
+      "a": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 30,
+        "firstToken": 0.2,
+        "overlap": false
+      },
+      "b": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 20,
+        "firstToken": 0.4,
+        "overlap": true
+      },
+      "expectedMetrics": []
+    },
+    {
+      "name": "unknown model",
+      "a": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 30,
+        "firstToken": 0.2,
+        "overlap": false
+      },
+      "b": {
+        "runtime": "omlx",
+        "model": null,
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 20,
+        "firstToken": 0.4,
+        "overlap": false
+      },
+      "expectedMetrics": []
+    },
+    {
+      "name": "different runtime",
+      "a": {
+        "runtime": "omlx",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 30,
+        "firstToken": 0.2,
+        "overlap": false
+      },
+      "b": {
+        "runtime": "ollama",
+        "model": "contract-model",
+        "basis": "reported-completion",
+        "state": "completed",
+        "contextBucket": 2,
+        "inputBucket": 0,
+        "rate": 20,
+        "firstToken": 0.4,
+        "overlap": false
+      },
+      "expectedMetrics": []
+    }
+  ]
+}

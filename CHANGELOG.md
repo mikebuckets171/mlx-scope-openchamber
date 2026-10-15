@@ -1,5 +1,20 @@
 # Changelog
 
+## 5.0.0
+
+- Refine Session, rail and full page with one standard design for everyone. Keep the measurement basis beside the primary value, fit traces to the interval actually observed, and align Mac readings in a compact band. Use labeled status-header controls and snapshot-only measurement popovers where supported. Narrow views and enlarged text stack naturally.
+- Require OpenChamber 2.3.3 and pin SDK 2.3.3. Keep 4.0.1 for older hosts. The unchanged `/scope` background entry uses the isolated official 2.0.4 SDK to retain its 25 KB ceiling.
+- Request sessions and shells with explicit update reapproval. Chats/subagents and agent commands start disabled. Subscriptions are visibility-driven, and click-only command output is transient, bounded to 8 KiB and excluded from all saved readings and diagnostics.
+- Preserve the measurement pipeline, storage schemas, existing observations and qualified comparisons. Earlier design preferences no longer choose a separate appearance; monitoring data remains intact.
+- Intern repeated guest strings at build time without renaming protocol properties or adding runtime decoding. Bundle ceilings and service budgets remain unchanged.
+
+Fixture checks do not establish every real-host behavior; release verification records those checks separately.
+
+## 4.0.2 (local)
+
+- Qualifies exact OpenCode 2.0.29 for the existing HTTP, WebSocket, prompt-progress and managed-reload integrations. The companion remains 3.3.0 and preserves the existing wire/schema and older qualified profiles. Scope 5 carries this installed update forward.
+- Its qualification used the OpenChamber 2.3.3 bundled binary with isolated native synthetic providers, including local/remote HTTP, WebSocket reuse/tool continuation/cancellation and helper hot reload. No real inference or throughput benchmark was run.
+
 ## 4.0.1
 
 - Adds one exact 2.0.28 profile while preserving qualified 2.0.25/2.0.27, companion 3.3.0 and the existing wire/schema. The extension service and bundled helper share the registry.

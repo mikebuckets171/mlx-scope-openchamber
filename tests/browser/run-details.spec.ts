@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openMeasurementDetails } from './standard-ui.ts';
 
 test.use({ timezoneId: 'UTC', locale: 'en-US' });
 
@@ -55,6 +56,7 @@ test('Now opens the shared current inspector without starting history collection
   await settleStorage(page);
   const reads = await page.evaluate(() => ({ storage: [...((window as any).previewStorageOps ?? [])],
     history: ((window as any).previewServicePaths ?? []).filter((path: string) => /trend|usage/.test(path)) }));
+  await openMeasurementDetails(frame);
   await frame.getByRole('button', { name: 'Run details', exact: true }).click();
   await expect(frame.getByRole('heading', { name: 'Current observation' })).toBeFocused();
   await expect(frame.locator('#history-title')).toHaveText('Run details');
@@ -87,6 +89,7 @@ test('current inspection reuses History without refreshing expired reads and res
   await settleStorage(page);
   const reads = await page.evaluate(() => ({ storage: [...((window as any).previewStorageOps ?? [])],
     history: ((window as any).previewServicePaths ?? []).filter((path: string) => /trend|usage/.test(path)) }));
+  await openMeasurementDetails(frame);
   await frame.getByRole('button', { name: 'Run details', exact: true }).click();
   await expect(frame.getByRole('heading', { name: 'Current observation' })).toBeFocused();
   expect(await page.evaluate(() => ({ storage: (window as any).previewStorageOps ?? [],

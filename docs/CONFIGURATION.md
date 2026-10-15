@@ -226,3 +226,11 @@ reported as unsupported rather than silently falling back to the default root.
 An explicit base URL uses only its explicit key or an
 origin-matched native oMLX key; it never borrows a named provider's credential.
 These are isolated development inputs, not extension settings.
+
+## Appearance and Other work
+
+Scope uses one standard design and follows the host theme and reduced-motion preference. Earlier Classic/Next choices no longer select a separate appearance. Optional activity flags use device storage when supported. A failed save is shown without changing monitoring data.
+
+**Other work** in Live contains separate **Chats and subagents** and **Agent commands** switches. Both begin off, even after permission reapproval. They show only host-reported current-project activity, not measured engine throughput. **View output** reads the last 8 KiB only on request; close it or leave Live to discard it. No command output appears in History, captures, copied stats, or `/scope`.
+
+On OpenChamber 2.3.3+, the Session header provides **Watch**, **Pause/Resume**, and **Details**. Details opens the displayed measurement snapshot without creating a second collector. Missing host features retain in-body controls.

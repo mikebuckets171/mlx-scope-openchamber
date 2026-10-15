@@ -33,9 +33,9 @@ test('switching chat or model clears the old speed before polling and rejects it
     w.setPreviewPatch({ runtime: body.runtime });
     w.setPreviewSession({ id: 'new-chat', title: 'Another chat', busy: true, model: 'omlx/Second-Model' });
   });
-  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('#rate')).toBeHidden();
   await page.evaluate(() => (window as any).previewDeferred.shift()());
-  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('#rate')).toBeHidden();
   await expect.poll(() => page.evaluate(() => (window as any).previewDeferred.length)).toBe(1);
   await page.evaluate(() => { const w = window as any; w.previewDelay = false; w.previewDeferred.splice(0).forEach((reply: () => void) => reply()); });
   await expect(frame.locator('#rate')).toHaveText('42.0');
@@ -53,13 +53,13 @@ test('scope choice persists across reload, keeps Whole engine independent, and f
   expect((await newest(page))?.chatBusy).toBeUndefined();
   await page.reload();
   await expect(scope).toHaveValue('engine');
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · request average');
   await page.evaluate(() => (window as any).setPreviewSession({ id: 'cloud-chat', title: 'Cloud', busy: false, model: 'cloud-provider/cloud-model' }));
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(scope).toHaveValue('engine');
   await scope.selectOption('chat');
   await expect(frame.locator('.ws-phase')).toHaveText('Ready');
-  await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
+  await expect(frame.locator('.ws-measurement:visible, .ws-support:visible, .ws-warning:visible')).toHaveCount(0);
   await page.evaluate(() => (window as any).setPreviewSession({ id: 'local-again', title: 'Local', busy: true, model: 'omlx/Example-27B-4bit' }));
   await expect(scope).toHaveValue('chat');
   await expect.poll(async () => (await newest(page))?.chat).toBe(chatKey('session', 'local-again'));
@@ -73,7 +73,7 @@ for (const surface of ['status', 'page']) test(`a rejected scope preference rema
   await expect(scope).toHaveValue('chat');
   await scope.selectOption('engine');
   await expect(scope).toHaveValue('engine');
-  await expect(frame.locator(surface === 'status' ? '#ws-action-error' : '#action-status')).toContainText(surface === 'status' ? 'Changed here; could not save.' : 'could not save the preference');
+  await expect(frame.locator(surface === 'status' ? '.ws-action-error' : '#action-status')).toContainText(surface === 'status' ? 'Changed here; could not save.' : 'could not save the preference');
   await expect(frame.locator('#rate')).toBeVisible();
   const before = (await queries(page)).length;
   await expect.poll(async () => (await queries(page)).length).toBeGreaterThan(before);
@@ -103,7 +103,7 @@ test('chat estimate, reasoning, tool waiting, short completion, and cancellation
   for (const [state, label] of [['tool', 'Using tools'], ['waiting', 'Waiting'], ['complete', 'Complete'], ['cancelled', 'Stopped']]) {
     await phase(state!);
     await expect(frame.locator('.ws-phase')).toHaveText(label!);
-    await expect(frame.locator('.ws-measurement')).toHaveCount(0);
+    await expect(frame.locator('.ws-measurement')).toBeHidden();
   }
   await phase('complete', 15.3);
   await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Last chat · avg.');
@@ -121,5 +121,5 @@ test('an unknown provider echoed by an unavailable connection never makes a clou
   });
   await expect.poll(() => page.evaluate(() => (window as any).previewRequests)).toBeGreaterThan(1);
   await expect(frame.locator('.ws-phase')).toHaveText('Ready');
-  await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
+  await expect(frame.locator('.ws-measurement:visible, .ws-support:visible, .ws-warning:visible')).toHaveCount(0);
 });

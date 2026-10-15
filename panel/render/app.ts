@@ -60,6 +60,9 @@ export class ScopeApp {
   readonly #state: AppParts['state'];
   readonly #connections: AppParts['connections'];
   readonly #mediaJobs: AppParts['mediaJobs'];
+  readonly #awareness: HTMLElement;
+  #wasNext = false;
+  #navigationAction: string | null = null;
 
   constructor(p: AppParts) {
     this.#p = p;
@@ -67,6 +70,7 @@ export class ScopeApp {
     this.#state = p.state;
     this.#connections = p.connections;
     this.#mediaJobs = p.mediaJobs;
+    this.#awareness = this.#node('scope-awareness');
 
     const shell = p.shell;
     this.#digits = new DigitRoll(shell);
@@ -109,6 +113,8 @@ export class ScopeApp {
     if (state.disposed || !state.mounted) return;
     this.#shell.dataset.mediaMotion = String(this.#p.visible() && !state.userPaused && !this.#connections.isOpen);
     const s = this.input(), card = frameCard(s), open = state.open, compact = state.compact && !this.#wide && !card;
+    // Service approval and version skew block live readings, not this device's saved history or captures.
+    const localView = state.tab === 'history' || state.tab === 'captures', blocked = !!card && !localView;
     this.#mediaJobs.sync(this.#p.visible() && !state.userPaused && !card && !this.#connections.isOpen && (state.tab === 'live' || compact));
     // The column carries its own Media block; the glance summarizes media only where the column is not shown.
     const mediaGlance = this.#node('media-glance'), column = !compact && !card && state.tab === 'live';
@@ -117,14 +123,29 @@ export class ScopeApp {
     const chatOnly = s.measurementScope !== 'engine' && s.chatIsLocal === false;
     state.serverDetailsVisible = state.tab === 'server' && !compact && !card && !chatOnly;
     renderHeader(this.#shell, presentHeader(s));
+    const nextDesign = document.documentElement.dataset.designMode === 'next';
+    // Rehome the same optional activity region before removing its former Live view.
+    // Its host subscriptions and focus stay owned by NextControls, not this renderer.
+    if (nextDesign ? state.tab !== 'live' || compact || card || this.#connections.isOpen : this.#wasNext) this.#homeAwareness();
+    this.#wasNext = nextDesign;
+    if (nextDesign) {
+      const currentAction = this.#connections.isOpen ? 'connection' : state.tab === 'history' || state.tab === 'captures' ? 'open-history' : 'show-live';
+      if (currentAction !== this.#navigationAction) {
+        this.#navigationAction = currentAction;
+        for (const button of Array.from(this.#shell.querySelectorAll<HTMLElement>('.next-nav [data-action]'))) {
+          if (button.dataset.action === currentAction) { if (button.getAttribute('aria-current') !== 'page') button.setAttribute('aria-current', 'page'); }
+          else if (button.hasAttribute('aria-current')) button.removeAttribute('aria-current');
+        }
+      }
+    }
     const scopeControl = this.#shell.querySelector<HTMLElement>('#measurement-choice');
     if (scopeControl) morph(scopeControl, scopeMenuMarkup(this.#p.prefs.value.measurementScope ?? 'chat'));
     this.#shell.dataset.compact = String(compact);
     const cardHost = this.#node('frame-card');
     morph(cardHost, card ? frameCardMarkup(card) : '');
-    cardHost.hidden = this.#connections.isOpen;
+    cardHost.hidden = this.#connections.isOpen || localView;
     this.#node('freshness').parentElement!.hidden = this.#connections.isOpen;
-    this.#node('panels').hidden = !!card || compact || this.#connections.isOpen;
+    this.#node('panels').hidden = blocked || compact || this.#connections.isOpen;
     this.#node('next-activity').hidden = true;
     // A timed window belongs to this frame, even when Compact or another workspace is visible.
     this.#view('captures', this.#node('captures-content'), s.snapshot);
@@ -139,10 +160,10 @@ export class ScopeApp {
       morph(glance, sessionMarkup(presentSessionSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution,
         chatIsLocal: s.chatIsLocal ?? null, fresh: s.fresh, paused: s.paused, next: s.next, window: s.window,
         efficient: state.efficient, measurementScope: s.measurementScope, sessionModel: s.sessionModel, chatActivity: s.chatActivity, lastChat: s.lastChat, restingFacts: true,
-        last: s.last && { completion: s.last.completion, label: s.last.label } }), null, true));
-      this.#syncMotion(); return;
+        last: s.last && { completion: s.last.completion, label: s.last.label } }), null, true, nextDesign));
+      this.#syncMotion(s); return;
     }
-    if (card) { this.#syncMotion(); return; }
+    if (blocked) { this.#syncMotion(s); return; }
     const active = state.tab, live = presentLive(s, this.#extra(s));
     this.#node('panel-live').hidden = active !== 'live';
     this.#node('panel-history').hidden = active !== 'history';
@@ -165,14 +186,23 @@ export class ScopeApp {
     if (mediaPresent) mediaBlock.dataset.arrive = ''; else delete mediaBlock.dataset.arrive;
     morph(mediaBlock, mediaPresent ? mediaMarkup(media, sessionId, s.now) : '');
     if (active === 'live') {
-      morph(this.#node('view-live'), s.snapshot || s.frame ? html`${liveMarkup(live, open)}${this.#chatSetupHint()}` : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
+      morph(this.#node('view-live'), s.snapshot || s.frame ? html`${liveMarkup(live, open, nextDesign)}${this.#chatSetupHint(s)}` : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
+      if (nextDesign) {
+        const mount = this.#shell.querySelector('#next-context-activity');
+        if (mount) { if (this.#awareness.parentElement !== mount) mount.append(this.#awareness); }
+        else this.#homeAwareness();
+      }
     }
     if (active === 'server') morph(this.#node('panel-server'), html`${secondaryHeading('server', 'Server & Mac details')}${serverMarkup(presentServer(s.snapshot, s.now, this.#extra(s), s.fresh && !s.paused), open)}${macCard(presentMac(s), open)}`);
     if (active === 'history') this.#view('history', this.#node('view-history'), s.snapshot);
-    this.#syncMotion();
+    this.#syncMotion(s);
   }
-  #chatSetupHint() {
-    const s = this.input(), status = this.#p.companion();
+  #homeAwareness(): void {
+    const foot = this.#shell.querySelector('.column-foot');
+    if (foot && this.#awareness.parentElement !== foot.parentElement) foot.before(this.#awareness);
+  }
+  #chatSetupHint(s: ScopeInput) {
+    const status = this.#p.companion();
     if (s.measurementScope === 'engine' || s.snapshot?.chat || s.paused || s.frame || !s.fresh) return '';
     if (status?.state === 'ready') return s.chatIsLocal === false ? html`<p class="coverage-note">Chat speed is ready. Your next streamed reply will show its estimated delivery speed.</p>` : '';
     if (status?.state === 'pending') return html`<div class="setup-hint"><p>${status.message}</p>${actionButton('chat-setup', 'View setup')}</div>`;
@@ -180,10 +210,10 @@ export class ScopeApp {
     // A cloud chat has no engine reading to fall back on: without the helper, say why there is no estimate.
     return html`<div class="setup-hint" data-arrive><div><h3>${s.chatIsLocal === false ? 'See this chat’s delivery speed' : 'Track speed for this chat'}</h3><p>${status?.state === 'incompatible' ? status.message : 'Optional chat tracking adds labeled delivery estimates for local and cloud models.'}</p></div>${actionButton('chat-setup', status?.canEnable ? 'Set up chat speed' : 'Chat speed setup')}</div>`;
   }
-  #syncMotion(): void {
-    const s = this.input(), chat = this.#p.session(), snapshot = s.snapshot;
-    this.#digits.sync(`${this.#state.generation}/${chat?.id ?? ''}/${chat?.model ?? ''}/${snapshot?.connection.id ?? ''}/${snapshot?.connection.generation ?? ''}/${snapshot?.runtime.phase ?? ''}/${s.window?.startedAt ?? ''}/${snapshot?.chat?.phase ?? ''}`, this.#p.visible() && s.fresh && !s.paused && this.#state.tab === 'live');
-    this.#motion.sync(this.#p.visible() && !s.paused && !this.#connections.isOpen, s.fresh && !s.paused ? beatKey(this.#shell, snapshot) : null);
+  #syncMotion(s: ScopeInput): void {
+    const chat = this.#p.session(), snapshot = s.snapshot, next = document.documentElement.dataset.designMode === 'next';
+    this.#digits.sync(`${this.#state.generation}/${chat?.id ?? ''}/${chat?.model ?? ''}/${snapshot?.connection.id ?? ''}/${snapshot?.connection.generation ?? ''}/${snapshot?.runtime.phase ?? ''}/${s.window?.startedAt ?? ''}/${snapshot?.chat?.phase ?? ''}`, this.#p.visible() && s.fresh && !s.paused && this.#state.tab === 'live' && !next);
+    this.#motion.sync(this.#p.visible() && !s.paused && !this.#connections.isOpen, s.fresh && !s.paused ? beatKey(this.#shell, snapshot, next) : null);
   }
   visibilityChanged(): void { this.render(); }
   /**
@@ -229,15 +259,19 @@ export class ScopeApp {
     state.tab = tab;
     this.render();
     if (tab === 'history' || tab === 'captures') this.#views.get(tab)?.handle.activate?.();
-    // Back to the column returns focus to the foot action that left it.
+    // Return to the visible action that left Live, including the persistent navigation and detail actions.
     if (focus) {
-      const target = tab === 'live' ? this.#shell.querySelector<HTMLElement>(`#column-foot [data-action="${previous === 'history' ? this.#historyReturn : `open-${previous === 'captures' ? 'history' : previous}`}"]`)
+      const target = tab === 'live' ? this.#liveAction(previous === 'history' ? this.#historyReturn : `open-${previous === 'captures' ? 'history' : previous}`)
         : this.#shell.querySelector<HTMLElement>(`#${tab}-title`);
       target?.focus({ preventScroll: true });
       if (tab !== 'live') target?.parentElement?.scrollIntoView({ block: 'start' });
     }
     // The Server tab asks the service for its extra reads (detail=server); poll now rather than at the next tick.
     if (tab === 'server') void this.onRefreshNeeded();
+  }
+  #liveAction(action: string): HTMLElement | null {
+    return Array.from(this.#shell.querySelectorAll<HTMLElement>(`[data-action="${action}"]`)).find(node => node.checkVisibility())
+      ?? this.#shell.querySelector<HTMLElement>('.next-nav [data-action="show-live"]');
   }
   onRefreshNeeded: () => Promise<void> = async () => {};
   onMeasurementScope: (scope: 'chat' | 'engine') => void = () => {};
@@ -269,11 +303,13 @@ export class ScopeApp {
       else if (action === 'dismiss') this.#mediaJobs.dismissCancel();
       return;
     }
-    const action = target.closest<HTMLElement>('[data-action]')?.dataset.action;
-    if (action) this.#act(action);
+    const trigger = target.closest<HTMLElement>('[data-action]'), action = trigger?.dataset.action;
+    if (action) this.#act(action, trigger ?? undefined);
   };
-  #act(action: string): void {
+  #act(action: string, trigger?: HTMLElement): void {
     const { pipeline, state, connections } = this.#p;
+    if ((action === 'show-live' || action === 'open-history') && connections.isOpen) this.#node('connection-close').click();
+    if (action === 'show-live') { this.#select('live', false); this.render(); return; }
     if (action === 'open-media') {
       this.#select('live', false);
       const block = this.#node('view-media');
@@ -288,12 +324,12 @@ export class ScopeApp {
       this.#views.get('history')?.handle.inspect?.(); return;
     }
     if (action === 'open-history') { this.#historyReturn = 'open-history'; this.#views.get('history')?.handle.inspect?.(false); this.#select('history', true); return; }
-    if (action === 'chat-setup') { connections.openSetup(); this.#node('companion-title').focus({ preventScroll: true }); this.#node('companion-title').scrollIntoView({ block: 'nearest' }); return; }
+    if (action === 'chat-setup') { connections.openSetup(trigger); this.#node('companion-title').focus({ preventScroll: true }); this.#node('companion-title').scrollIntoView({ block: 'nearest' }); return; }
     if (action === 'open-server') { this.#select('server', true); return; }
     if (action === 'open-captures') { this.#select('captures', true); return; }
     if (action === 'back-live') { this.#select('live', true); return; }
     if (action === 'back-history') { this.#select('history', true); return; }
-    if (action === 'connection') connections.openSetup();
+    if (action === 'connection') connections.openSetup(trigger);
     else if (action === 'switch') { const detected = state.snapshot?.status.params.detected; if (typeof detected === 'string') connections.switchRuntime(detected as never); }
     else if (action === 'next-arm') pipeline.arm(state.snapshot);
     else if (action === 'watch') this.#watch();
@@ -302,7 +338,7 @@ export class ScopeApp {
       this.#views.get('captures')?.handle.cancelCapture?.();
       this.#p.status('Timed recording stopped. The partial recording is available in Captures.');
       const focus = state.compact && !this.#wide ? this.#shell.querySelector<HTMLElement>('#monitor-menu > summary')
-        : state.tab === 'live' ? this.#shell.querySelector<HTMLElement>('#column-foot button') : this.#shell.querySelector<HTMLElement>(`#${state.tab}-title`);
+        : state.tab === 'live' ? this.#liveAction('open-history') : this.#shell.querySelector<HTMLElement>(`#${state.tab}-title`);
       focus?.focus({ preventScroll: true });
     }
     else if (action === 'next-save') void this.#saveNext();

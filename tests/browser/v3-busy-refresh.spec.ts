@@ -18,6 +18,6 @@ for (const surface of ['status', 'page']) test(`a busy hint preserves a fresh en
   await expect(frame.locator(surface === 'status' ? '.ws-phase' : '#phase')).toHaveText('Generating');
   // The ordinary expiry still clears a stalled refresh; an activity hint never extends freshness.
   await page.clock.fastForward(6_100);
-  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('#rate')).toBeHidden();
   await expect(frame.locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toHaveText('Waiting for update');
 });

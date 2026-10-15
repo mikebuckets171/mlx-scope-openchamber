@@ -42,7 +42,8 @@ export class HostEvents {
     this.#stopReady = host.onReady(ready => {
       if (this.#disposed) return;
       const first = this.#ready === null;
-      this.#ready = { surface: ready.surface, theme: ready.theme, session: sessionOf(ready.session) };
+      this.#ready = { surface: ready.surface, theme: ready.theme, session: sessionOf(ready.session),
+        directory: ready.directory, features: ready.features, popover: ready.popover };
       // Initial hidden frames still mount, but subsequent ready/session replays do no hidden view work.
       if (first || this.#visible) this.#readyChanged();
     });
@@ -50,7 +51,7 @@ export class HostEvents {
   #readyChanged(): void {
     const ready = this.#ready;
     if (!ready) return;
-    const key = JSON.stringify([ready.surface, ready.theme]);
+    const key = JSON.stringify([ready.surface, ready.theme, ready.directory, ready.features, ready.popover]);
     if (key === this.#painted) return;
     this.#painted = key;
     emit(this.#readyListeners, ready);
@@ -109,5 +110,14 @@ export class HostEvents {
 export const connectScopeHost = (): HostClient & { setVisible(visible: boolean): void } => {
   const sdk = connectHost(), events = new HostEvents(sdk);
   return { ...sdk, onReady: events.onReady, onSession: events.onSession, onSessionLifecycle: events.onSessionLifecycle,
+    onProjects: listener => sdk.onProjects(value => listener({ state: value.state,
+      projects: value.projects.slice(0, 32).map(({ id, name, directory }) => ({ id, name: name.slice(0, 120), directory })) })),
+    listWorktrees: async id => ({ worktrees: (await sdk.listWorktrees(id)).worktrees.slice(0, 200).map(({ directory }) => ({ directory })) }),
+    onSessions: (id, listener) => sdk.onSessions(id, value => listener({ state: value.state,
+      sessions: value.sessions.filter(row => row.archivedAt === null).slice(0, 200).map(({ id, title, parentId, activity, outcome, archivedAt }) =>
+        ({ id, title: title.slice(0, 120), parentId, activity, outcome, archivedAt })) })),
+    onRunningShells: (scope, listener) => sdk.onRunningShells(scope, value => listener({
+      shells: value.shells.slice(0, 200).map(({ id, command, startedAt, background }) => ({ id, command: command.slice(0, 240), startedAt, background })),
+      ended: value.ended.slice(-200).map(({ id, command, startedAt, background, status, exit }) => ({ id, command: command.slice(0, 240), startedAt, background, status, exit })) })),
     setVisible: visible => events.setVisible(visible), dispose: () => { events.dispose(); sdk.dispose(); } };
 };

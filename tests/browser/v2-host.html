@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>MLX Scope · 2.0 fixture host</title><style>html,body{margin:0;background:#10151b;font:11px -apple-system,sans-serif}aside{height:24px;display:grid;place-items:center;background:#203044;color:#c4d6e9}iframe{display:block;width:100%;height:calc(100vh - 24px);border:0}iframe.status{width:280px;height:120px;margin:0}</style></head>
-<body><aside>2.0 fixture host · approved mock states · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script src="/v2-states.js"></script><script src="/media-fixtures.js"></script><script>
+<body><aside>2.0 fixture host · approved mock states · no connection to your runtime</aside><iframe title="MLX Scope" sandbox="allow-scripts"></iframe><script src="/next-host.js"></script><script src="/v2-states.js"></script><script src="/media-fixtures.js"></script><script>
 // Emulates OpenChamber 2.0.4 for the 2.0 panel: surfaces panel/page/status, setHeight (clamped 24–320 on status),
 // setBadge and toast recorders, whole-namespace storage in sessionStorage, the session feed, and `/v2/snapshot` answered
 // from the G2 mock's v2 states with the `since` cursor honoured. Bodies are sent as strings, like the real host (S1).
@@ -59,7 +59,10 @@ function theme(name) {
 let themeName = params.get('theme') || (demo ? 'graphite-mint' : 'dark');
 document.documentElement.style.background = document.body.style.background = theme(themeName).tokens.background;
 const post = message => frame.contentWindow.postMessage({channel:'openchamber.sdk',v:1,...message}, '*');
-const ready = () => post({type:'ready',payload:{theme:theme(themeName),locale:'en-US',directory:null,session,surface,connection:{connected:true,account:''},settings:{},item:null}});
+const ready = () => {
+  window.previewTheme = theme(themeName);
+  post({type:'ready',payload:{theme:window.previewTheme,locale:'en-US',directory:null,session,surface,connection:{connected:true,account:''},settings:{},item:null,...window.nextPreviewReady?.()}});
+};
 window.setPreviewTheme = value => { themeName = value; document.documentElement.style.background = document.body.style.background = theme(value).tokens.background; ready(); };
 if (demo) {
   document.title = 'MLX Scope · Design preview';
@@ -116,6 +119,7 @@ const failure = (id, code, error) => post({type:'result',id,ok:false,code,error}
 window.addEventListener('message', event => {
   if (event.source !== frame.contentWindow || event.data?.channel !== 'openchamber.sdk') return;
   const m = event.data;
+  if (window.handleNextPreview?.(m, post)) return;
   if (m.type === 'hello') { if (!params.has('nohost')) ready(); return; }
   if (m.type === 'resize') { window.previewHeights.push(m.payload.height); if (surface === 'status') frame.style.height = `${Math.min(320, Math.max(24, m.payload.height))}px`; result(m.id); return; }
   if (m.type === 'badge') { window.previewBadges.push(m.payload.count); result(m.id); return; }

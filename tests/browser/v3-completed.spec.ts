@@ -56,7 +56,7 @@ for (const surface of ['status', 'page', 'compact']) for (const scope of ['chat'
       await expect(frame.locator('#rate')).toHaveText('26.4');
       await expect(frame.locator(phase)).toHaveText('Generating');
     } else {
-      await expect(frame.locator('#rate')).toHaveCount(0);
+      await expect(frame.locator('#rate')).toBeHidden();
       await expect(frame.locator(phase)).toHaveText('Stopped');
     }
     // An end first called complete may sharpen to failure without a service response.
@@ -68,7 +68,7 @@ for (const surface of ['status', 'page', 'compact']) for (const scope of ['chat'
       await expect(frame.locator('#rate')).toHaveText('26.4');
       await expect(frame.locator(phase)).toHaveText('Generating');
     } else {
-      await expect(frame.locator('#rate')).toHaveCount(0);
+      await expect(frame.locator('#rate')).toBeHidden();
       await expect(frame.locator(phase)).toHaveText('Stopped');
     }
     await expect.poll(() => page.evaluate(() => (window as any).previewDeferred.length)).toBeGreaterThan(0);
@@ -181,7 +181,7 @@ for (const surface of ['status', 'page']) for (const chat of ['local']) {
       const w = window as any; w.previewHold = true;
       w.setPreviewSession({ id: 'fixture-chat', busy: true, model: 'omlx/Example-27B-4bit' });
     });
-    await expect(frame.locator('#rate')).toHaveCount(0);
+    await expect(frame.locator('#rate')).toBeHidden();
     await expect(frame.locator('#completed-facts')).toHaveCount(0);
     expect(await page.evaluate(() => (window as any).previewUnexpectedSends)).toBe(0);
   });
@@ -210,13 +210,13 @@ for (const surface of ['status', 'page']) {
       const w = window as any;
       w.setPreviewSession({ id: 'fixture-chat', busy: true, model: 'omlx/Example-27B-4bit' });
     });
-    await expect(frame.locator('#rate')).toHaveCount(0);
+    await expect(frame.locator('#rate')).toBeHidden();
     await page.evaluate(() => {
       const w = window as any; w.setPreviewPatch({ chat: null }); w.previewDelay = false;
       w.previewDeferred.splice(0).forEach((reply: () => void) => reply());
     });
     await page.clock.fastForward(600);
-    await expect(frame.locator('#rate')).toHaveCount(0);
+    await expect(frame.locator('#rate')).toBeHidden();
     await expect(frame.locator('#completed-facts')).toHaveCount(0);
     await expect(frame.locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toHaveText('Waiting');
     expect(await page.evaluate(() => (window as any).previewUnexpectedSends)).toBe(0);
@@ -243,7 +243,7 @@ for (const surface of ['status', 'page']) for (const oldPhase of ['generating', 
     await expect(frame.locator('#rate')).toHaveText('7.2');
     await page.evaluate(() => { const w = window as any; w.previewHold = true; w.sendPreviewLifecycle('started'); });
     // The host busy snapshot has not changed and the service supplies no new response.
-    await expect(frame.locator('#rate')).toHaveCount(0);
+    await expect(frame.locator('#rate')).toBeHidden();
     await expect(frame.locator('#completed-facts')).toHaveCount(0);
     expect(await page.evaluate(() => (window as any).previewUnexpectedSends)).toBe(0);
   });
@@ -266,7 +266,7 @@ for (const surface of ['status', 'page']) {
     await page.clock.fastForward(600);
     await expect(frame.locator('#rate')).toHaveText('7.2');
     await page.evaluate(() => { const w = window as any; w.previewDelay = true; w.sendPreviewLifecycle('started'); });
-    await expect(frame.locator('#rate')).toHaveCount(0);
+    await expect(frame.locator('#rate')).toBeHidden();
     await expect.poll(() => page.evaluate(() => (window as any).previewDeferred.length)).toBeGreaterThan(0);
     await page.clock.fastForward(1_100);
     await page.evaluate(() => {
@@ -282,7 +282,7 @@ for (const surface of ['status', 'page']) {
     await page.clock.fastForward(1_000);
     await page.evaluate(() => (window as any).setPreviewSession({ id: 'fixture-chat', busy: true, model: 'omlx/Example-27B-4bit' }));
     await page.clock.fastForward(600);
-    await expect(frame.locator('#rate')).toHaveCount(0);
+    await expect(frame.locator('#rate')).toBeHidden();
     await page.evaluate(() => (window as any).setPreviewPatch({ chat: null }));
     await page.clock.fastForward(6_500);
     await page.evaluate(() => {

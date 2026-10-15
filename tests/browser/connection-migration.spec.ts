@@ -1,3 +1,4 @@
+import { openConnections } from './standard-ui.ts';
 import { expect, test, type Page } from '@playwright/test';
 import { chatKey } from '../../src/contract/chat-key.ts';
 
@@ -23,7 +24,7 @@ for (const savedScope of [null, 'chat', 'engine'] as const) {
 
     if (savedScope !== 'chat') return;
     // Confirming the same saved connection is still a deliberate Whole engine choice.
-    await frame.locator('#connection-change').click();
+    await openConnections(frame);
     if (!await frame.locator('#runtime-connection-details').evaluate(element => (element as HTMLDetailsElement).open)) await frame.locator('#runtime-connection-details > summary').click();
     await expect(frame.locator('#connection-provider')).toHaveValue('saved-local');
     await expect(frame.locator('#connection-runtime')).toHaveValue('splash');
@@ -35,7 +36,7 @@ for (const savedScope of [null, 'chat', 'engine'] as const) {
     // A different deliberate connection continues to change both the scope and selection.
     await frame.locator('#monitor-menu > summary').click();
     await scope.selectOption('chat');
-    await frame.locator('#connection-change').click();
+    await openConnections(frame);
     if (!await frame.locator('#runtime-connection-details').evaluate(element => (element as HTMLDetailsElement).open)) await frame.locator('#runtime-connection-details > summary').click();
     await frame.locator('#connection-provider').selectOption('omlx');
     await frame.locator('#connection-runtime').selectOption('');

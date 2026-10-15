@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { Motion } from './motion.ts';
+import { beatKey, Motion } from './motion.ts';
 
 const mediaDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'matchMedia');
 const motions: Motion[] = [];
@@ -80,5 +80,40 @@ test.each(['inactive', 'reduced'])('%s sync cancels current motion and never rep
   expect(calls).toHaveLength(2);
   phase.textContent = 'Using tools';
   motion.sync(true, 'sample/3');
+  expect(calls.slice(2).map(call => call.name)).toEqual(['phase', 'mark']);
+});
+
+test('Next keys the mark to activity changes while Classic keeps each fresh reading', () => {
+  let live = true;
+  const root = { querySelector() { return live ? {} : null; } } as unknown as HTMLElement;
+  const snapshot = { serverNow: 100, runtime: { sampledAt: 90, phase: 'decode' },
+    chat: { observedAtMs: 95, freshness: 'live', phase: 'generating' } };
+  expect(beatKey(root, snapshot)).toBe('chat/95');
+  expect(beatKey(root, snapshot, true)).toBe('chat/generating');
+  snapshot.chat.observedAtMs = 105;
+  snapshot.runtime.sampledAt = 110;
+  expect(beatKey(root, snapshot)).toBe('chat/105');
+  expect(beatKey(root, snapshot, true)).toBe('chat/generating');
+  snapshot.chat.phase = 'tool';
+  expect(beatKey(root, snapshot, true)).toBe('chat/tool');
+  snapshot.chat.freshness = 'stale';
+  expect(beatKey(root, snapshot)).toBe('runtime/110');
+  expect(beatKey(root, snapshot, true)).toBe('runtime/decode');
+  live = false;
+  expect(beatKey(root, snapshot, true)).toBeNull();
+  expect(beatKey(root, null, true)).toBeNull();
+});
+
+test('activity beats keep arrivals and crossfades and do not read visibility again for a same-phase update', () => {
+  const { motion, nodes, node, calls, events } = harness();
+  const phase = node('phase', { 'data-crossfade': '' }, 'Generating');
+  nodes.push(node('mark', { 'data-heartbeat': '' }), node('reading', { 'data-arrive': '' }), phase);
+  motion.sync(true, 'chat/generating');
+  expect(calls.map(call => call.name)).toEqual(['reading', 'mark']);
+  events.length = 0;
+  motion.sync(true, 'chat/generating');
+  expect(events).toEqual(['scan']);
+  phase.textContent = 'Using tools';
+  motion.sync(true, 'chat/tool');
   expect(calls.slice(2).map(call => call.name)).toEqual(['phase', 'mark']);
 });

@@ -15,16 +15,15 @@ const position = (frame: FrameLocator, selector: string) => frame.locator(select
 
 const glanceGeometry = (frame: FrameLocator) => frame.locator('#ws').evaluate(section => {
   const rect = (node: Element) => { const r = node.getBoundingClientRect(); return { y: r.y, height: r.height }; };
-  const activity = section.querySelector('.ws-activity')!, measurement = section.querySelector('.ws-measurement');
-  const support = section.querySelector('.ws-support, .ws-note, .ws-warning, .ws-action-error');
+  const activity = section.querySelector('.ws-scroll')!, measurement = section.querySelector('.ws-measurement:not([hidden])');
+  const support = section.querySelector('.ws-support:not([hidden]), .ws-notice:not([hidden])');
   return { activity: rect(activity), section: rect(section), actions: rect(section.querySelector('.ws-actions')!),
     measurement: measurement ? rect(measurement) : null, support: support ? rect(support) : null,
-    rows: getComputedStyle(activity).gridTemplateRows.split(/\s+/).map(Number.parseFloat) };
+    hiddenHeights: Array.from(section.querySelectorAll('[hidden]'), node => node.getBoundingClientRect().height) };
 });
 const fitsGlance = async (frame: FrameLocator) => {
   const layout = await glanceGeometry(frame);
-  if (!layout.measurement) expect(layout.rows[1] ?? 0).toBe(0);
-  if (!layout.support) expect(layout.rows[2] ?? 0).toBe(0);
+  expect(layout.hiddenHeights.every(height => height === 0)).toBe(true);
   expect(layout.actions.y).toBeCloseTo(layout.activity.y + layout.activity.height, 5);
   expect(layout.section.height).toBeCloseTo(layout.activity.height + layout.actions.height, 5);
   const action = frame.getByRole('button', { name: 'Open MLX Scope', exact: true });
@@ -49,7 +48,7 @@ for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test
   for (const [phase, label] of [['reasoning', 'Reasoning'], ['tool', 'Using tools'], ['waiting', 'Waiting'], ['complete', 'Complete'], ['cancelled', 'Stopped']] as const) {
     await setPhase(page, phase, phase === 'reasoning' ? 18.1 : phase === 'complete' ? 19.2 : undefined);
     await expect(frame.locator('.ws-phase')).toHaveText(label);
-    await expect(frame.locator('.ws-measurement')).toHaveCount(phase === 'reasoning' || phase === 'complete' ? 1 : 0);
+    await expect(frame.locator('.ws-measurement:visible')).toHaveCount(phase === 'reasoning' || phase === 'complete' ? 1 : 0);
     const layout = await fitsGlance(frame);
     expect(layout.actions.height, phase).toBe(populated.actions.height);
     if (phase === 'reasoning') {
@@ -61,8 +60,10 @@ for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test
       await expect(frame.locator('.ws-support')).toContainText('Finished');
     } else {
       expect(layout.measurement).toBeNull();
-      expect(layout.actions.y).toBeLessThan(populated.actions.y);
-      expect(layout.section.height).toBeLessThan(populated.section.height);
+      // A real unavailable-reading notice can replace the collapsed value, and both states may reach the
+      // host's320px cap at200% text. The hidden slot itself must still have zero height (fitsGlance above).
+      expect(layout.actions.y).toBeLessThanOrEqual(populated.actions.y);
+      expect(layout.section.height).toBeLessThanOrEqual(populated.section.height);
     }
     await expect(frame.locator('#ws')).not.toContainText(/undefined|NaN|—/);
   }
@@ -104,11 +105,10 @@ for (const theme of ['light', 'dark']) test(`The Session panel fits its host at 
     const frame = page.frameLocator('iframe');
     await expect(frame.locator('.ws-phase')).toBeVisible();
     await frame.locator('html').evaluate(element => { (element as HTMLElement).style.fontSize = '32px'; });
-    const headingRow = await frame.locator('.ws-activity').evaluate(activity => {
-      const rowHeight = Number.parseFloat(getComputedStyle(activity).gridTemplateRows.split(/\s+/)[0]!);
-      const context = activity.querySelector('.ws-context')!, rect = context.getBoundingClientRect();
+    const headingRow = await frame.locator('#ws-heading').evaluate(context => {
       const children = Array.from(context.children, child => child.getBoundingClientRect());
-      return { rowHeight, contentHeight: Math.max(...children.map(child => child.bottom)) - Math.min(...children.map(child => child.top)) };
+      return { rowHeight: context.getBoundingClientRect().height,
+        contentHeight: Math.max(...children.map(child => child.bottom)) - Math.min(...children.map(child => child.top)) };
     });
     const label = (reason: string) => `${reason} (mock state: ${state})`;
     expect(headingRow.rowHeight, label('The heading and menu should not reserve extra height at 200% text')).toBeLessThanOrEqual(headingRow.contentHeight + 1);
@@ -130,9 +130,13 @@ for (const width of [320, 1160]) for (const fontSize of [16, 32]) test(`full Liv
   await expect(frame.locator('#rate')).toHaveText('17.8');
   await expect(frame.locator('#engine-trend')).toBeVisible();
   const readout = () => frame.locator('.instrument-readout').evaluate(element => {
-    const style = getComputedStyle(element);
-    return { occupied: element.getBoundingClientRect().height + parseFloat(style.marginTop) + parseFloat(style.marginBottom),
-      parts: Array.from(element.querySelectorAll<HTMLElement>('.instrument-measure, .instrument-evidence')).map(part => ({
+    const parts = Array.from(element.querySelectorAll<HTMLElement>('.instrument-measure, .instrument-evidence'));
+    // The standard layout uses display:contents for the wrapper; its real flex items own the space.
+    return { occupied: parts.reduce((height, part) => {
+      const style = getComputedStyle(part);
+      return height + (style.display === 'none' ? 0 : part.getBoundingClientRect().height + parseFloat(style.marginTop) + parseFloat(style.marginBottom));
+    }, 0),
+      parts: parts.map(part => ({
         quiet: part.dataset.quiet === 'true', height: part.getBoundingClientRect().height, content: part.innerText.trim().length > 0,
       })) };
   });
