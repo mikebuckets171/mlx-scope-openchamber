@@ -1,30 +1,38 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 
 type Phase = 'generating' | 'reasoning' | 'tool' | 'waiting' | 'complete' | 'cancelled';
-const setPhase = (page: Page, phase: Phase, rate?: number) => page.evaluate(({ phase, rate }) => {
-  const w = window as any, now = Date.now(), complete = phase === 'complete';
-  if (complete) w.setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' });
-  w.setPreviewPatch({ chat: { scope: 'chat', basis: complete ? 'reported-output' : 'estimated-characters',
-    timingBasis: complete ? 'completed-step' : 'delivery-window', phase, tokensPerSecond: rate,
-    observedAtMs: now, expiresAtMs: now + 5_000,
-    observation: { startedAtMs: now - 3_000, endedAtMs: now }, freshness: complete ? 'last' : 'live' } });
-}, { phase, rate });
+// Geometry assertions should not race the five-second expiry of a synthetic chat reading.
+const freezeClock = async (page: Page) => {
+  const epoch = Date.UTC(2026, 9, 15, 12);
+  await page.clock.install({ time: epoch });
+  await page.clock.pauseAt(epoch + 60_000);
+};
+const setPhase = async (page: Page, phase: Phase, rate?: number) => {
+  await page.evaluate(({ phase, rate }) => {
+    const w = window as any, now = Date.now(), complete = phase === 'complete';
+    if (complete) w.setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' });
+    w.setPreviewPatch({ chat: { scope: 'chat', basis: complete ? 'reported-output' : 'estimated-characters',
+      timingBasis: complete ? 'completed-step' : 'delivery-window', phase, tokensPerSecond: rate,
+      observedAtMs: now, expiresAtMs: now + 5_000,
+      observation: { startedAtMs: now - 3_000, endedAtMs: now }, freshness: complete ? 'last' : 'live' } });
+  }, { phase, rate });
+  await page.clock.runFor(600); // Deliver one configured poll, then hold the observation for layout checks.
+};
 const position = (frame: FrameLocator, selector: string) => frame.locator(selector).evaluate(element => {
   const r = element.getBoundingClientRect(); return { y: r.y, height: r.height };
 });
 
 const glanceGeometry = (frame: FrameLocator) => frame.locator('#ws').evaluate(section => {
   const rect = (node: Element) => { const r = node.getBoundingClientRect(); return { y: r.y, height: r.height }; };
-  const activity = section.querySelector('.ws-activity')!, measurement = section.querySelector('.ws-measurement');
-  const support = section.querySelector('.ws-support, .ws-note, .ws-warning, .ws-action-error');
+  const activity = section.querySelector('.ws-scroll')!, measurement = section.querySelector('.ws-measurement:not([hidden])');
+  const support = section.querySelector('.ws-support:not([hidden]), .ws-notice:not([hidden])');
   return { activity: rect(activity), section: rect(section), actions: rect(section.querySelector('.ws-actions')!),
     measurement: measurement ? rect(measurement) : null, support: support ? rect(support) : null,
-    rows: getComputedStyle(activity).gridTemplateRows.split(/\s+/).map(Number.parseFloat) };
+    hiddenHeights: Array.from(section.querySelectorAll('[hidden]'), node => node.getBoundingClientRect().height) };
 });
 const fitsGlance = async (frame: FrameLocator) => {
   const layout = await glanceGeometry(frame);
-  if (!layout.measurement) expect(layout.rows[1] ?? 0).toBe(0);
-  if (!layout.support) expect(layout.rows[2] ?? 0).toBe(0);
+  expect(layout.hiddenHeights.every(height => height === 0)).toBe(true);
   expect(layout.actions.y).toBeCloseTo(layout.activity.y + layout.activity.height, 5);
   expect(layout.section.height).toBeCloseTo(layout.activity.height + layout.actions.height, 5);
   const action = frame.getByRole('button', { name: 'Open MLX Scope', exact: true });
@@ -38,18 +46,20 @@ const fitsGlance = async (frame: FrameLocator) => {
 
 for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test(`Session keeps populated rows stable and collapses absent readings in ${theme} at ${fontSize}px text`, async ({ page }) => {
   await page.setViewportSize({ width: 260, height: 550 });
-  await page.goto(`/v2?surface=status&state=splash-decode&chat=local&theme=${theme}`);
+  await freezeClock(page);
+  await page.goto(`/v2?surface=status&state=splash-decode&chat=local&theme=${theme}&poll=500`);
   await page.locator('iframe').evaluate(element => { (element as HTMLElement).style.width = '260px'; });
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#rate')).toBeVisible();
   await frame.locator('html').evaluate((element, size) => { (element as HTMLElement).style.fontSize = `${size}px`; }, fontSize);
+  await page.clock.runFor(2_100); // Establish multiple timed engine observations before testing populated rows.
   await setPhase(page, 'generating', 17.8);
   await expect(frame.locator('#rate')).toHaveText('17.8');
   const populated = await fitsGlance(frame);
   for (const [phase, label] of [['reasoning', 'Reasoning'], ['tool', 'Using tools'], ['waiting', 'Waiting'], ['complete', 'Complete'], ['cancelled', 'Stopped']] as const) {
     await setPhase(page, phase, phase === 'reasoning' ? 18.1 : phase === 'complete' ? 19.2 : undefined);
     await expect(frame.locator('.ws-phase')).toHaveText(label);
-    await expect(frame.locator('.ws-measurement')).toHaveCount(phase === 'reasoning' || phase === 'complete' ? 1 : 0);
+    await expect(frame.locator('.ws-measurement:visible')).toHaveCount(phase === 'reasoning' || phase === 'complete' ? 1 : 0);
     const layout = await fitsGlance(frame);
     expect(layout.actions.height, phase).toBe(populated.actions.height);
     if (phase === 'reasoning') {
@@ -61,8 +71,10 @@ for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test
       await expect(frame.locator('.ws-support')).toContainText('Finished');
     } else {
       expect(layout.measurement).toBeNull();
-      expect(layout.actions.y).toBeLessThan(populated.actions.y);
-      expect(layout.section.height).toBeLessThan(populated.section.height);
+      // A real unavailable-reading notice can replace the collapsed value, and both states may reach the
+      // host's320px cap at200% text. The hidden slot itself must still have zero height (fitsGlance above).
+      expect(layout.actions.y).toBeLessThanOrEqual(populated.actions.y);
+      expect(layout.section.height).toBeLessThanOrEqual(populated.section.height);
     }
     await expect(frame.locator('#ws')).not.toContainText(/undefined|NaN|—/);
   }
@@ -104,11 +116,10 @@ for (const theme of ['light', 'dark']) test(`The Session panel fits its host at 
     const frame = page.frameLocator('iframe');
     await expect(frame.locator('.ws-phase')).toBeVisible();
     await frame.locator('html').evaluate(element => { (element as HTMLElement).style.fontSize = '32px'; });
-    const headingRow = await frame.locator('.ws-activity').evaluate(activity => {
-      const rowHeight = Number.parseFloat(getComputedStyle(activity).gridTemplateRows.split(/\s+/)[0]!);
-      const context = activity.querySelector('.ws-context')!, rect = context.getBoundingClientRect();
+    const headingRow = await frame.locator('#ws-heading').evaluate(context => {
       const children = Array.from(context.children, child => child.getBoundingClientRect());
-      return { rowHeight, contentHeight: Math.max(...children.map(child => child.bottom)) - Math.min(...children.map(child => child.top)) };
+      return { rowHeight: context.getBoundingClientRect().height,
+        contentHeight: Math.max(...children.map(child => child.bottom)) - Math.min(...children.map(child => child.top)) };
     });
     const label = (reason: string) => `${reason} (mock state: ${state})`;
     expect(headingRow.rowHeight, label('The heading and menu should not reserve extra height at 200% text')).toBeLessThanOrEqual(headingRow.contentHeight + 1);
@@ -123,16 +134,23 @@ for (const theme of ['light', 'dark']) test(`The Session panel fits its host at 
 
 for (const width of [320, 1160]) for (const fontSize of [16, 32]) test(`full Live keeps populated parts stable and collapses empty parts at ${width}px and ${fontSize}px text`, async ({ page }) => {
   await page.setViewportSize({ width, height: 950 });
-  await page.goto('/v2?surface=page&state=splash-decode&chat=local');
+  await freezeClock(page);
+  await page.goto('/v2?surface=page&state=splash-decode&chat=local&poll=500');
   const frame = page.frameLocator('iframe');
+  await expect(frame.locator('#rate')).toBeVisible();
   await frame.locator('html').evaluate((element, size) => { (element as HTMLElement).style.fontSize = `${size}px`; }, fontSize);
+  await page.clock.runFor(2_100); // Establish multiple timed engine observations before testing populated rows.
   await setPhase(page, 'generating', 17.8);
   await expect(frame.locator('#rate')).toHaveText('17.8');
   await expect(frame.locator('#engine-trend')).toBeVisible();
   const readout = () => frame.locator('.instrument-readout').evaluate(element => {
-    const style = getComputedStyle(element);
-    return { occupied: element.getBoundingClientRect().height + parseFloat(style.marginTop) + parseFloat(style.marginBottom),
-      parts: Array.from(element.querySelectorAll<HTMLElement>('.instrument-measure, .instrument-evidence')).map(part => ({
+    const parts = Array.from(element.querySelectorAll<HTMLElement>('.instrument-measure, .instrument-evidence'));
+    // The standard layout uses display:contents for the wrapper; its real flex items own the space.
+    return { occupied: parts.reduce((height, part) => {
+      const style = getComputedStyle(part);
+      return height + (style.display === 'none' ? 0 : part.getBoundingClientRect().height + parseFloat(style.marginTop) + parseFloat(style.marginBottom));
+    }, 0),
+      parts: parts.map(part => ({
         quiet: part.dataset.quiet === 'true', height: part.getBoundingClientRect().height, content: part.innerText.trim().length > 0,
       })) };
   });

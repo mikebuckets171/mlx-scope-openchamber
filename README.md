@@ -2,6 +2,8 @@
 
 Lightweight chat and local media monitoring for OpenChamber.
 
+**Scope 5 brings a refined monitoring interface to every view.** A clear primary reading, its measured trace and compact supporting facts form one instrument. Mac readings sit in a compact band below it, stacking naturally in narrow panels or with enlarged text. Existing history, captures, navigation and monitoring carry forward. Live, History and Connections remain directly accessible, with Run details and Server & Mac details under Measurement details. Scope follows the host theme and reduced motion. Readings and traces stay live; status marks animate on activity changes.
+
 MLX Scope keeps honest runtime readings beside your conversation. It observes oMLX, Splash in Bionic, LM Studio,
 llama.cpp `llama-server`, Ollama, vllm-mlx, mlx-lm and standalone Splash through their supported passive APIs, directly or
 behind llama-swap, plus the Mac they run on. It never sends inference, loads or unloads a model, or starts a runtime. The Session sidebar follows your chat and presents one relevant reading. Optional, clearly labeled chat delivery
@@ -42,6 +44,8 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   activity, not a server-provided chat identifier. Whole engine watches the selected connection independently.
   Cloud chats show a delivery estimate labelled **Cloud · est.** on qualified runtimes. They never borrow a local engine's reading
   or hardware warnings. Media progress remains available. Theme-native rows remain readable at increased text size.
+  The reading has a clearly qualified display and a trace over its observed interval. **Open MLX Scope** stays
+  visible while longer warnings or media details scroll above it. A compact row inside the widget keeps the scope, Pause and snapshot Details controls readable together.
   The section samples only while visible and uses lighter Mac probes than the full panel.
 - **Rail panel and full page.** One column at every width: This chat leads with the same activity, reading and scope
   menu as the sidebar, with available supporting facts in a separate **Engine** group and a visible **Engine trend** when
@@ -49,8 +53,8 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   goes dark: prompt progress shows supported counts, otherwise the reply's elapsed time, and the previous completed average
   stays below a live reading, dimmed and labelled. Completed results retain their own available output, duration and
   first-token facts; chat step timing stays distinct. **Measurement details** groups deeper engine readings, request
-  details and the last reply; engine charts never mix in chat estimates. The column's foot opens **History** and
-  **Server & Mac details**, each with **Back**.
+  details and the last reply; engine charts never mix in chat estimates. **Live**, **History** and **Connections** remain
+  directly accessible. **Server & Mac details** opens under Measurement details and returns with **Back**.
   **Run details** opens current observations and their basis. History reply/turn **Details** opens the same inspector, with eligible reply comparisons and explicit observation gaps.
   History retains recent replies, trends, insights, alerts, and storage. **Captures** opens from History with
   **Back to History**, a **Reply / Timed window** selector, and saved captures. Active recordings remain cancellable
@@ -65,13 +69,13 @@ colors use the host's semantic palette; the Session widget lets the surrounding 
 A view that is hidden (a rail tab behind another tab, a collapsed section, a closed page, a hidden window) makes no
 requests. With several views open, one visible view at a time records history and raises toasts.
 
-The Session sidebar in a dark theme ([light theme](docs/3.0/assets/session-light.png)). These screenshots use synthetic readings.
+The Session sidebar in a dark theme ([light theme](docs/5.0/assets/standard-session-light.png)). These are simulated preview readings; scope, Pause and Details stay together inside the widget.
 
-<img src="docs/3.0/assets/session-dark.png" alt="MLX Scope 3.0 in the Session sidebar, showing one labeled Engine reading and the This chat scope menu" width="350">
+<img src="docs/5.0/assets/standard-session-dark.png" alt="Compact MLX Scope Session with scope, pause and details controls, qualified generation speed, a memory-pressure warning and Open MLX Scope action" width="300">
 
-The full Live view shows the useful signal directly and keeps deeper measurements one click away.
+The full Live instrument keeps the measurement basis beside its value and deeper measurements one click away. Simulated preview data is shown below ([light theme](docs/5.0/assets/standard-instrument-light.png)).
 
-![MLX Scope 3.0 full Live view with activity first, a labeled speed, Engine facts and a compatible Engine trend](docs/3.0/assets/live-light.png)
+![MLX Scope standard Live instrument with a qualified speed, observed trace, compact supporting facts and Mac readings](docs/5.0/assets/standard-instrument-dark.png)
 
 Media keeps measured phase progress separate from chat speed. These 3.1 screenshots use synthetic jobs.
 
@@ -89,7 +93,7 @@ section and the full view show the percentage. It clears when the response start
 The companion is bundled and does not activate automatically. Open **Connections → Enable chat speed** for detected
 compatibility and a deliberate setup action, or follow the [manual setup](bridge/opencode/README.md). Setup preserves
 existing plugins and JSONC comments and provides **Disable and remove**. It never restarts an active inference session.
-Chat delivery estimates qualify exact OpenCode **2.0.25, 2.0.27 and 2.0.28**; other versions retain ordinary runtime monitoring.
+Chat delivery estimates qualify exact OpenCode **2.0.25, 2.0.27, 2.0.28 and 2.0.29**; other versions retain ordinary runtime monitoring.
 The existing Splash HTTP observer remains separate. New replies acquire observations after activation; an already
 running reply cannot acquire them retroactively.
 
@@ -106,8 +110,7 @@ Readings are **server-wide** unless Scope can tell they belong to the open chat.
 - auto-labelling is on (the default).
 
 Otherwise the reply stays "All server activity" with one reason, such as "This chat uses Splash · Watch Splash". **Limits:**
-- Scope does not request the `sessions` permission, so it cannot see other chats. Another chat alternating requests on
-  the same runtime during this turn can't be ruled out.
+- Optional **Other work** lists host-reported project activity separately. It does not prove which chat produced an engine reading; another chat alternating requests on the same runtime still cannot be ruled out.
 - OpenChamber's own background model calls, such as title generation, can fall inside a labelled turn.
 - A view opened mid-turn starts labelling at the next turn.
 - Ollama and mlx-lm don't report per-request activity, so their readings are never labelled per chat.
@@ -168,10 +171,10 @@ them at a time, and a sent chip stays in the chat's session record like any atta
 
 ## Install
 
-OpenChamber 2.0.4 or newer is required. The extension uses the 2.0.4 SDK; earlier releases were exercised in OpenChamber 2.2.0. See [Compatibility](docs/COMPATIBILITY.md) for the exact evidence and upgrade requirements. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
+Scope 5 requires **OpenChamber 2.3.3 or newer** and pins SDK 2.3.3. Keep **Scope 4.0.1** on older hosts; its existing release remains available. See [Compatibility](docs/COMPATIBILITY.md) for the exact evidence and upgrade requirements. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
 
-1. Open **Settings → Extensions** in OpenChamber and add this repository, or install **mlx-scope-openchamber-4.0.1.zip** from [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest).
-2. Review OpenChamber’s local-service permissions. The ZIP contains built JavaScript and needs no build toolchain.
+1. Open **Settings → Extensions** in OpenChamber and add this repository, or install **mlx-scope-openchamber-5.0.0.zip** from [Releases](https://github.com/mikebuckets171/mlx-scope-openchamber/releases/latest).
+2. Review OpenChamber’s local-service, sessions and shells permissions. The ZIP contains built JavaScript and needs no build toolchain.
 3. Open **MLX Scope** from the Session sidebar. **This chat** follows the selected chat automatically.
 
 Scope discovers supported existing connections. Native readings start immediately when available. **Connections** shows what is connected and gives one action for additional tracking: **Enable chat speed** or **Enable detailed media progress**. Installation and readiness are separate; a helper waiting for its owning application to start is labelled accordingly. Scope never restarts an application or generates test work.
@@ -180,7 +183,7 @@ The column shows chat and engine readings, then **Media** while local image/vide
 
 Use Connections → Advanced only when automatic discovery cannot identify a custom installation. Existing provider credentials stay in their owning configuration. Enterprise deployments may require the administrator to allowlist this repository.
 
-Updates preserve existing preferences, observations and captures. OpenChamber may request approval again when a release adds an executable permission; 3.1 adds only exact job cancellation through the optional existing local-video command. If extension/service versions differ after an update, reload the extension in Settings → Extensions; generation backends remain independent.
+Updates preserve existing preferences, observations and captures. **Scope 5 requires permission reapproval** because it declares `sessions` and `shells`. Both optional views start disabled; approving the update does not enable them. Open **Other work** in Live and explicitly enable **Chats and subagents** or **Agent commands**. Command output is fetched only after **View output**, limited to the last 8 KiB, and cleared when the view closes or becomes hidden. It is never saved or added to diagnostics. These host readings remain separate from engine measurements. The service executable permissions are unchanged. If extension/service versions differ after an update, reload the extension in Settings → Extensions; generation backends remain independent.
 
 ### What Scope asks you to approve and why
 
@@ -199,8 +202,7 @@ Updates preserve existing preferences, observations and captures. OpenChamber ma
 | `/usr/local/bin/macmon` | The same | The same, for a macmon installed under `/usr/local` |
 | `~/.config/opencode/bin/local-video` | `local-video cancel <job-id>` | Only after explicit confirmation to cancel one observed job in the standard local-video queue |
 
-- **Not requested:** any capability, including the `sessions` permission, which would let Scope list projects,
-  worktrees and chats. Per-chat labels use only what OpenChamber gives every extension about the open chat.
+- **Optional host capabilities:** `sessions` for current-project running/waiting chats and host-reported subagents; `shells` for agent command status and output opened on demand. Both are disabled initially and subscribe only while Live is visible. Scope never starts or stops commands or sends a prompt through these capabilities. Per-chat measurement labels still use the existing open-chat observations.
 - **Never used:** `sudo`, `osascript`, `powermetrics` or `pmset`.
 - Each command runs by absolute path, without a shell, and only with the arguments shown; a test checks the argument
   list for each binary, and packaging checks that the service uses exactly these paths. OpenChamber does not sandbox a

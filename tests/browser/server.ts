@@ -4,6 +4,7 @@ const port = Number(process.env.SCOPE_PREVIEW_PORT ?? 8787);
 if (!Number.isInteger(port) || port < 1024 || port > 65_535) throw new Error('SCOPE_PREVIEW_PORT must be an integer from 1024 to 65535.');
 const allow = new Map([
   ['/', 'tests/browser/host.html'],
+  ['/next-host.js', 'tests/browser/next-host.js'],
   ['/v2', 'tests/browser/v2-host.html'],
   ['/history.html', 'tests/browser/history.html'],
   ['/panel/index.html', 'panel/index.html'],

@@ -1,8 +1,9 @@
+import { openServerDetails } from './standard-ui.ts';
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 import { inspect } from './ui-checks.ts';
 
 // Stage 8 (ui-core): the 2.0 panel on the 2.0 fixture host (tests/browser/v2-host.html), which answers /v2/snapshot with
-// the approved G2 mock's v2 states. Every state at 320/430/1160, the Work Status section at 280 × 24/56/80/112/≤ 200, and the
+// the approved G2 mock's v2 states. Every state at 320/430/1160, the adaptive Session at280px (≤320px high), and the
 // mock's checks (contrast ≥ 4.5:1, targets ≥ 24 px, aria, basis labels, no overflow) on each.
 type W = Window & Record<string, any>;
 const STATES = ['decode', 'withheld-chats', 'withheld-subagent', 'other-provider', 'armed-refusal', 'first-readings', 'prefill', 'prefill-stall', 'idle',
@@ -37,8 +38,8 @@ test('every mock state passes the mock\'s checks on Live and Server at 320 (dark
   for (const state of STATES) {
     const frame = await load(page, `state=${state}`);
     expect(await problems(page), `${state} live`).toEqual([]);
-    if (await frame.locator('[data-action="open-server"]').isVisible()) {
-      await frame.locator('[data-action="open-server"]').click();
+    if (await frame.locator('#measurement-details').isVisible()) {
+      await openServerDetails(frame);
       expect(await problems(page), `${state} server`).toEqual([]);
       await frame.getByRole('button', { name: 'Back', exact: true }).click();
     }
@@ -70,7 +71,7 @@ test('one column at every width: no workspace tabs, and an open History view sur
   }
 });
 
-test('the keyboard reaches History from the column foot, Back returns focus, and monitoring keeps running', async ({ page }) => {
+test('the keyboard reaches History from navigation, Back returns focus, and monitoring keeps running', async ({ page }) => {
   const frame = await load(page, 'state=decode');
   const history = frame.getByRole('button', { name: 'History', exact: true });
   await history.focus(); await page.keyboard.press('Enter');
@@ -85,7 +86,7 @@ test('the keyboard reaches History from the column foot, Back returns focus, and
 test('secondary views return to their parent and server-only reads stop outside diagnostics', async ({ page }) => {
   const frame = await load(page, 'surface=page&state=decode', 1160);
   expect((await host(page, w => w.previewQueries)).every((query: Record<string, string>) => query.detail === undefined)).toBe(true);
-  await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+  await openServerDetails(frame);
   await expect(frame.locator('#panel-server')).toBeVisible();
   await expect(frame.locator('#server-title')).toBeFocused();
   await expect(frame.locator('#panel-live')).toBeHidden();
@@ -136,7 +137,7 @@ test('ⓘ is a disclosure: one open at a time, in flow, Esc closes it and return
   await expect(frame.locator('#pop-live-basis')).toBeHidden();
   await expect(basis).toBeFocused();
   // Mac details stay as the reader left them, and a focused control keeps focus through polls.
-  await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+  await openServerDetails(frame);
   await frame.locator('#mac-details > summary').click();
   await frame.locator('#mac-details > summary').focus();
   await page.waitForTimeout(1_200);
@@ -146,16 +147,16 @@ test('ⓘ is a disclosure: one open at a time, in flow, Esc closes it and return
 
 test('callouts: the most severe message first, the rest behind "N more"', async ({ page }) => {
   const frame = await load(page, 'state=pressure');
-  const callout = frame.locator('#view-live > .connection-diagnosis');
+  const callout = frame.locator('#view-live .connection-diagnosis');
   await expect(callout).toHaveCount(1);
   await expect(callout).toHaveAttribute('data-severity', 'warning');
   await expect(callout.locator('> .diag-title strong')).toHaveText('macOS memory pressure: warning');
   await callout.getByRole('button', { name: '1 more alert' }).click();
   await expect(callout.locator('.diag-more')).toContainText('Swap grew 1.3 GiB in 4 min');
   await load(page, 'state=pressure-critical');
-  await expect(page.frameLocator('iframe').locator('#view-live > .connection-diagnosis')).toHaveAttribute('data-severity', 'critical');
+  await expect(page.frameLocator('iframe').locator('#view-live .connection-diagnosis')).toHaveAttribute('data-severity', 'critical');
   // Critical uses --scope-bad (derived from the host's error token), and only for critical.
-  const tone = await page.frameLocator('iframe').locator('#view-live > .connection-diagnosis').evaluate(el => getComputedStyle(el).getPropertyValue('--tone').trim());
+  const tone = await page.frameLocator('iframe').locator('#view-live .connection-diagnosis').evaluate(el => getComputedStyle(el).getPropertyValue('--tone').trim());
   expect(tone).toMatch(/#ee8992|238, 137, 146/i);
 });
 
@@ -180,7 +181,7 @@ test('Compact shows one relevant reading, at most 200 px, and Expand returns to 
   const compactSize = await frame.locator('#scope').evaluate(el => Object.fromEntries([el, ...Array.from(el.querySelectorAll('.masthead, #compact-glance, #ws'))].map(node => [node.id || node.className, {
     height: node.getBoundingClientRect().height, scroll: node.scrollHeight, padding: getComputedStyle(node).padding, margin: getComputedStyle(node).margin,
   }])));
-  expect(compactSize.scope!.scroll, JSON.stringify(compactSize)).toBeLessThanOrEqual(200);
+  expect(compactSize.scope!.scroll, JSON.stringify(compactSize)).toBeLessThanOrEqual(320);
   await expect(frame.locator('#compact-glance .ws-warning')).toContainText('Memory pressure');
   expect(await problems(page)).toEqual([]);
   await frame.getByRole('button', { name: 'Expand' }).click();
@@ -204,7 +205,7 @@ test('Session summary leads with reply speed, keeps warnings visible, and fits i
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
   await expect(frame.locator('.ws-reading')).toContainText('26.4');
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · request average');
   await expect(frame.locator('.chip, .ws-spark, .ws-key-stats, .ts-rows')).toHaveCount(0);
   await expect(frame.getByRole('button', { name: 'Show turn stats' })).toHaveCount(0);
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
@@ -219,14 +220,14 @@ test('Session summary leads with reply speed, keeps warnings visible, and fits i
   expect(await problems(page)).toEqual([]);
 
   frame = await status(page, 'state=decode&chat=cloud');
-  await expect.poll(() => lastHeight(page)).toBe(await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height));
+  await expect.poll(() => lastHeight(page)).toBe(await frame.locator('#ws').evaluate(el => Math.ceil(el.getBoundingClientRect().height)));
   await expect(frame.locator('.ws-phase')).toHaveText('Ready');
-  await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
+  await expect(frame.locator('.ws-measurement:visible, .ws-support:visible, .ws-warning:visible')).toHaveCount(0);
   expect(await problems(page)).toEqual([]);
   for (const state of ['offline', 'splash-recovering', 'needs-approval', 'prefill', 'idle', 'pressure-critical']) {
     frame = await status(page, `state=${state}`);
     await expect.poll(() => lastHeight(page), state).toBeGreaterThanOrEqual(24);
-    expect(await lastHeight(page), state).toBeLessThanOrEqual(200);
+    expect(await lastHeight(page), state).toBeLessThanOrEqual(320);
     expect(await problems(page), state).toEqual([]);
   }
   expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(await lastHeight(page));
@@ -238,7 +239,7 @@ test('Session summary: every mock state in both themes at 280 px fits its sectio
     await status(page, `state=${state}&theme=${theme}`);
     await expect.poll(() => lastHeight(page), `${state} ${theme}`).toBeDefined();
     const height = await lastHeight(page);
-    expect(height, `${state} ${theme}`).toBeLessThanOrEqual(200);
+    expect(height, `${state} ${theme}`).toBeLessThanOrEqual(320);
     expect(await problems(page), `${state} ${theme}`).toEqual([]);
   }
   expect(errors).toEqual([]);
@@ -262,7 +263,7 @@ test('Session summary ignores a remembered stats expansion and opens the full pa
   let frame = await status(page, 'state=bionic&chat=local');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.locator('.ws-phase')).toHaveText('Waiting');
-  await expect(frame.locator('.ws-measurement')).toHaveCount(0);
+  await expect(frame.locator('.ws-measurement')).toBeHidden();
   await expect(frame.locator('.ws-age')).toHaveCount(0);
   await expect(frame.locator('.ts-rows, .ts-head')).toHaveCount(0);
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
@@ -283,10 +284,10 @@ test('Session summary reports a failed full-panel action without clipping the gu
   const frame = await status(page, 'state=pressure&openSurface=fail');
   await page.locator('iframe').evaluate(el => { (el as HTMLElement).style.width = '260px'; });
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
-  await expect(frame.locator('#ws-action-error')).toBeVisible();
-  await expect(frame.locator('#ws-action-error')).toHaveAttribute('role', 'status');
-  await expect(frame.locator('#ws-action-error')).toHaveText('Could not open Scope. Use the side icon.');
-  await expect.poll(() => lastHeight(page)).toBe(await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height));
+  await expect(frame.locator('.ws-action-error')).toBeVisible();
+  await expect(frame.locator('.ws-action-error')).toHaveAttribute('role', 'status');
+  await expect(frame.locator('.ws-action-error')).toHaveText('Could not open Scope. Use the side icon.');
+  await expect.poll(() => lastHeight(page)).toBe(await frame.locator('#ws').evaluate(el => Math.ceil(el.getBoundingClientRect().height)));
   expect(await problems(page)).toEqual([]);
   await frame.locator('html').evaluate(el => { el.style.fontSize = '32px'; });
   await expect.poll(() => frame.locator('#ws').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight + 1)).toBe(true);
@@ -298,14 +299,14 @@ test('Session summary reports a failed full-panel action without clipping the gu
 test('Session clears a failed full-panel action when switching to a cloud chat', async ({ page }) => {
   const frame = await status(page, 'state=pressure&openSurface=fail');
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
-  await expect(frame.locator('#ws-action-error')).toBeVisible();
+  await expect(frame.locator('.ws-action-error')).toBeVisible();
   await page.evaluate(() => (window as W).setPreviewSession({
     id: 'cloud-chat', title: 'Cloud chat', busy: false, model: 'cloud-provider/fixture-model',
   }));
   await expect(frame.locator('.ws-phase')).toHaveText('Ready');
-  await expect(frame.locator('.ws-measurement, .ws-support, .ws-warning')).toHaveCount(0);
-  await expect(frame.locator('#ws-action-error')).not.toBeVisible();
-  const height = await frame.locator('#ws').evaluate(el => el.getBoundingClientRect().height);
+  await expect(frame.locator('.ws-measurement:visible, .ws-support:visible, .ws-warning:visible')).toHaveCount(0);
+  await expect(frame.locator('.ws-action-error')).not.toBeVisible();
+  const height = await frame.locator('#ws').evaluate(el => Math.ceil(el.getBoundingClientRect().height));
   await expect.poll(() => lastHeight(page)).toBe(height);
   expect(await page.locator('iframe').evaluate(el => el.getBoundingClientRect().height)).toBe(height);
   expect(await problems(page)).toEqual([]);
@@ -320,7 +321,7 @@ test('a delayed full-panel failure cannot return after switching chats', async (
   await page.evaluate(() => (window as W).previewSurfaceDeferred.splice(0).forEach((reject: () => void) => reject()));
   // Let the SDK deliver the rejected request and its promise callback before checking the unchanged instrument.
   await frame.locator('#ws').evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  await expect(frame.locator('#ws-action-error')).toHaveCount(0);
+  await expect(frame.locator('.ws-action-error:visible')).toHaveCount(0);
   await expect(frame.locator('.ws-phase')).toHaveText('Ready');
 });
 
@@ -351,7 +352,10 @@ test('polls send the since cursor, and the host answers only newer completions',
 });
 
 test('no panel cap on the service cadence: a lower-priority frame backs off to the 10 s the service asks for', async ({ page }) => {
-  await page.clock.install();
+  const epoch = Date.UTC(2026, 9, 15, 12);
+  await page.clock.install({ time: epoch });
+  // Pause before mounting, with ample setup headroom; a 1 ms target can already be past on CI.
+  await page.clock.pauseAt(epoch + 60_000);
   await page.goto('/v2?state=decode&poll=10000&leader=0');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#scope')).toBeVisible();
@@ -359,7 +363,7 @@ test('no panel cap on the service cadence: a lower-priority frame backs off to t
   await page.clock.runFor(9_000);
   expect(await host(page, w => w.previewRequests)).toBe(1);
   // The no-fresh deadline is max(6 s, 2 × 10 s + 1 s): a slow cadence is not a stall.
-  await expect(frame.locator('#view-live > .connection-diagnosis')).toHaveCount(0);
+  await expect(frame.locator('#view-live .connection-diagnosis')).toHaveCount(0);
   await page.clock.runFor(1_500);
   await expect.poll(() => host(page, w => w.previewRequests)).toBe(2);
 });
@@ -371,14 +375,14 @@ test('a missed deadline hides the live rate and says so; the next reading restor
   await expect(frame.locator('#rate')).toHaveText('26.4');
   await page.evaluate(() => { (window as W).previewHold = true; });
   await page.clock.runFor(6_600);
-  await expect(frame.locator('#rate')).toHaveCount(0);
-  await expect(frame.locator('#view-live > .connection-diagnosis')).toContainText('No fresh readings');
+  await expect(frame.locator('#rate')).toBeHidden();
+  await expect(frame.locator('#view-live .connection-diagnosis')).toContainText('No fresh readings');
   await expect(frame.locator('#phase')).toHaveText('Reconnecting');
   // The held request times out in the SDK (20 s); the next poll brings a reading back.
   await page.evaluate(() => { (window as W).previewHold = false; });
   await page.clock.runFor(22_000);
   await expect(frame.locator('#rate')).toHaveText('26.4');
-  await expect(frame.locator('#view-live > .connection-diagnosis')).toHaveCount(0);
+  await expect(frame.locator('#view-live .connection-diagnosis')).toHaveCount(0);
 });
 
 test('badge and toast come only from the leader, once per toastSeq, and never name a model', async ({ page }) => {

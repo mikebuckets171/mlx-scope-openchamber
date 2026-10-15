@@ -1,3 +1,4 @@
+import { openServerDetails } from './standard-ui.ts';
 import type { HostTheme, HostThemeTokens } from '@openchamber/sdk';
 import { expect, test, type Frame, type FrameLocator, type Page } from '@playwright/test';
 import { inspect } from './ui-checks.ts';
@@ -9,7 +10,8 @@ const toColumn = async (frame: Pick<Frame | FrameLocator, 'getByRole'>): Promise
 const toHistory = async (frame: Pick<Frame | FrameLocator, 'getByRole'>): Promise<void> => { await toColumn(frame); await frame.getByRole('button', { name: 'History', exact: true }).click(); };
 
 // Synthetic palettes exercise OpenChamber's live ready messages, without changing a user's host settings.
-// Base fills deliberately differ from their readable text colors: a chart must use primaryText, not primary.
+// Base fills deliberately differ from their readable text colors. The standard instrument tints the host info
+// text color; prefill and semantic warnings retain their own host tokens.
 const VIOLET: HostTheme = { mode: 'dark', tokens: {
   background: '#14111c', elevated: '#211b2b', foreground: '#f2edf8', elevatedForeground: '#f2edf8',
   muted: '#b6acc5', subtle: '#a99cbb', border: '#564763', hover: '#332a42', active: '#403451',
@@ -67,11 +69,18 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
   await frame.locator('#request-details > summary').click();
   await frame.locator('#request-details > summary').focus();
 
+  const strokes = new Map<string, string>();
+  let previousStroke = '';
   for (const palette of [VIOLET, COPPER, PAPER, VIOLET]) {
     await setTheme(page, palette);
     await expectPalette(frame, palette);
-    await expect(frame.locator('#signal .trace')).toHaveCSS('stroke', rgb(palette.tokens.primaryText));
-    await expect(frame.locator('.scope-mark')).toHaveCSS('color', rgb(palette.tokens.primaryText));
+    await expect(frame.locator('html')).toHaveCSS('--oc-info-text', palette.tokens.infoText!);
+    const stroke = () => frame.locator('#signal .trace').evaluate(el => getComputedStyle(el).stroke);
+    await expect.poll(stroke).not.toBe(previousStroke);
+    const current = await stroke();
+    await expect(frame.locator('.scope-mark')).toHaveCSS('color', current);
+    if (strokes.has(palette.tokens.background)) expect(current).toBe(strokes.get(palette.tokens.background));
+    strokes.set(palette.tokens.background, current); previousStroke = current;
     const menuSurface = await frame.locator('.monitor-menu-content').evaluate(el => {
       const style = getComputedStyle(el);
       return [style.backgroundColor, style.backgroundImage];
@@ -83,43 +92,46 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
   }
 
   // Selection belongs to the mounted view, not to its palette.
-  await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+  await openServerDetails(frame);
   await setTheme(page, PAPER);
   await expect(frame.locator('#panel-live')).toBeHidden();
   await expect(frame.locator('#panel-server')).toBeVisible();
 });
 
-test('legacy palette updates clear old text tokens and use the current host primary fallback', async ({ page }) => {
+test('legacy palette updates clear old text tokens and update the instrument using current host fallbacks', async ({ page }) => {
   const frame = await load(page);
   await expect(frame.locator('#signal')).toBeVisible({ timeout: 12_000 });
   await expect(frame.locator('#signal .trace')).toBeAttached();
   await setTheme(page, VIOLET);
-  await expect(frame.locator('#signal .trace')).toHaveCSS('stroke', rgb(VIOLET.tokens.primaryText));
+  await expectPalette(frame, VIOLET);
+  const previousStroke = await frame.locator('#signal .trace').evaluate(el => getComputedStyle(el).stroke);
   const tokens: Partial<HostThemeTokens> = { ...PAPER.tokens, primary: '#704720' };
   for (const key of ['primaryText', 'successText', 'warningText', 'errorText', 'infoText'] as const) delete tokens[key];
   await setTheme(page, { mode: 'light', tokens });
   await expect(frame.locator('body')).toHaveCSS('background-color', rgb(PAPER.tokens.background));
-  await expect(frame.locator('#signal .trace')).toHaveCSS('stroke', rgb(tokens.primary!));
+  await expect.poll(() => frame.locator('#signal .trace').evaluate(el => getComputedStyle(el).stroke)).not.toBe(previousStroke);
+  await expect(frame.locator('html')).toHaveCSS('--oc-info', tokens.info!);
   expect(await frame.locator('html').evaluate(el => el.style.getPropertyValue('--oc-primary-text'))).toBe('');
   expect(await frame.locator('html').evaluate(el => el.style.getPropertyValue('--primary-text'))).toBe('');
+  expect(await frame.locator('html').evaluate(el => el.style.getPropertyValue('--oc-info-text'))).toBe('');
 });
 
-test('the host primary remains the identity color during prefill while warnings and critical alerts keep their semantic tones', async ({ page }) => {
+test('prefill keeps the host primary while warnings and critical alerts keep their semantic tones', async ({ page }) => {
   let frame = await load(page, 'state=prefill');
   await setTheme(page, VIOLET);
   await expect(frame.locator('.progress-track > span')).toHaveCSS('background-color', rgb(VIOLET.tokens.primaryText));
-  await expect(frame.locator('.scope-mark')).toHaveCSS('color', rgb(VIOLET.tokens.primaryText));
+  await expect(frame.locator('html')).toHaveCSS('--oc-info-text', VIOLET.tokens.infoText!);
 
   for (const [state, severity, key] of [['pressure', 'warning', 'warningText'], ['pressure-critical', 'critical', 'errorText']] as const) {
     frame = await load(page, `state=${state}`);
-    const alert = frame.locator('#view-live > .connection-diagnosis');
+    const alert = frame.locator('#view-live .connection-diagnosis');
     await expect(alert).toHaveAttribute('data-severity', severity);
     for (const palette of [VIOLET, PAPER]) {
       await setTheme(page, palette);
       await expect(alert).toHaveCSS('--tone', palette.tokens[key]);
       if (!(await frame.locator('#measurement-details').evaluate(el => (el as HTMLDetailsElement).open))) await frame.locator('#measurement-details > summary').click();
-      await expect(frame.locator(`.machine-summary .level[data-level="${severity}"]`)).toHaveCSS('color', rgb(palette.tokens[key]));
-      await expect(frame.locator('.scope-mark')).toHaveCSS('color', rgb(palette.tokens.primaryText));
+      await expect(frame.locator(`#machine .level[data-level="${severity}"]`)).toHaveCSS('color', rgb(palette.tokens[key]));
+      await expect(frame.locator('html')).toHaveCSS('--oc-info-text', palette.tokens.infoText!);
     }
   }
 });
@@ -134,7 +146,7 @@ test('the mounted Session summary and warning value follow custom host themes', 
     await expect(frame.locator('.ws-phase')).toHaveCSS('color', rgb(palette.tokens.foreground));
     await expect(frame.locator('.ws-measurement .ws-label')).toHaveCSS('color', rgb(palette.tokens.muted));
     await expect(frame.locator('.ws-warning')).toHaveCSS('color', rgb(palette.tokens.errorText));
-    await expect(frame.locator('.ws-dot')).toHaveCount(0);
+    await expect(frame.locator('.ws-phase-dot')).toHaveCSS('background-color', rgb(palette.tokens.errorText));
     expect(await mounted!.evaluate(el => el === document.querySelector('#scope'))).toBe(true);
     const backdrop = await page.locator('iframe').evaluate(el => {
       const colors: string[] = [];
@@ -152,7 +164,7 @@ for (const [name, palette] of [['violet', VIOLET], ['paper', PAPER]] as const) {
       await setTheme(page, palette);
       await expectPalette(frame, palette);
       expect(await frame.evaluate(inspect, false), `${name} Live @ ${width}`).toEqual([]);
-      await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+      await openServerDetails(frame);
       expect(await frame.evaluate(inspect, false), `${name} Server @ ${width}`).toEqual([]);
       await toHistory(frame);
       expect(await frame.evaluate(inspect, false), `${name} History @ ${width}`).toEqual([]);

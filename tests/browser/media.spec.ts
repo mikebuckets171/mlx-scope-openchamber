@@ -159,7 +159,7 @@ test('Media sits in the one column; History is a secondary view where media poll
   await expect(frame.locator('#view-media')).toBeVisible();
 });
 
-test('fresh numeric readings roll only changed digits and stop for Reduce Motion', async ({ page }) => {
+test('fresh numeric readings update truthfully without digit motion in the standard interface', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/v2?surface=page&state=decode&chat=local');
   const frame = page.frameLocator('iframe');
@@ -178,13 +178,11 @@ test('fresh numeric readings roll only changed digits and stop for Reduce Motion
   };
   await update(27.9);
   await expect(frame.locator('#rate')).toHaveText('27.9');
-  const changes = await frame.locator('#scope').evaluate(() => (window as any).scopeMotion);
-  expect(changes.map((change: any) => change.value).sort()).toEqual(['4', '6', '7', '9']);
-  expect(changes.every((change: any) => change.options.duration === 160)).toBe(true);
+  expect(await frame.locator('#scope').evaluate(() => (window as any).scopeMotion)).toEqual([]);
   expect(await frame.locator('#rate').getAttribute('aria-hidden')).toBe('true');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await update(28.2); await expect(frame.locator('#rate')).toHaveText('28.2');
-  expect(await frame.locator('#scope').evaluate(() => (window as any).scopeMotion.length)).toBe(4);
+  expect(await frame.locator('#scope').evaluate(() => (window as any).scopeMotion)).toEqual([]);
   expect(await frame.locator('#scope').evaluate(() => document.getAnimations().filter(animation => animation.playState === 'running').length)).toBe(0);
 });
 
@@ -256,7 +254,8 @@ test('Compact number motion never animates the retained hidden Live view', async
   await frame.locator('#monitor-menu > summary').click(); await frame.locator('#refresh').click();
   await expect(frame.locator('#compact-glance #rate')).toHaveText('27.9');
   const visible = await frame.locator('#scope').evaluate(() => (window as any).motionVisibility as boolean[]);
-  expect(visible.length).toBeGreaterThan(0); expect(visible.every(Boolean)).toBe(true);
+  // The polished interface may update digits without animation; any animation it does start must be visible.
+  expect(visible.every(Boolean)).toBe(true);
 });
 
 test('Connections discovers local servers from a cloud chat without choosing one or losing them on later chat polls', async ({ page }) => {

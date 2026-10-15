@@ -106,6 +106,6 @@ try {
   if (problems.length) {
     console.error(`FAIL: ${problems.length} package check${problems.length === 1 ? '' : 's'}:\n- ${problems.join('\n- ')}`);
     process.exitCode = 1;
-  } else console.log(`PASS: SDK 2.0.4 manifest (§6 set, two-way exec match), ${names.length} assets, ${bytes} uncompressed bytes; ${archiveBytes.byteLength} ZIP bytes; `
+  } else console.log(`PASS: SDK 2.3.3 manifest (§6 set, two-way exec match), ${names.length} assets, ${bytes} uncompressed bytes; ${archiveBytes.byteLength} ZIP bytes; `
     + `bundle ceilings, background CSP and leak checks; reproducible archive and extracted bytes verified.`);
 } finally { rmSync(stage, { recursive: true, force: true }); }

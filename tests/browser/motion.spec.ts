@@ -17,7 +17,7 @@ const generating = (page: Page, rate: number, elapsed = 3_000) => page.evaluate(
     tokensPerSecond: rate, observedAtMs: now, expiresAtMs: now + 5_000, observation: { startedAtMs: now - elapsed, endedAtMs: now }, freshness: 'live' } });
 }, { rate, elapsed });
 
-test('a fresh measurement beats the mark once; an unchanged reading never beats again', async ({ page }) => {
+test('a new activity beats the mark once; newer readings in the same activity stay still', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/v2?surface=page&state=decode&chat=cloud&poll=500');
   const frame = page.frameLocator('iframe');
@@ -35,14 +35,15 @@ test('a fresh measurement beats the mark once; an unchanged reading never beats 
   await expect.poll(beats).toBe(1);
   await generating(page, 18.4);
   await expect(frame.locator('#rate')).toHaveText('18.4');
-  await expect.poll(beats).toBe(2);
-  expect(await frame.locator('html').evaluate(root => (root.ownerDocument.defaultView as any).beats)).toEqual([{ duration: 260, iterations: 1 }, { duration: 260, iterations: 1 }]);
+  await page.waitForTimeout(600);
+  expect(await beats()).toBe(1);
+  expect(await frame.locator('html').evaluate(root => (root.ownerDocument.defaultView as any).beats)).toEqual([{ duration: 260, iterations: 1 }]);
   // Nothing anywhere in the frame is infinite.
   expect(await frame.locator('html').evaluate(root => root.ownerDocument.getAnimations()
     .filter(animation => animation.effect?.getComputedTiming().iterations === Infinity).length)).toBe(0);
   // Polls that bring no newer observation are still: the beat is keyed to the reading, not to the poll.
   await page.waitForTimeout(1_300);
-  expect(await beats()).toBe(2);
+  expect(await beats()).toBe(1);
 });
 
 test('an arriving block fades in once and settles; later polls never re-animate it', async ({ page }) => {
@@ -117,4 +118,39 @@ test('a paused frame animates nothing when readings change', async ({ page }) =>
   await generating(page, 21.0);
   await page.waitForTimeout(1_200);
   expect(await running(frame, '[data-heartbeat], [data-arrive], [data-crossfade]')).toEqual([]);
+});
+
+test('the standard instrument keeps values live with activity beats and honors reduced motion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/v2?surface=page&sdk=next&design=next&state=decode&chat=cloud&poll=500');
+  const frame = page.frameLocator('iframe');
+  await expect(frame.locator('html')).toHaveAttribute('data-design-mode', 'next');
+  await expect(frame.locator('.instrument-phase')).toHaveText('Ready');
+  await frame.locator('html').evaluate(root => {
+    const w = root.ownerDocument.defaultView as any, original = w.Element.prototype.animate;
+    w.nextMotion = { beats: 0, fades: 0 };
+    w.Element.prototype.animate = function (this: Element, ...args: any[]) {
+      if (this.hasAttribute('data-heartbeat')) w.nextMotion.beats++;
+      if (this.hasAttribute('data-crossfade')) w.nextMotion.fades++;
+      return original.apply(this, args);
+    };
+  });
+  const counts = () => frame.locator('html').evaluate(root => ({ ...(root.ownerDocument.defaultView as any).nextMotion } as { beats: number; fades: number }));
+  await generating(page, 17.8);
+  await expect(frame.locator('#rate')).toHaveText('17.8');
+  await expect.poll(async () => (await counts()).beats).toBe(1);
+  expect((await counts()).fades).toBeGreaterThan(0);
+  await generating(page, 18.4);
+  await expect(frame.locator('#rate')).toHaveText('18.4');
+  await page.waitForTimeout(600);
+  expect((await counts()).beats).toBe(1);
+  await expect(frame.locator('#design-mode,[data-design-choice]')).toHaveCount(0);
+  await generating(page, 19.8);
+  await expect(frame.locator('#rate')).toHaveText('19.8');
+  await page.waitForTimeout(600);
+  expect((await counts()).beats).toBe(1);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await generating(page, 20.5);
+  await expect(frame.locator('#rate')).toHaveText('20.5');
+  expect(await frame.locator('html').evaluate(root => root.ownerDocument.getAnimations().length)).toBe(0);
 });

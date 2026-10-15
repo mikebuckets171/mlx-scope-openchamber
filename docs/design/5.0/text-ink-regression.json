@@ -1,0 +1,111 @@
+{
+  "scope": "Targeted typography and real glyph-ink regression on browser-rendered synthetic fixtures; not a full browser matrix or release approval.",
+  "result": "passed",
+  "testSource": "tests/browser/text-ink.spec.ts",
+  "testSourceSha256": "b2162c3c2f908c940803feafed0b61a7840fc1d8f6d48391a464113b408ef4c4",
+  "artifactSHA256": {
+    "panel/main.js": "6f9faec2acb487007e317f769b2936c31d1bbb2821978036f8474a11d4438d78",
+    "panel/style.css": "580a817f131adb9512e9d142c75e56cac2b89d10e6b3c809c95bc1049ac7e4dc"
+  },
+  "engines": [
+    "Chromium",
+    "WebKit"
+  ],
+  "matrix": [
+    {
+      "surface": "page",
+      "width": 1160,
+      "rootFontPx": 16,
+      "font": "system-ui"
+    },
+    {
+      "surface": "page",
+      "width": 320,
+      "rootFontPx": 16,
+      "font": "system-ui"
+    },
+    {
+      "surface": "page",
+      "width": 320,
+      "rootFontPx": 32,
+      "font": "system-ui"
+    },
+    {
+      "surface": "page",
+      "width": 430,
+      "rootFontPx": 24,
+      "font": "Arial, sans-serif"
+    },
+    {
+      "surface": "status",
+      "width": 320,
+      "rootFontPx": 32,
+      "font": "system-ui"
+    },
+    {
+      "surface": "status",
+      "width": 430,
+      "rootFontPx": 24,
+      "font": "system-ui"
+    },
+    {
+      "surface": "compact",
+      "width": 320,
+      "rootFontPx": 32,
+      "font": "system-ui"
+    },
+    {
+      "surface": "compact",
+      "width": 430,
+      "rootFontPx": 24,
+      "font": "Arial, sans-serif"
+    }
+  ],
+  "casesPassed": 16,
+  "displayedValues": [
+    "25.6",
+    "889",
+    "88,888",
+    "100K"
+  ],
+  "checks": [
+    "Real Canvas glyph-ink metrics against overflow-clipping ancestors",
+    "One numeric line",
+    "No per-digit clipping cells",
+    "Exact formatted values",
+    "No horizontal page overflow",
+    "Enlarged type no smaller than the same value at ordinary root size"
+  ],
+  "focusedRunMapping": {
+    "initial": {
+      "logFile": "focused-tests.log",
+      "sha256": "5644577dc33fd75cb125d129eecd81f36ade5cd2720d901d0f29410b5f04e5d1",
+      "passed": 70,
+      "failed": 4,
+      "inkCasesPassed": 16,
+      "onlyFailures": "652px light/dark in both engines retained obsolete 100\u2013120px font expectation"
+    },
+    "rerun": {
+      "logFile": "type-scale-tests.log",
+      "sha256": "6ae0d8f4f9e6f76f34b74a8a9332abed39fb8d67343ec560d88f21e20cbb9acb",
+      "passed": 4,
+      "failed": 0,
+      "change": "Expected approved primary type range updated to 56\u201380px; no production change between runs per source owner confirmation"
+    },
+    "uniqueFocusedCasesClosed": 74,
+    "singleContiguous74CasePass": false
+  },
+  "supersededExploration": {
+    "logFile": "ink-tests.log",
+    "sha256": "a3e3a48fec3454035db6404eab49b8c07d27a8d7fa05d4c4a86d3edc9988aeb4",
+    "passed": 14,
+    "failed": 2,
+    "cause": "Test changed root type for ordinary/enlarged comparison and did not restore reachable Session scroll; final test scrolls the same reading back into view before retaining every ink assertion."
+  },
+  "limits": [
+    "TextMetrics geometry is a font-ink boundary check, not a human study or bitmap pixel comparison.",
+    "Vertical checks require browser font-box baseline metrics; horizontal checks are always required.",
+    "The release verification index owns final exact-commit hosted whole-suite counts, raw logs and immutable artifact binding.",
+    "Raw local logs are retained by the coordinator; this public receipt contains hashes and logical basenames, not private filesystem paths."
+  ]
+}

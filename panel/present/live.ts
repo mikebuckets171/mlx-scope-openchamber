@@ -27,7 +27,7 @@ export interface ReplyView {
   chip: Chip | null; tip: Tip | null; when: string | null; empty: string | null;
   values: Val[]; split: Val[]; usual: Chip | null; next: NextView | null; model?: string;
 }
-export interface HeroView { instrument: SessionSectionView; speeds: SpeedsView; title: string; chatOnly?: boolean; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; engineTrend: { chart: ChartView | null } | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
+export interface HeroView { instrument: SessionSectionView; speeds: SpeedsView; title: string; model?: string | null; chatOnly?: boolean; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; engineTrend: { chart: ChartView | null; current?: boolean } | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
 export interface Tile { label: string; value: string; detail: string; meter: number | null; basis?: Basis }
 export interface MacRow { key: string; label: string; value: Val; level: Level | null; meter: number | null; tip: Tip | null }
 export interface MacView { title: string; tip: Tip; stale: boolean; line: Array<{ label: string; value: string; meter: number | null }>; rows: MacRow[]; details: MacRow[] }
@@ -159,17 +159,17 @@ const presentHero = (s: ScopeInput): HeroView | null => {
   const instrument = presentSessionSection({ ...s, reading: fromSnapshot(snapshot), chatIsLocal: s.chatIsLocal ?? null, restingFacts: true });
   const base = { instrument, speeds: instrument.speeds, attr: null, body: null, engineTrend: null, firstToken: null, context: null, reply: null };
   if (s.measurementScope !== 'engine' && s.chatIsLocal === false) return { ...base, title: 'This chat', chatOnly: true };
-  const kind = heroKind(s), title = modelOf(snapshot) ?? connName(snapshot.connection), body = kind ? heroBody(kind, s) : null;
+  const kind = heroKind(s), model = modelOf(snapshot), title = model ?? connName(snapshot.connection), body = kind ? heroBody(kind, s) : null;
   // Keep the disclosure in place across lifecycle changes. Only compatible engine readings enter its chart.
   const engineTrend = snapshot.capabilities['request.decodeRate'] || snapshot.capabilities['server.rates']
-    ? { chart: liveChart(s.samples, s.now, snapshot.connection.runtime === 'splash' ? null : s.turnStartAt,
+    ? { current: s.fresh && !s.paused, chart: liveChart(s.samples, s.now, snapshot.connection.runtime === 'splash' ? null : s.turnStartAt,
       snapshot.connection.runtime === 'splash' ? 'server' : 'request') } : null;
-  if (s.paused) return { ...base, speeds: instrument.speeds, title, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, engineTrend };
+  if (s.paused) return { ...base, speeds: instrument.speeds, title, model, body: { kind: 'paused', note: 'Nothing is read while paused, so no reply is recorded.' }, engineTrend };
   const reply = replyView(s);
 
   const live = kind === 'decode' || kind === 'prefill', label = kind ? liveLabel(kind, s) : SERVER_WIDE;
   return {
-    instrument, speeds: instrument.speeds, title, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
+    instrument, speeds: instrument.speeds, title, model, attr: kind && LABELLED.has(kind) ? { chip: attrChip(label, false, s.chatRuntime), tip: attrTip('attr', label, snapshot, live, s.chatRuntime) } : null,
     body, engineTrend,
     firstToken: kind && ACTIVE.has(snapshot.runtime.phase) && snapshot.runtime.request?.ttftMs != null && snapshot.capabilities['request.ttft']
       ? { text: 'First token', strong: dur(snapshot.runtime.request.ttftMs), basis: snapshot.capabilities['request.ttft'].basis } : null,

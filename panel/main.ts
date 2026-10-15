@@ -1,3 +1,5 @@
+import { NextControls } from './next/controller.ts';
+import { renderReadingPopover } from './next/popover.ts';
 import { MediaController } from './media/controller.ts';
 import { mountMediaSetup } from './media/setup.ts';
 import { connectScopeHost } from './host/openchamber.ts';
@@ -30,6 +32,28 @@ if (!root) throw new Error('MLX Scope is missing its root element.');
 const startupFallback = root.querySelector<HTMLElement>('#startup-fallback');
 const startupStatus = startupFallback?.querySelector<HTMLElement>('[role="status"]');
 if (!startupFallback || !startupStatus) throw new Error('MLX Scope is missing its startup fallback.');
+let selectedSurface = false, startupFailed = false;
+// These guards must work before a host answers. They start no collector or storage work.
+const hostDeadline = setTimeout(() => {
+  if (!selectedSurface && !startupFailed) startupStatus.textContent = 'Waiting for OpenChamber. Open this monitor from the extension panel in OpenChamber. If it is already open there, reload the extension in Settings → Extensions.';
+}, 6_000);
+let startupFailure = (): void => {
+  startupFailed = true; clearTimeout(hostDeadline);
+  startupStatus.textContent = 'The extension interface could not start. Reload MLX Scope from OpenChamber’s Settings → Extensions.';
+  if (startupFallback.parentElement !== root || root.childElementCount > 1) root.replaceChildren(startupFallback);
+};
+window.addEventListener('error', () => startupFailure(), true);
+window.addEventListener('unhandledrejection', () => startupFailure());
+const host = connectScopeHost();
+host.onReady(ready => {
+  clearTimeout(hostDeadline);
+  if (startupFailed) return;
+  if (ready.surface === 'popover') { startupFailure = () => {}; renderReadingPopover(root, ready); return; }
+  if (selectedSurface) return;
+  selectedSurface = true;
+  startMonitoring(root, startupFallback, startupStatus);
+});
+function startMonitoring(root: HTMLElement, startupFallback: HTMLElement, startupStatus: HTMLElement): void {
 const state = new ScopeState(Date.now());
 const showStartupFailure = (): void => {
   if (state.mounted) return;
@@ -37,15 +61,14 @@ const showStartupFailure = (): void => {
   startupStatus.textContent = 'The extension interface could not start. Reload MLX Scope from OpenChamber’s Settings → Extensions.';
   if (startupFallback.parentElement !== root || root.childElementCount > 1) root.replaceChildren(startupFallback);
 };
-window.addEventListener('error', () => showStartupFailure(), true);
-window.addEventListener('unhandledrejection', () => showStartupFailure());
-const host = connectScopeHost();
+startupFailure = showStartupFailure;
 const client = new SnapshotClient(host);
 let monitor: Monitor | null = null, pipeline: Pipeline | null = null, render = (): void => {}, disposeSurface = (): void => {};
 let reportPreferenceFailure = (): void => {};
+let nextControls: NextControls | null = null;
 const mediaJobs = new MediaController(host, () => { if (state.mounted) render(); }, () => client.now());
 const visibility = new Visibility(document, window, () => {
-  host.setVisible(visibility.visible); monitor?.sync(); if (state.mounted) render();
+  host.setVisible(visibility.visible); nextControls?.setVisible(visibility.visible && !state.userPaused); monitor?.sync(); if (state.mounted) render();
 });
 host.setVisible(visibility.visible);
 const prefs = new PrefsV2(host.storage), preferences = new Preferences(host.storage);
@@ -99,13 +122,16 @@ const mountStatus = async (ready: HostReadyContext): Promise<void> => {
   let selection: Record<string, string> | undefined = await readSelection(host.storage);
   root.innerHTML = '<main class="scope" id="scope" data-surface="status" aria-label="MLX Scope"></main>';
   const pipeline = pipelineFor('status');
+  nextControls = new NextControls(host, root, ready, () => render());
+  nextControls.setVisible(visibility.visible && !state.userPaused);
   const app = new StatusApp({ root: root.querySelector<HTMLElement>('#scope')!, host, state, client, pipeline, prefs, mediaJobs, visible: () => visibility.visible }, ready.session);
   app.onMeasurementScope = changeMeasurementScope;
   reportPreferenceFailure = () => app.reportPreferenceFailure();
-  render = () => app.render();
+  render = () => { app.render(); nextControls?.setVisible(visibility.visible && !state.userPaused); };
   monitor = monitorFor(pipeline, 'glance', 5_000, () => selection, () => {}, () => {});
+  app.onPauseChanged = () => { monitor?.sync(); nextControls?.setVisible(visibility.visible && !state.userPaused); };
   preferences.load((key, value) => { if (key === 'efficient') state.efficient = value; }).catch(() => {});
-  disposeSurface = () => { app.dispose(); pipeline.dispose(); mediaJobs.dispose(); };
+  disposeSurface = () => { app.dispose(); pipeline.dispose(); mediaJobs.dispose(); nextControls?.dispose(); };
   void readSelection(host.storage).then(next => { selection = next; });
   state.mounted = true;
   clearTimeout(readyDeadline);
@@ -120,6 +146,8 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
   root.prepend(startupFallback);
   const shell = root.querySelector<HTMLElement>('#scope')!, node = (id: string) => shell.querySelector<HTMLElement>(`#${id}`)!;
   shell.dataset.surface = ready.surface;
+  nextControls = new NextControls(host, shell, ready, () => render());
+  nextControls.setVisible(visibility.visible && !state.userPaused);
   node('scope-version').textContent = version;
   const actionStatus = (message: string): void => {
     if (state.statusTimer !== null) clearTimeout(state.statusTimer);
@@ -148,7 +176,7 @@ const mountScope = async (ready: HostReadyContext): Promise<void> => {
   connections.onOpen = checkSetup;
   connections.onVisibility = open => { companion.setVisible(open && visibility.visible); mediaSetup.setVisible(open && visibility.visible); if (state.mounted) render(); };
   const renderApp = render;
-  render = () => { renderApp(); const open = connections.isOpen && visibility.visible; companion.setVisible(open); mediaSetup.setVisible(open); if (!setupRead && visibility.visible) checkSetup(); };
+  render = () => { renderApp(); nextControls?.setVisible(visibility.visible && !state.userPaused && !connections.isOpen && state.tab === 'live' && !state.compact); const open = connections.isOpen && visibility.visible; companion.setVisible(open); mediaSetup.setVisible(open); if (!setupRead && visibility.visible) checkSetup(); };
   const sharing = new SharingControls(node('share-actions'), host, () => measurementReport(state.latest, state.lastHost,
     state.userPaused ? true : state.awaitingFresh || state.stale ? 'refreshing' : false, version, client.now(), state.lastRequest), actionStatus);
 
@@ -228,16 +256,17 @@ host.onReady(ready => {
   started = true;
   startupStatus.textContent = 'Loading saved settings…';
   follow.update(ready.session);
+  if (ready.surface === 'popover') return;
   state.surface = ready.surface;
   (ready.surface === 'status' ? mountStatus(ready) : mountScope(ready)).catch(() => showStartupFailure());
 });
 window.addEventListener('pagehide', event => {
-  host.setVisible(false);
+  host.setVisible(false); nextControls?.setVisible(false);
   pipeline?.hidden(); mediaJobs.sync(false);
   monitor?.poller.stop(); monitor?.clearFreshness(); state.signal.break(); state.generation += 1;
   state.interrupted = true; state.awaitingFresh = true;
   if (!event.persisted) {
-    state.disposed = true; clearTimeout(readyDeadline);
+    state.disposed = true; clearTimeout(readyDeadline); nextControls?.dispose();
     disposeSurface(); visibility.dispose(); stopFollowing();
     if (state.statusTimer !== null) clearTimeout(state.statusTimer);
     host.dispose();
@@ -246,3 +275,5 @@ window.addEventListener('pagehide', event => {
 window.addEventListener('pageshow', event => {
   if (event.persisted && state.mounted && monitor) { host.setVisible(visibility.visible); monitor.sync(); monitor.poller.start(); }
 });
+
+}

@@ -109,7 +109,7 @@ export class Monitor {
     if (expiry !== undefined && expiry > this.#p.client.now()) this.#chatTimer = setTimeout(() => {
       this.#chatTimer = null; this.#p.render();
     }, expiry - this.#p.client.now());
-    state.freshnessTimer = setTimeout(() => { state.freshnessTimer = null; state.stale = true; state.signal.break(); this.#p.render(); }, freshnessDeadline(this.#delay));
+    state.freshnessTimer = setTimeout(() => { state.freshnessTimer = null; state.stale = true; state.signal.break(); state.promptEta.reset(); this.#p.render(); }, freshnessDeadline(this.#delay));
   }
 
   /** Pause or resume polling for the user and the visibility gate; resuming never shows old readings as live. */
@@ -122,7 +122,7 @@ export class Monitor {
     this.#p.live?.(live);
     if (!live) {
       state.interrupted = true; state.awaitingFresh = true;
-      this.clearFreshness(); state.signal.break(); this.#p.hidden(); this.#p.render();
+      this.clearFreshness(); state.signal.break(); state.promptEta.reset(); this.#p.hidden(); this.#p.render();
       return;
     }
     if (state.interrupted) { state.interrupted = false; this.#p.render(); }

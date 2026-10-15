@@ -1,5 +1,5 @@
 // The 3.2 motion system beside the digit roll (M2) and the media ring (M4). Every motion here is caused by a truthful
-// change arriving — a block appearing (M1), a fresh measurement (M3), a phase, unit or label changing (M5) — and runs
+// change arriving — a block appearing (M1), a fresh measurement/activity transition (M3), a phase, unit or label changing (M5) — and runs
 // once. Nothing loops. A hidden or paused frame animates nothing, and Reduce Motion makes every change instant (M6).
 
 const ARRIVE: Keyframe[] = [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }];
@@ -47,7 +47,7 @@ export class Motion {
     arrivals.forEach((node, order) => this.#run(node, ARRIVE, { duration: 120, delay: STAGGER_MS * order, easing: 'ease-out', fill: 'backwards' }));
     // M5: a changed phase, unit or label crossfades; an unchanged one never moves.
     for (const node of changes) this.#run(node, CROSSFADE, { duration: 120, easing: 'ease-out' });
-    // M3: the mark beats once per fresh measurement arrival, in any phase — the only recurring motion, caused by truth.
+    // M3: the mark beats once per new reading/activity key. Next supplies phase keys so same-phase polls stay still.
     for (const mark of marks) this.#run(mark, BEAT, { duration: 260, easing: 'cubic-bezier(.2,.7,.3,1)' });
   }
   #shown(node: HTMLElement): boolean { return typeof node.animate === 'function' && (node.checkVisibility?.() ?? true); }
@@ -64,12 +64,14 @@ export class Motion {
   dispose(): void { this.reset(); this.#reduced?.removeEventListener('change', this.reset); }
 }
 
-type BeatSnapshot = { serverNow: number; runtime: { sampledAt?: number }; chat?: { observedAtMs: number; freshness: string } | null };
+type BeatSnapshot = { serverNow: number; runtime: { sampledAt?: number; phase?: string }; chat?: { observedAtMs: number; freshness: string; phase?: string } | null };
 /**
  * The fresh measurement a frame shows live, by the reading's own sample time — never the poll's arrival. A live chat
  * observation keys by its observation time (a chat-only snapshot has no runtime sample); otherwise the runtime's sample,
- * which the contract dates to the snapshot itself when the runtime reports no separate sample time.
+ * which the contract dates to the snapshot itself when the runtime reports no separate sample time. Next uses
+ * activityOnly to mark phase/source transitions while values and traces continue following every observation.
  */
-export const beatKey = (root: HTMLElement, snapshot: BeatSnapshot | null): string | null =>
+export const beatKey = (root: HTMLElement, snapshot: BeatSnapshot | null, activityOnly = false): string | null =>
   !snapshot || !root.querySelector('[data-live="true"]') ? null
-    : snapshot.chat?.freshness === 'live' ? `chat/${snapshot.chat.observedAtMs}` : `runtime/${snapshot.runtime.sampledAt ?? snapshot.serverNow}`;
+    : snapshot.chat?.freshness === 'live' ? `chat/${activityOnly ? snapshot.chat.phase : snapshot.chat.observedAtMs}`
+      : `runtime/${activityOnly ? snapshot.runtime.phase : snapshot.runtime.sampledAt ?? snapshot.serverNow}`;

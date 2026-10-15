@@ -23,7 +23,7 @@ for (const surface of ['status', 'page']) for (const theme of ['light', 'obsidia
     const frame = page.frameLocator('iframe'), activity = surface === 'status' ? '.ws-phase' : '.instrument-phase';
     const source = surface === 'status' ? '.ws-label' : '.instrument-source';
     await expect(frame.locator(activity)).toHaveText('Ready');
-    await expect(frame.locator('#rate')).toHaveCount(0);
+    await expect(frame.locator('#rate')).toBeHidden();
     await expect(frame.locator(surface === 'status' ? '#ws' : '#panel-live')).not.toContainText('Memory pressure');
     await expect(frame.locator('#scope')).not.toContainText('Speed tracking is for local models.');
     await phase(page, 'generating', 17.8);
@@ -35,7 +35,7 @@ for (const surface of ['status', 'page']) for (const theme of ['light', 'obsidia
       await expect(frame.locator('#phase')).toHaveText('Generating');
       await expect(frame.locator('#connection')).toBeHidden();
     }
-    const region = surface === 'status' ? '.ws-actions' : '#hero', heading = surface === 'status' ? '.ws-context' : '.instrument-heading';
+    const region = surface === 'status' ? '.ws-actions' : '#hero', heading = surface === 'status' ? '#ws-heading' : '.instrument-heading';
     const control = surface === 'status' ? '.ws-actions' : '.instrument-heading .scope-choice';
     const stable = await anchor(frame, region), headingY = (await anchor(frame, heading)).y, controlHeight = (await anchor(frame, control)).height;
     for (const [value, label, rate] of [
@@ -44,7 +44,7 @@ for (const surface of ['status', 'page']) for (const theme of ['light', 'obsidia
     ] as const) {
       await phase(page, value, rate);
       await expect(frame.locator(activity)).toHaveText(label);
-      if (rate === undefined) await expect(frame.locator('#rate')).toHaveCount(0);
+      if (rate === undefined) await expect(frame.locator('#rate')).toBeHidden();
       else await expect(frame.locator('#rate')).toHaveText(String(rate));
       if (value === 'complete') await expect(frame.locator(source)).toContainText('Last cloud · avg.');
       expect((await anchor(frame, heading)).y).toBe(headingY);
@@ -52,10 +52,10 @@ for (const surface of ['status', 'page']) for (const theme of ['light', 'obsidia
       if (value === 'reasoning') expect(await anchor(frame, region)).toEqual(stable);
       // A phase without a reading gives its row back; a true support note can still occupy its own row.
       if (rate === undefined && surface === 'status') {
-        const rows = await frame.locator('.ws-activity').evaluate(node => {
-          const sizes = getComputedStyle(node).gridTemplateRows.split(/\s+/).map(Number.parseFloat);
-          return { measurement: sizes[1] ?? 0, support: sizes[2] ?? 0,
-            hasSupport: !!node.querySelector('.ws-support, .ws-note, .ws-warning, .ws-action-error') };
+        const rows = await frame.locator('.ws-instrument').evaluate(node => {
+          const measurement = node.querySelector('.ws-measurement')!, support = node.querySelector('.ws-support')!;
+          return { measurement: measurement.getBoundingClientRect().height, support: support.getBoundingClientRect().height,
+            hasSupport: !support.hasAttribute('hidden') };
         });
         expect(rows.measurement).toBe(0);
         if (!rows.hasSupport) expect(rows.support).toBe(0);
@@ -72,7 +72,7 @@ for (const surface of ['status', 'page']) for (const theme of ['light', 'obsidia
     }
     if (surface === 'page') {
       await expect(frame.locator('#measurement-details')).toHaveCount(0);
-      await expect(frame.locator('#engine-trend, .machine-summary, #reply-strip')).toHaveCount(0);
+      await expect(frame.locator('#engine-trend, #machine, #reply-strip')).toHaveCount(0);
     }
     // Media stays available during a cloud chat: the glance in the sidebar, the column's Media block on the page.
     if (surface === 'status') await expect(frame.locator('.media-glance')).toBeVisible();
@@ -93,7 +93,7 @@ for (const surface of ['status', 'page']) test(`cloud ${surface} clears expired 
   await expect(frame.locator('#rate')).toHaveText('17.8');
   await page.evaluate(() => { (window as any).previewHold = true; });
   await page.clock.fastForward(5_100);
-  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('#rate')).toBeHidden();
 });
 
 for (const surface of ['status', 'page']) test(`cloud ${surface} clears a rate immediately on chat or model switch`, async ({ page }) => {
@@ -105,7 +105,7 @@ for (const surface of ['status', 'page']) test(`cloud ${surface} clears a rate i
     const w = window as any; w.previewHold = true;
     w.setPreviewSession({ id: 'different-fixture-chat', busy: true, model: 'cloud-provider/different-model' });
   });
-  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('#rate')).toBeHidden();
   await expect.poll(() => page.evaluate(() => (window as any).previewQueries.at(-1)?.chatBusy)).toBe('1');
   const query = await page.evaluate(() => (window as any).previewQueries.at(-1));
   expect(query.provider).toBe('cloud-provider');

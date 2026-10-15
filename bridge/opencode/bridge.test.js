@@ -26,7 +26,7 @@ async function setup(store = memory(), shared = {}, version = '2.0.25') {
   return { hooks, options, store, dispose };
 }
 
-for (const version of ['2.0.25', '2.0.27', '2.0.28']) test(`http hooks opt in only the same Splash request on ${version}`, async () => {
+for (const version of ['2.0.25', '2.0.27', '2.0.28', '2.0.29']) test(`http hooks opt in only the same Splash request on ${version}`, async () => {
   const plugin = await setup(memory(), {}, version), input = event(); const original = await input.request.clone().json();
   await plugin.hooks.get('http.request')(input);
   assert.equal(input.request.url, 'http://127.0.0.1:8000/v1/chat/completions');

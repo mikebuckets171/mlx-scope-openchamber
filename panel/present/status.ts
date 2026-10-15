@@ -44,6 +44,7 @@ export interface StatusSectionInput {
   sessionModel?: string | null;
   chatActivity?: 'idle' | 'busy' | null;
   lastChat?: ChatMeasurement | null;
+  promptEtaMs?: number | null; // recent observed prompt progress; never persisted
   /** The sidebar and compact glance: at rest, show the engine's own record instead of empty rows. */
   restingFacts?: boolean;
 }

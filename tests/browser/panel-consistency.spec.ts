@@ -29,16 +29,24 @@ const readable = async (frame: FrameLocator, selector: string) => {
 // Entering a secondary view starts at its title and return action, even after leaving a long, enlarged Live view.
 const secondaryEntry = async (frame: FrameLocator, view: string, titleFocused = true) => {
   if (titleFocused) await expect(frame.locator(`#${view}-title`)).toBeFocused();
-  expect(await frame.locator(`#panel-${view} > .secondary-heading`).evaluate(root =>
-    [root, ...Array.from(root.querySelectorAll('h2, button'))].every(node => {
+  const bounds = () => frame.locator(`#panel-${view} > .secondary-heading`).evaluate(root =>
+    [root, ...Array.from(root.querySelectorAll('h2, button'))].map(node => {
       const rect = node.getBoundingClientRect();
-      return rect.top >= -1 && rect.bottom <= innerHeight + 1;
-    }))).toBe(true);
+      return { text: node.textContent?.trim(), top: rect.top, bottom: rect.bottom, fits: rect.top >= -1 && rect.bottom <= innerHeight + 1 };
+    }));
+  const initial = await bounds();
+  await expect.poll(async () => (await bounds()).filter(rect => !rect.fits), `${view} heading bounds: ${JSON.stringify(initial)}`).toEqual([]);
 };
 
 // At double text size a poll can move a control between the moment a pointer click picks it and the moment the
 // click lands. Activating the focused control keeps this test about legibility and focus, not pointer timing.
-const activate = (frame: FrameLocator, name: string) => frame.getByRole('button', { name, exact: true }).press('Enter');
+const activate = async (frame: FrameLocator, name: string) => {
+  const control = frame.getByRole('button', { name, exact: true });
+  await control.scrollIntoViewIfNeeded();
+  await control.focus();
+  await expect(control).toBeFocused();
+  await control.press('Enter');
+};
 
 for (const theme of ['light', 'dark']) for (const [width, font] of [[320, 32], [430, 24], [1160, 16]] as const) {
   test(`shared hierarchy and controls remain readable at ${width}px/${font}px in ${theme}`, async ({ page }) => {
@@ -133,4 +141,20 @@ for (const width of [320, 1160]) test(`run comparison separates the metric group
     return label.height > 0 && label.top >= values.bottom;
   })).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
+
+test('the first engine trace preserves the focused details control and its DOM identity', async ({ page }) => {
+  await page.goto('/v2?surface=page&state=decode');
+  const frame = page.frameLocator('iframe');
+  await expect(frame.locator('#rate')).toBeVisible();
+  await frame.locator('#measurement-details > summary').click();
+  const control = frame.getByRole('button', { name: 'Run details', exact: true });
+  await control.focus();
+  await control.evaluate(node => { (node as any).scopeIdentity = 'initial-detail-control'; });
+  await expect(frame.locator('#engine-trend')).toBeVisible();
+  await expect(control).toBeFocused();
+  expect(await control.evaluate(node => (node as any).scopeIdentity)).toBe('initial-detail-control');
+  await control.press('Enter');
+  await expect(frame.getByRole('heading', { name: 'Current observation', exact: true })).toBeFocused();
 });

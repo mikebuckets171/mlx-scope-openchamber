@@ -1,3 +1,4 @@
+import { openServerDetails } from './standard-ui.ts';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
@@ -43,7 +44,7 @@ test('a freshness deadline clears recent speed from the screen and copied statis
   await page.evaluate(() => { (window as any).previewHold = true; });
   await page.clock.runFor(8_000);
   await expect(frame.locator('[data-stage="generation"] .speed-value > span')).toHaveCount(0);
-  await expect(frame.locator('#view-live > .connection-diagnosis')).toContainText('No fresh readings');
+  await expect(frame.locator('#view-live .connection-diagnosis')).toContainText('No fresh readings');
   await frame.locator('#monitor-menu > summary').click();
   await frame.getByRole('button', { name: 'Share', exact: true }).click();
   await frame.getByRole('menuitem', { name: 'Copy stats', exact: true }).click();
@@ -67,10 +68,10 @@ test('a short pause starts a fresh displayed window while lifetime details remai
   await frame.getByRole('button', { name: 'Resume monitoring', exact: true }).click();
   await expect(frame.locator('#hero')).toContainText('Measuring…');
   await expect(frame.locator('[data-stage="generation"] .speed-value > span')).toHaveCount(0);
-  await expect(frame.locator('#rate')).toHaveCount(0);
+  await expect(frame.locator('#rate')).toBeHidden();
   await page.clock.runFor(2_500);
   await expect(frame.locator('[data-stage="generation"] .speed-value > span')).toHaveCount(0);
-  await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+  await openServerDetails(frame);
   await expect(frame.locator('#panel-server')).toContainText('Overall average');
   await expect(frame.locator('#panel-server')).toContainText('47.2 tok/s');
   await frame.getByRole('button', { name: 'Back', exact: true }).click();
@@ -93,7 +94,7 @@ for (const theme of ['light', 'dark']) test(`recent engine labels and intervals 
       await mkdir(evidence, { recursive: true });
       await page.screenshot({ path: join(evidence, `mlx-scope-splash-live-${theme}-${width}.png`) });
     }
-    await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+    await openServerDetails(frame);
     await expect(frame.locator('#panel-server')).toContainText('Recent speeds');
     await expect(frame.locator('#panel-server')).toContainText('All server activity · last 4.0 s');
     await expect(frame.locator('#panel-server')).toContainText('Overall average');
@@ -110,7 +111,7 @@ for (const theme of ['light', 'dark']) test(`recent engine labels and intervals 
   await page.goto(`/v2?surface=status&state=splash-decode&theme=${theme}`);
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · recent 4.0 s');
   const panelFrame = page.frames().find(frame => frame !== page.mainFrame())!;
   const backdrop = await page.evaluate(() => [getComputedStyle(document.documentElement).backgroundColor, getComputedStyle(document.body).backgroundColor]);
   expect(await panelFrame.evaluate(inspect, { openAll: false, backdrop })).toEqual([]);
@@ -121,8 +122,8 @@ test('the Session pane shows live derived tok/s and follows theme changes', asyn
   await page.setViewportSize({ width: 700, height: 500 });
   await page.goto('/v2?demo=1&surface=status&state=splash-decode&theme=graphite-mint');
   const frame = page.frameLocator('iframe');
-  await expect(frame.locator('.ws-reading')).toContainText('tok/s');
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
+  await expect(frame.locator('.ws-reading')).toContainText('tokens/s');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · recent 4.0 s');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
   await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /Calculated/);
   const rate = await frame.locator('.ws-reading').innerText();
@@ -134,8 +135,8 @@ test('the Session pane shows live derived tok/s and follows theme changes', asyn
   }
   await page.getByRole('combobox', { name: 'Preview theme' }).selectOption('warm-amber');
   await expect(frame.locator('html')).toHaveAttribute('data-oc-theme', 'light');
-  await expect(frame.locator('.ws-reading')).toContainText('tok/s');
+  await expect(frame.locator('.ws-reading')).toContainText('tokens/s');
   await page.evaluate(() => (window as any).setPreviewState('splash-measuring'));
-  await expect(frame.locator('.ws-reading')).toHaveCount(0);
+  await expect(frame.locator('.ws-reading')).toBeHidden();
   await expect(frame.locator('#ws')).not.toContainText('tok/s');
 });

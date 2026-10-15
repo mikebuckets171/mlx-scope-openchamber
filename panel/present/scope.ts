@@ -35,6 +35,7 @@ export interface ScopeInput {
   chatActivity?: 'idle' | 'busy' | null;
   chatIsLocal?: boolean | null;
   lastChat?: ChatMeasurement | null;
+  promptEtaMs?: number | null; // recent observed prompt progress; never persisted
 }
 export const SERVER_WIDE: AttributionLabel = { kind: 'server-wide', reason: 'not-observed' };
 

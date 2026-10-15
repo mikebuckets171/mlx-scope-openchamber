@@ -1,9 +1,18 @@
 import { expect, test } from '@playwright/test';
 
 // The ring rule: the ring never displays a number. The percentage is text beside it, so it can never clip the stroke.
-for (const surface of ['status', 'panel', 'page']) test(`the ${surface} media ring holds no number; its measured phase percentage is text beside it`, async ({ page }) => {
+for (const surface of ['status', 'panel', 'page']) test(`the ${surface} media percentage is explicit and never overlaid on its ring`, async ({ page }) => {
   await page.goto(`/v2?surface=${surface}&state=decode&chat=local&media=active`);
   const frame = page.frameLocator('iframe');
+  if (surface === 'status') {
+    // The standard Session uses a compact text summary; its decorative ring is hidden.
+    await expect(frame.locator('.media-ring')).toBeHidden();
+    await expect(frame.locator('.media-glance-phase')).toHaveText('Video · 40% phase progress');
+    await expect(frame.locator('.media-glance-timing')).toContainText('8 / 20 steps');
+    await expect(frame.locator('.media-glance-timing')).toContainText('1 m 12 s elapsed');
+    await expect(frame.locator('.media-glance-head')).toContainText('Sampling');
+    return;
+  }
   const ring = frame.locator('.media-ring:visible'), percent = frame.locator('.media-percent:visible');
   await expect(ring).toHaveAttribute('aria-valuenow', '40');
   await expect(ring).toHaveAttribute('aria-label', 'Sampling progress · this phase only');

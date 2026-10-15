@@ -1,0 +1,30 @@
+{
+  "source": "docs/design/5.0/selected-direction-board.png",
+  "sourcePixels": [
+    1536,
+    1024
+  ],
+  "sourcePanelRect": {
+    "x": 30,
+    "y": 69,
+    "width": 720,
+    "height": 894
+  },
+  "sourceConceptCssWidth": null,
+  "implementation": "docs/design/5.0/docs-final-synthetic-instrument-dark.png",
+  "implementationPixels": [
+    920,
+    761
+  ],
+  "implementationCssSize": [
+    920.0,
+    761.0
+  ],
+  "deviceScaleFactor": 1,
+  "excludedImplementationTopCssPx": 0,
+  "implementationFrameCssHeight": 761.0,
+  "comparisonColumnCssWidth": 920.0,
+  "sourceDisplayScale": 1.2777777777777777,
+  "normalization": "Whole original images embedded intact; CSS crops direction A and optional fixture chrome. No raster image edits. Each panel has the same CSS width; images are not stretched independently.",
+  "limits": "The generated source has no authoritative CSS viewport or density. Its720px concept panel is uniformly displayed at920px to match the actual920px product frame. The user approved the denser polished evolution. Telemetry, model, runtime and observation history differ. The current implementation capture follows the final plain-numeric-text/long-value fix; no pixel-perfect match or human usability study is claimed."
+}

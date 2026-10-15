@@ -10,12 +10,12 @@ const root = join(import.meta.dir, '..');
 const read = (file: string): string => readFileSync(join(root, file), 'utf8');
 const pkg = JSON.parse(read('package.json'));
 
-describe('the 2.0 manifest (plan §6 with the G1/S2 amendments)', () => {
-  test('parses with SDK 2.0.4 and matches the frozen set exactly', () => {
+describe('the Next manifest with the approved awareness grants', () => {
+  test('parses with SDK 2.3.3 and matches the frozen set exactly', () => {
     const parsed = parseManifestJson(read('package.json'));
     expect(parsed.ok).toBe(true);
     expect(manifestProblems(pkg)).toEqual([]);
-    expect(pkg.dependencies['@openchamber/sdk']).toBe('2.0.4');
+    expect(pkg.dependencies['@openchamber/sdk']).toBe('2.3.3');
   });
   test('any drift is named: a capability, a missing exec entry, a different floor or command', () => {
     const changed = structuredClone(pkg);
@@ -25,8 +25,8 @@ describe('the 2.0 manifest (plan §6 with the G1/S2 amendments)', () => {
     changed.openchamber.contributes.commands = [{ name: 'scope' }];
     delete changed.openchamber.contributes.statusSection;
     expect(manifestProblems(changed)).toEqual([
-      'engines.openchamber must be ">=2.0.4"',
-      'contributes.capabilities must be absent (S2: sessions dropped)',
+      'engines.openchamber must be ">=2.3.3"',
+      'contributes.capabilities must be exactly sessions and shells',
       'contributes.statusSection must be {"entry":"panel/index.html","title":"MLX Scope","height":72}',
       'contributes.commands must be exactly [{"name":"scope","description":"Attach a private MLX Scope diagnostics summary"}]',
       'service exec must be exactly the 11 G1 entries, in order',

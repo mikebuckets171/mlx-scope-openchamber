@@ -277,12 +277,13 @@ test('the 280 px Session summary keeps performance readable without repeating a 
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
   await expect(frame.locator('.ws-reading')).toContainText('26.4');
   await expect(frame.locator('.ws-key-stats, .ts-rows')).toHaveCount(0);
-  await expect(frame.locator('.ws-support')).toHaveText('Engine · First token 0.85 s');
+  await expect(frame.locator('.ws-support .ws-fact-label')).toHaveText('Engine first token');
+  await expect(frame.locator('.ws-support .ws-fact-value')).toHaveText('0.85 s');
   await expect(frame.locator('#ws')).not.toContainText('Context used');
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
   const fit = await frame.locator('#ws').evaluate(el => ({ height: el.getBoundingClientRect().height,
     contentHeight: el.scrollHeight, clientHeight: el.clientHeight, pageWidth: document.documentElement.scrollWidth, availableWidth: innerWidth }));
-  expect(fit.height).toBeLessThanOrEqual(200);
+  expect(fit.height).toBeLessThanOrEqual(320);
   expect(fit.contentHeight).toBeLessThanOrEqual(fit.clientHeight);
   expect(fit.pageWidth).toBeLessThanOrEqual(fit.availableWidth);
 });
@@ -305,7 +306,7 @@ test('a remembered stats expansion cannot promote an unmeasured reply above curr
   await expect(frame.locator('.ws-warning')).toHaveText('Memory pressure · warning');
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.locator('.ws-phase')).toHaveText('Idle');
-  await expect(frame.locator('.ws-reading, .ws-age, .ts-head, .ts-rows, .chip')).toHaveCount(0);
+  await expect(frame.locator('.ws-reading:visible, .ws-age, .ts-head, .ts-rows, .chip')).toHaveCount(0);
   await expect(frame.locator('#ws')).not.toContainText('Last reply');
   await expect(frame.locator('#ws')).not.toContainText('no turn summary');
   await expect(frame.locator('#ws')).not.toContainText('not observed');
@@ -320,12 +321,12 @@ test('Session summary clears live speed when Splash readings become stale and re
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-reading')).toContainText('43.8');
   await page.evaluate(() => (window as any).setPreviewState('splash-stale'));
-  await expect(frame.locator('.ws-reading')).toHaveCount(0);
+  await expect(frame.locator('.ws-reading')).toBeHidden();
   await expect(frame.locator('#ws')).not.toContainText('tok/s');
   await expect(frame.locator('.ws-phase')).not.toHaveText('Generating');
   await page.evaluate(() => (window as any).setPreviewState('splash-decode'));
   await expect(frame.locator('.ws-reading')).toContainText('43.8');
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · recent 4.0 s');
 });
 
 test('completed-response first token remains explicitly last reply during a later request', async ({ page }) => {

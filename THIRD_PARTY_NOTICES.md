@@ -2,8 +2,9 @@
 
 ## OpenChamber SDK
 
-The bundled panel uses `@openchamber/sdk` 2.0.4, licensed under the MIT
-License.
+The bundled panel uses `@openchamber/sdk` 2.3.3. The background-only alias
+`@openchamber/sdk-background` uses the official SDK 2.0.4 for its existing command
+contract. Both are licensed under the MIT License.
 
 Copyright (c) 2025 Bohdan Triapitsyn
 

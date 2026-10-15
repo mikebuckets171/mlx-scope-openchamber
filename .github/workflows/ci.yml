@@ -24,6 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -48,23 +49,39 @@ jobs:
   browser:
     # Scope is a macOS extension, so the browser suite runs against the WebKit build users actually get.
     # The Linux runner used a different engine build and failed geometry checks that pass on macOS.
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, webkit]
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: .bun-version
       - run: bun install --frozen-lockfile
       - run: bun run build
-      - run: bunx playwright install --with-deps chromium webkit
-      - run: bun run test:browser --workers=2
+      - name: Verify tracked bundles after build
+        run: git diff --exit-code -- panel/main.js panel/style.css service/main.js background/main.js package.json bun.lock
+      - run: bunx playwright install --with-deps ${{ matrix.engine }}
+      - name: Browser source provenance
+        run: |
+          git show -s --format='checkout_commit=%H%ncheckout_tree=%T' HEAD
+          shasum -a 256 panel/main.js panel/style.css service/main.js background/main.js package.json bun.lock
+          node --version
+          bun --version
+      - run: bun run test:browser --project=${{ matrix.engine }} --workers=2
+      - name: Verify tracked bundles after browser tests
+        if: always()
+        run: git diff --exit-code -- panel/main.js panel/style.css service/main.js background/main.js package.json bun.lock
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
-          name: browser-failures
+          name: browser-failures-${{ matrix.engine }}
           path: test-results/
           retention-days: 7
           if-no-files-found: warn

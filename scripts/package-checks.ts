@@ -18,14 +18,14 @@ export const GUEST_BUNDLES = ['panel/main.js', 'background/main.js'] as const;
 export const COMMAND = { name: 'scope', description: 'Attach a private MLX Scope diagnostics summary' } as const;
 export const STATUS_SECTION = { entry: 'panel/index.html', title: 'MLX Scope', height: 72 } as const;
 export const BACKGROUND_ENTRY = 'background/index.html';
-export const SDK_VERSION = '2.0.4';
-export const ENGINES_FLOOR = '>=2.0.4';
+export const SDK_VERSION = '2.3.3';
+export const ENGINES_FLOOR = '>=2.3.3';
 
 type Json = Record<string, unknown>;
 const obj = (value: unknown): Json | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Json : null;
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
-/** Every way the manifest departs from the §6 set with the G1/S2 amendments (no capabilities, no sessions). */
+/** The approved host floor, SDKs, awareness grants and unchanged probe permissions. */
 export const manifestProblems = (pkg: unknown): string[] => {
   const root = obj(pkg), openchamber = obj(root?.openchamber), contributes = obj(openchamber?.contributes);
   const service = obj(contributes?.service), exec = obj(service?.permissions)?.exec;
@@ -34,7 +34,8 @@ export const manifestProblems = (pkg: unknown): string[] => {
   expect(openchamber?.apiVersion === 1, 'openchamber.apiVersion must be 1');
   expect(obj(openchamber?.engines)?.openchamber === ENGINES_FLOOR, `engines.openchamber must be "${ENGINES_FLOOR}"`);
   expect(obj(root?.dependencies)?.['@openchamber/sdk'] === SDK_VERSION, `@openchamber/sdk must be pinned to ${SDK_VERSION}`);
-  expect(!contributes || !('capabilities' in contributes), 'contributes.capabilities must be absent (S2: sessions dropped)');
+  expect(same(contributes?.capabilities, ['sessions', 'shells']), 'contributes.capabilities must be exactly sessions and shells');
+  expect(obj(root?.dependencies)?.['@openchamber/sdk-background'] === 'npm:@openchamber/sdk@2.0.4', 'background SDK must remain pinned to official 2.0.4');
   expect(same(contributes?.statusSection, STATUS_SECTION), `contributes.statusSection must be ${JSON.stringify(STATUS_SECTION)}`);
   expect(same(contributes?.background, { entry: BACKGROUND_ENTRY }), `contributes.background must be {"entry":"${BACKGROUND_ENTRY}"}`);
   expect(same(contributes?.commands, [COMMAND]), `contributes.commands must be exactly [${JSON.stringify(COMMAND)}]`);

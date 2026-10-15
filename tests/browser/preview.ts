@@ -1,5 +1,5 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
-
+import { openConnections, openServerDetails } from './standard-ui.ts';
 
 // 3.2 has one column and secondary views with Back; these replace the 3.1 Live/History tabs.
 const toColumn = async (frame: FrameLocator): Promise<void> => {
@@ -38,7 +38,9 @@ test('packaged entry gives a useful accessible state when its bundle cannot load
 });
 
 test('a synchronous bootstrap failure restores the accessible startup fallback', async ({ page }) => {
-  await page.clock.install();
+  const epoch = Date.UTC(2026, 9, 15, 12);
+  await page.clock.install({ time: epoch });
+  await page.clock.pauseAt(epoch + 60_000);
   await page.route('**/panel/main.js', async route => {
     const response = await route.fetch();
     await route.fulfill({ response, body: `${await response.text()}\nthrow new Error('bootstrap fixture failure');` });
@@ -51,7 +53,9 @@ test('a synchronous bootstrap failure restores the accessible startup fallback',
 });
 
 test('an unopened host shows setup guidance rather than an endless loading claim', async ({ page }) => {
-  await page.clock.install();
+  const epoch = Date.UTC(2026, 9, 15, 12);
+  await page.clock.install({ time: epoch });
+  await page.clock.pauseAt(epoch + 60_000);
   await page.goto('/?nohost=1');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#startup-fallback')).toBeVisible();
@@ -61,7 +65,9 @@ test('an unopened host shows setup guidance rather than an endless loading claim
 });
 
 for (const surface of ['page', 'status']) test(`slow saved settings retain a visible startup state on ${surface}`, async ({ page }) => {
-  await page.clock.install();
+  const epoch = Date.UTC(2026, 9, 15, 12);
+  await page.clock.install({ time: epoch });
+  await page.clock.pauseAt(epoch + 60_000);
   await page.goto(`/?surface=${surface}&storage=startup-slow`);
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#startup-fallback')).toBeVisible();
@@ -90,7 +96,7 @@ test('relay srcdoc transport renders packaged assets, follows theme changes and 
   await expect(frame.locator('#connection')).toHaveText('oMLX');
   await expect(frame.locator('#prefill-percent')).toHaveText('64%');
   await expect(frame.locator('#prefill-progress')).toContainText('5,824 of 9,100 new tokens read');
-  await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+  await openServerDetails(frame);
   await expect(frame.locator('[data-key="server-memory"]')).toContainText('15.9 GiB');
   await expect(frame.locator('html')).toHaveCSS('background-color', 'rgb(16, 21, 27)');
   await page.evaluate(() => (window as W).setPreviewTheme('light'));
@@ -115,11 +121,16 @@ test('responsive layouts keep the masthead aligned and never overflow, in every 
     expect(await overflows(frame), `${theme}/${width}`).toBe(false);
     const alignment = await frame.locator('.masthead').evaluate(el => {
       const brand = el.querySelector('.brand')!.getBoundingClientRect(), controls = el.querySelector('.monitor-controls')!.getBoundingClientRect();
-      return { centerDelta: Math.abs(brand.y + brand.height / 2 - controls.y - controls.height / 2), clear: brand.right <= controls.left };
+      return {
+        centerDelta: Math.abs(brand.y + brand.height / 2 - controls.y - controls.height / 2),
+        clear: brand.right <= controls.left || brand.bottom <= controls.top,
+        controlsBelow: controls.top >= brand.bottom,
+      };
     });
-    expect(alignment.centerDelta, `${theme}/${width}: header alignment`).toBeLessThan(2);
+    if (width >= 900) expect(alignment.centerDelta, `${theme}/${width}: wide header alignment`).toBeLessThan(2);
+    else expect(alignment.centerDelta < 2 || alignment.controlsBelow, `${theme}/${width}: controls align beside or follow the brand`).toBe(true);
     expect(alignment.clear, `${theme}/${width}: header controls overlap the name`).toBe(true);
-    await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+    await openServerDetails(frame);
     expect(await overflows(frame), `${theme}/${width} server`).toBe(false);
   }
 });
@@ -134,18 +145,17 @@ test('runtime states and missing readings are explicit, never zero or placeholde
     if (state === 'offline') {
       await expect(frame.locator('#panel-live .connection-diagnosis')).toContainText('stopped responding');
       await expect(frame.locator('#rate')).toHaveCount(0);
-      await frame.locator('#measurement-details > summary').click();
-  await expect(frame.locator('.machine-summary')).toBeVisible();
-      await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+      await expect(frame.locator('#machine')).toBeVisible();
+      await openServerDetails(frame);
       await expect(frame.locator('#machine')).toContainText('1.1 GiB');
     }
   }
   let frame = await openPanel(page, 'native=missing');
-  await expect(frame.locator('.machine-summary')).not.toContainText('Swap');
+  await expect(frame.locator('#machine')).not.toContainText('Swap');
   frame = await openPanel(page, 'system=linux');
-  await expect(frame.locator('.machine-summary h2')).toHaveText('This computer');
+  await expect(frame.locator('#machine h2')).toHaveText('This computer');
   frame = await openPanel(page, 'system=missing');
-  await expect(frame.locator('.machine-summary')).toHaveCount(0);
+  await expect(frame.locator('#machine')).toHaveCount(0);
 });
 
 test('manual pause survives visibility changes and resumes once', async ({ page }) => {
@@ -179,7 +189,7 @@ test('stalled responses cannot leave a live rate on screen', async ({ page }) =>
   const frame = await openPanel(page, 'state=stalled');
   await expect(frame.locator('#rate')).toBeVisible();
   await expect(frame.locator('#rate')).toHaveCount(0, { timeout: 9_000 });
-  await expect(frame.locator('#view-live > .connection-diagnosis')).toContainText('No fresh readings');
+  await expect(frame.locator('#panel-live .connection-diagnosis')).toContainText('No fresh readings');
 });
 
 test('returning to a hidden panel with a pending request never presents old speed as live', async ({ page }) => {
@@ -334,7 +344,7 @@ test('connection help uses the supported status call only on demand', async ({ p
 
 test('a denied service check never shows raw errors; the guide link is the documented one', async ({ page }) => {
   const frame = await openPanel(page, 'denied=1&state=offline');
-  await menu(frame, '#connection-change');
+  await openConnections(frame);
   await frame.locator('#connection-help summary').click();
   await frame.locator('#check-connection').click();
   await expect(frame.locator('#connection-result')).toContainText('Allow MLX Scope');
@@ -363,7 +373,7 @@ test('concurrent requests withhold per-request speed, and hostile model names re
   await expect(frame.locator('#hero')).toContainText('2 requests');
   await expect(frame.locator('.speed-pair')).not.toContainText('tok/s');
   await expect(frame.locator('#attribution')).toContainText('All server activity · several requests at once');
-  await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+  await openServerDetails(frame);
   await expect(frame.locator('[data-key="server-residency"] .resident-row')).toHaveCount(2);
   await page.evaluate(() => (window as W).setPreviewOverride({ residentModels: [{ id: '<img src=x onerror=alert(1)>', phase: 'idle', activeRequests: 0 }] }));
   await menu(frame, '#refresh');

@@ -69,6 +69,7 @@ export class ConnectionsView {
   #runtime: HTMLSelectElement;
   #setup: HTMLElement;
   #trigger: HTMLButtonElement;
+  #returnFocus: HTMLElement | null = null;
   onOpen: () => void = () => {};
   onVisibility: (open: boolean) => void = () => {};
   get isOpen(): boolean { return !this.#setup.hidden; }
@@ -83,7 +84,7 @@ export class ConnectionsView {
     this.#runtime = this.#node('connection-runtime') as HTMLSelectElement;
     this.#setup = this.#node('connection-setup');
     this.#trigger = this.#node('connection-change') as HTMLButtonElement;
-    this.#trigger.addEventListener('click', () => this.#setOpen(this.#setup.hidden));
+    this.#trigger.addEventListener('click', () => this.#setOpen(this.#setup.hidden, true, this.#trigger));
     this.#node('connection-close').addEventListener('click', () => this.#setOpen(false, true));
     this.#node('connection-configure').addEventListener('click', () => this.#setOpen(true, true));
     this.#setup.addEventListener('keydown', event => {
@@ -120,7 +121,7 @@ export class ConnectionsView {
     this.#persist(() => this.#storage.set(STORAGE_KEY, this.selection));
   }
   /** Opens the connection chooser, as the callout's Connection… link does. */
-  openSetup(): void { this.#setOpen(true, true); }
+  openSetup(trigger?: HTMLElement): void { this.#setOpen(true, true, trigger); }
   async load(): Promise<void> {
     const revision = this.#revision;
     try {
@@ -173,15 +174,22 @@ export class ConnectionsView {
     }));
     this.#provider.value = selected;
   }
-  #setOpen(open: boolean, focus = false): void {
+  #setOpen(open: boolean, focus = false, trigger?: HTMLElement): void {
     if (open) {
+      if (!this.isOpen) {
+        const active = trigger ?? this.#root.ownerDocument.activeElement;
+        this.#returnFocus = active instanceof HTMLElement && this.#root.contains(active) && !this.#setup.contains(active) ? active : null;
+      }
       this.#paintChoices(); this.#provider.value = this.selection.provider;
       this.#runtime.value = this.selection.runtime ?? '';
       this.onOpen();
     }
     this.#setup.hidden = !open; this.onVisibility(open); this.#trigger.setAttribute('aria-expanded', String(open));
-    // The trigger lives in the ⋯ menu, which closes once an action is chosen; return focus to the menu button then.
-    const visibleTrigger = this.#trigger.checkVisibility() ? this.#trigger : this.#root.querySelector<HTMLElement>('#monitor-menu > summary') ?? this.#trigger;
+    const nav = this.#root.querySelector<HTMLElement>('.next-nav [data-action="connection"]');
+    nav?.setAttribute('aria-expanded', String(open));
+    // A callout can disappear after connection changes. Prefer its still-visible origin, then permanent navigation.
+    const visibleTrigger = [this.#returnFocus, nav, this.#trigger, this.#root.querySelector<HTMLElement>('#monitor-menu > summary')]
+      .find(node => node?.isConnected && node.checkVisibility()) ?? this.#trigger;
     if (focus) (open ? this.#node('connection-setup-title') : visibleTrigger).focus({preventScroll:true});
   }
 }

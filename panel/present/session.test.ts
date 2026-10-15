@@ -517,3 +517,30 @@ test('unknown chat identity explains withheld collection without claiming a fail
   const input = inputOf('decode', { snapshot: null, last: null, reading: frameReading('chat_unavailable', message, MOCK_NOW) });
   expect(presentSessionSection(input)).toMatchObject({ phase: 'Chat identity unavailable', note: message, measurement: null, held: null });
 });
+
+test('prompt ETA prefers the engine estimate and stays visible alongside the priority warning', () => {
+  const input = inputOf('prefill', { promptEtaMs: 90_000 }, body => {
+    body.capabilities['request.prefillEta'] = { basis: 'estimate', scope: 'request' };
+    body.runtime.request.prefillEtaMs = 13_650;
+    body.alerts = (mockBody('pressure') as any).alerts;
+  });
+  const view = presentSessionSection(input);
+  expect(view.eta?.text).toBe('Est. 15 s left');
+  expect(view.eta?.detail).toContain('reported by the engine');
+  const markup = sessionMarkup(view, null, false, true).markup;
+  expect(markup).toContain('Est. 15 s left'); expect(markup).toContain('Memory pressure');
+});
+test('observed prompt ETA is qualified and withheld outside a fresh single prompt', () => {
+  const input = inputOf('prefill', { promptEtaMs: 13_650 });
+  delete input.snapshot!.capabilities['request.prefillEta'];
+  expect(presentSessionSection(input).eta?.text).toBe('Est. 15 s left');
+  expect(presentSessionSection(input).eta?.detail).toContain('recent token progress');
+  for (const extra of [{ paused: true }, { fresh: false }, { chatIsLocal: false }, { promptEtaMs: NaN }, { promptEtaMs: 0 }])
+    expect(presentSessionSection({ ...input, ...extra }).eta).toBeNull();
+  for (const patch of [(s: any) => s.runtime.request.prefillStale = true,
+    (s: any) => s.runtime.request.prefillFraction = 1, (s: any) => s.runtime.server.active = 2,
+    (s: any) => s.runtime.phase = 'decode', (s: any) => s.runtime.phase = 'idle']) {
+    const copy = structuredClone(input); patch(copy.snapshot); copy.reading = fromSnapshot(copy.snapshot!);
+    expect(presentSessionSection(copy).eta).toBeNull();
+  }
+});

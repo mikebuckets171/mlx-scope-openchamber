@@ -272,7 +272,7 @@ describe('explicit companion setup', () => {
     expect(await readFile(f.config, 'utf8')).toBe(config);
   });
 
-  for (const runtimeVersion of ['2.0.27', '2.0.28']) it(`updates a helper that predates qualified ${runtimeVersion} without trusting its unsupported telemetry`, async () => {
+  for (const runtimeVersion of ['2.0.27', '2.0.28', '2.0.29']) it(`updates a helper that predates qualified ${runtimeVersion} without trusting its unsupported telemetry`, async () => {
     let at = 30_000; const f = await fixture('{"plugins":["other-plugin"]}', { now: () => at });
     await writeFile(join(f.bundle, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.2.0' }));
     await f.setup.enable();

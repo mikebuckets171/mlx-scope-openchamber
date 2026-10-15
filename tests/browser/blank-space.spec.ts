@@ -1,6 +1,9 @@
 import { expect, test, type Frame, type FrameLocator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
+// Each case owns its browser context/storage. Share the existing two workers across this long matrix.
+test.describe.configure({ mode: 'parallel' });
+
 // Same fixture inventory as panel/testing/mock-states.ts; Node's test loader cannot import its bare JSON module.
 const MOCK_STATES = Object.keys(JSON.parse(readFileSync(new URL('../../docs/design/2.0-mock-fixtures.json', import.meta.url), 'utf8')).states);
 
@@ -23,7 +26,7 @@ const geometry = () => {
   const content = (node: HTMLElement) => node.innerText.trim().length > 0 || Array.from(node.querySelectorAll<HTMLElement>(
     'button, select, input, [role="progressbar"], .usage-bars i, svg path.trace, svg path.band, .gap-band',
   )).some(child => shown(child) && (!child.matches('svg path') || !!child.getAttribute('d')));
-  const regions = '.instrument-readout, .instrument-measure, .instrument-evidence, .machine-summary-values, .machine-health, .media-glance-timing, '
+  const regions = '.instrument-readout, .instrument-measure, .instrument-evidence, .machine-summary-values, .machine-health, .machine-line, .mac-rows, .media-glance-timing, '
     + '.media-jobs, .media-sources, .actions, .insight-actions, .metrics, .values-2, .values-3, .ledger, .usage-bars, .usage-days, '
     + '#view-live, #view-media, #view-history, #captures-content, #media-setup, #media-advanced, #companion-setup';
   for (const region of Array.from(document.querySelectorAll<HTMLElement>(regions))) {
@@ -56,6 +59,9 @@ const geometry = () => {
   for (const node of Array.from(document.querySelectorAll<HTMLElement>('#panels [hidden], #connection-setup[hidden]'))) {
     if (node.getBoundingClientRect().height > 0) failures.push(`${name(node)} is hidden but reserves height`);
   }
+  for (const node of Array.from(document.querySelectorAll<HTMLElement>('.ws-next [hidden]'))) {
+    if (node.getBoundingClientRect().height > 0) failures.push(`${name(node)} is hidden but reserves height`);
+  }
   return failures;
 };
 const clean = async (frame: Frame, context: string): Promise<void> => { expect(await frame.evaluate(geometry), context).toEqual([]); };
@@ -86,8 +92,10 @@ for (const { surface, width, theme, font } of SURFACES) test(`all mock states us
     const { frame, ui } = await load(page, `surface=${surface}&state=${state}&media=active&theme=${theme}`, width, font);
     if (state === 'paused') await ui.getByRole('button', { name: 'Pause monitoring', exact: true }).click();
     await clean(frame, `${state}: page hero and media`);
+    const details = ui.locator('#measurement-details');
     const server = ui.getByRole('button', { name: 'Server & Mac details', exact: true });
-    if (await server.isVisible()) {
+    if (await details.isVisible()) {
+      await details.locator(':scope > summary').click();
       await server.click();
       await expect(ui.locator('#server-title')).toBeVisible();
       await clean(frame, `${state}: server`);
@@ -132,20 +140,25 @@ test('populated glance rows keep their space while offline and unmeasured rows c
   const { frame, ui } = await load(page, 'surface=status&state=decode', 500);
   for (const width of [230, 430]) {
     await page.locator('iframe').evaluate((node, width) => { (node as HTMLElement).style.width = `${width}px`; }, width);
-    const heights = await ui.locator('.ws-activity').evaluate(node => {
+    const heights = await ui.locator('.ws-instrument').evaluate(node => {
       const measure = node.querySelector('.ws-measurement')!, support = node.querySelector('.ws-support')!;
-      return [measure.getBoundingClientRect().height, support.getBoundingClientRect().height, parseFloat(getComputedStyle(document.documentElement).fontSize)];
+      const reading = measure.querySelector('.ws-reading')!, fact = support.querySelector('.ws-fact-value')!;
+      return { measurement: measure.getBoundingClientRect().height, support: support.getBoundingClientRect().height,
+        reading: reading.getBoundingClientRect().height, fact: fact.getBoundingClientRect().height,
+        readingFont: parseFloat(getComputedStyle(reading).fontSize), factFont: parseFloat(getComputedStyle(fact).fontSize) };
     });
-    expect(heights[0]).toBeGreaterThanOrEqual(width === 230 ? 2.625 * heights[2]! : Math.max(36, 2.25 * heights[2]!));
-    expect(heights[1]).toBeGreaterThanOrEqual(width === 230 ? 2.0625 * heights[2]! : Math.max(20, 1.25 * heights[2]!));
+    expect(heights.measurement).toBeGreaterThanOrEqual(heights.reading);
+    expect(heights.support).toBeGreaterThanOrEqual(heights.fact);
+    expect(heights.reading).toBeGreaterThanOrEqual(heights.readingFont);
+    expect(heights.fact).toBeGreaterThanOrEqual(heights.factFont);
     await clean(frame, `populated ${width}px`);
   }
   const offline = await load(page, 'surface=status&state=offline', 300);
   await expect(offline.ui.locator('.ws-note')).toContainText('Scope checks again automatically');
-  await expect(offline.ui.locator('.ws-measurement')).toHaveCount(0);
+  await expect(offline.ui.locator('.ws-measurement')).toBeHidden();
   await clean(offline.frame, 'offline note');
   const unmeasured = await load(page, 'surface=status&state=splash-measuring', 300);
-  await expect(unmeasured.ui.locator('.ws-measurement, .ws-support')).toHaveCount(0);
+  await expect(unmeasured.ui.locator('.ws-measurement:visible, .ws-support:visible')).toHaveCount(0);
   await clean(unmeasured.frame, 'unmeasured Splash');
 });
 
