@@ -2,7 +2,7 @@ import { digitMarkup } from '../digit-roll.ts';
 import type { SessionMeasurement, SessionSectionView } from '../../present/session.ts';
 import { BASIS_WORD } from '../../present/parts.ts';
 import { flag, html, type Raw } from '../html.ts';
-import { compactRate } from './speeds.ts';
+import { compactRate, readoutWidth } from './speeds.ts';
 import type { ChartView } from '../chart.ts';
 
 /** Stable readout ids per kind: a % or an elapsed time is never addressed as a rate. */
@@ -26,7 +26,7 @@ export const sessionMarkup = (view: SessionSectionView, actionError: string | nu
   return html`<div class="ws ws-session" id="ws" data-presentation="session" data-mode="summary" data-resting="${String(view.resting)}">
     <div class="ws-activity">
       <div class="ws-line ws-heading ws-context"><span class="ws-phase" data-tone="${view.tone}" data-crossfade>${view.phase}</span>${scopeMenuMarkup(view.measurementScope)}</div>
-      ${measurement ? html`<div class="ws-line ws-measurement" data-live="${String(measurement.live)}" data-basis="${measurement.basis}" data-arrive title="${measurement.detail}"><span class="ws-reading" aria-hidden="true"><strong id="${READOUT_ID[measurement.kind]}" aria-hidden="true"${next ? '' : html` data-roll-value="${readingText}" data-roll-context="${view.phase}/${view.measurementScope}/${measurement.basis}/${measurement.label}"`}>${next ? readingText : digitMarkup(readingText)}</strong>${measurement.unit ? html` <span aria-hidden="true">${measurement.unit}</span>` : ''}</span><span class="sr-only measurement-accessible">${measurement.text}${measurement.unit ? ' tokens per second' : ''}</span><span class="ws-label" data-crossfade>${label}</span><span class="sr-only basis">${measurement.detail}</span></div>` : ''}
+      ${measurement ? html`<div class="ws-line ws-measurement" data-live="${String(measurement.live)}" data-basis="${measurement.basis}" data-arrive title="${measurement.detail}"><span class="ws-reading" aria-hidden="true"><strong id="${READOUT_ID[measurement.kind]}" aria-hidden="true"${next ? html` style="--reading-width:${readoutWidth(readingText)}"` : html` data-roll-value="${readingText}" data-roll-context="${view.phase}/${view.measurementScope}/${measurement.basis}/${measurement.label}"`}>${next ? readingText : digitMarkup(readingText)}</strong>${measurement.unit ? html` <span aria-hidden="true">${measurement.unit}</span>` : ''}</span><span class="sr-only measurement-accessible">${measurement.text}${measurement.unit ? ' tokens per second' : ''}</span><span class="ws-label" data-crossfade>${label}</span><span class="sr-only basis">${measurement.detail}</span></div>` : ''}
       ${view.support && !alert && !actionError && !view.note ? html`<div class="ws-line ws-support" title="${view.support.detail}">${view.support.text}${view.support.basis && view.support.basis !== 'reported' ? html` <span class="basis">${BASIS_WORD[view.support.basis]}</span>` : ''}</div>`
         : view.held && !alert && !actionError && !view.note ? html`<div class="ws-line ws-support ws-held" data-held="true" data-arrive title="${view.held.detail}">${view.held.text}</div>` : ''}
     ${!actionError && alert ? html`<div class="ws-line ws-warning" data-severity="${alert.severity}" title="${alert.label}">${alert.label}</div>` : !actionError && view.note ? html`<div class="ws-line ws-note" title="${view.note}">${view.note}</div>` : ''}
@@ -58,6 +58,7 @@ const nextSessionMarkup = (view: SessionSectionView, actionError: string | null,
   const interval = chart?.label.match(/last (\d+) s:/)?.[1];
   const end = chart?.line.match(/([\d.]+) ([\d.]+)$/);
   const unit = measurement?.kind === 'speed' ? 'tokens/s' : measurement?.unit;
+  const readingText = measurement?.kind === 'speed' ? compactRate(measurement.text) : measurement?.text ?? '';
   return html`<div class="ws ws-session ws-next" id="ws" data-presentation="session" data-mode="summary" data-resting="${String(view.resting)}" tabindex="-1">
     <div class="ws-scroll" id="ws-scroll">
       <div class="ws-toolbar" id="ws-toolbar"${flag('hidden', !!options.headerActive)}>
@@ -68,7 +69,7 @@ const nextSessionMarkup = (view: SessionSectionView, actionError: string | null,
       <section class="ws-instrument" aria-label="Session activity">
         <div class="ws-line ws-heading" id="ws-heading"><span class="ws-phase" data-tone="${view.tone}" data-live="${String(!!measurement?.live)}" data-crossfade><span class="ws-phase-dot" aria-hidden="true"></span>${view.phase}</span><span class="ws-runtime">${view.speeds.source}</span></div>
         <div class="ws-measurement" id="ws-measurement" data-live="${String(!!measurement?.live)}" data-basis="${measurement?.basis ?? 'unavailable'}" title="${measurement?.detail ?? ''}"${flag('hidden', !measurement)}>
-          <span class="ws-reading" aria-hidden="true"><strong id="${measurement ? READOUT_ID[measurement.kind] : 'rate'}">${measurement?.kind === 'speed' ? compactRate(measurement.text) : measurement?.text ?? ''}</strong>${unit ? html`<span>${unit}</span>` : ''}</span>
+          <span class="ws-reading" aria-hidden="true"><strong id="${measurement ? READOUT_ID[measurement.kind] : 'rate'}" style="--reading-width:${readoutWidth(readingText)}">${readingText}</strong>${unit ? html`<span>${unit}</span>` : ''}</span>
           <span class="sr-only measurement-accessible">${measurement?.text ?? ''}${measurement?.kind === 'speed' ? ' tokens per second' : unit ? ` ${unit}` : ''}</span>
           <span class="ws-label" data-crossfade>${label}</span><span class="sr-only basis">${measurement?.detail ?? ''}</span>
         </div>

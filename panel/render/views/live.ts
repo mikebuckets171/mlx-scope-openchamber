@@ -6,15 +6,11 @@ import { SPLASH_SPEED_HELP } from '../../present/speeds.ts';
 import { tile, type HeroView, LiveView, MacRow, MacView, NextView, ReplyView, Tile } from '../../present/live.ts';
 import type { ChartView } from '../chart.ts';
 import { html, type Part, type Raw } from '../html.ts';
-import { averagesMarkup, compactRate, speedsMarkup } from './speeds.ts';
+import { averagesMarkup, compactRate, readoutWidth, speedsMarkup } from './speeds.ts';
 import { measurementLabel, READOUT_ID, scopeMenuMarkup } from './session.ts';
 import { callouts, chip, disclosure, ICON, meter, pct100, tipParts, val, type Open } from './parts.ts';
 
 // Activity, speed and available engine context share one flat instrument.
-
-/** Conservative advance budget with ink margin: keep a complete reading on one line at enlarged text sizes. */
-const readoutWidth = (value: string): string => Math.max(1.5, [...value].reduce((width, char) =>
-  width + (/[\d]/.test(char) ? .64 : /[.,:\s]/.test(char) ? .3 : /[%MWmw]/.test(char) ? 1 : .78) - .065, .15)).toFixed(3);
 
 const P = 'live';
 const chartMarkup = (chart: ChartView, held = false, endpoint = false): Raw => {

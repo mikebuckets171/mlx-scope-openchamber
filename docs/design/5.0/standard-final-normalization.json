@@ -11,20 +11,20 @@
     "height": 894
   },
   "sourceConceptCssWidth": null,
-  "implementation": "docs/design/5.0/docs-final-synthetic-instrument-dark.png",
+  "implementation": "docs/design/5.0/typography-synthetic-instrument-dark.png",
   "implementationPixels": [
     920,
-    761
+    760
   ],
   "implementationCssSize": [
     920.0,
-    761.0
+    760.0
   ],
   "deviceScaleFactor": 1,
   "excludedImplementationTopCssPx": 0,
-  "implementationFrameCssHeight": 761.0,
+  "implementationFrameCssHeight": 760.0,
   "comparisonColumnCssWidth": 920.0,
   "sourceDisplayScale": 1.2777777777777777,
   "normalization": "Whole original images embedded intact; CSS crops direction A and optional fixture chrome. No raster image edits. Each panel has the same CSS width; images are not stretched independently.",
-  "limits": "The generated source has no authoritative CSS viewport or density. Its720px concept panel is uniformly displayed at920px to match the actual920px product frame. The user approved the denser polished evolution. Telemetry, model, runtime and observation history differ. The current implementation capture follows the final plain-numeric-text/long-value fix; no pixel-perfect match or human usability study is claimed."
+  "limits": "The generated source has no authoritative CSS viewport or density. Its 720px concept panel is uniformly displayed at 920px to match the actual 920px product frame. The user requested the quieter numeral and typography after the earlier 120px implementation. Current maximum primary type is 80px, narrow type 56px before enlarged-text scaling; tracking is -.015em. Telemetry, model, runtime and observation history differ. This compares visual lineage and hierarchy, not literal font size, pixel-perfect output or human usability."
 }

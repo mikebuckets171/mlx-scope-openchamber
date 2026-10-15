@@ -27,7 +27,8 @@ for (const width of [320, 430, 652, 1160]) for (const theme of ['light', 'dark']
     expect(facts!.y).toBeGreaterThanOrEqual(trace!.y + trace!.height);
     if (width === 652) {
       const size = await frame.locator('#hero .instrument-primary .speed-value > strong').evaluate(el => parseFloat(getComputedStyle(el).fontSize));
-      expect(size).toBeGreaterThanOrEqual(100); expect(size).toBeLessThanOrEqual(120);
+      // The approved typography keeps a clear reading without returning to a billboard-sized numeral.
+      expect(size).toBeGreaterThanOrEqual(56); expect(size).toBeLessThanOrEqual(80);
     }
     await expect(frame.locator('.column-foot')).toBeHidden();
     await frame.locator('#measurement-details > summary').click();

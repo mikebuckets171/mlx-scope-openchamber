@@ -37,12 +37,21 @@ const clippedInk = (root: Element) => {
   return failures;
 };
 
-for (const [width, fontSize, family] of [[1160, 16, 'system-ui'], [320, 16, 'system-ui'], [320, 32, 'system-ui'], [430, 24, 'Arial, sans-serif']] as const) {
-  test(`primary numeric glyph ink is complete at ${width}px/${fontSize}px with ${family}`, async ({ page }) => {
+for (const [surface, width, fontSize, family] of [
+  ['page', 1160, 16, 'system-ui'], ['page', 320, 16, 'system-ui'], ['page', 320, 32, 'system-ui'], ['page', 430, 24, 'Arial, sans-serif'],
+  ['status', 320, 32, 'system-ui'], ['status', 430, 24, 'system-ui'], ['compact', 320, 32, 'system-ui'], ['compact', 430, 24, 'Arial, sans-serif'],
+] as const) {
+  test(`${surface} numeric glyph ink is complete at ${width}px/${fontSize}px with ${family}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 950 });
-    await page.goto('/v2?surface=page&state=decode&chat=local');
+    await page.goto(`/v2?surface=${surface === 'status' ? 'status' : 'page'}&state=decode&chat=local`);
+    if (surface === 'status') await page.locator('iframe').evaluate((element, width) => { element.style.width = `${width}px`; }, width);
     const frame = page.frameLocator('iframe');
     await expect(frame.locator('#rate')).toHaveText('26.4');
+    if (surface === 'compact') {
+      await frame.locator('#monitor-menu > summary').click(); await frame.locator('#compact').click();
+      await expect(frame.locator('#compact-glance .ws')).toBeVisible();
+    }
+    const readout = frame.locator(surface === 'compact' ? '#compact-glance #rate' : '#rate');
     await frame.locator('html').evaluate((element, options) => {
       element.style.fontSize = `${options.fontSize}px`; element.style.setProperty('--oc-font', options.family);
     }, { fontSize, family });
@@ -51,21 +60,24 @@ for (const [width, fontSize, family] of [[1160, 16, 'system-ui'], [320, 16, 'sys
         const w = window as any, runtime = w.ScopeStates.mockBody('decode', { now: Date.now() }).runtime;
         runtime.request.decodeTps = value; w.setPreviewPatch({ runtime });
       }, value);
-      await frame.locator('#monitor-menu > summary').click(); await frame.locator('#refresh').click();
-      await expect(frame.locator('#rate')).toHaveText(display);
-      await frame.locator('#rate').scrollIntoViewIfNeeded();
-      const renderedFont = await frame.locator('#rate').evaluate(element => parseFloat(getComputedStyle(element).fontSize));
+      if (surface !== 'status') { await frame.locator('#monitor-menu > summary').click(); await frame.locator('#refresh').click(); }
+      await expect(readout).toHaveText(display);
+      await readout.scrollIntoViewIfNeeded();
+      const renderedFont = await readout.evaluate(element => parseFloat(getComputedStyle(element).fontSize));
       if (fontSize > 16) {
         await frame.locator('html').evaluate(element => { element.style.fontSize = '16px'; });
-        const ordinaryFont = await frame.locator('#rate').evaluate(element => parseFloat(getComputedStyle(element).fontSize));
+        const ordinaryFont = await readout.evaluate(element => parseFloat(getComputedStyle(element).fontSize));
         await frame.locator('html').evaluate((element, size) => { element.style.fontSize = `${size}px`; }, fontSize);
         expect(renderedFont, `${display}: enlarged text must not shrink below its ordinary-size rendering`).toBeGreaterThanOrEqual(ordinaryFont);
       }
-      expect(await frame.locator('#rate').evaluate(element => {
+      // Restoring enlarged type can reset the bounded Session scroll position. Inspect its reachable full readout.
+      await readout.scrollIntoViewIfNeeded();
+      expect(await readout.evaluate(element => {
         const range = document.createRange(); range.selectNodeContents(element);
         return new Set(Array.from(range.getClientRects(), rect => Math.round(rect.top))).size;
       }), `${display} must remain one readable numeric line`).toBe(1);
-      expect(await frame.locator('#rate').evaluate(clippedInk), `${display} must render complete ink`).toEqual([]);
+      expect(await readout.locator('.digit-cell').count(), 'static standard numerals must have no per-digit clip boxes').toBe(0);
+      expect(await readout.evaluate(clippedInk), `${display} must render complete ink`).toEqual([]);
       expect(await frame.locator('#scope').evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${display} must fit without horizontal scrolling`).toBe(true);
     }
   });
