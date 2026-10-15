@@ -154,7 +154,11 @@ for (const surface of ['status', 'page', 'compact']) {
 
 for (const surface of ['status', 'page']) for (const chat of ['local']) {
   test(`idle completed ${chat} result survives telemetry expiry on ${surface} and clears on a new reply`, async ({ page }) => {
-    await page.clock.install();
+    // Freeze before navigation so the host and late-loading sandbox iframe share an exact clock.
+    // Unpaused clock installation can give their initial chat boundary different wall-time offsets.
+    const epoch = Date.UTC(2026, 9, 15, 12);
+    await page.clock.install({ time: epoch });
+    await page.clock.pauseAt(epoch + 60_000);
     await page.goto(`/v2?surface=${surface}&state=idle&chat=${chat}&poll=500`);
     const frame = page.frameLocator('iframe');
     await expect(frame.locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toHaveText('Waiting');
@@ -190,7 +194,11 @@ for (const surface of ['status', 'page']) for (const chat of ['local']) {
 
 for (const surface of ['status', 'page']) {
   test(`an in-flight completed result cannot return after a new reply starts on ${surface}`, async ({ page }) => {
-    await page.clock.install();
+    // Freeze before navigation so the host and late-loading sandbox iframe share an exact clock.
+    // Unpaused clock installation can give their initial chat boundary different wall-time offsets.
+    const epoch = Date.UTC(2026, 9, 15, 12);
+    await page.clock.install({ time: epoch });
+    await page.clock.pauseAt(epoch + 60_000);
     await page.goto(`/v2?surface=${surface}&state=idle&chat=local&poll=500`);
     // Wait for the initial observation and advance beyond its chat boundary before publishing a new step.
     await expect(page.frameLocator('iframe').locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toHaveText('Waiting');
@@ -228,7 +236,11 @@ for (const surface of ['status', 'page']) {
 
 for (const surface of ['status', 'page']) for (const oldPhase of ['generating', 'complete']) {
   test(`lifecycle start clears an old ${oldPhase} chat reading on ${surface} before a held poll responds`, async ({ page }) => {
-    await page.clock.install();
+    // Freeze before navigation so the host and late-loading sandbox iframe share an exact clock.
+    // Unpaused clock installation can give their initial chat boundary different wall-time offsets.
+    const epoch = Date.UTC(2026, 9, 15, 12);
+    await page.clock.install({ time: epoch });
+    await page.clock.pauseAt(epoch + 60_000);
     await page.goto(`/v2?surface=${surface}&state=idle&chat=local&poll=500`);
     // Wait for the initial observation and advance beyond its chat boundary before publishing a new step.
     await expect(page.frameLocator('iframe').locator(surface === 'status' ? '.ws-phase' : '.instrument-phase')).toHaveText('Waiting');
@@ -254,7 +266,11 @@ for (const surface of ['status', 'page']) for (const oldPhase of ['generating', 
 
 for (const surface of ['status', 'page']) {
   test(`a late busy hint preserves the newer completed step after lifecycle start on ${surface}`, async ({ page }) => {
-    await page.clock.install();
+    // Freeze before navigation so the host and late-loading sandbox iframe share an exact clock.
+    // Unpaused clock installation can give their initial chat boundary different wall-time offsets.
+    const epoch = Date.UTC(2026, 9, 15, 12);
+    await page.clock.install({ time: epoch });
+    await page.clock.pauseAt(epoch + 60_000);
     await page.goto(`/v2?surface=${surface}&state=idle&chat=local&poll=500`);
     const frame = page.frameLocator('iframe'), phase = surface === 'status' ? '.ws-phase' : '.instrument-phase';
     // Wait for the initial observation and advance beyond its chat boundary before publishing a new step.

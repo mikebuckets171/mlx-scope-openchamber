@@ -1,6 +1,9 @@
 import { expect, test, type Frame, type FrameLocator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
+// Each case owns its browser context/storage. Share the existing two workers across this long matrix.
+test.describe.configure({ mode: 'parallel' });
+
 // Same fixture inventory as panel/testing/mock-states.ts; Node's test loader cannot import its bare JSON module.
 const MOCK_STATES = Object.keys(JSON.parse(readFileSync(new URL('../../docs/design/2.0-mock-fixtures.json', import.meta.url), 'utf8')).states);
 

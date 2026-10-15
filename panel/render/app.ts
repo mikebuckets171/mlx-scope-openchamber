@@ -90,7 +90,7 @@ export class ScopeApp {
 
   /** Everything the presenters read, from the state and the pipeline. */
   input(): ScopeInput {
-    const { state, pipeline, client, version } = this.#p, snapshot = state.snapshot, last = state.lastRequest, chat = pipeline.frame().chat, window = pipeline.window();
+    const { state, pipeline, client, version } = this.#p, snapshot = state.snapshot, last = state.lastRequest, chat = this.#p.session(), window = pipeline.window();
     return {
       now: client.now(), version, snapshot, fresh: snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh, frame: state.frame, stale: state.stale,
       paused: state.userPaused, efficient: state.efficient, attribution: pipeline.liveLabel(snapshot), chatRuntime: pipeline.chatRuntime(),
