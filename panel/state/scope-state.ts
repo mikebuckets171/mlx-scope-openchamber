@@ -5,6 +5,7 @@ import { frameReading, linkIdentity, type HostReading, type Reading } from '../p
 import type { FrameIssue } from '../present/scope.ts';
 import type { Tab } from '../render/views/types.ts';
 import { SignalHistory } from '../signal.ts';
+import { PromptEta } from '../prompt-eta.ts';
 
 type Completions = { instance: string; cursor: number; items: CompletionV2[] };
 /** Completions kept in the frame for Last reply, turn steps and Next reply: the service ring's size per response. */
@@ -19,6 +20,7 @@ export class ScopeState {
   frame: FrameIssue | null = null;           // why the newest poll had no body
   stale = false;                             // the no-fresh-reading deadline passed since the last body
   signal = new SignalHistory();
+  promptEta = new PromptEta();
   failures = 0;
   surface = 'panel';
   userPaused = false; efficient = false; compact = false; tab: Tab = 'live';
@@ -42,6 +44,7 @@ export class ScopeState {
   accept(reading: Reading): CompletionV2[] {
     if (reading.link) this.#monitored = linkIdentity(reading.link);
     this.latest = reading;
+    this.promptEta.observe(reading);
     if (reading.host) this.lastHost = reading.host;
     if (reading.body) {
       let body = reading.body;
@@ -73,6 +76,7 @@ export class ScopeState {
   beginChat(at: number): boolean {
     if (at <= this.#chatBoundaryAt) return false;
     this.#chatBoundaryAt = at;
+    this.promptEta.reset();
     if (this.lastChat && this.lastChat.observation.endedAtMs <= at) this.lastChat = null;
     if (this.snapshot?.chat && this.snapshot.chat.observation.endedAtMs <= at) this.snapshot = { ...this.snapshot, chat: undefined };
     return true;
@@ -80,6 +84,7 @@ export class ScopeState {
   clearObservations(): void {
     this.lastHost = null; this.#monitored = null; this.#completions = null; this.snapshot = null; this.lastChat = null;
     this.signal = new SignalHistory();
+    this.promptEta.reset();
     this.#chatBoundaryAt = 0;
   }
 }

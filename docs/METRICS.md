@@ -279,3 +279,7 @@ require a newer event before displaying progress again. Near-complete unfinished
 
 The existing oMLX percentage remains the current reported stage. Scope does not pretend staged oMLX counts and Splash's
 whole-prompt counts have the same denominator.
+
+### Prompt time remaining
+
+Session and Live show **Est. … left** during prompt reading when enough information is available. The engine’s estimate takes priority. Otherwise Scope uses at least three advancing token-count observations over two seconds, keeping at most eight observations from the last 30 seconds. This estimates the remaining prompt portion at the recently observed pace; it does not include generation time or subtract cached tokens again. Estimates use coarse units and are withdrawn on stale progress, overlaps, phase or connection changes, pause, and visibility interruption. No additional collection or saved records are created.

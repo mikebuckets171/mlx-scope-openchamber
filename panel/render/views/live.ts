@@ -58,7 +58,7 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open, mac: MacVie
   const explanation = h.speeds.source === 'Splash' ? tipParts(P, tip('basis', 'How engine speeds are measured', SPLASH_SPEED_HELP), open)
     : h.body?.kind === 'decode' || h.body?.kind === 'prefill' ? tipParts(P, h.body.tip, open) : null;
   const measurementTip = reading ? tipParts(P, tip('measurement', reading.label, [reading.detail]), open) : null;
-  const readingSource = reading ? html`<div class="instrument-source" data-crossfade="${reading.label}">${measurementLabel(reading, next)}${measurementTip!.btn}<span class="sr-only basis">${reading.detail}</span></div>` : '';
+  const readingSource = reading ? html`<div class="instrument-source" data-crossfade="${reading.label}">${measurementLabel(reading, next)}${measurementTip!.btn}${instrument.eta ? html`<span class="prompt-eta" title="${instrument.eta.detail}">${instrument.eta.text}</span>` : ''}<span class="sr-only basis">${reading.detail}</span></div>` : '';
   const prefill = reading?.kind === 'progress' && h.body?.kind === 'prefill' ? h.body : null;
   const result = reading?.result;
   const fallback = list.filter(tile => ['Active requests', 'Model memory', 'Metal allocations', 'Median first token'].includes(tile.label));

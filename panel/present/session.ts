@@ -2,6 +2,7 @@ import type { Severity } from '../../src/contract/alerts.ts';
 import type { Basis } from '../../src/contract/capabilities.ts';
 import { sameModel } from '../attribution/join.ts';
 import { prefillReading } from '../progress.ts';
+import { promptEtaText } from '../prompt-eta.ts';
 import { alertCopy, APPROVAL, CHAT_UNAVAILABLE, RESTART, statusGlanceNote } from './copy.ts';
 import { ago, dur, kt, mmss, size, tps } from './format.ts';
 import { visibleAlerts } from './parts.ts';
@@ -18,6 +19,7 @@ export interface SessionSectionView {
   phase: string; tone: 'normal' | 'warning' | 'critical';
   measurementScope: 'chat' | 'engine'; measurement: SessionMeasurement | null;
   support: { text: string; detail: string; basis?: Basis } | null;
+  eta: { text: string; detail: string } | null;
   speeds: SpeedsView;
   progress: { text: string; detail: string; basis: Basis } | null;
   /** The previous completed average, dimmed below a live reading until a new one replaces it. Never live. */
@@ -66,6 +68,14 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   const activeSpeed = runtimePhaseAgrees ? speeds.speeds.find(speed => speed.key === 'generation' && speed.value !== null)
     ?? speeds.speeds.find(speed => speed.value !== null) : undefined;
   const reading = readingPrompt && snapshot!.capabilities['request.prefillProgress'] ? prefillReading(input.reading) : null;
+  const reportedEta = snapshot?.capabilities['request.prefillEta'] && positive(snapshot.runtime.request?.prefillTps)
+    ? snapshot.runtime.request?.prefillEtaMs : null;
+  const estimate = positive(reportedEta) ? reportedEta : input.promptEtaMs;
+  const eta = reading?.percent != null && reading.percent < 100 && !reading.stale && snapshot!.runtime.server.active !== 0
+    && !(snapshot!.runtime.server.active! > 1) && positive(estimate)
+    ? { text: promptEtaText(estimate), detail: positive(reportedEta)
+      ? 'Estimated prompt-reading time remaining, reported by the engine. Generation time is not included.'
+      : 'Estimated prompt-reading time remaining from recent token progress. Assumes a similar pace; generation time is not included.' } : null;
   if (reading?.percent != null) {
     progress = { text: reading.completed.replace(' complete', ''),
       detail: `Prompt read${reading.stale ? ' · last seen' : ''}${reading.counts ? ` · ${reading.counts.done} of ${reading.counts.total} tokens` : ''}`,
@@ -166,7 +176,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   }
   const shownSupport = support ?? restingSupport;
   // Missing readings never invent a measurement row.
-  return { measurementScope, measurement, support: shownSupport, speeds, progress, held,
+  return { measurementScope, measurement, support: shownSupport, eta, speeds, progress, held,
     resting: atRest && !measurement && !shownSupport && !held,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
     note: shownNote, alert,

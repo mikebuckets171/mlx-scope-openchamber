@@ -95,3 +95,11 @@ Michael rejected the installed Session panel after the preceding typography revi
 - Full package check passes 1,930 Bun, 71 Node and 15 Python tests. Full hosted browser CI and actual-host verification remain independent release gates and are recorded separately, not inferred from these focused checks.
 
 Rendered Session acceptance: passed. This is code and rendered review, not a claim of renewed human approval. No collector, sampling policy, native source or performance budget changed.
+
+## Prompt-reading ETA
+
+The Session and Live measurement labels now include a compact, qualified **Est. … left** line. It remains visible alongside the priority warning, and snapshot Details explains that generation time is excluded. Reported engine estimates take priority; otherwise a bounded window of existing prompt-token observations supplies the estimate. No collector, timer, saved field, service, or native source changed.
+
+- Full package verification passes 1,939 Bun, 71 Node and 15 Python tests with the original bundle ceilings.
+- All 28 Session browser cases pass in Chromium and WebKit, including reported/observed ETA, 300/430px layouts, pause, stale progress, phase exit, popover explanation, and full Live.
+- All 20 navigation/layout cases pass in the isolated one-worker run. A preceding mixed-engine, two-worker local run had intermittent focus delivery failures (45/48 passed); these are retained in the task logs, not counted as a full-suite pass. The original hosted WebKit heading clipping is addressed with an 8px scroll margin, without weakening its bounds assertion. Complete hosted engine jobs remain the release gate.

@@ -6,7 +6,7 @@ import { applyHostReady } from '../sdk-theme.ts';
 export interface ReadingCard { title: string; value: string; detail: string; facts: string[]; observedAt: number }
 export const readingCard = (view: SessionSectionView, observedAt: number): ReadingCard => ({
   title: view.phase, value: view.measurement ? `${view.measurement.text}${view.measurement.unit ? ` ${view.measurement.unit}` : ''}` : '',
-  detail: view.measurement?.detail ?? view.note ?? '', facts: [view.support?.text, view.held?.text, view.alert?.label].filter((value): value is string => !!value),
+  detail: view.measurement?.detail ?? view.note ?? '', facts: [view.eta ? `${view.eta.text}. ${view.eta.detail}` : null, view.support?.text, view.held?.text, view.alert?.label].filter((value): value is string => !!value),
   observedAt,
 });
 export const parseReadingCard = (value: unknown): ReadingCard | null => {

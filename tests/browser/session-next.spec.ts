@@ -117,3 +117,54 @@ test('a focused reading hands focus to Open when unavailable and opens snapshot 
   await expect(page.frameLocator('iframe[title="Scope detail popover"]').getByRole('region', { name: 'Measurement details' })).toBeVisible();
   expect(await page.evaluate('window.previewPopoverCollectorCalls')).toEqual([]);
 });
+
+for (const width of [300, 430]) test(`prompt ETA fits ${width}px and disappears after reading or pause`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 700 });
+  const frame = await load(page, 'state=prefill');
+  await expect(frame.locator('.prompt-eta')).toHaveText('Est. 20 s left');
+  await expect(frame.locator('.ws-label')).toContainText('Engine · prompt');
+  await expect(frame.locator('.prompt-eta')).toBeInViewport({ ratio: 1 });
+  expect(await frame.locator('html').evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await frame.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(frame.locator('.prompt-eta')).toHaveCount(0);
+  await page.evaluate('window.setPreviewState("decode")');
+  await frame.getByRole('button', { name: 'Resume', exact: true }).click();
+  await expect(frame.locator('.ws-phase')).toHaveText('Generating');
+  await expect(frame.locator('.prompt-eta')).toHaveCount(0);
+  await page.evaluate('window.setPreviewState("prefill")');
+  await expect(frame.locator('.prompt-eta')).toBeVisible();
+  await frame.getByRole('button', { name: 'Details', exact: true }).click();
+  await expect(page.frameLocator('iframe[title="Scope detail popover"]').locator('body')).toContainText('Generation time is not included');
+});
+
+test('prompt ETA uses existing fresh progress when the engine omits an estimate', async ({ page }) => {
+  await page.setViewportSize({ width: 300, height: 700 });
+  const frame = await load(page, 'state=prefill');
+  let previousAt = 0;
+  const update = async (done: number, stale = false) => {
+    // Simulate a source that advances once per second; repeated frame polls must not add samples.
+    await expect.poll(() => Date.now() - previousAt).toBeGreaterThanOrEqual(1_100);
+    previousAt = Date.now();
+    await page.evaluate(({ done, stale }) => {
+      const w = window as any, body = w.ScopeStates.mockBody('prefill', { now: Date.now() });
+      delete body.capabilities['request.prefillEta']; delete body.runtime.request.prefillEtaMs;
+      Object.assign(body.runtime.request, { prefillProcessedTokens: done, prefillTotalTokens: 10_000,
+        prefillFraction: done / 10_000, prefillStale: stale, prefillObservedAt: Date.now() });
+      w.setPreviewPatch({ runtime: body.runtime, capabilities: body.capabilities });
+    }, { done, stale });
+    await expect(frame.locator('#prefill-percent')).toHaveText(`${Math.floor(done / 100)}%`);
+  };
+  // Counts roll back from the initial fixture: a new observation window starts.
+  await update(4_000); await expect(frame.locator('.prompt-eta')).toHaveCount(0);
+  await update(4_200); await update(4_400);
+  await expect(frame.locator('.prompt-eta')).toHaveText(/^Est\. .* left$/);
+  await expect(frame.locator('.prompt-eta')).toHaveAttribute('title', /recent token progress/);
+  await update(4_500, true); await expect(frame.locator('.prompt-eta')).toHaveCount(0);
+  expect(await page.evaluate('window.previewUnexpectedSends')).toBe(0);
+});
+
+test('full Live shows the same qualified prompt ETA', async ({ page }) => {
+  await page.goto('/v2?sdk=next&surface=page&state=prefill');
+  const frame = page.frameLocator('iframe[title="MLX Scope"]');
+  await expect(frame.locator('.instrument-source .prompt-eta')).toHaveText('Est. 20 s left');
+});

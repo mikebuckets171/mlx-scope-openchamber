@@ -98,7 +98,7 @@ export class ScopeApp {
       next: pipeline.nextState, samples: state.signal.points, window, turnStartAt: window?.startedAt ?? null,
       measurementScope: this.#p.prefs.value.measurementScope ?? 'chat', sessionModel: chat?.model ?? null,
       chatActivity: chat ? window?.endedAt === null || chat.busy === true ? 'busy' : chat.busy === false ? 'idle' : null : null, chatIsLocal: pipeline.chatIsLocal(),
-      lastChat: state.lastChat,
+      lastChat: state.lastChat, promptEtaMs: state.promptEta.ms,
     };
   }
   /** Frame-side callouts: a poll without a body, or no fresh reading before the deadline. */
@@ -159,7 +159,7 @@ export class ScopeApp {
     if (compact) {
       morph(glance, sessionMarkup(presentSessionSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution,
         chatIsLocal: s.chatIsLocal ?? null, fresh: s.fresh, paused: s.paused, next: s.next, window: s.window,
-        efficient: state.efficient, measurementScope: s.measurementScope, sessionModel: s.sessionModel, chatActivity: s.chatActivity, lastChat: s.lastChat, restingFacts: true,
+        efficient: state.efficient, measurementScope: s.measurementScope, sessionModel: s.sessionModel, chatActivity: s.chatActivity, lastChat: s.lastChat, promptEtaMs: s.promptEtaMs, restingFacts: true,
         last: s.last && { completion: s.last.completion, label: s.last.label } }), null, true, nextDesign));
       this.#syncMotion(s); return;
     }

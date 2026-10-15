@@ -40,7 +40,13 @@ const secondaryEntry = async (frame: FrameLocator, view: string, titleFocused = 
 
 // At double text size a poll can move a control between the moment a pointer click picks it and the moment the
 // click lands. Activating the focused control keeps this test about legibility and focus, not pointer timing.
-const activate = (frame: FrameLocator, name: string) => frame.getByRole('button', { name, exact: true }).press('Enter');
+const activate = async (frame: FrameLocator, name: string) => {
+  const control = frame.getByRole('button', { name, exact: true });
+  await control.scrollIntoViewIfNeeded();
+  await control.focus();
+  await expect(control).toBeFocused();
+  await control.press('Enter');
+};
 
 for (const theme of ['light', 'dark']) for (const [width, font] of [[320, 32], [430, 24], [1160, 16]] as const) {
   test(`shared hierarchy and controls remain readable at ${width}px/${font}px in ${theme}`, async ({ page }) => {

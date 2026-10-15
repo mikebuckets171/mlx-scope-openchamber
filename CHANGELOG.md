@@ -2,6 +2,8 @@
 
 ## 5.0.0
 
+- Prompt reading shows a qualified time-left estimate in Session and Live. Engines that omit one use a bounded window of fresh token progress; stale, overlapping, paused, or interrupted readings withdraw it.
+
 - Refine Session, rail and full page with one standard design for everyone. Keep the measurement basis beside the primary value, fit traces to the interval actually observed, and align Mac readings in a compact band. Keep Session scope, pause and details controls in one readable row; show a short trace only when connected observations exist. Snapshot-only measurement popovers explain readings where supported. Narrow views and enlarged text stack naturally.
 - Require OpenChamber 2.3.3 and pin SDK 2.3.3. Keep 4.0.1 for older hosts. The unchanged `/scope` background entry uses the isolated official 2.0.4 SDK to retain its 25 KB ceiling.
 - Request sessions and shells with explicit update reapproval. Chats/subagents and agent commands start disabled. Subscriptions are visibility-driven, and click-only command output is transient, bounded to 8 KiB and excluded from all saved readings and diagnostics.

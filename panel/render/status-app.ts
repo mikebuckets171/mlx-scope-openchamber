@@ -72,7 +72,7 @@ export class StatusApp {
       last: last ? { completion: last, label: pipeline.label(last) } : null, next: pipeline.nextState, window,
       measurementScope: pref.measurementScope ?? 'chat', sessionModel: this.#session?.model ?? null,
       chatActivity: this.#session ? window?.endedAt === null || this.#session.busy === true ? 'busy' : this.#session.busy === false ? 'idle' : null : null,
-      lastChat: state.lastChat, restingFacts: true,
+      lastChat: state.lastChat, promptEtaMs: state.promptEta.ms, restingFacts: true,
     });
     const actionError = this.#actionError, next = document.documentElement.dataset.designMode === 'next';
     this.#p.mediaJobs.sync(this.#p.visible() && !state.userPaused && state.frame?.reason !== 'needs_approval');
