@@ -157,7 +157,7 @@ test('Next session stays compact at enlarged text, honors reduced motion and exp
   await frame.addStyleTag({ content: ':root { font-size: 24px !important; }' });
   expect(await frame.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await frame.evaluate(() => document.getAnimations().filter(a => a.playState === 'running').length)).toBe(0);
-  await page.getByRole('button', { name: 'Details', exact: true }).click();
+  await frame.getByRole('button', { name: 'Details', exact: true }).click();
   await expect(page.frameLocator('iframe[title="Scope detail popover"]').getByRole('region', { name: 'Measurement details' })).toBeVisible();
   expect(await page.evaluate('window.previewPopoverCollectorCalls')).toEqual([]);
 });

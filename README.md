@@ -45,8 +45,7 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   Cloud chats show a delivery estimate labelled **Cloud · est.** on qualified runtimes. They never borrow a local engine's reading
   or hardware warnings. Media progress remains available. Theme-native rows remain readable at increased text size.
   The reading has a clearly qualified display and a trace over its observed interval. **Open MLX Scope** stays
-  visible while longer warnings or media details scroll above it. Host header controls provide Watch, Pause and snapshot Details;
-  the same controls remain inside the widget when the host cannot show them.
+  visible while longer warnings or media details scroll above it. A compact row inside the widget keeps the scope, Pause and snapshot Details controls readable together.
   The section samples only while visible and uses lighter Mac probes than the full panel.
 - **Rail panel and full page.** One column at every width: This chat leads with the same activity, reading and scope
   menu as the sidebar, with available supporting facts in a separate **Engine** group and a visible **Engine trend** when
@@ -70,9 +69,9 @@ colors use the host's semantic palette; the Session widget lets the surrounding 
 A view that is hidden (a rail tab behind another tab, a collapsed section, a closed page, a hidden window) makes no
 requests. With several views open, one visible view at a time records history and raises toasts.
 
-The Session sidebar in a dark theme ([light theme](docs/5.0/assets/standard-session-light.png)). These are simulated preview readings; the host supplies Watch, Pause and Details controls around the widget.
+The Session sidebar in a dark theme ([light theme](docs/5.0/assets/standard-session-light.png)). These are simulated preview readings; scope, Pause and Details stay together inside the widget.
 
-<img src="docs/5.0/assets/standard-session-dark.png" alt="MLX Scope Session instrument with generation speed, measurement basis, engine output, observed trace and Open MLX Scope action" width="430">
+<img src="docs/5.0/assets/standard-session-dark.png" alt="Compact MLX Scope Session with scope, pause and details controls, qualified generation speed, a memory-pressure warning and Open MLX Scope action" width="300">
 
 The full Live instrument keeps the measurement basis beside its value and deeper measurements one click away. Simulated preview data is shown below ([light theme](docs/5.0/assets/standard-instrument-light.png)).
 

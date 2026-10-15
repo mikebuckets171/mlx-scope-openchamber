@@ -81,3 +81,17 @@ After typography/source/QA freeze, the coordinator will bind the final exact-com
 - [x] Keep whole-suite, exact-artifact and nonvisual release gates separate from visual acceptance.
 
 No new aesthetic direction is requested; the selected layout remains in force.
+
+
+## Actual-width Session correction after installed-host feedback
+
+Michael rejected the installed Session panel after the preceding typography review. This focused correction supersedes the earlier Session images and header-control layout above; full-page and native designs retain their own prior evidence.
+
+- The actual OpenChamber 2.3.3 header renders three controls in two columns and limits its selector to 5rem. Scope now clears that binding and renders its fully labeled scope, Pause and Details controls together inside the guest. The host title remains unchanged.
+- At 300 and 320 logical pixels, the new body is 154.17 pixels tall with the sparse startup pressure fixture. Reading size is 28px, phase 13px, and the toolbar 26px. A priority warning is one plain line. There is no nested card or empty reserved plot.
+- The measured trace is at most 28px tall and only renders for at least three samples with a connected segment. Gaps remain gaps. The sparse disconnected path is covered by a meaningful rendering regression test.
+- Current dark and light Session release images use startup synthetic observations, not a matured trace chosen to conceal early gaps. Page image bytes did not change. Exact capture provenance is retained separately.
+- 34 focused browser cases pass in Chromium and WebKit, including 300/320/430px, both themes, enlarged text, one-row controls, pause/resume, keyboard focus across freshness transitions, snapshot popovers, and media under the host height cap. Typecheck and the eight precision cases pass.
+- Full package check passes 1,930 Bun, 71 Node and 15 Python tests. Full hosted browser CI and actual-host verification remain independent release gates and are recorded separately, not inferred from these focused checks.
+
+Rendered Session acceptance: passed. This is code and rendered review, not a claim of renewed human approval. No collector, sampling policy, native source or performance budget changed.

@@ -13,7 +13,7 @@ import type { ScopeState } from '../state/scope-state.ts';
 import { morph } from './html.ts';
 import { measurementLabel, sessionMarkup } from './views/session.ts';
 import { openReadingCard, readingCard, type ReadingCard } from '../next/popover.ts';
-import type { HostFeatures, StatusControl } from '../host/types.ts';
+import type { HostFeatures } from '../host/types.ts';
 
 // The Session summary (surface 'status') stays compact; its text action opens the full Scope panel.
 // Glance tier; it can lead, so it may record and toast.
@@ -36,11 +36,9 @@ export class StatusApp {
   #resize: ResizeObserver | null;
   #unsubscribe: () => void;
   #stopReady: () => void;
-  #stopControl: (() => void) | undefined;
   #features: HostFeatures = {};
   #directory: string | null | undefined;
   #headerKey = '';
-  #headerActive = false;
   #card: ReadingCard | null = null;
   #p: StatusParts;
   constructor(p: StatusParts, session: SessionSnapshot | null) {
@@ -48,16 +46,9 @@ export class StatusApp {
     this.#session = session;
     this.#digits = new DigitRoll(p.root);
     this.#motion = new Motion(p.root);
-    this.#stopControl = p.host.onStatusControl?.(event => {
-      if (event.id === 'scope') this.onMeasurementScope(event.value === 'engine' ? 'engine' : 'chat');
-      if (event.id === 'pause') { p.state.userPaused = !p.state.userPaused; this.onPauseChanged(); }
-      if (event.id === 'details') this.#details();
-      this.render();
-    });
     this.#stopReady = p.host.onReady(ready => {
-      if (this.#directory !== ready.directory) { this.#directory = ready.directory; this.#headerKey = ''; this.#headerActive = false; }
+      if (this.#directory !== ready.directory) { this.#directory = ready.directory; this.#headerKey = ''; }
       this.#features = ready.features ?? {};
-      if (!this.#features.statusControls) this.#headerActive = false;
       this.render();
     });
     this.#unsubscribe = p.host.onSession(next => {
@@ -90,12 +81,10 @@ export class StatusApp {
     const readingWasFocused = this.#p.root.querySelector('.ws-measurement') === document.activeElement;
     const media = mediaGlanceMarkup(this.#p.mediaJobs, this.#session?.id ?? null, client.now(), true);
     morph(this.#p.root, next
-      ? sessionMarkup(view, actionError, false, true, { chart, media, paused: state.userPaused, headerActive: this.#headerActive })
+      ? sessionMarkup(view, actionError, false, true, { chart, media, paused: state.userPaused })
       : html`${sessionMarkup(view, actionError)}${media}`);
     this.#card = next ? readingCard(view, snapshot?.runtime.sampledAt ?? client.now()) : null;
-    this.#headers(next && this.#p.visible());
-    const fallback = this.#p.root.querySelector<HTMLElement>('.ws-toolbar');
-    if (fallback) fallback.hidden = this.#headerActive;
+    this.#headers();
     const reading = this.#p.root.querySelector<HTMLElement>('.ws-measurement');
     if (reading && !reading.hidden && next && this.#features.popovers) {
       reading.tabIndex = 0; reading.setAttribute('role', 'button'); reading.dataset.action = 'reading-details';
@@ -119,21 +108,13 @@ export class StatusApp {
   }
   onMeasurementScope: (scope: 'chat' | 'engine') => void = () => {};
   onPauseChanged: () => void = () => {};
-  #headers(next: boolean): void {
-    const { host, state, prefs } = this.#p;
-    if (!host.setStatusControls || !this.#features.statusControls || !next && !this.#headerKey) return;
-    const controls: StatusControl[] = next ? [
-      { kind: 'select', id: 'scope', label: 'Watch', value: prefs.value.measurementScope ?? 'chat', options: [{ value: 'chat', label: 'This chat' }, { value: 'engine', label: 'Whole engine' }] },
-      { kind: 'button', id: 'pause', label: state.userPaused ? 'Resume' : 'Pause' },
-      { kind: 'button', id: 'details', label: 'Details' },
-    ] : [];
-    const key = JSON.stringify(controls);
-    if (key === this.#headerKey) return;
-    this.#headerKey = key;
-    void host.setStatusControls(controls).then(() => {
-      if (this.#headerKey !== key) return;
-      this.#headerActive = next; this.render();
-    }).catch(() => { if (this.#headerKey === key) { this.#headerActive = false; this.render(); } });
+  #headers(): void {
+    const { host } = this.#p;
+    if (!host.setStatusControls || !this.#features.statusControls || this.#headerKey) return;
+    // 2.3.3 puts three host controls in a two-column grid and truncates selects at 5rem.
+    // Keep this small control group together inside the guest; clear any earlier host binding.
+    this.#headerKey = 'cleared';
+    void host.setStatusControls([]).catch(() => {});
   }
   #details(): void {
     const anchor = this.#p.root.querySelector<HTMLElement>('.ws-measurement:not([hidden])') ?? this.#p.root.querySelector<HTMLElement>('#ws');
@@ -183,5 +164,5 @@ export class StatusApp {
     this.render();
     this.#p.root.querySelector<HTMLElement>(`[data-action="${action}"]`)?.focus({ preventScroll: true });
   };
-  dispose(): void { this.#stopReady(); this.#stopControl?.(); this.#headerKey = ''; void this.#p.host.setStatusControls?.([]).catch(() => {}); this.#digits.dispose(); this.#motion.dispose(); this.#unsubscribe(); this.#resize?.disconnect(); this.#p.root.removeEventListener('click', this.#onClick); this.#p.root.removeEventListener('change', this.#onChange); this.#p.root.removeEventListener('keydown', this.#onKey); }
+  dispose(): void { this.#stopReady(); this.#headerKey = ''; void this.#p.host.setStatusControls?.([]).catch(() => {}); this.#digits.dispose(); this.#motion.dispose(); this.#unsubscribe(); this.#resize?.disconnect(); this.#p.root.removeEventListener('click', this.#onClick); this.#p.root.removeEventListener('change', this.#onChange); this.#p.root.removeEventListener('keydown', this.#onKey); }
 }

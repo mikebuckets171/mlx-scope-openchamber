@@ -5,6 +5,7 @@ import type { ScopeInput } from '../../present/scope.ts';
 import { MOCK_NOW, mockBody } from '../../testing/mock-states.ts';
 import { liveMarkup } from './live.ts';
 import { sessionMarkup } from './session.ts';
+import { liveChart } from '../chart.ts';
 
 const scope = (patch: (snapshot: SnapshotV2) => void = () => {}, extra: Partial<ScopeInput> = {}): ScopeInput => {
   const snapshot = parseSnapshotV2(mockBody('decode'))!;
@@ -14,6 +15,25 @@ const scope = (patch: (snapshot: SnapshotV2) => void = () => {}, extra: Partial<
     turnStartAt: null, measurementScope: 'engine', ...extra };
 };
 const render = (view: LiveView, next = true) => liveMarkup(view, new Set(), next).markup;
+
+test('Session reserves no plot for sparse disconnected readings but preserves measured gaps in a usable trend', () => {
+  const view = presentLive(scope()).hero!.instrument;
+  const samples = [
+    { at: MOCK_NOW - 11_000, rate: 21, phase: 'decode' as const, segment: 1 },
+    { at: MOCK_NOW - 5_500, rate: 22, phase: 'decode' as const, segment: 2 },
+    { at: MOCK_NOW, rate: 21.7, phase: 'decode' as const, segment: 3 },
+  ];
+  const disconnected = liveChart(samples, MOCK_NOW, null)!;
+  expect(disconnected.line).not.toContain('L');
+  const sparse = sessionMarkup(view, null, false, true, { chart: disconnected }).markup;
+  expect(sparse).not.toContain('class="ws-plot"');
+  expect(sparse).toContain('id="ws-signal" aria-label="" hidden');
+  samples[1]!.segment = 1;
+  const observed = liveChart(samples, MOCK_NOW, null)!;
+  const ready = sessionMarkup(view, null, false, true, { chart: observed }).markup;
+  expect(ready).toContain('class="ws-plot"');
+  expect(ready).toContain(`d="${observed.line}"`);
+});
 
 test('precision identity uses reported model only, escapes it and keeps cloud delivery separate', () => {
   const view = presentLive(scope(snapshot => { snapshot.runtime.request!.model = 'Model <test> "27B"'; }));

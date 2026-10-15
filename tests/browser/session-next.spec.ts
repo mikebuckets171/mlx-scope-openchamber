@@ -10,7 +10,7 @@ const load = async (page: Page, query = '') => {
   return frame;
 };
 
-for (const theme of ['dark', 'light']) for (const width of [320, 430]) {
+for (const theme of ['dark', 'light']) for (const width of [300, 320, 430]) {
   test(`Session instrument and full-view action fit ${width}px in ${theme}`, async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -18,10 +18,16 @@ for (const theme of ['dark', 'light']) for (const width of [320, 430]) {
     await page.setViewportSize({ width, height: 700 });
     const frame = await load(page, `theme=${theme}`);
     await expect(page).toHaveTitle(/MLX Scope/);
-    await page.getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
+    await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
     await expect(frame.locator('.ws-phase')).toHaveText('Generating');
     await expect(frame.locator('.ws-reading')).toContainText('tokens/s');
     await expect(frame.locator('.ws-label')).toContainText('Engine · request average');
+    const toolbar = await frame.locator('.ws-toolbar').evaluate(el => {
+      const controls = Array.from(el.querySelectorAll('select, button'), control => control.getBoundingClientRect());
+      return { oneRow: Math.max(...controls.map(r => r.top)) - Math.min(...controls.map(r => r.top)) < 6,
+        fits: controls.every(r => r.left >= 0 && r.right <= innerWidth), height: el.getBoundingClientRect().height };
+    });
+    expect(toolbar.oneRow).toBe(true); expect(toolbar.fits).toBe(true); expect(toolbar.height).toBeLessThanOrEqual(36);
     await expect(frame.locator('#ws-signal svg')).toBeVisible();
     expect(await frame.locator('#scope').evaluate(el => ({
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
@@ -39,7 +45,7 @@ for (const theme of ['dark', 'light']) for (const width of [320, 430]) {
 test('Session keeps Open visible and focus stable at enlarged text with media and across freshness changes', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   const frame = await load(page, 'media=eta');
-  await page.getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
+  await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
   await frame.locator('html').evaluate(el => { (el as HTMLElement).style.fontSize = '24px'; });
   const open = frame.getByRole('button', { name: 'Open MLX Scope', exact: true });
   await expect(frame.locator('.media-glance')).toBeVisible();
@@ -61,7 +67,7 @@ test('Session keeps Open visible and focus stable at enlarged text with media an
   expect(await frame.locator('html').evaluate(() => document.getAnimations().filter(a => a.playState === 'running').length)).toBe(0);
 });
 
-test('Session fallback includes Watch, Pause and snapshot Details when the host rejects header controls', async ({ page }) => {
+test('Session toolbar retains scope, pause and snapshot details when the host rejects header controls', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   const frame = await load(page, 'headers=fail');
   await expect(frame.locator('.ws-toolbar')).toBeVisible();
@@ -83,11 +89,11 @@ test('Session fallback includes Watch, Pause and snapshot Details when the host 
 
 test('Session uses one priority warning and clears its trace when paused', async ({ page }) => {
   const frame = await load(page, 'state=pressure');
-  await page.getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
+  await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
   await expect(frame.locator('.ws-warning')).toHaveCount(1);
   await expect(frame.locator('.ws-warning')).toBeVisible();
   await expect(frame.locator('.ws-support')).toBeHidden();
-  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await frame.getByRole('button', { name: 'Pause', exact: true }).click();
   await expect(frame.locator('.ws-phase')).toHaveText('Paused');
   await expect(frame.locator('#ws-signal')).toBeHidden();
   await expect(frame.locator('.ws-measurement')).toBeHidden();
@@ -97,7 +103,7 @@ test('Session uses one priority warning and clears its trace when paused', async
 
 test('a focused reading hands focus to Open when unavailable and opens snapshot details by keyboard', async ({ page }) => {
   const frame = await load(page);
-  await page.getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
+  await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
   const reading = frame.locator('.ws-measurement');
   await reading.focus();
   await expect(reading).toBeFocused();

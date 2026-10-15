@@ -93,7 +93,7 @@ test('a mounted Session ignores retired design choices and reloads optional pref
   await expect(frame.locator('html')).toHaveAttribute('data-design-mode', 'next');
   await page.evaluate('window.setPreviewFrameHidden(false)');
   await expect(frame.locator('html')).toHaveAttribute('data-design-mode', 'next');
-  expect(await state(page, 'window.previewDeviceReads')).toBe(2);
+  await expect.poll(() => state(page, 'window.previewDeviceReads')).toBe(2);
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
   await expect.poll(() => state(page, 'window.previewOpenedSurfaces')).toEqual(['plugin:mlx-scope', 'plugin:mlx-scope']);
   await page.waitForTimeout(1_100);
@@ -129,16 +129,17 @@ test('workspace and shell awareness are separate opt-ins and hidden views stop e
   expect(await state(page, 'window.previewForbiddenNextCalls')).toEqual([]);
 });
 
-test('Next status header controls pause and switch scope; unavailable controls retain body fallback', async ({ page }) => {
+test('Session toolbar pauses and switches scope without depending on host header layout', async ({ page }) => {
   const frame = await load(page, 'surface=status&design=next');
-  await expect(page.locator('#fixture-status-controls')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Pause', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Resume', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
+  await expect(frame.locator('.ws-toolbar')).toBeVisible();
+  expect(await state(page, 'window.previewHeaderControls')).toEqual([]);
+  await expect(frame.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+  await frame.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(frame.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+  await frame.getByRole('button', { name: 'Resume', exact: true }).click();
+  await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
   await expect(frame.locator('.scope-choice')).toHaveValue('engine');
-  await page.getByRole('button', { name: 'Details', exact: true }).click();
+  await frame.getByRole('button', { name: 'Details', exact: true }).click();
   const popover = page.frameLocator('iframe[title="Scope detail popover"]');
   await expect(popover.getByRole('region', { name: 'Measurement details' })).toBeVisible();
   expect(await state(page, 'window.previewPopoverCollectorCalls')).toEqual([]);
@@ -201,7 +202,7 @@ test('steady polls leave navigation stable and navigation preserves awareness an
 test('enlarged Next status prioritizes the accessible numeric reading and live media within the host height', async ({ page }) => {
   const frame = await load(page, 'surface=status&design=next&media=eta');
   await page.setViewportSize({ width: 320, height: 900 });
-  await page.getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
+  await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
   await expect(frame.locator('.media-glance-finish')).toBeVisible();
   await frame.locator('html').evaluate(element => { (element as HTMLElement).style.fontSize = '24px'; });
   await expect(frame.getByRole('button', { name: /^Measurement details: .*tok\/s · Engine/ })).toBeVisible();
@@ -229,7 +230,7 @@ test('a device read finishing after teardown cannot restart workspace subscripti
 
 for (const surface of ['page', 'status']) for (const runtime of ['decode', 'splash-mixed']) test(`Next ${surface} shows the ${runtime} time basis beside its speed`, async ({ page }) => {
   const frame = await load(page, `surface=${surface}&design=next&state=${runtime}`, '/v2');
-  if (surface === 'status') await page.getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
+  if (surface === 'status') await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
   else await frame.locator('#hero .scope-choice').selectOption('engine');
   const label = frame.locator(surface === 'status' ? '.ws-label' : '.instrument-source');
   await expect(label).toContainText(runtime === 'decode' ? 'Engine · request average' : 'Engine · recent 4.0 s');

@@ -37,10 +37,12 @@ export const sessionMarkup = (view: SessionSectionView, actionError: string | nu
 };
 
 /** Presentation only: the compact instrument reuses the same reading, samples, and media controller. */
-export interface SessionNextOptions { chart?: ChartView | null; media?: Raw | string; paused?: boolean; headerActive?: boolean }
+export interface SessionNextOptions { chart?: ChartView | null; media?: Raw | string; paused?: boolean }
 
 const nextSessionMarkup = (view: SessionSectionView, actionError: string | null, options: SessionNextOptions): Raw => {
-  const measurement = view.measurement, alert = view.alert, chart = options.chart;
+  const measurement = view.measurement, alert = view.alert;
+  // Disconnected single samples cannot form a useful trend; don't reserve an empty plot for them.
+  const chart = options.chart && options.chart.points >= 3 && options.chart.line.includes('L') ? options.chart : null;
   const label = measurement ? measurementLabel(measurement, true) : '';
   const support = !alert && !actionError && !view.note ? view.support : null;
   const held = !support && !alert && !actionError && !view.note ? view.held : null;
@@ -61,8 +63,8 @@ const nextSessionMarkup = (view: SessionSectionView, actionError: string | null,
   const readingText = measurement?.kind === 'speed' ? compactRate(measurement.text) : measurement?.text ?? '';
   return html`<div class="ws ws-session ws-next" id="ws" data-presentation="session" data-mode="summary" data-resting="${String(view.resting)}" tabindex="-1">
     <div class="ws-scroll" id="ws-scroll">
-      <div class="ws-toolbar" id="ws-toolbar"${flag('hidden', !!options.headerActive)}>
-        <label class="ws-watch">Watch ${scopeMenuMarkup(view.measurementScope)}</label>
+      <div class="ws-toolbar" id="ws-toolbar">
+        <label class="ws-watch"><span class="sr-only">Watch</span>${scopeMenuMarkup(view.measurementScope)}</label>
         <button type="button" class="ws-control" data-action="pause">${options.paused ? 'Resume' : 'Pause'}</button>
         <button type="button" class="ws-control" data-action="reading-details">Details</button>
       </div>
