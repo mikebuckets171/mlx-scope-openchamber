@@ -38,7 +38,9 @@ test('packaged entry gives a useful accessible state when its bundle cannot load
 });
 
 test('a synchronous bootstrap failure restores the accessible startup fallback', async ({ page }) => {
-  await page.clock.install();
+  const epoch = Date.UTC(2026, 9, 15, 12);
+  await page.clock.install({ time: epoch });
+  await page.clock.pauseAt(epoch + 60_000);
   await page.route('**/panel/main.js', async route => {
     const response = await route.fetch();
     await route.fulfill({ response, body: `${await response.text()}\nthrow new Error('bootstrap fixture failure');` });
@@ -51,7 +53,9 @@ test('a synchronous bootstrap failure restores the accessible startup fallback',
 });
 
 test('an unopened host shows setup guidance rather than an endless loading claim', async ({ page }) => {
-  await page.clock.install();
+  const epoch = Date.UTC(2026, 9, 15, 12);
+  await page.clock.install({ time: epoch });
+  await page.clock.pauseAt(epoch + 60_000);
   await page.goto('/?nohost=1');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#startup-fallback')).toBeVisible();
@@ -61,7 +65,9 @@ test('an unopened host shows setup guidance rather than an endless loading claim
 });
 
 for (const surface of ['page', 'status']) test(`slow saved settings retain a visible startup state on ${surface}`, async ({ page }) => {
-  await page.clock.install();
+  const epoch = Date.UTC(2026, 9, 15, 12);
+  await page.clock.install({ time: epoch });
+  await page.clock.pauseAt(epoch + 60_000);
   await page.goto(`/?surface=${surface}&storage=startup-slow`);
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#startup-fallback')).toBeVisible();

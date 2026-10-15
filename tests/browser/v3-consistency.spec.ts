@@ -1,14 +1,23 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 
 type Phase = 'generating' | 'reasoning' | 'tool' | 'waiting' | 'complete' | 'cancelled';
-const setPhase = (page: Page, phase: Phase, rate?: number) => page.evaluate(({ phase, rate }) => {
-  const w = window as any, now = Date.now(), complete = phase === 'complete';
-  if (complete) w.setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' });
-  w.setPreviewPatch({ chat: { scope: 'chat', basis: complete ? 'reported-output' : 'estimated-characters',
-    timingBasis: complete ? 'completed-step' : 'delivery-window', phase, tokensPerSecond: rate,
-    observedAtMs: now, expiresAtMs: now + 5_000,
-    observation: { startedAtMs: now - 3_000, endedAtMs: now }, freshness: complete ? 'last' : 'live' } });
-}, { phase, rate });
+// Geometry assertions should not race the five-second expiry of a synthetic chat reading.
+const freezeClock = async (page: Page) => {
+  const epoch = Date.UTC(2026, 9, 15, 12);
+  await page.clock.install({ time: epoch });
+  await page.clock.pauseAt(epoch + 60_000);
+};
+const setPhase = async (page: Page, phase: Phase, rate?: number) => {
+  await page.evaluate(({ phase, rate }) => {
+    const w = window as any, now = Date.now(), complete = phase === 'complete';
+    if (complete) w.setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' });
+    w.setPreviewPatch({ chat: { scope: 'chat', basis: complete ? 'reported-output' : 'estimated-characters',
+      timingBasis: complete ? 'completed-step' : 'delivery-window', phase, tokensPerSecond: rate,
+      observedAtMs: now, expiresAtMs: now + 5_000,
+      observation: { startedAtMs: now - 3_000, endedAtMs: now }, freshness: complete ? 'last' : 'live' } });
+  }, { phase, rate });
+  await page.clock.runFor(600); // Deliver one configured poll, then hold the observation for layout checks.
+};
 const position = (frame: FrameLocator, selector: string) => frame.locator(selector).evaluate(element => {
   const r = element.getBoundingClientRect(); return { y: r.y, height: r.height };
 });
@@ -37,11 +46,13 @@ const fitsGlance = async (frame: FrameLocator) => {
 
 for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test(`Session keeps populated rows stable and collapses absent readings in ${theme} at ${fontSize}px text`, async ({ page }) => {
   await page.setViewportSize({ width: 260, height: 550 });
-  await page.goto(`/v2?surface=status&state=splash-decode&chat=local&theme=${theme}`);
+  await freezeClock(page);
+  await page.goto(`/v2?surface=status&state=splash-decode&chat=local&theme=${theme}&poll=500`);
   await page.locator('iframe').evaluate(element => { (element as HTMLElement).style.width = '260px'; });
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#rate')).toBeVisible();
   await frame.locator('html').evaluate((element, size) => { (element as HTMLElement).style.fontSize = `${size}px`; }, fontSize);
+  await page.clock.runFor(2_100); // Establish multiple timed engine observations before testing populated rows.
   await setPhase(page, 'generating', 17.8);
   await expect(frame.locator('#rate')).toHaveText('17.8');
   const populated = await fitsGlance(frame);
@@ -123,10 +134,12 @@ for (const theme of ['light', 'dark']) test(`The Session panel fits its host at 
 
 for (const width of [320, 1160]) for (const fontSize of [16, 32]) test(`full Live keeps populated parts stable and collapses empty parts at ${width}px and ${fontSize}px text`, async ({ page }) => {
   await page.setViewportSize({ width, height: 950 });
-  await page.goto('/v2?surface=page&state=splash-decode&chat=local');
+  await freezeClock(page);
+  await page.goto('/v2?surface=page&state=splash-decode&chat=local&poll=500');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#rate')).toBeVisible();
   await frame.locator('html').evaluate((element, size) => { (element as HTMLElement).style.fontSize = `${size}px`; }, fontSize);
+  await page.clock.runFor(2_100); // Establish multiple timed engine observations before testing populated rows.
   await setPhase(page, 'generating', 17.8);
   await expect(frame.locator('#rate')).toHaveText('17.8');
   await expect(frame.locator('#engine-trend')).toBeVisible();
