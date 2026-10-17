@@ -1,7 +1,7 @@
 # detecting · /v2?state=detecting
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Detecting
@@ -10,22 +10,26 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#workspace-action: Server & Mac details
 #panels
-#panel-live {aria-labelledby="tab-live"}
-#view-live
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
 [callout-live] {data-severity="info"}: Notice: | Looking for a local server | Checking :8000 for a supported server.
-#hero {aria-label="Activity and speed"}: Checking the usual local ports
-h2.instrument-phase {data-tone="normal"}: Detecting
+#hero {aria-label="Activity and speed" data-arrive=""}: the server Watch | Checking the usual local ports
+h2.instrument-phase {data-crossfade="" data-live="false" data-tone="normal"}: Detecting
 #reply-strip
 #measurement-details: Measurement details
+#machine {aria-label="This Mac" data-stale="false"}: CPU 4% Memory allocated 18.3 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status Normal
+#mac-details: Mac details
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Automatic
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 live [callout-live]: Notice: Looking for a local serverChecking :8000 for a supported server.

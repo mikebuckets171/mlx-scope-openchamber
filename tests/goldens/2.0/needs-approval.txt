@@ -1,35 +1,39 @@
 # needs-approval · /v2?state=needs-approval
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="tabs" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Needs approval
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#approval-card {aria-labelledby="approval-title"}: Allow Mac GPU, thermal and process readings, plus LM Studio’s CLI without starting it. Chat labels use the open chat’s activity without extra permissions. History stays local. Open Settings → Extensions → MLX Scope. Choose Needs approval, then allow and enable. Reads start after approval. Saved 1.6 captures stay. No sudo, osascript or powermetrics.
+#approval-card {aria-labelledby="approval-title"}: Allow Mac GPU, thermal and process readings, plus LM Studio’s CLI without starting it. Chat labels use the open chat’s activity without extra permissions. History stays local. Open Settings → Extensions → MLX Scope. Choose Needs approval, then allow and enable. Reads start after approval. Your history stays. No sudo, osascript or powermetrics.
 #approval-title: MLX Scope needs one approval
 #grant {open=""}: What the approval lists, and why | GPU readings | /usr/sbin/ioreg | Thermal pressure | /usr/bin/notifyutil | oMLX process memory | /usr/sbin/lsof, /usr/bin/footprint | LM Studio and Bionic | ~/.lmstudio/bin/lms, ~/.cache/lm-studio/bin/lms · never starts either app | Chip power (optional) | /opt/homebrew/bin/macmon, /usr/local/bin/macmon · only if you installed macmon | Memory (as in 1.x) | vm_stat, sysctl · the two commands 1.x already ran
 #freshness: No reading yet
 live #connection (hidden): 
+live p.insight-note[role=status] (hidden): Allow MLX Scope’s local service in Settings → Extensions.
+live p.media-setup-message.insight-note[role=status] (hidden): Allow MLX Scope’s local service in Settings → Extensions.
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
+live p.media-notice[role=status] (hidden): Allow MLX Scope’s local service in Settings → Extensions.
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="wide" data-paused="false" data-phase="detecting" data-stale="false" data-surface="page"}
+main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="wide" data-media-motion="true" data-paused="false" data-phase="detecting" data-stale="false" data-surface="page"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Needs approval
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#approval-card {aria-labelledby="approval-title"}: Allow Mac GPU, thermal and process readings, plus LM Studio’s CLI without starting it. Chat labels use the open chat’s activity without extra permissions. History stays local. Open Settings → Extensions → MLX Scope. Choose Needs approval, then allow and enable. Reads start after approval. Saved 1.6 captures stay. No sudo, osascript or powermetrics.
+#approval-card {aria-labelledby="approval-title"}: Allow Mac GPU, thermal and process readings, plus LM Studio’s CLI without starting it. Chat labels use the open chat’s activity without extra permissions. History stays local. Open Settings → Extensions → MLX Scope. Choose Needs approval, then allow and enable. Reads start after approval. Your history stays. No sudo, osascript or powermetrics.
 #approval-title: MLX Scope needs one approval
 #grant {open=""}: What the approval lists, and why | GPU readings | /usr/sbin/ioreg | Thermal pressure | /usr/bin/notifyutil | oMLX process memory | /usr/sbin/lsof, /usr/bin/footprint | LM Studio and Bionic | ~/.lmstudio/bin/lms, ~/.cache/lm-studio/bin/lms · never starts either app | Chip power (optional) | /opt/homebrew/bin/macmon, /usr/local/bin/macmon · only if you installed macmon | Memory (as in 1.x) | vm_stat, sysctl · the two commands 1.x already ran
 #freshness: No reading yet
 live #connection (hidden): 
+live p.insight-note[role=status] (hidden): Allow MLX Scope’s local service in Settings → Extensions.
+live p.media-setup-message.insight-note[role=status] (hidden): Allow MLX Scope’s local service in Settings → Extensions.
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
+live p.media-notice[role=status] (hidden): Allow MLX Scope’s local service in Settings → Extensions.

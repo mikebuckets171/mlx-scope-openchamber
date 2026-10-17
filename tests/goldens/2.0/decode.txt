@@ -1,7 +1,7 @@
 # decode · /v2?state=decode
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -10,32 +10,36 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#workspace-action: Server & Mac details
 #panels
-#panel-live {aria-labelledby="tab-live"}
+#panel-live {aria-label="This chat, engine and media"}
 #view-live
-#hero {aria-label="Activity and speed"}: tok/s Engine 26.4 tokens per second. All engine requests · From server · average for this request
-h2.instrument-phase {data-tone="normal"}: Generating
-#rate: 26.4
-#engine-facts {aria-label="Engine" data-count="2"}: Engine | Output | 612 | tokens so far | Elapsed | 38 s | since it started
+#hero {aria-label="Activity and speed" data-arrive=""}: oMLX Example-27B-4bit Watch | 26.4 tokens per second tokens/s Engine All engine requests · From server · average for this request
+h2.instrument-phase {data-crossfade="" data-live="true" data-tone="normal"}: Generating
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 26.4
+#engine-facts {aria-label="Engine" data-count="2"}: Output | 612 | tokens so far | Elapsed | 38 s | since it started
 #engine-trend
-#signal: Engine trend · 90 seconds −90s Recent generation speed now
-#ceiling: 30 tok/s
+#signal {data-current="true" data-short="true"}: Engine trend −8s now
+#ceiling: 30 tokens/s
 div.plot[role=img] {aria-label="Generation speed · average for this request, last 8 s: 26.4 to 26.4 tokens per second, now 26.4"}
-#reply-strip: Measure next reply
+#precision-trace-fill
+#reply-strip
 #measurement-details: Measurement details
+#machine {aria-label="This Mac" data-stale="false"}: CPU 31% Memory allocated 36.1 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status Normal
+#mac-details: Mac details
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
 #freshness: Updated just now
 live #connection: Local oMLX
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -44,13 +48,8 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
 #panels
-#panel-live {aria-labelledby="tab-live"}
-#panel-server {aria-labelledby="server-title"}: Back to Live
+#panel-server {aria-labelledby="server-title"}: Back
 #server-title: Server & Mac details
 [server-memory]: oMLX · from server Model memory Model memory limit
 h2: Model memory
@@ -77,28 +76,32 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
+#media-glance
 #freshness: Updated just now
 live #connection: Local oMLX
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## compact · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="true" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="true" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
+#media-glance
 #compact-glance {aria-label="MLX Scope glance"}
-#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 26.4 tokens per second. All engine requests · From server · average for this request | Engine · 612 tokens out | Expand
-#rate: 26.4
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}: Generating | tok/s 26.4 tokens per second Engine All engine requests · From server · average for this request | Engine · 612 tokens out | Expand
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 26.4
 live #connection (hidden): Local oMLX
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## live · 320 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -107,32 +110,36 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#workspace-action: Server & Mac details
 #panels
-#panel-live {aria-labelledby="tab-live"}
+#panel-live {aria-label="This chat, engine and media"}
 #view-live
-#hero {aria-label="Activity and speed"}: tok/s Engine 26.4 tokens per second. All engine requests · From server · average for this request
-h2.instrument-phase {data-tone="normal"}: Generating
-#rate: 26.4
-#engine-facts {aria-label="Engine" data-count="2"}: Engine | Output | 612 | tokens so far | Elapsed | 38 s | since it started
+#hero {aria-label="Activity and speed" data-arrive=""}: oMLX Example-27B-4bit Watch | 26.4 tokens per second tokens/s Engine All engine requests · From server · average for this request
+h2.instrument-phase {data-crossfade="" data-live="true" data-tone="normal"}: Generating
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 26.4
+#engine-facts {aria-label="Engine" data-count="2"}: Output | 612 | tokens so far | Elapsed | 38 s | since it started
 #engine-trend
-#signal: Engine trend · 90 seconds −90s Recent generation speed now
-#ceiling: 30 tok/s
+#signal {data-current="true" data-short="true"}: Engine trend −8s now
+#ceiling: 30 tokens/s
 div.plot[role=img] {aria-label="Generation speed · average for this request, last 8 s: 26.4 to 26.4 tokens per second, now 26.4"}
-#reply-strip: Measure next reply
+#precision-trace-fill
+#reply-strip
 #measurement-details: Measurement details
+#machine {aria-label="This Mac" data-stale="false"}: CPU 31% Memory allocated 36.1 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status Normal
+#mac-details: Mac details
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
 #freshness: Updated just now
 live #connection: Local oMLX
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -141,26 +148,30 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#workspace-action: Server & Mac details
 #panels
-#panel-live {aria-labelledby="tab-live"}
+#panel-live {aria-label="This chat, engine and media"}
 #view-live
-#hero {aria-label="Activity and speed"}: tok/s Engine 26.4 tokens per second. All engine requests · From server · average for this request
-h2.instrument-phase {data-tone="normal"}: Generating
-#rate: 26.4
-#engine-facts {aria-label="Engine" data-count="2"}: Engine | Output | 612 | tokens so far | Elapsed | 38 s | since it started
+#hero {aria-label="Activity and speed" data-arrive=""}: oMLX Example-27B-4bit Watch | 26.4 tokens per second tokens/s Engine All engine requests · From server · average for this request
+h2.instrument-phase {data-crossfade="" data-live="true" data-tone="normal"}: Generating
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 26.4
+#engine-facts {aria-label="Engine" data-count="2"}: Output | 612tokens so far | Elapsed | 38 ssince it started
 #engine-trend
-#signal: Engine trend · 90 seconds −90s Recent generation speed now
-#ceiling: 30 tok/s
+#signal {data-current="true" data-short="true"}: Engine trend −8s now
+#ceiling: 30 tokens/s
 div.plot[role=img] {aria-label="Generation speed · average for this request, last 8 s: 26.4 to 26.4 tokens per second, now 26.4"}
-#reply-strip: Measure next reply
+#precision-trace-fill
+#reply-strip
 #measurement-details: Measurement details
+#machine {aria-label="This Mac" data-stale="false"}: CPU 31% Memory allocated 36.1 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status Normal
+#mac-details: Mac details
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
 #freshness: Updated just now
 live #connection: Local oMLX
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 

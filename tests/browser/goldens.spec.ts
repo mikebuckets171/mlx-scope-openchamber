@@ -22,17 +22,19 @@ const CASES: Case[] = [
   { name: 'decode', state: 'decode', server: true, page: true, light: true, compact: true, shots: ['live-320-dark', 'live-320-light', 'server-320-dark', 'live-1160-dark', 'compact-320-dark'] },
   { name: 'prefill', state: 'prefill', server: true, light: true, shots: ['live-320-dark', 'live-320-light'] },
   { name: 'idle', state: 'idle', server: true, shots: ['live-320-dark'] },
-  { name: 'offline', state: 'offline', page: true, light: true, shots: ['live-320-dark', 'live-320-light', 'live-1160-dark'] },
-  { name: 'pressure', state: 'pressure', page: true, compact: true, shots: ['live-320-dark', 'live-1160-dark', 'compact-320-dark'] },
+  // The 5.x panel's shaded surfaces compress far less than 3.0's flat ones: within the 4 MiB image budget the page width
+  // keeps two pixel goldens (decode, needs-approval) and the server view stays dark-only; every variant keeps its text golden.
+  { name: 'offline', state: 'offline', page: true, light: true, shots: ['live-320-dark', 'live-320-light'] },
+  { name: 'pressure', state: 'pressure', page: true, compact: true, shots: ['live-320-dark', 'compact-320-dark'] },
   { name: 'pressure-critical', state: 'pressure-critical', light: true, shots: ['live-320-dark', 'live-320-light'] },
-  { name: 'splash-decode', state: 'splash-decode', server: true, page: true, light: true, shots: ['live-320-dark', 'live-1160-dark'] },
+  { name: 'splash-decode', state: 'splash-decode', server: true, page: true, light: true, shots: ['live-320-dark'] },
   { name: 'splash-recovering', state: 'splash-recovering', server: true, shots: ['live-320-dark', 'server-320-dark'] },
   { name: 'runtime-changed', state: 'runtime-changed', shots: ['live-320-dark'] },
   { name: 'admin-unauthorized', state: 'admin-unauthorized', server: true, shots: ['live-320-dark'] },
   { name: 'llama', state: 'llama', server: true, shots: ['live-320-dark', 'server-320-dark'] },
   { name: 'llama-sleeping', state: 'llama-sleeping', server: true },
   { name: 'ollama', state: 'ollama', server: true, shots: ['server-320-dark'] },
-  { name: 'bionic', state: 'bionic', server: true, light: true, shots: ['live-320-dark', 'server-320-dark', 'server-320-light'] },
+  { name: 'bionic', state: 'bionic', server: true, light: true, shots: ['live-320-dark', 'server-320-dark'] },
   { name: 'detecting', state: 'detecting' },
   { name: 'thermal', state: 'thermal' },
   { name: 'needs-approval', state: 'needs-approval', page: true, shots: ['live-320-dark', 'live-1160-dark'] },
@@ -156,6 +158,11 @@ class Harness {
     await this.page.mouse.move(0, 0);
     await this.sync();
   }
+  /** Server & Mac details lives in Measurement details (5.0), as the standard UI reaches it. */
+  async openServer(): Promise<void> {
+    if (!await this.panel.locator('#measurement-details').evaluate(node => (node as HTMLDetailsElement).open)) await this.click('#measurement-details > summary');
+    await this.click('.precision-detail-actions [data-action="open-server"]');
+  }
   async text(label: string, selector = 'main.scope'): Promise<string> {
     await this.panel.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     const { width, theme, surface } = this.variant;
@@ -164,8 +171,10 @@ class Harness {
   async shot(name: string): Promise<void> {
     if (!PIXELS) return;
     const status = this.variant.surface === 'status', width = status ? 300 : this.variant.width;
-    const height = await this.panel.evaluate(() => Math.ceil(document.querySelector('main.scope')!.getBoundingClientRect().bottom) + 16);
-    await this.page.setViewportSize({ width, height: height + 24 });
+    // The whole panel, unscrolled, below whatever the host draws above its frame (24 px, or the demo's preview bar).
+    const height = await this.panel.evaluate(() => { scrollTo(0, 0); return Math.ceil(document.querySelector('main.scope')!.getBoundingClientRect().bottom) + 16; });
+    const top = await this.page.evaluate(() => Math.ceil(document.querySelector('iframe')!.getBoundingClientRect().top));
+    await this.page.setViewportSize({ width, height: height + top });
     await expect.soft(this.panel.locator(status ? '#ws' : 'main.scope')).toHaveScreenshot(`${name}.png`,
       { mask: status ? [] : [this.panel.locator('#scope-version:visible')], maskColor: '#808080' });
     await this.page.setViewportSize({ width, height: 900 });
@@ -187,7 +196,7 @@ for (const item of CASES) {
     sections.push(await main.text('live'));
     if (shots.has('live-320-dark')) await main.shot(`${item.name}-live-320-dark`);
     if (item.server) {
-      await main.click('[data-action="open-server"]');
+      await main.openServer();
       sections.push(await main.text('server'));
       if (shots.has('server-320-dark')) await main.shot(`${item.name}-server-320-dark`);
     }
@@ -204,7 +213,7 @@ for (const item of CASES) {
       const light = await open({ width: 320, theme: 'light', surface: 'panel' });
       sections.push(await light.text('live'));
       if (shots.has('live-320-light')) await light.shot(`${item.name}-live-320-light`);
-      if (shots.has('server-320-light')) { await light.click('[data-action="open-server"]'); await light.shot(`${item.name}-server-320-light`); }
+      if (shots.has('server-320-light')) { await light.openServer(); await light.shot(`${item.name}-server-320-light`); }
       await light.close();
     }
     if (item.page) {
@@ -231,22 +240,22 @@ test('3.0 golden · Work Status section at 280 px', async ({ browser, baseURL })
   expect(sections.join('\n')).toMatchSnapshot('status.txt');
 });
 
-test('cleanup golden · Live, History and Captures at 430 px', async ({ browser, baseURL }) => {
+// 5.1 retired Captures: History's storage card now holds what earlier versions kept and the automatic chat label.
+// The text golden keeps both themes; pixels only the dark one, as light is covered at 320 px within the image budget.
+test('cleanup golden · Live, History and its storage at 430 px', async ({ browser, baseURL }) => {
   const sections: string[] = ['# Two primary destinations · 430 px\n'];
   for (const theme of ['dark', 'light'] as const) {
     const harness = await Harness.open(browser, baseURL!, `demo=1&state=decode&chat=local&theme=${theme}`, { width: 430, theme, surface: 'panel' }, 'tip');
+    const shot = (name: string) => theme === 'dark' ? harness.shot(`${name}-430-dark`) : Promise.resolve();
     await harness.advance(STEPS);
     sections.push(await harness.text('live'));
-    await harness.shot(`cleanup-live-430-${theme}`);
-    await harness.click('#tab-history');
+    await shot('cleanup-live');
+    await harness.click('.next-nav [data-action="open-history"]');
     sections.push(await harness.text('history'));
-    await harness.shot(`cleanup-history-430-${theme}`);
-    await harness.click('[data-action="open-captures"]');
-    sections.push(await harness.text('reply capture'));
-    await harness.shot(`cleanup-captures-430-${theme}`);
-    await harness.click('[data-action="capture-method"][data-arg="window"]');
-    sections.push(await harness.text('timed capture'));
-    await harness.shot(`cleanup-timed-430-${theme}`);
+    await shot('cleanup-history');
+    await harness.click('.history-storage > summary');
+    sections.push(await harness.text('history storage'));
+    await shot('cleanup-storage');
     await harness.close();
   }
   expect(sections.join('\n')).toMatchSnapshot('cleanup-navigation.txt');

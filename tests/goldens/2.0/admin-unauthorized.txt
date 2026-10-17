@@ -1,7 +1,7 @@
 # admin-unauthorized · /v2?state=admin-unauthorized
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -10,29 +10,33 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#workspace-action: Server & Mac details
 #panels
-#panel-live {aria-labelledby="tab-live"}
-#view-live
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
 [callout-live] {data-severity="info"}: Notice: | oMLX admin login refused | Only server totals are available. Individual speeds, reply history and usage are unavailable. | Connection…
-#hero {aria-label="Activity and speed"}: Check access in MLX Scope Nothing waiting
-h2.instrument-phase {data-tone="normal"}: Limited access
+#hero {aria-label="Activity and speed" data-arrive=""}: oMLX Example-27B-4bit Watch | Check access in MLX Scope Nothing waiting
+h2.instrument-phase {data-crossfade="" data-live="false" data-tone="normal"}: Limited access
 #engine-facts {aria-label="Engine" data-count="2"}: Engine | Active requests | 1 | Queue clear | Model memory | 17.1 GiB | engine allocations
 #reply-strip
 #measurement-details: Measurement details
+#machine {aria-label="This Mac" data-stale="false"}: CPU 31% Memory allocated 36.1 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status Normal
+#mac-details: Mac details
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Local oMLX
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 live [callout-live]: Notice: oMLX admin login refusedOnly server totals are available. Individual speeds, reply history and usage are unavailable.Connection…
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -41,13 +45,8 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
 #panels
-#panel-live {aria-labelledby="tab-live"}
-#panel-server {aria-labelledby="server-title"}: Back to Live
+#panel-server {aria-labelledby="server-title"}: Back
 #server-title: Server & Mac details
 [callout-server] {data-severity="info"}: Notice: | oMLX admin login refused | Only server totals are available. Individual speeds, reply history and usage are unavailable. | Connection…
 [server-memory]: oMLX · from server Model memory Model memory limit
@@ -69,9 +68,11 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
+#media-glance
 #freshness: Updated just now
 live #connection: Local oMLX
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 live [callout-server]: Notice: oMLX admin login refusedOnly server totals are available. Individual speeds, reply history and usage are unavailable.Connection…

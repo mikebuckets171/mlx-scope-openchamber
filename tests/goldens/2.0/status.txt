@@ -1,79 +1,151 @@
 # Work Status section · 280 px
 
 ## status-tip · 280 dark status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 26.4 tokens per second. All engine requests · From server · average for this request | Engine · 612 tokens out | Open MLX Scope
-#rate: 26.4
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Generating | oMLX
+#ws-measurement {data-basis="reported" data-live="true"}: tokens/s | 26.4 tokens per second | Engine All engine requests · From server · average for this request
+#rate {style="--reading-width:2.310"}: 26.4
+#ws-actions: Open MLX Scope
+setHeight: 133
 
 ## status-decode · 280 dark status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 26.4 tokens per second. All engine requests · From server · average for this request | Engine · 612 tokens out | Open MLX Scope
-#rate: 26.4
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Generating | oMLX
+#ws-measurement {data-basis="reported" data-live="true"}: tokens/s | 26.4 tokens per second | Engine All engine requests · From server · average for this request
+#rate {style="--reading-width:2.310"}: 26.4
+#ws-actions: Open MLX Scope
+setHeight: 133
 
 ## status-decode-light · 280 light status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 26.4 tokens per second. All engine requests · From server · average for this request | Engine · 612 tokens out | Open MLX Scope
-#rate: 26.4
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Generating | oMLX
+#ws-measurement {data-basis="reported" data-live="true"}: tokens/s | 26.4 tokens per second | Engine All engine requests · From server · average for this request
+#rate {style="--reading-width:2.310"}: 26.4
+#ws-actions: Open MLX Scope
+setHeight: 133
 
 ## status-prefill · 280 dark status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Reading prompt | This chat | Whole engine | 64% | Engine · prompt | Prompt read · 5824 of 9100 tokens | Engine · 5,824 / 9,100 tokens | Open MLX Scope
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Reading prompt | oMLX
+#ws-measurement {data-basis="reported" data-live="true"}: 64% | Engine Est. 20 s left Prompt read · 5824 of 9100 tokens
+#prefill-percent {style="--reading-width:2.385"}: 64%
+#ws-actions: Open MLX Scope
+setHeight: 148
 
 ## status-idle · 280 dark status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Idle | This chat | Whole engine | Open MLX Scope
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Idle | oMLX
+#ws-measurement {data-basis="reported" data-live="false"}: tokens/s | 23.2 tokens per second | Engine · overall average Average generation speed across all requests · From server totals. Not a live reading.
+#rate {style="--reading-width:2.310"}: 23.2
+#ws-actions: Open MLX Scope
+setHeight: 133
 
 ## status-alert · 280 dark status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 21.2 tokens per second. All engine requests · From server · average for this request | Memory pressure · warning | Open MLX Scope
-#rate: 21.2
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Generating | oMLX
+#ws-measurement {data-basis="reported" data-live="true"}: tokens/s | 21.2 tokens per second | Engine All engine requests · From server · average for this request
+#rate {style="--reading-width:2.310"}: 21.2
+#ws-notice: Memory pressure · warning
+#ws-actions: Open MLX Scope
+setHeight: 155
 
 ## status-offline · 280 dark status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Offline | This chat | Whole engine | Scope checks again automatically | Open MLX Scope
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Offline | oMLX
+#ws-notice: Scope checks again automatically
+#ws-actions: Open MLX Scope
+setHeight: 117
 
 ## status-splash-decode · 280 dark status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 43.8 tokens per second. All engine requests · Calculated · last 4.0 s | Open MLX Scope
-#rate: 43.8
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Generating | Splash
+#ws-measurement {data-basis="derived" data-live="true"}: tokens/s | 43.8 tokens per second | Engine All engine requests · Calculated · last 4.0 s
+#rate {style="--reading-width:2.310"}: 43.8
+#ws-actions: Open MLX Scope
+setHeight: 133
 
 ## status-splash-decode-light · 280 light status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 43.8 tokens per second. All engine requests · Calculated · last 4.0 s | Open MLX Scope
-#rate: 43.8
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Generating | Splash
+#ws-measurement {data-basis="derived" data-live="true"}: tokens/s | 43.8 tokens per second | Engine All engine requests · Calculated · last 4.0 s
+#rate {style="--reading-width:2.310"}: 43.8
+#ws-actions: Open MLX Scope
+setHeight: 133
 
 ## status-recovering · 280 dark status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Recovering | This chat | Whole engine | Scope reads its status every 30 s | Open MLX Scope
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Recovering | Splash
+#ws-notice: Scope reads its status every 30 s
+#ws-actions: Open MLX Scope
+setHeight: 117
 
 ## status-approval · 280 dark status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Needs approval | This chat | Whole engine | Settings → Extensions → MLX Scope | Open MLX Scope
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Needs approval | the server
+#ws-notice: Settings → Extensions → MLX Scope
+#ws-actions: Open MLX Scope
+setHeight: 117
 
 ## status-nonlocal · 280 dark status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Ready | This chat | Whole engine | Open MLX Scope
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="true"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Ready | Chat delivery
+#ws-actions: Open MLX Scope
+setHeight: 96
 
 ## status-turnstats · 280 dark status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Idle | tok/s Last engine · avg. 38.6 tokens per second. Completed request average · 48 s ago | Finished 48 s ago | Open MLX Scope
-#rate: 38.6
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Idle | Bionic
+#ws-measurement {data-basis="reported" data-live="false"}: tokens/s | 38.6 tokens per second | Last reply · Engine Completed request average · 48 s ago
+#rate {style="--reading-width:2.310"}: 38.6
+#ws-actions: Open MLX Scope
+setHeight: 133
 
 ## status-turnstats-light · 280 light status
-main.scope {aria-label="MLX Scope" data-surface="status"}
-#ws {data-mode="summary" data-presentation="session"}: Idle | tok/s Last engine · avg. 38.6 tokens per second. Completed request average · 48 s ago | Finished 48 s ago | Open MLX Scope
-#rate: 38.6
-setHeight: 108
+main.scope {aria-label="MLX Scope" data-media-motion="true" data-surface="status"}
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | This chat | Engine | Pause | Details
+#ws-heading: Idle | Bionic
+#ws-measurement {data-basis="reported" data-live="false"}: tokens/s | 38.6 tokens per second | Last reply · Engine Completed request average · 48 s ago
+#rate {style="--reading-width:2.310"}: 38.6
+#ws-actions: Open MLX Scope
+setHeight: 133

@@ -1,7 +1,7 @@
 # splash-recovering · /v2?state=splash-recovering
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Recovering
@@ -10,28 +10,32 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#workspace-action: Server & Mac details
 #panels
-#panel-live {aria-labelledby="tab-live"}
-#view-live
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
 [callout-live] {data-severity="warning"}: Warning: | Splash is recovering | since 14:03 | Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.
-#hero {aria-label="Activity and speed"}: Scope reads its status every 30 s
-h2.instrument-phase {data-tone="normal"}: Recovering
+#hero {aria-label="Activity and speed" data-arrive=""}: Splash example/Example-27B-Splash Watch | Scope reads its status every 30 s
+h2.instrument-phase {data-crossfade="" data-live="false" data-tone="normal"}: Recovering
 #reply-strip
 #measurement-details: Measurement details
+#machine {aria-label="This Mac" data-stale="false"}: CPU 12% Memory allocated 29.4 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status Normal
+#mac-details: Mac details
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 live [callout-live]: Warning: Splash is recoveringsince 14:03Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Recovering
@@ -40,13 +44,8 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
 #panels
-#panel-live {aria-labelledby="tab-live"}
-#panel-server {aria-labelledby="server-title"}: Back to Live
+#panel-server {aria-labelledby="server-title"}: Back
 #server-title: Server & Mac details
 [callout-server] {data-severity="warning"}: Warning: | Splash is recovering | since 14:03 | Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.
 [server-latency]: Splash · last reading First token typical · slowest 5% 212 readings Between tokens typical · slowest 5% 4,096 readings
@@ -71,9 +70,11 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
+#media-glance
 #freshness: Updated just now
 live #connection: Splash
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 live [callout-server]: Warning: Splash is recoveringsince 14:03Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.
