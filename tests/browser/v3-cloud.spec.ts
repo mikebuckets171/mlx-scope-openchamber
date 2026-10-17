@@ -1,7 +1,8 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 
-// 3.2 restores cloud delivery estimates through the qualified OpenCode 2.0.25 handshake. They are labelled
-// Cloud · est., keep filled readings stable, collapse empty rows, expire on time and never borrow a local engine reading.
+// 3.2 restores cloud delivery estimates through the qualified OpenCode 2.0.25 handshake. They are labelled This chat,
+// read "≈ 17.8" as estimates, keep filled readings stable, collapse empty rows, expire on time and never borrow a local
+// engine reading.
 type Phase = 'generating' | 'reasoning' | 'tool' | 'waiting' | 'complete' | 'cancelled';
 const phase = (page: Page, value: Phase, rate?: number) => page.evaluate(({ value, rate }) => {
   const now = Date.now();
@@ -27,9 +28,10 @@ for (const surface of ['status', 'page']) for (const theme of ['light', 'obsidia
     await expect(frame.locator(surface === 'status' ? '#ws' : '#panel-live')).not.toContainText('Memory pressure');
     await expect(frame.locator('#scope')).not.toContainText('Speed tracking is for local models.');
     await phase(page, 'generating', 17.8);
-    await expect(frame.locator('#rate')).toHaveText('17.8');
+    await expect(frame.locator('#rate')).toHaveText('≈ 17.8');
     await expect(frame.locator(activity)).toHaveText('Generating');
-    await expect(frame.locator(source)).toContainText('Cloud · est.');
+    await expect(frame.locator(source)).toHaveText(/^This chat/);
+    await expect(frame.locator(surface === 'status' ? '.measurement-accessible' : '.instrument-primary .speed-value > .sr-only')).toHaveText('about 17.8 tokens per second');
     if (surface === 'page') {
       await expect(frame.locator('.cloud-scope')).toHaveText('Cloud speed is delivery observed through OpenCode, including network and provider buffering. Not engine throughput.');
       await expect(frame.locator('#phase')).toHaveText('Generating');
@@ -44,21 +46,22 @@ for (const surface of ['status', 'page']) for (const theme of ['light', 'obsidia
     ] as const) {
       await phase(page, value, rate);
       await expect(frame.locator(activity)).toHaveText(label);
+      // A completed step is a measured average, not an estimate.
       if (rate === undefined) await expect(frame.locator('#rate')).toBeHidden();
-      else await expect(frame.locator('#rate')).toHaveText(String(rate));
-      if (value === 'complete') await expect(frame.locator(source)).toContainText('Last cloud · avg.');
+      else await expect(frame.locator('#rate')).toHaveText(value === 'complete' ? String(rate) : `≈ ${rate}`);
+      if (value === 'complete') await expect(frame.locator(source)).toHaveText(/^Last reply/);
       expect((await anchor(frame, heading)).y).toBe(headingY);
       expect((await anchor(frame, control)).height).toBe(controlHeight);
       if (value === 'reasoning') expect(await anchor(frame, region)).toEqual(stable);
-      // A phase without a reading gives its row back; a true support note can still occupy its own row.
+      // A phase without a reading gives its row back; a true exception row can still occupy its own row.
       if (rate === undefined && surface === 'status') {
         const rows = await frame.locator('.ws-instrument').evaluate(node => {
-          const measurement = node.querySelector('.ws-measurement')!, support = node.querySelector('.ws-support')!;
-          return { measurement: measurement.getBoundingClientRect().height, support: support.getBoundingClientRect().height,
-            hasSupport: !support.hasAttribute('hidden') };
+          const measurement = node.querySelector('.ws-measurement')!, exceptions = node.querySelector('#ws-notice')!;
+          return { measurement: measurement.getBoundingClientRect().height, exceptions: exceptions.getBoundingClientRect().height,
+            hasExceptions: !exceptions.hasAttribute('hidden') };
         });
         expect(rows.measurement).toBe(0);
-        if (!rows.hasSupport) expect(rows.support).toBe(0);
+        if (!rows.hasExceptions) expect(rows.exceptions).toBe(0);
       } else if (rate === undefined) {
         for (const selector of ['.instrument-measure', '.instrument-evidence', '.instrument-readout']) {
           const part = frame.locator(selector);
@@ -90,7 +93,7 @@ for (const surface of ['status', 'page']) test(`cloud ${surface} clears expired 
   const frame = page.frameLocator('iframe');
   await phase(page, 'generating', 17.8);
   await page.clock.fastForward(600);
-  await expect(frame.locator('#rate')).toHaveText('17.8');
+  await expect(frame.locator('#rate')).toHaveText('≈ 17.8');
   await page.evaluate(() => { (window as any).previewHold = true; });
   await page.clock.fastForward(5_100);
   await expect(frame.locator('#rate')).toBeHidden();
@@ -100,7 +103,7 @@ for (const surface of ['status', 'page']) test(`cloud ${surface} clears a rate i
   await page.goto(`/v2?surface=${surface}&state=decode&chat=cloud&poll=500`);
   const frame = page.frameLocator('iframe');
   await phase(page, 'generating', 21.3);
-  await expect(frame.locator('#rate')).toHaveText('21.3');
+  await expect(frame.locator('#rate')).toHaveText('≈ 21.3');
   await page.evaluate(() => {
     const w = window as any; w.previewHold = true;
     w.setPreviewSession({ id: 'different-fixture-chat', busy: true, model: 'cloud-provider/different-model' });

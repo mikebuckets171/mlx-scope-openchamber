@@ -3,7 +3,7 @@ import { openConnections, openServerDetails } from './standard-ui.ts';
 
 // 3.2 has one column and secondary views with Back; these replace the 3.1 Live/History tabs.
 const toColumn = async (frame: FrameLocator): Promise<void> => {
-  for (const name of ['Back to History', 'Back']) { const back = frame.getByRole('button', { name, exact: true }); if (await back.isVisible()) await back.click(); }
+  const back = frame.getByRole('button', { name: 'Back', exact: true }); if (await back.isVisible()) await back.click();
 };
 const toHistory = async (frame: FrameLocator): Promise<void> => { await toColumn(frame); await frame.getByRole('button', { name: 'History', exact: true }).click(); };
 // The 2.0 panel on the synthetic 1.x host (tests/browser/host.html, bodies converted by the real v1 → v2 bridge):
@@ -224,7 +224,7 @@ test('session shortcuts never put a chat title on screen', async ({ page }) => {
   await expect(frame.locator('#scope')).not.toContainText('Local coding session');
 });
 
-test('an unidentified chat withholds local reads until Whole engine is chosen explicitly', async ({ page }) => {
+test('an unidentified chat withholds local reads until Engine is chosen explicitly', async ({ page }) => {
   await page.goto('/?chat=1&chatModel=Unidentified-model');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#startup-fallback')).toHaveCount(0);
@@ -350,7 +350,7 @@ test('a denied service check never shows raw errors; the guide link is the docum
   await expect(frame.locator('#connection-result')).toContainText('Allow MLX Scope');
   await expect(frame.locator('#scope')).not.toContainText('fixture detail');
   await frame.locator('#connection-guide').click();
-  await expect.poll(() => page.evaluate(() => (window as W).previewOpenedURL)).toMatch(/^https:\/\/github.com\/mikebuckets171\/mlx-scope-openchamber\/blob\/v[\d.]+\/docs\/CONFIGURATION.md$/);
+  await expect.poll(() => page.evaluate(() => (window as W).previewOpenedURL)).toMatch(/^https:\/\/github.com\/mikebuckets171\/mlx-scope-openchamber\/blob\/v\d+\.\d+\.\d+(?:-[\w.]+)?\/docs\/CONFIGURATION.md$/);
 });
 
 test('live host theme changes update the view in place without restarting monitoring', async ({ page }) => {
@@ -372,7 +372,9 @@ test('concurrent requests withhold per-request speed, and hostile model names re
   const frame = await openPanel(page, 'multi=1');
   await expect(frame.locator('#hero')).toContainText('2 requests');
   await expect(frame.locator('.speed-pair')).not.toContainText('tok/s');
-  await expect(frame.locator('#attribution')).toContainText('All server activity · several requests at once');
+  // Two layers: the chip says Engine; its reason stays with the chip and in its explanation.
+  await expect(frame.locator('#attribution .chip')).toHaveText('Engine');
+  await expect(frame.locator('#attribution .chip')).toHaveAttribute('data-reason', 'several requests at once');
   await openServerDetails(frame);
   await expect(frame.locator('[data-key="server-residency"] .resident-row')).toHaveCount(2);
   await page.evaluate(() => (window as W).setPreviewOverride({ residentModels: [{ id: '<img src=x onerror=alert(1)>', phase: 'idle', activeRequests: 0 }] }));

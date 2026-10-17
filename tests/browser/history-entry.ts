@@ -7,8 +7,6 @@ import type { LedgerState } from '../../panel/history/ledger.ts';
 import { historyView } from '../../panel/render/views/history.ts';
 import type { ViewHandle } from '../../panel/render/views/types.ts';
 import { ICON } from '../../panel/render/views/parts.ts';
-import { withheldWhy, alertCopy } from '../../panel/present/copy.ts';
-const MOCK_TEXT = { withheld: (reason: string) => `All server activity · ${withheldWhy(reason)}`, alert: (id: Parameters<typeof alertCopy>[0], params: Parameters<typeof alertCopy>[1]) => alertCopy(id, params)[0] };
 import { MOCK_MODELS, MOCK_NOW, mockAccounting, mockLedgerRows, mockSnapshot, mockTrend, mockUsage } from '../../panel/testing/mock-history.ts';
 
 const params = new URLSearchParams(location.search);
@@ -22,7 +20,7 @@ const harness = {
   autoLabel: [] as boolean[], ledgerState: (params.has('stopped') ? 'stopped' : state === 'recording-paused' ? 'paused' : 'idle') as LedgerState,
   handle: null as ViewHandle | null, snapshot: null as SnapshotV2 | null,
   push(snapshot: SnapshotV2): void { this.snapshot = snapshot; this.handle!.update(snapshot); },
-  /** One decode poll `ms` after the mock's now, with `tokens` output so far (the window capture's input). */
+  /** One decode poll `ms` after the mock's now, with `tokens` output so far: a poll arriving while a view is open. */
   decode(ms: number, tokens: number): void {
     const s = structuredClone(base);
     s.serverNow = MOCK_NOW + ms; s.runtime.sampledAt = MOCK_NOW + ms;
@@ -51,7 +49,9 @@ harness.handle = historyView({
   ledger: {
     get state() { return harness.ledgerState; },
     read: async () => rows, models: async () => MOCK_MODELS,
-    accounting: () => empty ? { ...mockAccounting(), ledgerBytes: 2048, oldestS: null } : mockAccounting(state === 'storage-full'),
+    // ?kept=1: capture and observation keys an earlier version left behind, counted but never shown or written.
+    accounting: () => ({ ...empty ? { ...mockAccounting(), ledgerBytes: 2048, oldestS: null } : mockAccounting(state === 'storage-full'),
+      ...params.has('kept') ? { keptItems: 3, keptBytes: 18_432 } : {} }),
     setRetention: async days => { harness.retention.push(days); }, setPaused: paused => { harness.paused.push(paused); harness.ledgerState = paused ? 'paused' : 'idle'; },
     clear: async () => { harness.cleared += 1; rows = []; },
   },
@@ -59,8 +59,10 @@ harness.handle = historyView({
     trend: async request => { harness.trendReads.push(request.windowMs); return { ok: true, body: mockTrend(request.windowMs, empty) }; },
     usage: async request => { harness.usageReads.push(request.range); const body = mockUsage(request.range); if (params.get('usage') === 'totals-only') body.buckets = []; return { ok: true, body }; },
   },
-  retentionDays: () => 30, paused: () => state === 'recording-paused', copy: text => host.writeClipboard(text), version: '2.0.0', text: MOCK_TEXT,
-  autoLabel: () => true, setAutoLabel: async value => { harness.autoLabel.push(value); },
+  // The product's own chip and alert wording (present/history.ts HISTORY_TEXT), as the shell passes no override.
+  retentionDays: () => 30, paused: () => state === 'recording-paused', copy: text => host.writeClipboard(text), version: '2.0.0',
+  autoLabel: () => params.get('autoLabel') !== 'off',
+  setAutoLabel: async value => { if (params.get('autoLabel') === 'fail') throw new Error('refused'); harness.autoLabel.push(value); },
 })(root, context);
 harness.push(base);
 document.body.dataset.ready = 'true';

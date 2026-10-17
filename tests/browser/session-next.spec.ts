@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
+// This host accepts header controls (?sdk=next), so Watch and Pause are drawn in its own section header and the
+// in-widget toolbar is hidden; ?headers=fail keeps the toolbar as the fallback.
+const header = (page: Page) => page.locator('#fixture-status-controls');
+const watch = (page: Page, value: 'chat' | 'engine') => header(page).getByRole('combobox', { name: 'Watch', exact: true }).selectOption(value);
+const pause = (page: Page, label: 'Pause' | 'Resume') => header(page).getByRole('button', { name: label, exact: true }).click();
+
 const load = async (page: Page, query = '') => {
   const params = new URLSearchParams('sdk=next&surface=status&design=next&state=decode');
   for (const [key, value] of new URLSearchParams(query)) params.set(key, value);
@@ -18,17 +24,16 @@ for (const theme of ['dark', 'light']) for (const width of [300, 320, 430]) {
     await page.setViewportSize({ width, height: 700 });
     const frame = await load(page, `theme=${theme}`);
     await expect(page).toHaveTitle(/MLX Scope/);
-    await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
+    await watch(page, 'engine');
     await expect(frame.locator('.ws-phase')).toHaveText('Generating');
     await expect(frame.locator('.ws-reading')).toContainText('tokens/s');
-    await expect(frame.locator('.ws-label')).toContainText('Engine · request average');
-    const toolbar = await frame.locator('.ws-toolbar').evaluate(el => {
-      const controls = Array.from(el.querySelectorAll('select, button'), control => control.getBoundingClientRect());
-      return { oneRow: Math.max(...controls.map(r => r.top)) - Math.min(...controls.map(r => r.top)) < 6,
-        fits: controls.every(r => r.left >= 0 && r.right <= innerWidth), height: el.getBoundingClientRect().height };
-    });
-    expect(toolbar.oneRow).toBe(true); expect(toolbar.fits).toBe(true); expect(toolbar.height).toBeLessThanOrEqual(36);
-    await expect(frame.locator('#ws-signal svg')).toBeVisible();
+    await expect(frame.locator('.ws-label')).toHaveText('Engine');
+    await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /average for this request/);
+    // Phase and one reading: no in-section trace, support row or toolbar while the host header holds the controls.
+    await expect(frame.locator('#ws-toolbar')).toBeHidden();
+    expect(await frame.locator('#ws-toolbar').evaluate(el => el.getBoundingClientRect().height)).toBe(0);
+    await expect(frame.locator('#ws-signal, .ws-plot, .ws-support, .ws-held')).toHaveCount(0);
+    await expect(frame.locator('#ws-notice')).toBeHidden();
     expect(await frame.locator('#scope').evaluate(el => ({
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       height: el.getBoundingClientRect().height,
@@ -45,7 +50,7 @@ for (const theme of ['dark', 'light']) for (const width of [300, 320, 430]) {
 test('Session keeps Open visible and focus stable at enlarged text with media and across freshness changes', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   const frame = await load(page, 'media=eta');
-  await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
+  await watch(page, 'engine');
   await frame.locator('html').evaluate(el => { (el as HTMLElement).style.fontSize = '24px'; });
   const open = frame.getByRole('button', { name: 'Open MLX Scope', exact: true });
   await expect(frame.locator('.media-glance')).toBeVisible();
@@ -54,7 +59,7 @@ test('Session keeps Open visible and focus stable at enlarged text with media an
   await page.evaluate('window.setPreviewState("offline")');
   await expect(frame.locator('.ws-phase')).toHaveText('Offline');
   await expect(frame.locator('.ws-measurement')).toBeHidden();
-  await expect(frame.locator('#ws-signal')).toBeHidden();
+  await expect(frame.locator('#ws-notice .ws-notice')).toHaveCount(1);
   await expect(open).toBeFocused();
   await expect(open).toBeInViewport({ ratio: 1 });
   await page.evaluate('window.setPreviewState("decode")');
@@ -87,23 +92,26 @@ test('Session toolbar retains scope, pause and snapshot details when the host re
   expect(await page.evaluate('window.previewNextCalls')).toEqual([]);
 });
 
-test('Session uses one priority warning and clears its trace when paused', async ({ page }) => {
+test('Session uses one priority warning as its exception row and clears its reading when paused', async ({ page }) => {
   const frame = await load(page, 'state=pressure');
-  await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
+  await watch(page, 'engine');
   await expect(frame.locator('.ws-warning')).toHaveCount(1);
   await expect(frame.locator('.ws-warning')).toBeVisible();
-  await expect(frame.locator('.ws-support')).toBeHidden();
-  await frame.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(frame.locator('#ws-notice.ws-exceptions > p.ws-notice')).toHaveCount(1);
+  await expect(frame.locator('#ws-notice > p.ws-notice')).toHaveAttribute('data-exception', 'alert');
+  await expect(frame.locator('#ws-notice > p.ws-notice')).toHaveText('Memory pressure · warning');
+  await expect(frame.locator('.ws-support')).toHaveCount(0);
+  await pause(page, 'Pause');
   await expect(frame.locator('.ws-phase')).toHaveText('Paused');
-  await expect(frame.locator('#ws-signal')).toBeHidden();
   await expect(frame.locator('.ws-measurement')).toBeHidden();
+  await expect(frame.locator('#ws-notice')).toBeHidden();
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeInViewport({ ratio: 1 });
 });
 
 
 test('a focused reading hands focus to Open when unavailable and opens snapshot details by keyboard', async ({ page }) => {
   const frame = await load(page);
-  await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
+  await watch(page, 'engine');
   const reading = frame.locator('.ws-measurement');
   await reading.focus();
   await expect(reading).toBeFocused();
@@ -122,18 +130,19 @@ for (const width of [300, 430]) test(`prompt ETA fits ${width}px and disappears 
   await page.setViewportSize({ width, height: 700 });
   const frame = await load(page, 'state=prefill');
   await expect(frame.locator('.prompt-eta')).toHaveText('Est. 20 s left');
-  await expect(frame.locator('.ws-label')).toContainText('Engine · prompt');
+  await expect(frame.locator('.ws-label')).toHaveText('EngineEst. 20 s left');
+  await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /^Prompt read/);
   await expect(frame.locator('.prompt-eta')).toBeInViewport({ ratio: 1 });
   expect(await frame.locator('html').evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await frame.getByRole('button', { name: 'Pause', exact: true }).click();
+  await pause(page, 'Pause');
   await expect(frame.locator('.prompt-eta')).toHaveCount(0);
   await page.evaluate('window.setPreviewState("decode")');
-  await frame.getByRole('button', { name: 'Resume', exact: true }).click();
+  await pause(page, 'Resume');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
   await expect(frame.locator('.prompt-eta')).toHaveCount(0);
   await page.evaluate('window.setPreviewState("prefill")');
   await expect(frame.locator('.prompt-eta')).toBeVisible();
-  await frame.getByRole('button', { name: 'Details', exact: true }).click();
+  await frame.getByRole('button', { name: /^Measurement details: / }).click();
   await expect(page.frameLocator('iframe[title="Scope detail popover"]').locator('body')).toContainText('Generation time is not included');
 });
 

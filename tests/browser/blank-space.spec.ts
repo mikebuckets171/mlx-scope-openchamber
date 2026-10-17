@@ -28,7 +28,7 @@ const geometry = () => {
   )).some(child => shown(child) && (!child.matches('svg path') || !!child.getAttribute('d')));
   const regions = '.instrument-readout, .instrument-measure, .instrument-evidence, .machine-summary-values, .machine-health, .machine-line, .mac-rows, .media-glance-timing, '
     + '.media-jobs, .media-sources, .actions, .insight-actions, .metrics, .values-2, .values-3, .ledger, .usage-bars, .usage-days, '
-    + '#view-live, #view-media, #view-history, #captures-content, #media-setup, #media-advanced, #companion-setup';
+    + '#view-live, #view-media, #view-history, .history-storage, #media-setup, #media-advanced, #companion-setup';
   for (const region of Array.from(document.querySelectorAll<HTMLElement>(regions))) {
     if (!shown(region)) continue;
     const height = region.getBoundingClientRect().height, style = getComputedStyle(region);
@@ -106,10 +106,9 @@ for (const { surface, width, theme, font } of SURFACES) test(`all mock states us
       await history.click();
       await expect(ui.locator('.history-storage')).toBeVisible();
       await clean(frame, `${state}: history`);
-      await ui.getByRole('button', { name: 'Captures', exact: true }).click();
-      await expect(ui.locator('.capture-card')).toBeVisible();
-      await clean(frame, `${state}: captures`);
-      await ui.getByRole('button', { name: 'Back to History', exact: true }).click();
+      if (!await ui.locator('.history-storage').evaluate(node => (node as HTMLDetailsElement).open)) await ui.locator('.history-storage > summary').click();
+      await expect(ui.getByRole('checkbox', { name: 'Label replies to this chat automatically' })).toBeVisible();
+      await clean(frame, `${state}: history storage`);
       await ui.getByRole('button', { name: 'Back', exact: true }).click();
     }
     await ui.getByRole('button', { name: 'Connections', exact: true }).click();
@@ -141,16 +140,20 @@ test('populated glance rows keep their space while offline and unmeasured rows c
   for (const width of [230, 430]) {
     await page.locator('iframe').evaluate((node, width) => { (node as HTMLElement).style.width = `${width}px`; }, width);
     const heights = await ui.locator('.ws-instrument').evaluate(node => {
-      const measure = node.querySelector('.ws-measurement')!, support = node.querySelector('.ws-support')!;
-      const reading = measure.querySelector('.ws-reading')!, fact = support.querySelector('.ws-fact-value')!;
-      return { measurement: measure.getBoundingClientRect().height, support: support.getBoundingClientRect().height,
-        reading: reading.getBoundingClientRect().height, fact: fact.getBoundingClientRect().height,
-        readingFont: parseFloat(getComputedStyle(reading).fontSize), factFont: parseFloat(getComputedStyle(fact).fontSize) };
+      const heading = node.querySelector('#ws-heading')!, phase = heading.querySelector('.ws-phase')!;
+      const measure = node.querySelector('.ws-measurement')!, reading = measure.querySelector('.ws-reading')!;
+      const exceptions = node.querySelector<HTMLElement>('#ws-notice')!;
+      return { heading: heading.getBoundingClientRect().height, phase: phase.getBoundingClientRect().height,
+        measurement: measure.getBoundingClientRect().height, reading: reading.getBoundingClientRect().height,
+        readingFont: parseFloat(getComputedStyle(reading).fontSize),
+        exceptions: exceptions.hidden ? exceptions.getBoundingClientRect().height : null };
     });
+    expect(heights.heading).toBeGreaterThanOrEqual(heights.phase);
     expect(heights.measurement).toBeGreaterThanOrEqual(heights.reading);
-    expect(heights.support).toBeGreaterThanOrEqual(heights.fact);
     expect(heights.reading).toBeGreaterThanOrEqual(heights.readingFont);
-    expect(heights.fact).toBeGreaterThanOrEqual(heights.factFont);
+    // No exception to report: the row gives its space back.
+    expect(heights.exceptions).toBe(0);
+    await expect(ui.locator('.ws-support, .ws-signal')).toHaveCount(0);
     await clean(frame, `populated ${width}px`);
   }
   const offline = await load(page, 'surface=status&state=offline', 300);
@@ -158,7 +161,7 @@ test('populated glance rows keep their space while offline and unmeasured rows c
   await expect(offline.ui.locator('.ws-measurement')).toBeHidden();
   await clean(offline.frame, 'offline note');
   const unmeasured = await load(page, 'surface=status&state=splash-measuring', 300);
-  await expect(unmeasured.ui.locator('.ws-measurement:visible, .ws-support:visible')).toHaveCount(0);
+  await expect(unmeasured.ui.locator('.ws-measurement:visible, .ws-support')).toHaveCount(0);
   await clean(unmeasured.frame, 'unmeasured Splash');
 });
 
@@ -185,17 +188,17 @@ for (const width of [320, 1160]) test(`media empty states and connections use na
   await clean(frame, 'connections without helper actions');
 });
 
-test('empty history, saved captures, and bucketless usage retain explanations and totals without empty plots', async ({ page }) => {
+test('empty history, its storage card, and bucketless usage retain explanations and totals without empty plots', async ({ page }) => {
   for (const width of [320, 1160]) {
     const { frame, ui } = await load(page, 'surface=page&state=history-empty&leader=0', width);
     await ui.getByRole('button', { name: 'History', exact: true }).click();
     await expect(ui.locator('#view-history .recent-replies .empty')).toBeVisible();
     await expect(ui.locator('#view-history .plot')).toHaveCount(0);
     await clean(frame, 'empty history');
-    await ui.getByRole('button', { name: 'Captures', exact: true }).click();
-    await expect(ui.locator('#captures-content .empty')).toBeVisible();
-    await expect(ui.locator('#captures-content .ledger')).toHaveCount(0);
-    await clean(frame, 'empty saved captures');
+    await ui.locator('.history-storage > summary').click();
+    await expect(ui.getByRole('checkbox', { name: 'Label replies to this chat automatically' })).toBeVisible();
+    await expect(ui.locator('.history-storage')).not.toContainText('Kept from earlier versions');
+    await clean(frame, 'empty history storage');
     await page.goto('/history.html?surface=page&usage=totals-only');
     await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
     await page.locator('.history-insights > summary').click();

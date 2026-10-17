@@ -65,11 +65,7 @@ test('Now opens the shared current inspector without starting history collection
   expect(await page.evaluate(() => (window as any).previewUnexpectedSends)).toBe(0);
   expect(await page.evaluate(() => ({ storage: (window as any).previewStorageOps ?? [],
     history: ((window as any).previewServicePaths ?? []).filter((path: string) => /trend|usage/.test(path)) }))).toEqual(reads);
-  await frame.locator('#panel-history').getByRole('button', { name: 'Captures', exact: true }).click();
-  await expect(frame.getByRole('heading', { name: 'Captures', exact: true })).toBeFocused();
-  await frame.getByRole('button', { name: 'Back to Run details', exact: true }).click();
-  await expect(frame.locator('#history-title')).toBeFocused();
-  await expect(frame.getByRole('heading', { name: 'Current observation' })).toBeVisible();
+  await expect(frame.locator('#panel-history').getByRole('button', { name: 'Captures', exact: true })).toHaveCount(0);
   await frame.locator('#panel-history').getByRole('button', { name: 'Back', exact: true }).click();
   await expect(frame.getByRole('button', { name: 'Run details', exact: true })).toBeFocused();
   await expect(frame.locator('#rate')).toHaveText('26.4');

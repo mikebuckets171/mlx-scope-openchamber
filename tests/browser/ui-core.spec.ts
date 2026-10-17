@@ -105,17 +105,16 @@ test('secondary views return to their parent and server-only reads stop outside 
   await expect(frame.getByRole('button', { name: 'Server & Mac details', exact: true })).toBeFocused();
   await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBeUndefined();
   await frame.getByRole('button', { name: 'History', exact: true }).click();
-  await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await expect(frame.locator('#panel-captures')).toBeVisible();
-  await expect(frame.locator('#captures-title')).toBeFocused();
-  await expect(frame.locator('#panel-history')).toBeHidden();
+  await expect(frame.locator('#view-history')).toBeVisible();
+  await expect(frame.locator('#history-title')).toBeFocused();
+  await expect(frame.locator('#view-live')).toBeHidden();
+  await expect(frame.getByRole('button', { name: 'Captures', exact: true })).toHaveCount(0);
   const before = await host(page, w => w.previewRequests);
   await expect.poll(() => host(page, w => w.previewRequests)).toBeGreaterThan(before + 1);
   expect((await host(page, w => w.previewQueries)).at(-1).detail).toBeUndefined();
-  await frame.getByRole('button', { name: 'Back to History', exact: true }).click();
-  await expect(frame.locator('#view-history')).toBeVisible();
-  await expect(frame.locator('#history-title')).toBeFocused();
-  await expect(frame.locator('#panel-captures')).toBeHidden();
+  await frame.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(frame.locator('#view-live')).toBeVisible();
+  await expect(frame.getByRole('button', { name: 'History', exact: true })).toBeFocused();
 });
 
 test('ⓘ is a disclosure: one open at a time, in flow, Esc closes it and returns focus; it survives polls', async ({ page }) => {
@@ -205,7 +204,8 @@ test('Session summary leads with reply speed, keeps warnings visible, and fits i
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
   await expect(frame.locator('.ws-reading')).toContainText('26.4');
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · request average');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
+  await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /average for this request/);
   await expect(frame.locator('.chip, .ws-spark, .ws-key-stats, .ts-rows')).toHaveCount(0);
   await expect(frame.getByRole('button', { name: 'Show turn stats' })).toHaveCount(0);
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
@@ -285,7 +285,10 @@ test('Session summary reports a failed full-panel action without clipping the gu
   await page.locator('iframe').evaluate(el => { (el as HTMLElement).style.width = '260px'; });
   await frame.getByRole('button', { name: 'Open MLX Scope', exact: true }).click();
   await expect(frame.locator('.ws-action-error')).toBeVisible();
-  await expect(frame.locator('.ws-action-error')).toHaveAttribute('role', 'status');
+  // The error leads the at-most-two exception rows, ahead of the warning, in a live status region.
+  await expect(frame.locator('#ws-notice')).toHaveAttribute('role', 'status');
+  await expect(frame.locator('#ws-notice > .ws-notice')).toHaveCount(2);
+  expect(await frame.locator('#ws-notice > .ws-notice').evaluateAll(rows => rows.map(row => (row as HTMLElement).dataset.exception))).toEqual(['error', 'alert']);
   await expect(frame.locator('.ws-action-error')).toHaveText('Could not open Scope. Use the side icon.');
   await expect.poll(() => lastHeight(page)).toBe(await frame.locator('#ws').evaluate(el => Math.ceil(el.getBoundingClientRect().height)));
   expect(await problems(page)).toEqual([]);

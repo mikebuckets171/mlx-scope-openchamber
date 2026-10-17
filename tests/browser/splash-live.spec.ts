@@ -9,7 +9,8 @@ test('Splish/Splash live rate stays server-wide and clears when the source stops
   await page.goto('/v2?surface=page&state=splash-decode');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#rate')).toHaveText('43.8');
-  await expect(frame.locator('#attribution')).toContainText('All server activity');
+  await expect(frame.locator('#attribution .chip')).toHaveText('Engine');
+  await expect(frame.locator('#attribution .chip')).toHaveAttribute('data-attr', 'server');
   await expect(frame.locator('[data-stage="generation"][data-basis="derived"]')).toContainText('Generation');
   await expect(frame.locator('[data-stage="generation"] .speed-source')).toContainText('Calculated');
   await expect(frame.locator('[data-stage="generation"] .speed-source')).toContainText('last 4.0 s');
@@ -32,7 +33,7 @@ test('Splish/Splash live rate stays server-wide and clears when the source stops
   await expect(frame.locator('#hero')).not.toContainText('43.8');
   await expect(frame.locator('#rate')).toHaveText('23.2');
   await expect(frame.locator('.instrument-primary')).toHaveAttribute('data-live', 'false');
-  await expect(frame.locator('.instrument-source')).toContainText('Engine · overall avg.');
+  await expect(frame.locator('.instrument-source')).toContainText('Engine · overall average');
   await expect(frame.locator('.instrument-source .basis')).toContainText('Not a live reading.');
 });
 
@@ -111,7 +112,8 @@ for (const theme of ['light', 'dark']) test(`recent engine labels and intervals 
   await page.goto(`/v2?surface=status&state=splash-decode&theme=${theme}`);
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · recent 4.0 s');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
+  await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /Calculated · last 4\.0 s/);
   const panelFrame = page.frames().find(frame => frame !== page.mainFrame())!;
   const backdrop = await page.evaluate(() => [getComputedStyle(document.documentElement).backgroundColor, getComputedStyle(document.body).backgroundColor]);
   expect(await panelFrame.evaluate(inspect, { openAll: false, backdrop })).toEqual([]);
@@ -123,7 +125,8 @@ test('the Session pane shows live derived tok/s and follows theme changes', asyn
   await page.goto('/v2?demo=1&surface=status&state=splash-decode&theme=graphite-mint');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-reading')).toContainText('tokens/s');
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · recent 4.0 s');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
+  await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /Calculated · last 4\.0 s/);
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
   await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /Calculated/);
   const rate = await frame.locator('.ws-reading').innerText();

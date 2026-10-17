@@ -1,6 +1,7 @@
 // The G2 mock's checks (docs/design/shoot-2.0-mock.mjs `inspect`), run against the real 2.0 panel: no overflow, text
-// ≥ 10 px and ≥ 4.5:1 against what is behind it (backgrounds composited up the tree), attribution chips that say
-// inferred/armed or name their reason, a basis label on every non-reported value, no GPU alert, one callout per view,
+// ≥ 10 px and ≥ 4.5:1 against what is behind it (backgrounds composited up the tree), two-layer labels (This chat or
+// Engine, an Engine chip keeping its reason), estimates shown as "≈" and spoken "about", a basis label on every
+// non-reported value, no GPU alert, one callout per view,
 // ⓘ targets ≥ 24 px with aria-expanded/aria-controls, no tooltip-only text, labelled charts and svgs, roving tabs, the
 // glance's exact heights with nothing spilling, and interactive targets ≥ 24 px. Runs inside the panel frame.
 export const inspect = (options: boolean | { openAll: boolean; backdrop: string[] }): string[] => {
@@ -65,15 +66,27 @@ export const inspect = (options: boolean | { openAll: boolean; backdrop: string[
   if (openAll) return problems;
   const text = document.body.innerText;
   if (/vram/i.test(text)) problems.push('says VRAM');
+  // Two layers: a chip says "This chat" only for a matched reading; anything else is "Engine" and keeps its reason.
   for (const chip of Array.from(document.querySelectorAll<HTMLElement>('.chip[data-attr]'))) {
     if (!visible(chip)) continue;
-    const t = chip.textContent!.trim(), desc = chip.getAttribute('aria-describedby'), target = desc ? document.getElementById(desc) : null;
-    const describedOk = t === 'All server activity' && target && target.textContent!.includes(chip.dataset.reason ?? '\u0000') && visible(target);
-    if (!/^(Likely this chat|Next reply|All server activity · .+)$/.test(t) && !describedOk) problems.push(`attribution chip "${t}" (server-wide needs its reason)`);
+    const t = chip.textContent!.trim(), attr = chip.dataset.attr;
+    if (!(attr === 'inferred' && t === 'This chat' || attr === 'server' && t === 'Engine' && !!chip.dataset.reason?.trim()))
+      problems.push(`attribution chip "${t}" (${attr}) is not This chat or Engine with its reason`);
   }
-  // The scope selector names a preference, not an attribution claim. Actual chat measurements name their basis.
+  // Every reading names its layer; how it was measured lives in its explanation, not its label.
+  const ownText = (el: Element) => Array.from(el.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim();
   for (const label of Array.from(document.querySelectorAll('.ws-measurement .ws-label, .instrument-source'))) {
-    if (visible(label) && /^Chat/.test(label.textContent!.trim()) && !/matched|est\./.test(label.textContent!)) problems.push('chat reading without a matching or estimate label');
+    if (!visible(label)) continue;
+    const t = ownText(label);
+    if (!/^(This chat|Engine|Last reply)(?: · (?:Engine|[a-z][a-z ]*))?$/.test(t)) problems.push(`reading label "${t}" names neither This chat nor Engine`);
+  }
+  // An estimate never reads as a measured value: "≈ 24.1" on screen, "about 24.1" for a screen reader.
+  for (const reading of Array.from(document.querySelectorAll<HTMLElement>('.instrument-primary, .ws-measurement'))) {
+    if (!visible(reading)) continue;
+    const shown = reading.querySelector('strong')?.textContent?.trim() ?? '', spoken = reading.querySelector('.speed-value > .sr-only, .measurement-accessible')?.textContent?.trim() ?? '';
+    const estimate = reading.dataset.basis === 'estimate';
+    if (estimate !== shown.startsWith('≈ ')) problems.push(`${estimate ? 'estimate without' : 'measured value with'} "≈": "${shown}"`);
+    if (estimate !== spoken.startsWith('about ')) problems.push(`${estimate ? 'estimate not spoken' : 'measured value spoken'} as "about": "${spoken}"`);
   }
   for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-basis]:not([data-basis="reported"])'))) {
     if (!visible(el) || el.classList.contains('chip')) continue;
@@ -96,7 +109,8 @@ export const inspect = (options: boolean | { openAll: boolean; backdrop: string[
   for (const el of Array.from(document.querySelectorAll<HTMLElement>('[title]'))) {
     // Session model names may ellipsize and provenance explains its source in a title. Their visible labels still
     // identify the model and scope; neither is a tooltip-only control or an omitted measurement.
-    if (el.closest('#ws[data-presentation="session"]') && el.matches('.ws-phase, .ws-model, .ws-scope, .ws-note, .ws-label, .ws-warning, .ws-measurement, .ws-support, .speed-row dd')) continue;
+    // Exception rows (.ws-notice) carry their full explanation in a title beside the visible summary.
+    if (el.closest('#ws[data-presentation="session"]') && el.matches('.ws-phase, .ws-model, .ws-scope, .ws-note, .ws-notice, .ws-label, .ws-warning, .ws-measurement, .ws-support, .speed-row dd')) continue;
     if (el.closest('#scope')) problems.push(`tooltip-only text on <${el.tagName.toLowerCase()}>: "${el.title.slice(0, 30)}"`);
   }
   for (const c of Array.from(document.querySelectorAll('.plot, .ws-spark'))) if (c.getAttribute('role') !== 'img' || !c.getAttribute('aria-label')) problems.push(`chart without role="img" and a summary: ${c.className}`);

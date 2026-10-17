@@ -4,7 +4,7 @@ import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 
 // 3.2 has one column and secondary views with Back; these replace the 3.1 Live/History tabs.
 const toColumn = async (frame: FrameLocator): Promise<void> => {
-  for (const name of ['Back to History', 'Back']) { const back = frame.getByRole('button', { name, exact: true }); if (await back.isVisible()) await back.click(); }
+  const back = frame.getByRole('button', { name: 'Back', exact: true }); if (await back.isVisible()) await back.click();
 };
 const toHistory = async (frame: FrameLocator): Promise<void> => { await toColumn(frame); await frame.getByRole('button', { name: 'History', exact: true }).click(); };
 
@@ -31,126 +31,26 @@ const screenshot = async (page: Page, path: string): Promise<void> => {
   await scope.screenshot({ path });
 };
 
-// One controller owns the measurement across destinations and surface sizes.
-test('next reply stays usable across navigation and page/rail resizing', async ({ page }) => {
+// Measure next reply and Captures are retired: no surface offers them at any width or destination.
+test('Live and History offer no Measure next reply or Captures across navigation and page/rail resizing', async ({ page }) => {
   await page.setViewportSize({ width: 1160, height: 1000 });
   await page.goto('/v2?surface=page&state=decode&chat=local');
   const frame = page.frameLocator('iframe');
-  const action = frame.getByRole('button', { name: 'Measure next reply', exact: true });
-  await expect(action).toHaveCount(1);
-  await action.click();
-  await expect(frame.locator('#reply-strip')).toContainText('Next reply');
+  await expect(frame.locator('#rate')).toHaveText('26.4');
+  const retired = frame.getByRole('button', { name: /Measure next reply|Captures|Timed recording|Save to Captures/ });
+  await expect(retired).toHaveCount(0);
+  await expect(frame.locator('#reply-strip')).not.toContainText('Next reply');
   await page.setViewportSize({ width: 430, height: 1000 });
-  await expect(frame.locator('#reply-strip')).toContainText('Next reply');
+  await expect(retired).toHaveCount(0);
   await toHistory(frame);
-  await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await expect(frame.locator('[data-next="armed"]')).toBeVisible();
-  await expect(frame.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(1);
+  await expect(frame.locator('#view-history')).toBeVisible();
+  await expect(retired).toHaveCount(0);
+  await expect(frame.locator('#capture-activity, #panel-captures, .capture-card, [data-next], [data-window]')).toHaveCount(0);
   await page.setViewportSize({ width: 1160, height: 1000 });
-  await expect(frame.locator('[data-next="armed"]')).toBeVisible();
-  await frame.getByRole('button', { name: 'Back to History', exact: true }).click();
-  await expect(frame.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(1);
-  await frame.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(frame.locator('#view-history')).toBeVisible();
   await toColumn(frame);
-  await expect(action).toHaveCount(1);
-});
-
-test('a timed capture records while Live is visible and returns with its result', async ({ page }) => {
-  await page.clock.install({ time: Date.UTC(2026, 9, 3, 1, 0) });
-  await page.goto('/v2?demo=1&state=decode&surface=page');
-  await page.evaluate(() => {
-    addEventListener('message', event => {
-      const child = document.querySelector('iframe')?.contentWindow;
-      if (event.source === child && event.data === 'design-ping') child!.postMessage('design-pong', '*');
-    });
-  });
-  const frame = page.frameLocator('iframe');
-  await toHistory(frame);
-  await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await frame.getByRole('button', { name: 'Timed recording', exact: true }).click();
-  await frame.getByLabel('Recording length').selectOption('30000');
-  await frame.getByRole('button', { name: 'Start capture', exact: true }).click();
-  await expect(frame.locator('[data-window="recording"]')).toBeVisible();
-  await frame.getByRole('button', { name: 'Reply', exact: true }).click();
-  await expect(frame.locator('[data-window="recording"]')).toBeVisible();
-  await expect(frame.locator('[data-window] button[data-action="window-stop"]')).toBeVisible();
-  await toColumn(frame);
-  await expect(frame.locator('#capture-activity')).toContainText('Timed recording');
-  await expect(frame.locator('#capture-activity').getByRole('button', { name: 'Cancel', exact: true })).toBeVisible();
-  await advance(page, 31_000);
-  await toHistory(frame);
-  await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await expect(frame.locator('#panel-captures .capture-ready')).toContainText('Timed recording: Captured · 30 s.');
-  await frame.getByRole('button', { name: 'View timed recording', exact: true }).click();
-  await expect(frame.locator('[data-window="finished"]')).toBeVisible();
-  await expect(frame.locator('[data-window]')).toContainText('Captured · 30 s');
-  await expect(frame.locator('[data-window]')).toContainText('tok/s');
-  await frame.locator('[data-window]').getByRole('button', { name: 'Save to Captures', exact: true }).click();
-  await expect(frame.getByText('Saved to Captures without model names.')).toBeVisible();
-});
-
-test('a timed capture can be cancelled from Live without losing its partial observation', async ({ page }) => {
-  await page.clock.install({ time: Date.UTC(2026, 9, 3, 1, 0) });
-  await page.goto('/v2?demo=1&state=decode');
-  await page.evaluate(() => {
-    addEventListener('message', event => {
-      const child = document.querySelector('iframe')?.contentWindow;
-      if (event.source === child && event.data === 'design-ping') child!.postMessage('design-pong', '*');
-    });
-  });
-  const frame = page.frameLocator('iframe');
-  await toHistory(frame);
-  await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await frame.getByRole('button', { name: 'Timed recording', exact: true }).click();
-  await frame.getByRole('button', { name: 'Start capture', exact: true }).click();
-  await advance(page, 5_000);
-  await toColumn(frame);
-  await frame.locator('#capture-activity').getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(frame.locator('#capture-activity')).toBeHidden();
-  await toHistory(frame);
-  await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await expect(frame.locator('[data-window="interrupted"]')).toBeVisible();
-  await expect(frame.locator('[data-window]')).toContainText('Stopped by you');
-  await expect(frame.locator('[data-window]')).toContainText('tok/s');
-});
-
-test('saving a measured reply from Live refreshes the existing Captures view', async ({ page }) => {
-  await page.clock.install({ time: Date.UTC(2026, 9, 3, 1, 0) });
-  await page.goto('/v2?state=decode&chat=local');
-  await page.evaluate(() => {
-    addEventListener('message', event => {
-      const child = document.querySelector('iframe')?.contentWindow;
-      if (event.source === child && event.data === 'design-ping') child!.postMessage('design-pong', '*');
-    });
-    (window as any).setPreviewSession({ id: 'fixture-chat', title: 'Fixture chat', busy: false, model: 'omlx/Example-27B-4bit' });
-  });
-  const frame = page.frameLocator('iframe');
-  // Mount the destination before saving elsewhere, exercising activation of an existing controller.
-  await toHistory(frame);
-  await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await expect(frame.locator('#panel-captures .ledger')).toHaveCount(0);
-  await toColumn(frame);
-  await frame.getByRole('button', { name: 'Measure next reply', exact: true }).click();
-  await page.evaluate(() => { (window as any).sendPreviewLifecycle('started'); });
-  await advance(page, 2_000);
-  await expect(frame.locator('#reply-strip')).toContainText('Measuring next reply');
-  await page.evaluate(() => {
-    const preview = window as any, now = Date.now();
-    const body = preview.ScopeStates.mockBody('decode', { now });
-    body.completions.cursor = 58;
-    body.completions.items = [{ seq: 58, startedAt: now - 2_000, finishedAt: now, model: 'Example-27B-4bit', basis: 'last-observed',
-      decodeTps: 25, outputTokens: 50, overlapped: false, host: {} }];
-    preview.setPreviewPatch({ completions: body.completions });
-    preview.sendPreviewLifecycle('completed');
-  });
-  await advance(page, 3_000);
-  await frame.getByRole('button', { name: 'Save to Captures', exact: true }).click();
-  await expect(frame.locator('#action-status')).toContainText('Saved');
-  await toHistory(frame);
-  await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await expect(frame.locator('#panel-captures .ledger .led-row')).toHaveCount(1);
-  await expect(frame.locator('#panel-captures .ledger')).toContainText('25.0 tok/s');
-  await expect(frame.locator('#panel-captures .ledger')).toContainText('Next reply · oMLX');
+  await expect(frame.locator('#rate')).toBeVisible();
+  await expect(retired).toHaveCount(0);
 });
 
 test('design preview uses real views with isolated synthetic data and live theme controls', async ({ page }, testInfo) => {
@@ -260,7 +160,7 @@ test('current first-token timing comes only from the current request capability'
   await expect(frame.locator('#first-token')).toHaveCount(0);
 });
 
-test('the 280 px Session summary keeps performance readable without repeating a long host model name', async ({ page }) => {
+test('the 280 px Session summary keeps one readable reading without repeating a long host model name', async ({ page }) => {
   await page.setViewportSize({ width: 300, height: 600 });
   await page.goto('/v2?state=decode&surface=status');
   await page.evaluate(() => {
@@ -277,8 +177,10 @@ test('the 280 px Session summary keeps performance readable without repeating a 
   await expect(frame.locator('.ws-phase')).toHaveText('Generating');
   await expect(frame.locator('.ws-reading')).toContainText('26.4');
   await expect(frame.locator('.ws-key-stats, .ts-rows')).toHaveCount(0);
-  await expect(frame.locator('.ws-support .ws-fact-label')).toHaveText('Engine first token');
-  await expect(frame.locator('.ws-support .ws-fact-value')).toHaveText('0.85 s');
+  // The quiet Session shows the phase and one reading; first-token and output facts stay in the full panel.
+  await expect(frame.locator('.ws-support, .ws-signal, .ws-plot')).toHaveCount(0);
+  await expect(frame.locator('#ws')).not.toContainText('First token');
+  await expect(frame.locator('#ws-notice')).toBeHidden();
   await expect(frame.locator('#ws')).not.toContainText('Context used');
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
   const fit = await frame.locator('#ws').evaluate(el => ({ height: el.getBoundingClientRect().height,
@@ -326,7 +228,7 @@ test('Session summary clears live speed when Splash readings become stale and re
   await expect(frame.locator('.ws-phase')).not.toHaveText('Generating');
   await page.evaluate(() => (window as any).setPreviewState('splash-decode'));
   await expect(frame.locator('.ws-reading')).toContainText('43.8');
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · recent 4.0 s');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
 });
 
 test('completed-response first token remains explicitly last reply during a later request', async ({ page }) => {
@@ -335,7 +237,7 @@ test('completed-response first token remains explicitly last reply during a late
   await expect(frame.locator('#reply-strip')).toContainText('Last reply');
   await expect(frame.locator('#reply-strip')).toContainText('0.51 s');
   await expect(frame.locator('#engine-facts #first-token')).toHaveCount(0);
-  await expect(frame.locator('#completed-facts')).toContainText('Last engine result');
+  await expect(frame.locator('#completed-facts .engine-facts-heading')).toHaveText('Last reply · Engine');
   await expect(frame.locator('#completed-facts #first-token')).toContainText('0.51 s');
   await expect(frame.locator('.instrument-primary')).toHaveAttribute('data-live', 'false');
   await page.evaluate(() => {
