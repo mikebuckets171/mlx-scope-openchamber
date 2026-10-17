@@ -53,7 +53,7 @@ test('an oMLX request watched through the snapshot branch becomes one completion
   const parts = history.snapshot('omlx\0auto', { leader: true, now: T + 7_000, verdict });
   expect(parts.completions).toEqual({ instance: INSTANCE, cursor: 1, reset: false, items: [{ seq: 1, finishedAt: T + 4_500, startedAt: T, model: MODEL,
     basis: 'last-observed', promptTokens: 1_000, cachedTokens: 0, outputTokens: 25, prefillMs: 2_000, decodeTps: 25, prefillTps: 500, overlapped: false,
-    host: { pressureMax: 1, swapDeltaBytes: 0, energyJ: 180, powerCoverage: 1 } }] });
+    host: { pressureMax: 1, swapDeltaBytes: 0, energyJ: 180, powerCoverage: 1, queuedMax: 0 } }] });
   expect(parseCompletionsV2(structuredClone(parts.completions), INSTANCE)).toEqual(parts.completions);
   // The same cached reading from another frame adds nothing.
   history.record('omlx\0auto', reading(T + 7_000, runtime('idle', null)), host(T + 7_000), { now: T + 7_200 });

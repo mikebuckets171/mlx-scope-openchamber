@@ -348,3 +348,15 @@ test('health checks never count as a view; an authenticated read does, and the s
   await wait(120); clock.monotonic += 120;
   expect(idle).toBe(1);
 });
+
+test('a chat sees only its own prompts\' reported counts; other chats and unselected views see none', async () => {
+  const mine = 'a'.repeat(64), other = 'b'.repeat(64), model = 'c'.repeat(64);
+  const ready = reading({ state: 'ready', reason: null, params: {} }, { prompts: [
+    { sessionKey: mine, requestID: '00000000-0000-4000-8000-000000000001', total: 30_000, cache: 27_000, observedAt: NOW - 1_000 }] });
+  const request = await launch({ ...defaults, read: async () => ready });
+  const own = await snapshot(request, `/v2/snapshot?frame=11111111&surface=panel&chat=${mine}&chatModel=${model}`);
+  expect(own.promptCache).toEqual({ basis: 'reported', latest: { total: 30_000, cache: 27_000, observedAt: NOW - 1_000 }, previous: null });
+  expect((await snapshot(request, `/v2/snapshot?frame=11111111&surface=panel&chat=${other}&chatModel=${model}`)).promptCache).toBeUndefined();
+  expect((await snapshot(request, '/v2/snapshot?frame=11111111&surface=panel')).promptCache).toBeUndefined();
+  expect(JSON.stringify(own)).not.toContain('00000000-0000-4000-8000-000000000001');
+});

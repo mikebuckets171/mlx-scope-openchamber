@@ -11,8 +11,9 @@ export interface VsUsual { metric: BaselineMetric; ratio: number; n: number; bas
 export const REGRESSION = { replies: 3, withinMs: 1_800_000, rateFires: 0.85, ttftFires: 1.25, clearsWithin: 0.1 } as const;
 /** tok/J is an estimate: it gets a "vs usual" chip but never a flag. */
 const FLAGGED: readonly BaselineMetric[] = ['decodeTps', 'prefillTps', 'ttftMs'];
-// Only what may have slowed the Mac is listed: 1 pressure ≥ warning, 2 swap grew, 4 thermal ≥ heavy.
-const COFACTORS = 1 | 2 | 4;
+// Only what may have slowed the reply is listed: 1 pressure ≥ warning, 2 swap grew, 4 thermal ≥ heavy, and in memory
+// only (never stored): 32 requests queued, 64 a media job running.
+const COFACTORS = 1 | 2 | 4 | 32 | 64;
 const median3 = (values: readonly number[]): number => [...values].sort((a, b) => a - b)[1]!;
 
 export const evaluateRegression = (recent: readonly ReplyRow[], baselines: Baselines, now: number, previous: readonly RegressionFlag[]): RegressionFlag[] => {

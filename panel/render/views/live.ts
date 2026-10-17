@@ -53,7 +53,7 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open): Raw | stri
   // populated parts take their natural height, including when enlarged text wraps.
   const hasSupport = !!(instrument.support && !instrument.alert);
   const noteShown = !!(instrument.note && !instrument.alert) || (h.body?.kind === 'word' && !reading && h.speeds.source !== 'Splash') || h.body?.kind === 'paused';
-  const measureQuiet = !reading && !instrument.held && !hasSupport && !noteShown;
+  const measureQuiet = !reading && !instrument.held && !hasSupport && !noteShown && !instrument.exceptions.some(row => row.key === 'slower' || row.key === 'cache-miss');
   const evidenceQuiet = !prefill && !facts.length;
   const remaining = list.filter(tile => !facts.includes(tile));
   // Suppress only an identical current engine count/timing already named in the visible facts. Unknown support,
@@ -62,7 +62,9 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open): Raw | stri
     (fact.basis ?? 'reported') === (instrument.support?.basis ?? 'reported') && (
       fact.label === 'Output' && instrument.support?.text === `Engine · ${fact.value} tokens out`
       || fact.label === 'First token' && instrument.support?.text === `Engine · First token ${fact.value}`));
-  const notes = html`${instrument.note && !instrument.alert ? html`<p class="coverage-note">${instrument.note}</p>` : ''}${h.body?.kind === 'word' && !reading && h.speeds.source !== 'Splash' ? html`<p class="coverage-note">${h.body.unit}${h.body.note ? html` · ${val(h.body.note)}` : ''}</p>` : ''}${h.body?.kind === 'paused' ? html`<p class="coverage-note" id="paused-note">${h.body.note}</p>` : ''}`;
+  // Measured insights ("slower than usual", "prompt cache miss") sit with the notes; the alert keeps its own callout.
+  const insights = instrument.exceptions.filter(row => row.key === 'slower' || row.key === 'cache-miss');
+  const notes = html`${insights.map(row => html`<p class="coverage-note instrument-insight" data-exception="${row.key}" title="${row.detail}">${row.text}<span class="sr-only"> · ${row.detail}</span></p>`)}${instrument.note && !instrument.alert ? html`<p class="coverage-note">${instrument.note}</p>` : ''}${h.body?.kind === 'word' && !reading && h.speeds.source !== 'Splash' ? html`<p class="coverage-note">${h.body.unit}${h.body.note ? html` · ${val(h.body.note)}` : ''}</p>` : ''}${h.body?.kind === 'paused' ? html`<p class="coverage-note" id="paused-note">${h.body.note}</p>` : ''}`;
   return html`<section class="hero-card" id="hero" aria-label="Activity and speed" data-arrive>
     <div class="instrument-heading"><div class="precision-identity"><h2 class="instrument-phase" data-tone="${instrument.tone}" data-live="${String(!!reading?.live)}" data-crossfade>${instrument.phase}</h2>${!h.chatOnly ? html`<p class="precision-engine"><span>${h.speeds.source}</span>${h.model ? html`<span class="precision-model" translate="no">${h.model}</span>` : ''}</p>` : ''}</div><label class="precision-watch"><span>Watch</span>${scopeMenuMarkup(instrument.measurementScope)}</label></div>
     <div class="instrument-readout" data-measured="${String(reading !== null)}" data-quiet="${String(measureQuiet && evidenceQuiet)}">

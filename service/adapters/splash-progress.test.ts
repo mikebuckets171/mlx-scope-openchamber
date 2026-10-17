@@ -69,7 +69,8 @@ describe('bounded private file reads', () => {
     const other = randomUUID();
     await write(document([entry(AT, { requestID: randomUUID(), providerID: 'foreign' })], AT, other), other);
     expect(await readProgressCache(AT, { home })).toHaveLength(2);
-    expect(await new SplashPromptProgress({ home }).observe(scope(), AT, 0)).toEqual({ processed: 850, total: 1000, observedAt: AT, stale: false });
+    expect(await new SplashPromptProgress({ home }).observe(scope(), AT, 0)).toEqual({ processed: 850, total: 1000, observedAt: AT, stale: false,
+      cache: 800, sessionKey: progressKey('session', 'PRIVATE-SESSION-CANARY'), requestID: REQUEST });
   }));
   test('symlinks, hardlinks, permissive modes and oversized files are rejected', () => withCache(async ({ home, dir, write }) => {
     const path = join(dir, `${WRITER}.json`);

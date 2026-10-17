@@ -51,6 +51,15 @@ export class MediaService {
   }
   configurations(): Promise<MediaSourceConfig[]> { return this.input.configurations?.() ?? this.discovery.configurations(); }
   get enabled(): boolean { return this.discovery.enabled; }
+  /**
+   * Whether a local media job is running, from the last snapshot a visible view asked for. Never starts a collection:
+   * without a snapshot from the last 15 s it is unknown (null).
+   */
+  runningNow(now = this.options.now()): boolean | null {
+    const cached = this.snapshotCache?.value;
+    if (!cached || now - cached.sampledAtMs > 15_000) return null;
+    return cached.jobs.some(job => job.state === 'running' && job.freshness === 'live');
+  }
   invalidate(enabled?: boolean): void { this.generation++; this.snapshotCache = null; this.options.videoHistory?.clear(); this.discovery.invalidate(enabled); for (const slot of this.slots.values()) slot.until = 0; }
   /**
    * Keeps this phase's rate window and sets a live or held estimate. Samples are the producer's own times for each distinct

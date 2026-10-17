@@ -34,6 +34,7 @@ export interface ScopeInput {
   chatIsLocal?: boolean | null;
   lastChat?: ChatMeasurement | null;
   promptEtaMs?: number | null; // recent observed prompt progress; never persisted
+  flags?: readonly RegressionFlag[]; // "slower than usual" for the monitored runtime and model
 }
 export const SERVER_WIDE: AttributionLabel = { kind: 'server-wide', reason: 'not-observed' };
 

@@ -29,7 +29,9 @@ export interface HistoryDeps {
   version: string;
   /** The same provider/runtime the frame's snapshot poll uses; default: the snapshot's connection id. */
   selection?(snapshot: SnapshotV2 | null): { provider?: string; runtime?: string };
-  flags?(flags: readonly RegressionFlag[]): void;   // for panel/alerts/signals.ts
+  /** The replies just read, so the frame's own "slower than usual" check also counts other frames' replies. */
+  replies?(rows: readonly ReplyRow[]): void;
+  cleared?(): void;
   text?: HistoryText;
   current?(): ScopeInput;
   inspectInitially?: boolean;
@@ -242,7 +244,8 @@ class HistoryViewHandle implements ViewHandle {
       this.#rows = rows; this.#models = models;
       const replies = rows.filter((row): row is ReplyRow => row[0] === 'r');
       this.#baselines = buildBaselines(replies, now);
-      this.#deps.flags?.(this.#regressions.update(replies, this.#baselines, now));
+      this.#regressions.update(replies, this.#baselines, now);
+      this.#deps.replies?.(replies);
       this.#render();
     } catch { /* Storage can refuse a read; the last rows stay until the next one succeeds. */ }
     finally { this.#busy.read = false; }
@@ -281,7 +284,7 @@ class HistoryViewHandle implements ViewHandle {
       this.#confirm = false; this.#focus = 'clear'; this.#reads += 1;
       try {
         await this.#deps.ledger.clear();
-        this.#rows = []; this.#baselines = new Map(); this.#regressions.clear(); this.#deps.flags?.([]);
+        this.#rows = []; this.#baselines = new Map(); this.#regressions.clear(); this.#deps.cleared?.();
         this.#status.storage = 'Reply history and baselines cleared.';
       } catch { this.#status.storage = 'Couldn’t clear the history. Nothing was confirmed removed.'; }
       this.#readAt = -Infinity;

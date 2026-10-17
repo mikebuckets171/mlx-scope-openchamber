@@ -41,6 +41,8 @@ export interface RecordContext {
   pollMs?: number;
   /** The frame's provider/runtime as sent, so `/v2/trend` with the same selection finds this slot. */
   selection?: Selection;
+  /** From the media service's cache only; null when unknown, so no reply claims a media job it never saw. */
+  mediaRunning?: boolean | null;
 }
 export interface SnapshotHistory { completions: CompletionsV2; alerts: AlertV2[]; alertLog: AlertLogEntryV2[] }
 
@@ -74,6 +76,7 @@ export class ServiceHistory {
     if (context.pollMs !== undefined && Number.isFinite(context.pollMs)) slot.polls.push([now, context.pollMs]);
     while (slot.polls.length && (slot.polls[0]![0] < now - CADENCE_MEMORY_MS || slot.polls.length > CADENCE_POLLS)) slot.polls.shift();
     this.cofactors.observe(host, now);
+    this.cofactors.observeWork(reading.runtime.server.queued, context.mediaRunning ?? null, reading.at);
     let covered = true;
     if (reading.at > slot.lastAt) {
       slot.lastAt = reading.at;
@@ -84,7 +87,7 @@ export class ServiceHistory {
       const drafts = signal?.source === 'watch' ? slot.watch.observe(reading.runtime, reading.at) : signal ? reading.completions ?? [] : [];
       for (const raw of drafts) {
         const draft = acceptDraft(reading.kind, raw);
-        if (draft) slot.completions.append(draft, this.cofactors.over(draft.startedAt, draft.finishedAt));
+        if (draft) slot.completions.append(draft, this.cofactors.over(draft.startedAt ?? draft.spanStartedAt ?? null, draft.finishedAt));
       }
     }
     const { runtime } = reading, loaded = runtime.residency.filter(item => item.phase !== 'not-loaded');

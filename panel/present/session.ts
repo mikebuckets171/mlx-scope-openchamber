@@ -5,12 +5,14 @@ import { prefillReading } from '../progress.ts';
 import { promptEtaText } from '../prompt-eta.ts';
 import { alertCopy, APPROVAL, CHAT_UNAVAILABLE, RESTART, statusGlanceNote } from './copy.ts';
 import { ago, dur, kt, mmss, size, tps } from './format.ts';
+import { promptCacheMiss, slowdown } from './insights.ts';
 import { visibleAlerts } from './parts.ts';
 import { presentSpeeds, type SpeedsView } from './speeds.ts';
 import type { CompletionV2 } from '../../src/contract/completion.ts';
 import type { ChatMeasurement } from '../../src/contract/chat.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { AttributionLabel } from '../attribution/join.ts';
+import type { RegressionFlag } from '../history/regress.ts';
 import type { TurnWindow } from '../attribution/sessions.ts';
 import type { Reading } from './reading.ts';
 
@@ -62,6 +64,8 @@ export interface SessionSectionInput {
   promptEtaMs?: number | null;               // recent observed prompt progress; never persisted
   /** The sidebar and compact glance: at rest, show the engine's own record instead of empty rows. */
   restingFacts?: boolean;
+  /** "Slower than usual" flags for the monitored runtime and model. */
+  flags?: readonly RegressionFlag[];
 }
 
 const speedMeasurement = (label: string, text: string, basis: Basis, detail: string, live = true): SessionMeasurement =>
@@ -200,13 +204,16 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     if (facts.length) restingSupport = { text: facts.join(' · '), detail: 'What the engine holds now and its typical first-token time across recent requests.' };
   }
   const shownSupport = support ?? restingSupport;
-  // Missing readings never invent a measurement row.
+  // Missing readings never invent a measurement row. An alert first, then measured insights, then a note.
+  const insights = cancelled || frame || input.paused ? [] : [slowdown(input.flags ?? []), promptCacheMiss(snapshot?.promptCache, input.window, input.now)]
+    .filter((item): item is NonNullable<typeof item> => item !== null).map(item => ({ ...item, severity: 'info' as const }));
   const exceptions: SessionException[] = [
     ...alert ? [{ key: 'alert', text: alert.label, detail: text, severity: alert.severity === 'critical' ? 'critical' as const : 'warning' as const }] : [],
+    ...insights,
     ...shownNote ? [{ key: 'note', text: shownNote, detail: shownNote, severity: 'info' as const }] : [],
   ].slice(0, MAX_EXCEPTIONS);
   return { measurementScope, measurement, support: shownSupport, eta, speeds, progress, held,
-    resting: atRest && !measurement && !shownSupport && !held,
+    resting: atRest && !measurement && !shownSupport && !held && !insights.length,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
     note: shownNote, alert, exceptions };
 };

@@ -1,5 +1,8 @@
 import { expect, test } from 'bun:test';
+import type { CompletionV2 } from '../../src/contract/completion.ts';
 import { parseSnapshotV2 } from '../../src/contract/snapshot.ts';
+import { baselineStore, buildBaselines } from '../history/baselines.ts';
+import { KEYS, replyRow } from '../history/ledger-schema.ts';
 import { fromSnapshot } from '../present/reading.ts';
 import { SERVER_WIDE } from '../present/scope.ts';
 import { MOCK_NOW, mockBody } from '../testing/mock-states.ts';
@@ -69,5 +72,35 @@ test('a started lifecycle clears the previous result before the busy snapshot ar
   expect(changes).toBe(3);
   onSession({ id: 'fixture-chat-next', title: '', busy: false, model: 'fixture/model' });
   expect(pipeline.window()).toBeNull();
+  pipeline.dispose();
+});
+
+test('the pipeline flags slower replies itself, with what was queued or running in memory only, and History’s rows merge without doubling', async () => {
+  const snapshot = parseSnapshotV2(structuredClone(mockBody('idle')))!, template: CompletionV2 = { ...snapshot.completions.items[0]!, basis: 'reported' };
+  const rt = snapshot.connection.runtime!, instance = snapshot.completions.instance, model = template.model!;
+  const usual = buildBaselines(Array.from({ length: 20 }, (_, i) =>
+    replyRow({ ...template, seq: 1 + i, finishedAt: MOCK_NOW - 7_200_000 - i * 60_000, decodeTps: 25 }, instance, rt, 0, 'not-observed')), MOCK_NOW);
+  const stored = new Map<string, unknown>([[KEYS.baseline, baselineStore(usual, MOCK_NOW)], [KEYS.models, [model]]]);
+  const { host: h } = host();
+  const source = { ...h, storage: { ...h.storage, get: async (key: string) => stored.get(key) as never } };
+  const pipeline = new Pipeline({ host: source, state: new ScopeState(MOCK_NOW), now: () => MOCK_NOW, surface: 'status', toasts: () => 'off', auto: () => true });
+  pipeline.received(snapshot, [], true);
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  expect(pipeline.flags).toEqual([]);
+  const slow = [20, 19, 21].map((decodeTps, i): CompletionV2 => ({ ...template, seq: 100 + i, finishedAt: MOCK_NOW - (3 - i) * 60_000, decodeTps,
+    host: { ...template.host, queuedMax: i === 0 ? 2 : 0, mediaRunning: i === 2 } }));
+  pipeline.received(snapshot, slow, true);
+  expect(pipeline.flags).toEqual([expect.objectContaining({ metric: 'decodeTps', recentMedian: 20, p50: 25, cofactors: 32 | 64 })]);
+  expect(pipeline.flagsFor(rt, model)).toHaveLength(1);
+  expect(pipeline.flagsFor(rt, null)).toHaveLength(1);
+  expect(pipeline.flagsFor(rt, 'another/model')).toEqual([]);
+  expect(pipeline.flagsFor(null, model)).toEqual([]);
+  // The ledger holds the same replies without the in-memory bits; the frame's own copy wins.
+  const ledgerRows = slow.map(completion => replyRow(completion, instance, rt, 0, 'inferred'));
+  expect(ledgerRows.every(row => row[15] < 32)).toBe(true);
+  pipeline.storedReplies(ledgerRows);
+  expect(pipeline.flags).toEqual([expect.objectContaining({ cofactors: 32 | 64 })]);
+  pipeline.historyCleared();
+  expect(pipeline.flags).toEqual([]);
   pipeline.dispose();
 });

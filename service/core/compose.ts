@@ -9,6 +9,7 @@ import { parseSnapshotV2, type LeaseV2, type SnapshotV2 } from '../../src/contra
 import { CONTRACT_VERSION } from '../../src/contract/version.ts';
 import { busy, type RuntimeReading } from '../runtime-client.ts';
 import type { LeaseView } from './lease.ts';
+import type { PromptReuse } from './prompt-reuse.ts';
 import { nextPollMs } from './scheduler.ts';
 
 export interface ComposeInput {
@@ -23,6 +24,7 @@ export interface ComposeInput {
   query: Pick<SnapshotQuery, 'surface' | 'chatBusy'>;
   nextPollMs?: number;                       // computed once per request by the server (snapshotPollMs); else here
   chat?: ChatMeasurement | null;
+  promptCache?: PromptReuse | null;          // the selected chat's prompts, only for its own hashed key
 }
 
 /** The frame's next poll delay for this reading: the service's one backoff and cadence table (scheduler.ts). */
@@ -60,6 +62,7 @@ export const composeSnapshot = (input: ComposeInput): SnapshotV2 => {
     alerts: alerts.alerts, alertLog: alerts.alertLog, lease: wireLease satisfies LeaseV2,
     nextPollMs: input.nextPollMs ?? snapshotPollMs(input),
     ...(input.chat ? { chat: input.chat } : {}),
+    ...(input.promptCache ? { promptCache: { basis: 'reported' as const, ...input.promptCache } } : {}),
   };
   // The parser reconstructs every allowlisted object and withholds unsupported fields. A JSON round trip would
   // duplicate that allocation and serialization on every poll; the HTTP boundary serializes the validated result.

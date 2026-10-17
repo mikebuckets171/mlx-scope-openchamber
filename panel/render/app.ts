@@ -16,7 +16,7 @@ import { FRAME_TITLE, NO_FRESH, NO_FRESH_DETAIL } from '../present/copy.ts';
 import { frameCard, presentHeader } from '../present/header.ts';
 import { presentLive, presentMac } from '../present/live.ts';
 import type { Callout } from '../present/parts.ts';
-import type { ScopeInput } from '../present/scope.ts';
+import { modelOf, type ScopeInput } from '../present/scope.ts';
 import { presentServer } from '../present/server.ts';
 import { presentSessionSection } from '../present/session.ts';
 import type { Pipeline } from '../state/pipeline.ts';
@@ -90,7 +90,7 @@ export class ScopeApp {
       samples: state.signal.points, window, turnStartAt: window?.startedAt ?? null,
       measurementScope: this.#p.prefs.value.measurementScope ?? 'chat', sessionModel: chat?.model ?? null,
       chatActivity: chat ? window?.endedAt === null || chat.busy === true ? 'busy' : chat.busy === false ? 'idle' : null : null, chatIsLocal: pipeline.chatIsLocal(),
-      lastChat: state.lastChat, promptEtaMs: state.promptEta.ms,
+      lastChat: state.lastChat, promptEtaMs: state.promptEta.ms, flags: pipeline.flagsFor(snapshot?.connection.runtime ?? null, modelOf(snapshot)),
     };
   }
   /** Frame-side callouts: a poll without a body, or no fresh reading before the deadline. */
@@ -203,7 +203,7 @@ export class ScopeApp {
         retentionDays: () => prefs.value.retentionDays ?? 30, paused: () => prefs.value.history === false, copy,
         current: () => this.input(), inspectInitially: this.#inspecting,
         inspectionChanged: open => { this.#node('history-title').textContent = open ? 'Run details' : 'History'; },
-        version: this.#p.version, selection: () => connections.query() ?? {}, flags: flags => { pipeline.flags = flags; },
+        version: this.#p.version, selection: () => connections.query() ?? {}, replies: rows => pipeline.storedReplies(rows), cleared: () => pipeline.historyCleared(),
         autoLabel: () => prefs.value.autoLabel ?? true, setAutoLabel: value => prefs.set({ autoLabel: value }) })) };
       this.#views.set(tab, entry);
     }

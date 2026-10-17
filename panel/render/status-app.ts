@@ -4,6 +4,7 @@ import { beatKey, Motion } from './motion.ts';
 import type { HostClient, SessionSnapshot, StatusControl } from '../host/types.ts';
 import type { SnapshotClient } from '../data/client.ts';
 import type { PrefsV2 } from '../preferences.ts';
+import { modelOf } from '../present/scope.ts';
 import { presentSessionSection } from '../present/session.ts';
 import type { Pipeline } from '../state/pipeline.ts';
 import type { ScopeState } from '../state/scope-state.ts';
@@ -81,6 +82,7 @@ export class StatusApp {
       measurementScope: pref.measurementScope ?? 'chat', sessionModel: this.#session?.model ?? null,
       chatActivity: this.#session ? window?.endedAt === null || this.#session.busy === true ? 'busy' : this.#session.busy === false ? 'idle' : null : null,
       lastChat: state.lastChat, promptEtaMs: state.promptEta.ms, restingFacts: true,
+      flags: pipeline.flagsFor(snapshot?.connection.runtime ?? null, modelOf(snapshot)),
     });
     const actionError = this.#actionError;
     this.#p.mediaJobs.sync(this.#p.visible() && !state.userPaused && state.frame?.reason !== 'needs_approval');

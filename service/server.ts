@@ -15,6 +15,7 @@ import type { UsageV2 } from '../src/contract/usage.ts';
 import { healthBody, NOT_FOUND_BODY, RETIRED_BODY, RETIRED_STATUS, ROUTES } from '../src/contract/version.ts';
 import { composeSnapshot, snapshotPollMs } from './core/compose.ts';
 import { Lease } from './core/lease.ts';
+import { PromptReuseStore } from './core/prompt-reuse.ts';
 import { ENERGY_FLOOR_MS } from './core/scheduler.ts';
 import { Marks, type TurnMark } from './core/marks.ts';
 import { Verdicts } from './core/verdicts.ts';
@@ -28,7 +29,7 @@ export type Sources = {
   chatDestination?: (query: SnapshotQuery) => Promise<'local' | 'remote'>;
   chat?: (query: SnapshotQuery, reading: RuntimeReading) => Promise<ChatMeasurement | null>;
   companionSetup?: { status(): Promise<CompanionSetupStatus>; enable(): Promise<CompanionSetupStatus>; disable(): Promise<CompanionSetupStatus> };
-  media?: { readonly enabled?: boolean; snapshot(): Promise<MediaSnapshotV1>; cancel(sourceId: string, jobId: string): Promise<MediaCancelResultV1> };
+  media?: { readonly enabled?: boolean; snapshot(): Promise<MediaSnapshotV1>; cancel(sourceId: string, jobId: string): Promise<MediaCancelResultV1>; runningNow?(): boolean | null };
   mediaSetup?: { status(): Promise<MediaSetupStatus>; action(input: unknown): Promise<MediaSetupStatus> };
   read: (selection?: ReadSelection, request?: ReadRequest) => Promise<RuntimeReading>;
   /** Host readings for this request's tier (svc-host's HostSampler.sample). */
@@ -128,7 +129,7 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
   const expected = digest(`Bearer ${token}`);
   const service = { version: options.version ?? packageVersion, instance: options.instance ?? randomBytes(4).toString('hex') };
   const now = options.now ?? Date.now, monotonic = options.monotonic ?? (() => performance.now());
-  const lease = new Lease(), marks = new Marks(), verdicts = new Verdicts();
+  const lease = new Lease(), marks = new Marks(), verdicts = new Verdicts(), promptReuse = new PromptReuseStore();
   const idle = options.idleExitMs && options.onIdle ? idleTracker(options.idleExitMs, monotonic, options.onIdle) : null;
   // Media snapshots are immutable shared collection results. Freshness/configuration changes yield a new object.
   // Weak keys keep this wire cache bounded by the snapshots still held by the collection or active requests.
@@ -249,6 +250,7 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       const nonLocal = !!query.provider && !reading.meta.connection.choices.some(choice => choice.id === query.provider);
       const host = nonLocal ? null : await Promise.resolve().then(() => sources.host?.(context) ?? null).catch(() => null);
       const chat = await Promise.resolve().then(() => sources.chat?.(query, reading) ?? null).catch(() => null);
+      promptReuse.observe(reading.prompts, serverNow);
       const pollMs = snapshotPollMs({ reading, host, lease: view, query, chat, serverNow: now() });
       let parts: SnapshotHistory = { completions: { instance: service.instance, cursor: 0, reset: query.since !== undefined && query.since > 0, items: [] },
         alerts: [], alertLog: [] };
@@ -258,6 +260,7 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
         // Energy-saving floor the frame may apply on top (the service cannot tell whether it does).
         const floorMs = query.surface ? ENERGY_FLOOR_MS[query.surface] ?? 0 : 0;
         sources.history.record(key, historyReading(reading), host, { now: serverNow, pollMs: Math.max(pollMs, reading.meta.cadenceMs, floorMs),
+          mediaRunning: sources.media?.runningNow?.() ?? null,
           selection: { ...query.provider !== undefined ? { provider: query.provider } : {}, ...query.runtime ? { runtime: query.runtime } : {} } });
         parts = sources.history.snapshot(key, { since: query.since, leader: view.leader, now: serverNow, verdict: seq => verdicts.get(seq) });
       }
@@ -266,6 +269,7 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
         // Sources may observe a newer writer while runtime/host IO is pending. Stamp the response after those reads,
         // so a valid fresh chat observation is never rejected as future-dated against request-start time.
         service, serverNow: now(), lease: view, marksHead: marks.head, query, nextPollMs: nonLocal ? Math.max(pollMs, 10_000) : pollMs, chat,
+        promptCache: query.chat && !nonLocal ? promptReuse.for(query.chat) : null,
       })));
     };
     void handle().catch(() => { if (!response.headersSent) json(response, 503, { error: 'service_unavailable' }); else response.end(); });

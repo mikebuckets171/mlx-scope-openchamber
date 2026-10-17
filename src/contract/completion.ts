@@ -25,6 +25,8 @@ export interface CompletionV2 {
     thermalMaxLevel?: ThermalLevel;
     energyJ?: number;                        // macmon estimate, only with powerCoverage ≥ 0.8
     powerCoverage?: number;
+    queuedMax?: number;                      // most requests the engine reported waiting during the reply
+    mediaRunning?: boolean;                  // a local image/video job was running during the reply (Scope's media reads)
   };
 }
 export interface CompletionsV2 {
@@ -46,6 +48,7 @@ const completionHost = (value: unknown): CompletionV2['host'] => {
     pressureMax: opt(oneOf([1, 2, 4] as const)(item.pressureMax)), swapDeltaBytes: opt(signedInt(item.swapDeltaBytes)),
     gpuAllocMaxBytes: opt(count(item.gpuAllocMaxBytes)), thermalMaxLevel: opt(thermalLevel(item.thermalMaxLevel)),
     energyJ: coverage !== null && coverage >= 0.8 ? opt(nonneg(item.energyJ)) : undefined, powerCoverage: opt(coverage),
+    queuedMax: opt(count(item.queuedMax)), mediaRunning: item.mediaRunning === true ? true : undefined,
   });
 };
 

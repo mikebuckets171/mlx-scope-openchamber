@@ -8,7 +8,7 @@ import type { AdapterContextV2, AdapterReadingV2, CompletionDraft, RuntimeReply 
 import { HttpFailure } from '../http.ts';
 import {
   isSplash11, SPLASH_GAP_MS, SPLASH_RATE_GAP_MS, SPLASH_RECOVERING_CACHE_MS, SplashCompletions, SplashRates,
-  splashCompletion, splashDescriptor, splashReading, splashStatus,
+  createSplashAdapter, splashCompletion, splashDescriptor, splashReading, splashStatus,
 } from './splash.ts';
 
 type Json = Record<string, any>;
@@ -402,7 +402,7 @@ describe('completions: the Δ = 1 rule (SPIKES S7)', () => {
   test('Δ=1 fixture pair: one derived per-request TTFT of 412.5 ms, with its own prefill and decode', () => {
     const draft = splashCompletion(status('delta1-before'), status('delta1-after'), AT);
     expect(draft).toEqual({ finishedAt: AT, startedAt: null, model: MODEL, basis: 'derived', overlapped: false, ttftMs: 412.5,
-      prefillMs: 870.708, prefillTps: 514.524, decodeTps: 54.054 });
+      prefillMs: 870.708, prefillTps: 514.524, decodeTps: 54.054, outputTokens: 211 });
     expectRoundTrip('delta1', snapshotOf(splashReading(status('delta1-after'), AT), [draft!]));
   });
 
@@ -414,7 +414,7 @@ describe('completions: the Δ = 1 rule (SPIKES S7)', () => {
     };
     const draft = splashCompletion(renamed('delta1-before'), renamed('delta1-after'), AT);
     expect(draft).toEqual({ finishedAt: AT, startedAt: null, model: MODEL, basis: 'derived', overlapped: false, ttftMs: 412.5,
-      prefillMs: 870.708, prefillTps: 514.524, decodeTps: 54.054 });
+      prefillMs: 870.708, prefillTps: 514.524, decodeTps: 54.054, outputTokens: 211 });
     // Without either histogram there is still a completion, but no TTFT is invented.
     const bare = (name: string) => { const body = status(name); delete body.latency; return body; };
     expect(splashCompletion(bare('delta1-before'), bare('delta1-after'), AT)?.ttftMs).toBeUndefined();
@@ -425,7 +425,7 @@ describe('completions: the Δ = 1 rule (SPIKES S7)', () => {
     expect(done.latency.ttft).toBeUndefined();
     const draft = splashCompletion(before, done, AT);
     expect(draft).toEqual({ finishedAt: AT, startedAt: null, model: MODEL, basis: 'derived', overlapped: false, ttftMs: 207.117,
-      prefillMs: 125.708, prefillTps: 167.053, decodeTps: 29.017 });
+      prefillMs: 125.708, prefillTps: 167.053, decodeTps: 29.017, outputTokens: 115 });
     expectRoundTrip('1.2.0 delta1', snapshotOf(splashReading(done, AT), [draft!]));
     // Mid-reply, the first token is counted but the request has not finished: no completion yet.
     expect(splashCompletion(before, status('decoding', '1.2.0'), AT)).toBeNull();
@@ -486,7 +486,7 @@ describe('SplashCompletions: bracketing requests between idle reads', () => {
     const out = run([[IDLE, 0], [first, 1_000], [running, 2_000], [running, 3_000], [done, 4_000]]);
     expect(out.slice(0, 4)).toEqual([[], [], [], []]);
     expect(out[4]).toEqual([{ finishedAt: AT + 4_000, startedAt: null, model: MODEL, basis: 'derived', overlapped: false,
-      ttftMs: 300, prefillMs: 4_000, prefillTps: 500, decodeTps: 50 }]);
+      ttftMs: 300, prefillMs: 4_000, prefillTps: 500, decodeTps: 50, outputTokens: 120, spanStartedAt: AT + 1_000 }]);
   });
 
   test('a stale read inside the span moves nothing; a later idle read still closes it', () => {
@@ -497,7 +497,7 @@ describe('SplashCompletions: bracketing requests between idle reads', () => {
 
   test('joining mid-request: no TTFT from before Scope looked', () => {
     expect(run([[running, 0], [done, 1_000]])).toEqual([[], [{ finishedAt: AT + 1_000, startedAt: null, model: MODEL,
-      basis: 'derived', overlapped: false }]]);
+      basis: 'derived', overlapped: false, spanStartedAt: AT }]]);
   });
 
   test('an unwatched gap, a restart or a foreign body restarts the bracket without a completion', () => {
@@ -511,7 +511,7 @@ describe('SplashCompletions: bracketing requests between idle reads', () => {
   test('several requests between idle reads are one aggregate step', () => {
     const two = after(IDLE, { submitted: 2, completed: 2, ttftMs: [300, 500] });
     expect(run([[IDLE, 0], [running, 1_000], [two, 2_000], [two, 3_000]])).toEqual([[], [],
-      [{ finishedAt: AT + 2_000, startedAt: null, model: MODEL, basis: 'derived', overlapped: true, aggregateOf: 2 }], []]);
+      [{ finishedAt: AT + 2_000, startedAt: null, model: MODEL, basis: 'derived', overlapped: true, aggregateOf: 2, spanStartedAt: AT + 1_000 }], []]);
   });
 });
 
@@ -697,5 +697,41 @@ describe('the descriptor', () => {
       { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' }, { key: 'server.rates', basis: 'derived' },
       { key: 'server.latency', basis: 'reported' },
       { key: 'server.memory.metal', basis: 'reported' }, { key: 'server.catalog', basis: 'reported' }, { key: 'server.completions', basis: 'derived' }]);
+  });
+});
+
+describe('reply counts for Splash baselines and prompt reuse', () => {
+  const prompt = { processed: 900, total: 1_000, observedAt: AT + 1_000, stale: false, cache: 800, sessionKey: 'a'.repeat(64), requestID: '00000000-0000-4000-8000-000000000001' };
+  const withProgress = (replies: Array<Partial<RuntimeReply>>, answer: (at: number) => typeof prompt | undefined) => {
+    const paths: string[] = [], clock = { now: AT, monotonic: 0 };
+    const context = {
+      connection: { id: 'splash', port: 8000 }, config: {} as never, fetchImpl: (async () => { throw new Error('no fetch'); }) as never,
+      exec: async () => { throw new Error('no exec'); }, getText: async () => { throw new Error('no text GET'); },
+      get: async (path: string) => { paths.push(path); return { status: 200, body: null, routeMissing: false, ...replies[Math.min(paths.length - 1, replies.length - 1)] } as RuntimeReply; },
+      now: () => clock.now, monotonic: () => clock.monotonic, timeoutMs: 3_000, budgetMs: 2_000,
+    } satisfies AdapterContextV2;
+    const progress = { observe: async (_scope: unknown, at: number) => answer(at), reset() {} };
+    return { adapter: createSplashAdapter(context, progress as never), clock };
+  };
+  const first = busy(false), done = after(IDLE, { submitted: 1, completed: 1, ttftMs: [300], tokens: [2_000, 4_000, 120, 2_400] });
+
+  test('a whole single reply takes the prompt counts reported while its prompt was read, and its own output tokens', async () => {
+    const { adapter, clock } = withProgress([{ body: IDLE }, { body: first }, { body: done }], at => at === AT + 1_000 ? prompt : undefined);
+    await adapter.read(READ);
+    clock.now += 1_000; clock.monotonic += 1_000;
+    const reading = await adapter.read(READ);
+    expect(reading.prompts).toEqual([{ sessionKey: prompt.sessionKey, requestID: prompt.requestID, total: 1_000, cache: 800, observedAt: AT + 1_000 }]);
+    clock.now += 1_000; clock.monotonic += 1_000;
+    const finished = await adapter.read(READ);
+    expect(finished.completions).toMatchObject([{ overlapped: false, promptTokens: 1_000, cachedTokens: 800, outputTokens: 120, spanStartedAt: AT + 1_000 }]);
+    expect(JSON.stringify(finished.completions)).not.toContain(prompt.sessionKey);
+  });
+
+  test('without a prompt observed during the reply, the reply keeps no prompt counts', async () => {
+    const { adapter, clock } = withProgress([{ body: IDLE }, { body: first }, { body: done }], () => undefined);
+    for (let index = 0; index < 2; index += 1) { await adapter.read(READ); clock.now += 1_000; clock.monotonic += 1_000; }
+    const [reply] = (await adapter.read(READ)).completions;
+    expect(reply).toMatchObject({ outputTokens: 120 });
+    expect(reply!.promptTokens).toBeUndefined(); expect(reply!.cachedTokens).toBeUndefined();
   });
 });

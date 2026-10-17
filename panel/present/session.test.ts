@@ -536,3 +536,29 @@ test('observed prompt ETA is qualified and withheld outside a fresh single promp
     expect(presentSessionSection(copy).eta).toBeNull();
   }
 });
+
+test('measured insights follow an alert and precede a note, two rows at most, and never while paused', () => {
+  const flags = [{ metric: 'decodeTps' as const, key: 'decodeTps|omlx|0|2', recentMedian: 18, p50: 25, n: 12, since: MOCK_NOW, cofactors: 32 }];
+  const cache = (body: Record<string, any>) => { body.promptCache = { basis: 'reported',
+    previous: { total: 28_000, cache: 27_000, observedAt: MOCK_NOW - 60_000 }, latest: { total: 30_000, cache: 2_000, observedAt: MOCK_NOW - 5_000 } }; };
+  const window = { tag: 'fixture', startedAt: MOCK_NOW - 10_000, endedAt: null, outcome: null };
+  const quiet = presentSessionSection(inputOf('idle', { flags, window }, cache));
+  expect(quiet.exceptions.map(row => row.key)).toEqual(['slower', 'cache-miss']);
+  expect(quiet.exceptions[0]).toMatchObject({ text: 'Slower than usual · 18.0 tok/s vs 25.0 tok/s', severity: 'info' });
+  expect(quiet.exceptions[0]!.detail).toContain('Observed during: requests queued.');
+  expect(quiet.resting).toBe(false);
+  const markup = sessionMarkup(quiet, null, false, true).markup;
+  expect(markup).toContain('data-exception="slower"');
+  expect(markup).toContain('Prompt cache miss · re-read 28.0K of 30.0K');
+  const alerted = presentSessionSection(inputOf('pressure', { flags, window }, cache));
+  expect(alerted.exceptions.map(row => row.key)).toEqual(['alert', 'slower']);
+  expect(presentSessionSection(inputOf('idle', { flags, window, paused: true }, cache)).exceptions.map(row => row.key)).not.toContain('slower');
+  // Without the chat's turn, an old cache pair is not shown; flags alone still are.
+  expect(presentSessionSection(inputOf('idle', { flags }, cache)).exceptions.map(row => row.key)).toEqual(['slower']);
+  // The full page shows the same insights beside the reading.
+  const live = liveMarkup(presentLive({ now: MOCK_NOW, snapshot: parseSnapshotV2((() => { const body = structuredClone(mockBody('idle')); cache(body); return body; })())!,
+    fresh: true, frame: null, stale: false, paused: false, efficient: false, attribution: SERVER_WIDE, last: null, samples: [], window, turnStartAt: null,
+    measurementScope: 'engine', flags, version: '5.1.0-test' } as never), new Set()).markup;
+  expect(live).toContain('class="coverage-note instrument-insight" data-exception="slower"');
+  expect(live).toContain('data-exception="cache-miss"');
+});
