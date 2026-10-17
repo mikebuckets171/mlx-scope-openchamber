@@ -56,6 +56,19 @@ test('setup and decoding have no counters, so no estimate; each H3 window is its
   expect((await read(states['ltx-denoise']).out).jobs[0]!.phaseKey).toBeUndefined();
 });
 
+test('an H3 estimate Phosphene has not renewed keeps its finish time; a renewed one counts from its own read', async () => {
+  // Observed live on 4.19.5: H3 rewrites remaining_sec and elapsed_sec once per runner line, about one step apart.
+  const config = { ...CONFIG, id: 'phosphene-h3-anchor' }, base = states['h3-window-2'], start = serverNow(base);
+  const at = (seconds: number, progress: Record<string, unknown> = {}) => ({ ...base, server_now: base.server_now + seconds,
+    current: { ...base.current, progress: { ...base.current.progress, ...progress } } });
+  const eta = async (body: { server_now: number }) => (await phosphene(config, { now: () => serverNow(body) + 40, fetchImpl: async () => json(body) }))
+    .reportedEta?.get('j-fixture-h3-004');
+  expect(await eta(at(0))).toBe(start + 610_000);
+  expect(await eta(at(30))).toBe(start + 610_000);
+  expect(await eta(at(60, { denoise_step: 5, elapsed_sec: 660, remaining_sec: 540 }))).toBe(start + 60_000 + 540_000);
+  expect(await eta(at(75, { denoise_step: 5, elapsed_sec: 660, remaining_sec: 540 }))).toBe(start + 60_000 + 540_000);
+});
+
 test('waiting, a paused queue and ended jobs map to Scope’s states; unknown, invalid and old entries are left out', async () => {
   const waiting = await read(states.waiting).out;
   expect(waiting.jobs[0]).toMatchObject({ state: 'waiting', phase: 'waiting', progress: null, message: 'Waiting for the GPU' });

@@ -18,6 +18,12 @@ const STATUS_MAX_BYTES = 1_000_000, TERMINAL_LIMIT = 8, RETENTION_MS = 86_400_00
 const PHASES: Readonly<Record<string, MediaPhase>> = { setup: 'preparing', load: 'preparing', download: 'preparing', denoise: 'sampling', decode: 'decoding', post: 'finishing' };
 const ENDED: Readonly<Record<string, MediaState>> = { done: 'completed', failed: 'failed', error: 'failed', cancelled: 'cancelled', stopped: 'cancelled' };
 const ms = (seconds: unknown): number | undefined => typeof seconds === 'number' && Number.isFinite(seconds) && seconds >= 0 ? Math.round(seconds * 1000) : undefined;
+/**
+ * When Scope first read each source's current estimate. H3 rewrites its progress once per runner line (about one step),
+ * so between lines the same time left is counted from its first read, not from every later read. LTX recomputes it on
+ * every request and starts afresh each time. In memory only, one entry per source.
+ */
+const firstRead = new Map<string, { job: string; elapsed: number | undefined; left: number; at: number }>();
 /** The medium, from the job's mode and engine names only: training and music are not image or video renders. */
 const kindOf = (params: unknown): MediaJobV1['kind'] => {
   const item = obj(params), mode = typeof item?.mode === 'string' ? item.mode : '', engine = typeof item?.engine === 'string' ? item.engine : '';
@@ -51,8 +57,13 @@ export const phosphene = async (config: MediaSourceConfig, options: MediaAdapter
     jobs.push(job(currentId, current.params, waiting ? 'waiting' : 'running', waiting ? 'waiting' : PHASES[phase] ?? 'unknown', {
       progress: counters, phaseKey: counters && windows && windows > 1 && window ? chatKey('model', `${currentId}\0window ${window}`) : undefined,
       startedAtMs: before(ms(current.started_ts)), message: waiting ? 'Waiting for the GPU' : undefined }));
-    const left = ms(progress?.remaining_sec);
-    if (counters && left !== undefined && left <= MEDIA_ETA_HORIZON_MS) reportedEta.set(currentId, observedAtMs + left);
+    const left = ms(progress?.remaining_sec), elapsed = ms(progress?.elapsed_sec);
+    if (counters && left !== undefined && left <= MEDIA_ETA_HORIZON_MS) {
+      const seen = firstRead.get(config.id);
+      const at = seen?.job === currentId && seen.left === left && seen.elapsed === elapsed ? seen.at : observedAtMs;
+      firstRead.set(config.id, { job: currentId, elapsed, left, at });
+      reportedEta.set(currentId, at + left);
+    }
     source.capabilities.progress = !!counters;
   }
   for (const raw of body.queue.slice(0, 32)) {
