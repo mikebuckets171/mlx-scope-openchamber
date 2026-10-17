@@ -8,30 +8,35 @@ measurements leave no empty sidebar rows. Unknown is not zero, and idle time is 
 **This chat** is the default saved scope. It follows the selected chat's provider and model, and chooses the
 first available reading in this order:
 
-1. A fresh runtime request in the current phase, matched to this chat and labeled **Chat · matched**. This is an inferred association: another
+1. A fresh runtime request in the current phase, matched to this chat and labeled **This chat**. This is an inferred association: another
    request with the same model cannot be ruled out. The existing one-active-request and whole-turn coverage rules still apply.
-2. A fresh **Chat · est.** delivery rate from the optional OpenCode companion. It measures observable text and reasoning
-   arriving through OpenCode, with a token estimate, rather than the engine's native decode time.
+2. A fresh delivery rate from the optional OpenCode companion, labeled **This chat** with an estimate mark (`≈ 24.1`;
+   screen readers say "about"). It measures observable text and reasoning arriving through OpenCode, with a token
+   estimate, rather than the engine's native decode time.
 3. A fresh runtime reading labeled **Engine**. This fallback covers activity on the selected engine and never silently
    becomes a chat measurement.
 
-Cloud chats receive a delivery estimate when the chat helper is qualified for the OpenCode runtime. The figure is labelled **Cloud · est.**, includes network and provider buffering, and is a separate measurement from the engine's native throughput; it never falls back to a local engine's reading, and a cloud step interrupted before completion yields no completed-step average. Unsupported or future runtimes disable the estimate and name the reason. Cloud chats make no runtime, cloud API, or hardware requests of their own. Local media monitoring remains available.
+Labels have two layers only, **This chat** and **Engine**; how a value was measured is in its explanation (the
+reading's details and Run details), and an estimate carries `≈`. Scope 5.0's "Chat · matched", "Chat · est.",
+"Cloud · est." and "Whole engine" now read **This chat** or **Engine**.
+
+Cloud chats receive a delivery estimate when the chat helper supports the OpenCode runtime (qualified or self-checked). The figure is labelled **This chat** with `≈`, includes network and provider buffering, and is a separate measurement from the engine's native throughput; it never falls back to a local engine's reading, and a cloud step interrupted before completion yields no completed-step average. Unsupported or future runtimes disable the estimate and name the reason. Cloud chats make no runtime, cloud API, or hardware requests of their own. Local media monitoring remains available.
 
 When a chat output event arrives before the runtime's next poll, a previous prompt-reading rate cannot appear as
 generation or reasoning speed. Scope uses a valid chat estimate or waits for a compatible engine reading.
 
-**Whole engine** ignores companion chat rates and keeps the explicit connection selection. During prompt processing,
+**Engine** ignores companion chat rates and keeps the explicit connection selection. During prompt processing,
 reported progress takes precedence over speed. The sidebar suppresses empty measurements, shows explicit reasoning,
 tool, waiting, and stopped states when observed, and clears live rates on stale data or cancellation. A completed
-measurement is labeled **Last … · avg.**; it is never reused as a live speed. Engine results based only on the last
+measurement is labeled **Last reply** (or **Last reply · Engine** when it is not matched to this chat); it is never reused as a live speed. Engine results based only on the last
 observed request remain available in detailed reply history, without being promoted to a final sidebar average.
-Native completed results say **Last chat · matched** only when their interval belongs to the currently selected chat's
-observed window. A stored attribution verdict alone cannot identify that chat; otherwise the result says **Last engine**.
+Native completed results say **Last reply** only when their interval belongs to the currently selected chat's
+observed window. A stored attribution verdict alone cannot identify that chat; otherwise the result says **Last reply · Engine**.
 
 The full Live view uses the same precedence. Visible supporting facts have a separate **Engine** heading, including
 when the headline is a chat estimate. **Engine readings** and **Engine trend** keep runtime measurements
 separate from the headline's chat estimate. Per-request facts clear when chat output stops; engine-wide request,
-allocation and recent-latency readings may remain as fresh Engine context. Existing history, captures, and baselines retain their runtime timing
+allocation and recent-latency readings may remain as fresh Engine context. Existing history and baselines retain their runtime timing
 meaning; chat delivery windows and completed-step averages are not merged into those series.
 
 After completion, visible facts belong to the exact labeled result: available output count, observed request duration,
@@ -42,11 +47,11 @@ waiting before delivery. Scope never borrows an unrelated engine reply's output 
 
 The companion uses a rolling window of at most five seconds and requires at least two seconds of valid observation.
 It initially divides Unicode character counts by four to estimate tokens. After three eligible completed steps, it
-calibrates from character and reported-token totals across the latest ten comparable steps. Both forms always retain
-**est.** in the displayed label. Observable reasoning counts toward delivery; tool payloads, title generation,
+calibrates from character and reported-token totals across the latest ten comparable steps. Both forms always show
+the `≈` estimate mark. Observable reasoning counts toward delivery; tool payloads, title generation,
 compaction, and ambiguous output-token accounting do not.
 
-A **Last chat · avg.** (for a cloud chat, **Last cloud · avg.**) uses reported output tokens divided by observed
+A companion **Last reply** (local or cloud) uses reported output tokens divided by observed
 completed-step duration. That duration includes
 waiting before delivery, so the result is neither a live delivery-window rate nor native engine throughput. Very short
 or ambiguous replies can finish without a rate. Tool use, cancellation, stream gaps, and identity changes reset live
@@ -54,7 +59,7 @@ estimates. Expired, future, paused, and stale observations cannot appear live. T
 basis, timing basis, observation interval, and freshness independently of the runtime measurement fields.
 
 A view may retain one eligible completed chat result in memory after the private telemetry expires. It remains labeled
-**Last chat · avg.**, with its original timing, while that chat is idle and the view has a fresh service snapshot.
+**Last reply**, with its original timing, while that chat is idle and the view has a fresh service snapshot.
 A new reply, chat/model or connection change, service restart, or later chat lifecycle observation clears it. It is not
 persisted, cannot restore a live reading, and is discarded when that view closes. Telemetry expiry is never extended.
 
@@ -67,12 +72,12 @@ persisted, cannot restore a live reading, and is discarded when that view closes
 | Speed | Tokens per second (tok/s) |
 | Fractions | 0–1 on the wire; displayed as percentages |
 | Power | Watts (W); energy in joules (J) |
-| Context size | Exact token counts in views; `/scope` and the reply history use ranges: under 8k, 8k–32k, 32k–64k, 64k–128k, over 128k |
+| Context size | Exact token counts in views; the reply history uses ranges: under 8k, 8k–32k, 32k–64k, 64k–128k, over 128k |
 
 ## Basis
 
 Every value records how it was obtained. Anything that is not **reported** says so in the view (as a muted suffix or in
-an ⓘ), in reports and in `/scope`.
+an ⓘ) and in reports.
 
 | Basis | Meaning |
 | --- | --- |
@@ -228,11 +233,11 @@ showing live throughput.
 
 ## Per-chat labels
 
-A reply is "This chat · inferred" only when the open chat uses the watched connection and model, the runtime counted at
+A reply is **This chat** only when the open chat uses the watched connection and model, the runtime counted at
 most one active request at every sample, the reply lies inside a turn Scope saw start and finish, its samples have no
-gap, and auto-labelling is on. Everything else is "Server-wide" with one reason (another provider, a different model,
-concurrency, outside the turn, joined mid-turn, not observed, auto-labelling off). "Next reply · armed" applies the same
-per-request rule to each step of the armed reply. A turn summary (wall time minus waits, steps, first-step TTFT, total
+gap, and **Label replies to this chat automatically** is on. Everything else is **Engine** with one reason (another provider, a different model,
+concurrency, outside the turn, joined mid-turn, not observed, labelling off). Replies Scope 5.0 or earlier recorded as
+"Next reply" are shown as **This chat**. A turn summary (wall time minus waits, steps, first-step TTFT, total
 output, token-weighted decode rate, cache reuse) appears only when every step is attributed.
 
 ## Baselines and "vs usual"
@@ -244,24 +249,33 @@ estimate are excluded from per-request baselines, and last-observed replies from
 median (p50) needs at least 5 values and p90 at least 10; both are always shown with their sample count *n*. A single
 reply gets a "vs usual" ratio. "Slower than usual" flags when the median of the last three replies within 30 minutes is
 at most 0.85× the usual rate, or at least 1.25× the usual time to first token, and clears within 10%. Conditions present
-during those replies (pressure, swap growth, thermal pressure) are listed as "observed during", never as causes.
+during those replies are listed as "observed during", never as causes: memory pressure, swap growth and thermal
+pressure (stored with the reply), and requests queued or a media job running (seen by the open view, never stored).
+The flag appears in History, Live and the Session section, for the monitored runtime and model only. Generation speed
+is named first when several metrics are flagged.
 
-## Captures
+Standalone Splash replies carry the output tokens Splash's own decode counter advanced during the reply (only while a
+single request was active) and the prompt and cached tokens from the one companion prompt-progress record observed
+during that reply, so they form baselines like other runtimes.
 
-A 30/60-second capture consumes existing snapshots and never starts inference. Monitoring keeps running while a capture
-records. A request capture begins with one identifiable active model. Inventory-only connections capture host resources
-without a generation rate or request-count change. The capture closes at its target window and retains the duration
-actually observed. Manual stop, pause, hidden view, lost connection, concurrency, changed model, clock reversal, or a gap
-over 12 seconds leaves a labelled partial observation.
+## Prompt cache miss
 
-Observed generation rate is summed token increments divided by the duration of valid adjacent generation intervals. At
-least two seconds are required for a rate. Reported request averages are not mixed into this calculation. Resource means
-use distinct host samples, without time weighting. None of these values establishes a lifetime peak, exclusive request
-usage, or GPU memory. Percentage comparison with a pinned reference requires the same model and at least five seconds of
-observed generation in each window; differences are descriptive, not causal.
+For a chat on a local Splash provider, the companion's prompt-progress records report each request's prompt size and
+the tokens reused from cache. **Prompt cache miss · re-read 28.0K of 30.0K** appears when all of these hold:
 
-Saved captures are user-triggered, timestamped, and sanitized. OpenChamber extension storage retains the 12 newest.
-They contain measurements without model names, request identifiers, credentials, chat content, or private paths.
+- the chat's previous prompt reused at least 4,096 tokens and at least half of itself;
+- the newest prompt re-read (did not reuse) at least 75 % of itself;
+- the newest prompt is at least as long as what the previous one reused, so a shortened or compacted conversation does
+  not count;
+- the newest prompt belongs to the chat's current turn; the row leaves five minutes after that turn ends.
+
+Both counts are reported by the engine. Scope does not know why the cache was not reused (a changed system prompt, an
+evicted cache slot or another chat's work are all possible) and says so.
+
+## Data from earlier versions
+
+Captures (2.0–5.0) and 1.6 saved observations are no longer read or created. Their stored records are kept unchanged,
+counted under **Kept from earlier versions** in History → Storage, and removed only by uninstalling.
 
 ## Standalone Splash prompt progress
 

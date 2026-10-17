@@ -14,13 +14,14 @@ availability and are not guaranteed.
 
 | Line | Hosts | Fixes |
 |---|---|---|
-| 3.x | OpenChamber 2.0.4 and newer | Security and correctness fixes ship on the current line |
+| 5.1.x | OpenChamber 2.4.0 and newer | Security and correctness fixes ship on the current line |
+| 5.0.x | OpenChamber 2.3.3 – 2.3.x | Security fixes only |
 | `legacy/1.6.x` | OpenChamber 1.24.x–2.0.3 | Security and correctness fixes only |
 | Anything older | — | None. Update, or pin the legacy line |
 
 ## Boundaries
 
-OpenChamber sandboxes the panel, page, Work Status section and `/scope` frames. Its approved local service runs under
+OpenChamber sandboxes the panel, page and Work Status section frames. Its approved local service runs under
 the same user account as the host and can read configured runtime credentials. The manifest's command list describes
 intended use, not an operating-system sandbox: OpenChamber treats it as advisory, and an approved service can run any
 command the user can. The list is MLX Scope's promise, enforced by its own code and tests. Review the source and install
@@ -71,9 +72,9 @@ releases you trust.
 summaries are accepted only from the runtime's own lifecycle lines, so generated text that imitates one is not counted.
 
 **Sharing and storage**
-- One sanitizer builds every shared text: Copy, Add to chat draft, `/scope`, toasts, the baseline summary and saved
-  captures. Model names, IDs, titles, paths, keys and prompt text never reach these paths.
-- Sharing requires a user action. Draft sharing appends and cannot send; `/scope` attaches a chip and never sends it.
+- One sanitizer builds every shared text: Copy, Add to chat draft, toasts and the baseline summary. Model names, IDs,
+  titles, paths, keys and prompt text never reach these paths.
+- Sharing requires a user action. Draft sharing appends and cannot send.
 - Only one visible view writes history storage. The service writes a private, expiring chat-demand file while watched;
   explicit companion setup can install owned plugin files and update the plugin configuration.
 
@@ -90,8 +91,10 @@ observation while response delivery continues. Private cache writes are bounded 
 expired, unsafe, oversized or ambiguous records and publish only corroborated numeric progress. Its matching hashes
 and response IDs are never exported. The companion has its own focused stream, isolation, permission and expiry tests.
 
-Chat delivery uses only the qualified OpenCode 2.0.25 event protocol and loopback request metadata. Unsupported
-protocols fail closed while runtime monitoring continues. Estimates use character counts, never stored text; only
+Chat delivery uses only OpenCode's 2.0 plugin event protocol and loopback request metadata. Qualified versions are listed
+in [Compatibility](docs/COMPATIBILITY.md); a later 2.0 release is self-checked, and each feature whose hooks or event
+shapes fail the check is withdrawn with its reason. OpenCode 2.1 and later, and anything that fails the rule, fail closed
+while runtime monitoring continues. Estimates use character counts, never stored text; only
 bounded numeric measurements and hashed matching keys enter private expiring files. Both service and companion reject
 symlinks, non-regular files, unsafe permissions, oversize bodies, stale timestamps and ambiguous matching writers.
 Event work stops when the visible-view demand expires. See [Privacy](PRIVACY.md) for storage and removal details.
@@ -101,6 +104,8 @@ Event work stops when the visible-view demand expires. See [Privacy](PRIVACY.md)
 
 The ComfyUI helper is optional, initially qualified for 0.38.0, and loads through its supported custom-node mechanism. Its read-only route requires a private bearer token and loopback access. It emits sanitized bounded registry counters on demand, without producer hooks, WebSocket replacement or generation work. Setup only replaces/removes unchanged managed files; token permissions, ownership and intervening edits are verified, with rollback on configuration conflict.
 
-Media records exclude prompts, references, file paths, credentials and raw error messages. Private feed files must be owner-only regular files, bounded and expiring. Job ownership is accepted only from explicit source metadata. Hashes are matching identifiers, not anonymization.
+Media records exclude prompts, references, file paths, credentials and raw error messages. Phosphene is observe-only:
+Scope sends it only `GET /version` (to recognize it) and `GET /status`, reads at most 1 MB, and has no route that changes
+a Phosphene job. Private feed files must be owner-only regular files, bounded and expiring. Job ownership is accepted only from explicit source metadata. Hashes are matching identifiers, not anonymization.
 
 Cancellation rechecks the observed job and the adapter's qualified exact-job capability. ComfyUI uses its job-ID API, Qwen maps its job ID to the existing request cancellation event, and local-video uses its allowlisted job-ID command. No global interrupt, broad process kill, generation retry or arbitrary feed-supplied cancellation URL is permitted. The UI remains Cancelling until acknowledgement is observed.

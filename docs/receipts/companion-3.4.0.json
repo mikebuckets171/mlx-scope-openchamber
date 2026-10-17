@@ -1,0 +1,183 @@
+{
+ "schemaVersion": 1,
+ "kind": "companion-qualification-and-cpu-fixture",
+ "helperVersion": "3.4.0",
+ "recordedOn": "2026-10-17",
+ "companionFiles": {
+  "index.js": "1327955c28d04ed7a78d970c2f0b97b64afb381b0a5b677100ab1f51e2039087",
+  "chat.js": "77a2f0e893c1ca4ea385fec3095cf42235e549060d4e6719a0ea4e953a4527b6",
+  "demand.js": "3d1d7937153c230328d02ab4acd08a26a0a1539e61c44a7af2b582f2f3ef5371",
+  "chat-store.js": "2fbf445a26303acb161f1a9e784eb4dfd1a0de2a4ad6f6bb288bd539eefee6b1",
+  "store.js": "3dd1e68ec4f8263c58f71619c0312fc3143f3cc3bf01685e3b150909bf58b053",
+  "stream.js": "2b0bfbda6a170c369560306522942383039d93ef7de665113d796a11041d6f55",
+  "compatibility.js": "93cac6faf33c19548371b13c3396737a44a0a761e1ea0e3d1f26f61e1178aa96",
+  "package.json": "8956d53ade789764599550a9d135cbec982f35f0481bd0bbfa9cd82b488fd1b4"
+ },
+ "environment": {
+  "node": "v22.23.3",
+  "platform": "darwin",
+  "release": "27.2.0",
+  "cpu": "Apple M5 Pro",
+  "logicalCPUs": 18
+ },
+ "runtime": {
+  "opencode": "2.0.32",
+  "source": "the binary bundled with OpenChamber 2.4.0 (opencode-cli/opencode --version: v2.0.32)"
+ },
+ "qualification": {
+  "basis": "Isolated native OpenCode 2.0.32 process with synthetic loopback providers (bridge/opencode/protocol-*.mjs). No real model, no inference, no cloud account.",
+  "httpLocal": {
+   "result": "pass",
+   "destination": "local",
+   "runtimeVersion": "2.0.32",
+   "fixtureRequests": 4,
+   "hiddenWritesStopped": true,
+   "promptProgress": "advanced 200 \u2192 500 \u2192 900 of the fixture prompt on every request"
+  },
+  "httpSyntheticRemote": {
+   "result": "pass",
+   "destination": "synthetic-remote-routed-to-loopback",
+   "runtimeVersion": "2.0.32",
+   "fixtureRequests": 4,
+   "hiddenWritesStopped": true
+  },
+  "webSocket": {
+   "result": "pass",
+   "destination": "synthetic-remote-routed-to-loopback",
+   "runtimeVersion": "2.0.32",
+   "companionVersion": "3.4.0",
+   "fixtureRequests": 7,
+   "connections": 1,
+   "cancellation": "pass",
+   "hiddenWritesStopped": true
+  },
+  "hotReloadLocal": {
+   "hotReload": "pass",
+   "serverRestarted": false,
+   "existingSyntheticStreamCompleted": true,
+   "duplicateRequests": 0,
+   "previousCompanion": "3.3.0",
+   "previousCompanionSupported": false,
+   "loadedCompanion": "3.4.0",
+   "result": "pass",
+   "destination": "local",
+   "runtimeVersion": "2.0.32",
+   "fixtureRequests": 5,
+   "completedStreams": 5,
+   "hotReloadVerified": true,
+   "hiddenWritesStopped": true
+  },
+  "hotReloadSyntheticRemote": {
+   "hotReload": "pass",
+   "serverRestarted": false,
+   "existingSyntheticStreamCompleted": true,
+   "duplicateRequests": 0,
+   "previousCompanion": "3.3.0",
+   "previousCompanionSupported": false,
+   "loadedCompanion": "3.4.0",
+   "result": "pass",
+   "destination": "synthetic-remote-routed-to-loopback",
+   "runtimeVersion": "2.0.32",
+   "fixtureRequests": 5,
+   "completedStreams": 5,
+   "hotReloadVerified": true,
+   "hiddenWritesStopped": true
+  },
+  "schemaReview": "Session event schema, message envelope, usage and transport types in OpenCode 2.0.32 are unchanged from 2.0.29 for every field the companion reads."
+ },
+ "overhead": {
+  "method": {
+   "chats": 4,
+   "localChats": 2,
+   "remoteChats": 2,
+   "deltaCadenceMs": 100,
+   "locations": 2,
+   "phasesMs": {
+    "idle": 6000,
+    "visible": 10000,
+    "hidden": 6000
+   },
+   "attribution": "isolated Node worker process; enabled-minus-disabled incremental companion including event subscription and filesystem work; not whole OpenCode",
+   "runtimeProtocol": "released OpenCode 2.0.25 shapes; HTTP and WebSocket requests awaited before output, with two location-scoped subscriptions; qualified separately by protocol-smoke.mjs and protocol-ws-smoke.mjs"
+  },
+  "design": "Three alternating enabled/disabled pairs for each companion, run back to back under the same machine load; 3.3.0 is the frozen 5.0 companion.",
+  "3.4.0": {
+   "idle": {
+    "medianEnabledCPUPercentOneCore": 0.052,
+    "medianDisabledCPUPercentOneCore": 0.0369,
+    "medianPairedIncrementalCPUPercentOneCore": 0.0206,
+    "pairedIncrementalCPUPercentOneCore": [
+     0.0082,
+     0.0227,
+     0.0206
+    ]
+   },
+   "visible": {
+    "medianEnabledCPUPercentOneCore": 1.5751,
+    "medianDisabledCPUPercentOneCore": 0.3625,
+    "medianPairedIncrementalCPUPercentOneCore": 1.226,
+    "pairedIncrementalCPUPercentOneCore": [
+     1.1547,
+     1.226,
+     1.2365
+    ]
+   },
+   "hidden": {
+    "medianEnabledCPUPercentOneCore": 0.261,
+    "medianDisabledCPUPercentOneCore": 0.1198,
+    "medianPairedIncrementalCPUPercentOneCore": 0.1444,
+    "pairedIncrementalCPUPercentOneCore": [
+     0.1317,
+     0.1552,
+     0.1444
+    ]
+   }
+  },
+  "3.3.0": {
+   "idle": {
+    "medianEnabledCPUPercentOneCore": 0.1036,
+    "medianDisabledCPUPercentOneCore": 0.034,
+    "medianPairedIncrementalCPUPercentOneCore": 0.0567,
+    "pairedIncrementalCPUPercentOneCore": [
+     0.0551,
+     0.0567,
+     0.074
+    ]
+   },
+   "visible": {
+    "medianEnabledCPUPercentOneCore": 1.5749,
+    "medianDisabledCPUPercentOneCore": 0.383,
+    "medianPairedIncrementalCPUPercentOneCore": 1.2514,
+    "pairedIncrementalCPUPercentOneCore": [
+     1.2514,
+     1.0987,
+     1.4088
+    ]
+   },
+   "hidden": {
+    "medianEnabledCPUPercentOneCore": 0.263,
+    "medianDisabledCPUPercentOneCore": 0.1367,
+    "medianPairedIncrementalCPUPercentOneCore": 0.1363,
+    "pairedIncrementalCPUPercentOneCore": [
+     0.1515,
+     0.1263,
+     0.1363
+    ]
+   }
+  },
+  "maxWriterBytes": 2833,
+  "firstRunNote": "A first pair of runs (3.4.0 then 3.3.0) differed in the visible phase under changing machine load; the same-load rerun above shows no difference. Both are kept in the scratch record, not here.",
+  "loadAverages": {
+   "samples": [
+    "{ 3.86 3.90 4.13 }",
+    "{ 5.09 4.85 4.51 }"
+   ],
+   "note": "1/5/15-minute load averages recorded during the reruns (18 logical cores)."
+  }
+ },
+ "limitations": [
+  "Synthetic providers only: real token accounting, provider buffering and real workloads are not covered.",
+  "The CPU fixture isolates the companion in a Node worker; it is not whole-OpenCode CPU.",
+  "Self-checked newer 2.0 versions are not qualified by this receipt; a self-check cannot detect changed meaning."
+ ]
+}

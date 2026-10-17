@@ -225,12 +225,26 @@ global config directory when the service receives it; a relative value is
 reported as unsupported rather than silently falling back to the default root.
 An explicit base URL uses only its explicit key or an
 origin-matched native oMLX key; it never borrows a named provider's credential.
+`MLX_SCOPE_IDLE_EXIT_MS` shortens the service's ten-minute idle exit for the overhead harness (never below 5 s).
 These are isolated development inputs, not extension settings.
 
 ## Appearance and Other work
 
 Scope uses one standard design and follows the host theme and reduced-motion preference. Earlier Classic/Next choices no longer select a separate appearance. Optional activity flags use device storage when supported. A failed save is shown without changing monitoring data.
 
-**Other work** in Live contains separate **Chats and subagents** and **Agent commands** switches. Both begin off, even after permission reapproval. They show only host-reported current-project activity, not measured engine throughput. **View output** reads the last 8 KiB only on request; close it or leave Live to discard it. No command output appears in History, captures, copied stats, or `/scope`.
+**Other work** in Live contains a **Chats and subagents** switch. It begins off, even after permission reapproval, and shows only host-reported current-project activity, not measured engine throughput. Scope 5.0's **Agent commands** switch and command output are gone; a stored choice for them is kept untouched.
 
-On OpenChamber 2.3.3+, the Session header provides **Watch**, **Pause/Resume**, and **Details**. Details opens the displayed measurement snapshot without creating a second collector. Missing host features retain in-body controls.
+On OpenChamber 2.4+, the Session section's header provides **Watch** (This chat / Engine) and **Pause/Resume**. Selecting the reading opens its snapshot details without creating a second collector. A host without header controls keeps the same controls, plus **Details**, inside the section.
+
+**History → Storage → Label replies to this chat automatically** (on by default) decides whether a reply Scope can prove belongs to the open chat is recorded as **This chat**; off, every reply is recorded as **Engine**.
+
+## Phosphene
+
+Scope finds Phosphene at `http://127.0.0.1:8198` when its `/version` answers with a Phosphene release. For another
+port, add a source to `~/.config/mlx-scope/media.json`:
+
+```json
+{ "schemaVersion": 1, "sources": [{ "id": "phosphene", "kind": "phosphene", "label": "Phosphene", "origin": "http://127.0.0.1:8199" }] }
+```
+
+The origin must be loopback. `"enabled": false` on that source stops Scope from probing or reading Phosphene.

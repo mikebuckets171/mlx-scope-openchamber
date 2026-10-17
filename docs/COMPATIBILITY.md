@@ -1,10 +1,32 @@
 # Compatibility
 
-## Scope 4 policy and safe default checks
+## Scope 5.1: qualified and self-checked OpenCode versions
+
+OpenChamber ships a new OpenCode patch every few days, and Scope 4–5.0 accepted only exact versions, so each update
+turned chat speed and Splash prompt progress off until Scope caught up. Scope 5.1 splits the decision in two:
+
+| Mode | Versions | What it means |
+|---|---|---|
+| **Qualified** | OpenCode **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32** | Native synthetic-provider checks passed for that exact binary (see the receipts below). |
+| **Self-checked** | Any other `2.0.N` with N ≥ 25 | The companion confirms, at run time, that each hook registers, that the session header is present on primary requests, and that every event it consumes has the released shape. A feature whose check fails is withdrawn alone, and Connections names the reason (`hook-missing`, `hook-rejected`, `events-missing`, `event-shape`, `session-header`, `options`). |
+| **Unsupported** | 2.1 and later, suffixed or malformed versions | No hooks are installed; runtime monitoring continues. |
+
+A self-check proves the shapes Scope reads, not their meaning: a release that changed token accounting with the same
+shape would pass. Connections therefore says **self-checked (not yet qualified)** for those versions, and a version moves
+to Qualified only after the native checks run against it. The rule lives in `bridge/opencode/compatibility.js`, which
+ships with the companion; the qualified list lives in `bridge/opencode/qualified.js`, which stays in the service, so
+qualifying a later version changes no companion file and needs no **Update chat speed**.
+
+Scope 5.1 requires companion **3.4.0**. After installing 5.1, choose **Connections → Update chat speed** once and
+confirm 3.4.0 is loaded. A 5.1 service accepts any 3.x companion writer of the same telemetry major version, so a
+later 3.x companion keeps working; a 5.0 service with a 3.4.0 companion behaves as 5.0 did. When no Scope view has
+asked for chat telemetry, the companion's demand watcher backs off to five-second checks instead of one-second ones.
+
+## Earlier policy and safe default checks
 
 Scope evaluates optional OpenCode features independently from native runtime monitoring. The standalone
-`bridge/opencode/compatibility.js` profiles are shared by hook registration, telemetry parsing and setup. Exact
-OpenCode **2.0.25, 2.0.27, 2.0.28 and 2.0.29** are qualified; adjacent versions and custom suffixes do not inherit support. The companion
+`bridge/opencode/compatibility.js` rule is shared by hook registration, telemetry parsing and setup. Until 5.1, exact
+OpenCode **2.0.25, 2.0.27, 2.0.28 and 2.0.29** were qualified and adjacent versions did not inherit support. The companion
 package version, profile revision and Scope telemetry wire version are separate. Schema 1 and the legacy protocol
 spelling `opencode-2.0.25` remain unchanged for existing readers. The module ships inside the addon; its declaration
 file is only needed for development type checking.
@@ -16,14 +38,15 @@ file is only needed for development type checking.
 | Splash prompt progress | Qualified profile, configured loopback provider and validated streaming counters. Unknown versions install no request mutation. Failed response-hook registration removes its paired request hook. |
 | Managed reload | Native file-rename checks on 2.0.27, 2.0.28 and 2.0.29 verify an older unsupported helper and same-version revisions update while a fixture reply completes, without restart or duplicate requests. Configuration tests alone do not establish this. No automatic restart is attempted. |
 
-Optional heartbeat feature entries carry `support` (`qualified`, `unqualified`, `unavailable`) and `available` (the
-hook/API is installed). An available feature must be qualified. Readers discard unrelated metadata and reject
+Optional heartbeat feature entries carry `support` (`compatible`, or the legacy `qualified`; `unqualified`; `unavailable`),
+`available` (the hook/API is installed) and, from 3.4.0, an optional `check` (`waiting`, `passed`, or `failed` with one
+allowlisted reason). An available feature must be supported. Readers discard unrelated metadata and reject
 contradictory entries. Legacy heartbeats remain readable. Setup's optional `compatibility` extension separates these
 features from activity: not loaded, awaiting demand, listening, or unavailable. Listening means demanded heartbeat
 activity; it does not prove output or transport semantics. Malformed optional metadata does not discard an otherwise
 valid legacy setup response. Installed fingerprints, loaded companion metadata and current liveness remain distinct.
 
-Scope 4 requires companion **3.3.0** for chat delivery. Existing 3.2.0 companions must be updated through **Connections → Update chat speed**, then confirmed loaded. The reader intentionally rejects a different companion package version even when the wire schema matches; native engine monitoring remains independent during that gap.
+Scope 4 and 5.0 required companion **3.3.0** for chat delivery and rejected a different companion package version even when the wire schema matched; native engine monitoring remained independent during that gap.
 
 The runtime profile and the loaded helper's protocol are checked separately. An older helper reporting `unsupported`
 on a now-qualified runtime can be updated; its telemetry is still rejected until the current helper is loaded.
@@ -70,6 +93,18 @@ semantic proof. When authorized, native synthetic-provider receipts should recor
 when available, adapter/companion hashes and passed/skipped/unqualified outcomes. Preserve wire/storage compatibility,
 privacy limits and independent fallback; measure overhead before adding continuous collection.
 
+## OpenCode 2.0.32 compatibility
+
+OpenChamber 2.4.0 bundles OpenCode 2.0.32. Its session event schema, message envelope, usage and transport types are
+unchanged from 2.0.29 for every field the companion reads. With companion 3.4.0, the bundled binary passed the isolated
+native synthetic-provider checks: local HTTP delivery with advancing prompt progress (200 → 500 → 900 of the fixture
+prompt), synthetic-remote HTTP, WebSocket reuse with one cached connection, tool continuation and cancellation,
+three-step calibration, completion, hidden shutdown with telemetry writes stopped, and managed hot reload from the
+5.0 companion (3.3.0, which reported 2.0.32 unsupported) to 3.4.0 with no server restart and no duplicated request.
+The receipt is [`docs/receipts/companion-3.4.0.json`](receipts/companion-3.4.0.json); it also records a paired CPU
+fixture against 3.3.0 under the same load: incremental idle CPU 0.021 % vs 0.057 % of one core, visible 1.23 % vs
+1.25 %, hidden 0.14 % vs 0.14 %. No real model, inference or cloud account was involved.
+
 ## OpenCode 2.0.29 compatibility
 
 Local 4.0.2 qualified the OpenChamber 2.3.3 bundled binary using the existing isolated native synthetic-provider
@@ -94,17 +129,27 @@ Real-model performance qualification remains a separate check.
 
 ## Host
 
-MLX Scope 5 requires **OpenChamber 2.3.3 or newer** (`engines.openchamber` `>=2.3.3`) and pins
-[SDK 2.3.3](https://github.com/openchamber/openchamber/blob/v2.3.3/packages/sdk/API.md), retaining manifest API 1. Scope 4.0.1 remains the compatible release for OpenChamber 2.0.4–2.3.2. The background-only command uses the official SDK 2.0.4 alias to retain its size ceiling.
-It uses the panel, the full page, a Work Status section (`statusSection`, OpenChamber 2.0.1+), a `/scope` slash command
-answered by a background entry, the session-menu action, badges, toasts, host-managed storage and a local service.
+MLX Scope 5.1 requires **OpenChamber 2.4.0 or newer** (`engines.openchamber` `>=2.4.0`) and pins
+[SDK 2.4.0](https://github.com/openchamber/openchamber/blob/v2.4.0/packages/sdk/API.md), retaining manifest API 1. Scope 5.0.0 remains the release for OpenChamber 2.3.3–2.3.x and Scope 4.0.1 for 2.0.4–2.3.2.
+It uses the panel, the full page, a Work Status section (`statusSection`, OpenChamber 2.0.1+) whose Watch and Pause
+controls are drawn in the host's section header (`setStatusControls`, SDK 2.4), the session-menu action, badges,
+toasts, host-managed storage and a local service. The `/scope` command and its background entry were removed in 5.1.
+
+**Installing and updating.** Install from Git (`https://github.com/mikebuckets171/mlx-scope-openchamber#release`):
+OpenChamber updates a Git install in place and keeps its storage and permissions. Installing a ZIP over an existing
+install replaces it, and the host then deletes the extension's storage (History, baselines, preferences); this is
+host behaviour Scope cannot change.
+
+**Service lifetime.** The service exits after ten minutes without an authenticated view request, and OpenChamber starts
+it again on the next request. OpenChamber 2.4 respawns an exited service on demand, but this is implemented rather
+than documented host behaviour; if a later host stops doing so, Scope views would show the service as unavailable.
 The inherited 2.0.4 qualification is historical evidence for the manifest floor; 2.0.2 showed a black status surface. The 3.1 candidate was checked in OpenChamber 2.2.0. Neither observation qualifies a new Scope 4 artifact in a native host. An initial 4.0 candidate was reinstalled through the OpenChamber 2.3.0 UI: Live, Run details, Connections and Session rendered, and Session reported activity through a loaded llama-swap backend. This was a limited install smoke, not an exhaustive host or workload qualification. Desktop and
 web clients expose these surfaces; mobile and VS Code clients load no extensions. Runtime and Mac readings belong to the
 OpenChamber server's computer.
 
 | Evidence | Status |
 |---|---|
-| Surfaces, Work Status section, `/scope` via the background entry, badge and toast from a status frame, storage cost, session events | Measured on OpenChamber 2.0.4 desktop with a spike extension (`docs/2.0/SPIKES.md` S1–S5) |
+| Surfaces, Work Status section, `/scope` via the background entry (removed in 5.1), badge and toast from a status frame, storage cost, session events | Measured on OpenChamber 2.0.4 desktop with a spike extension (`docs/2.0/SPIKES.md` S1–S5) |
 | The exact 2.0.0 package: approval dialog, every surface, Turn stats swap, attribution on real turns, ledger, `/scope` chip | Verified in Stage 12 (`docs/receipts/2.0.0-host-qualification.json`) |
 | The git-update path from 1.6.1 to 2.0.0 | Rehearsed in Stage 12 in an isolated instance (`docs/2.0/REHEARSAL.md`); if not rehearsed, the receipt says "git-update path not rehearsed" |
 
@@ -112,7 +157,7 @@ OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and c
 
 ## Optional chat delivery estimates
 
-Chat estimates support exact **OpenCode 2.0.25, 2.0.27, 2.0.28 and 2.0.29** for local and cloud chats alike, retaining the same wire protocol. An
+Chat estimates are qualified on **OpenCode 2.0.25, 2.0.27, 2.0.28, 2.0.29 and 2.0.32** and self-checked on later 2.0 releases, for local and cloud chats alike, retaining the same wire protocol. An
 isolated servers with synthetic streaming providers exercise waiting, generation, completion, calibration and
 hidden shutdown over both transports. Unsupported versions disable estimates while runtime adapters continue to
 operate. Guided setup distinguishes installed/pending from a fresh loaded companion and supports native v2 and legacy
@@ -307,7 +352,7 @@ cached for a minute because reading it scans the model cache.
 
 The SDK provides no hook into the host's own Turn stats and no way to hide a host section, so the Turn stats swap is a
 user setting in the Work Status panel's **Panel sections**. It provides no per-session token event and no push from a
-service, so measurement views poll. The measurement pipeline uses the open chat’s ID, busy state, model and turn events. Scope 5 separately offers opt-in current-project activity through `sessions` and command status through `shells`. These transient views do not improve engine attribution or enter history/exports. No per-session inference rate is inferred from host activity. It does not scrape host DOM, read OpenChamber's
+service, so measurement views poll. The measurement pipeline uses the open chat’s ID, busy state, model and turn events. Scope 5.1 separately offers opt-in current-project activity through `sessions` (5.0's `shells` command status is gone). This transient view does not improve engine attribution or enter history/exports. No per-session inference rate is inferred from host activity. It does not scrape host DOM, read OpenChamber's
 settings, or intercept inference streams on its own. The optional companion observes supported OpenCode events and retains the
 Splash response observer described above. Scope observes configured local connections; it does not manage models, cache,
 inference, or credentials.
@@ -317,7 +362,14 @@ recognizes those alongside the v1 `provider.<id>.options` form. OpenCode 2's con
 private database storage. Scope does not inspect that database and cannot promise access to credentials available only
 through `/connect`. Project-only provider definitions remain outside Scope's discovery boundary.
 
-## Media monitoring in 3.1
+## Media monitoring
+
+Phosphene 4.19 is read through its own `GET /status` (observe-only; found at `127.0.0.1:8198` by its `/version`
+answer). Its LTX and H3 step counters, H3 window number and its own time-left estimate are used; the estimate is
+labelled **app estimate**. This was verified read-only against an installed Phosphene 4.19.5 at rest; the running-job
+shapes come from its 4.19.5 source and fixtures, not from a captured render.
+
+### Media monitoring in 3.1
 
 ComfyUI basic monitoring uses existing lifecycle APIs. Detailed node-local progress is initially qualified for ComfyUI 0.38.0 with Scope’s optional helper. Other versions keep basic monitoring; unknown nodes use indeterminate progress or generic units. Cancellation is enabled only on a qualified job-scoped API.
 
