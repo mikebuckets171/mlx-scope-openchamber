@@ -2,7 +2,7 @@ import { join, isAbsolute } from 'node:path';
 import { parse, type ParseError } from 'jsonc-parser/lib/esm/main.js';
 import { chatKey } from '../../src/contract/chat-key.ts';
 import { obj, label } from '../../src/contract/guards.ts';
-import { mediaId, MEDIA_SOURCE_LIMIT, type MediaSourceV1 } from '../../src/contract/media.ts';
+import { mediaId, MEDIA_SOURCE_KINDS, MEDIA_SOURCE_LIMIT, type MediaSourceV1 } from '../../src/contract/media.ts';
 import { requestJSON, type FetchImplementation } from '../http.ts';
 import { pathsForHome } from '../config.ts';
 import { directoryExists, readBounded } from './files.ts';
@@ -52,11 +52,11 @@ export class MediaDiscovery {
       if (!config || config.schemaVersion !== 1 || config.enabled === false) { this.enabled = false; return []; }
       for (const raw of Array.isArray(config.sources) ? config.sources.slice(0, MEDIA_SOURCE_LIMIT) : []) {
         const source = obj(raw), id = mediaId(source?.id), kind = source?.kind;
-        if (!source || !id || !['comfyui', 'local-video', 'qwen-image', 'feed'].includes(String(kind))) continue;
+        if (!source || !id || !MEDIA_SOURCE_KINDS.includes(kind as MediaSourceV1['kind'])) continue;
         const origin = localOrigin(source.origin), directory = absolute(source.directory);
         if (source.enabled === false) { disabled.add(id); if (origin) disabledOrigins.add(origin); if (directory) disabledDirectories.add(directory); continue; }
-        if ((kind === 'comfyui' || kind === 'qwen-image') && !origin || (kind === 'feed' || kind === 'local-video') && !directory) continue;
-        sources.push({ id, kind: kind as MediaSourceV1['kind'], label: label(source.label, 80) ?? (kind === 'comfyui' ? 'ComfyUI' : kind === 'local-video' ? 'Local video' : kind === 'qwen-image' ? 'Qwen image' : 'Media feed'),
+        if ((kind === 'comfyui' || kind === 'qwen-image' || kind === 'phosphene') && !origin || (kind === 'feed' || kind === 'local-video') && !directory) continue;
+        sources.push({ id, kind: kind as MediaSourceV1['kind'], label: label(source.label, 80) ?? (kind === 'comfyui' ? 'ComfyUI' : kind === 'local-video' ? 'Local video' : kind === 'qwen-image' ? 'Qwen image' : kind === 'phosphene' ? 'Phosphene' : 'Media feed'),
           ...origin ? { origin } : {}, ...directory ? { directory } : {}, installationPath: absolute(source.installationPath), tokenPath: absolute(source.tokenPath), helperTokenPath: absolute(source.helperTokenPath) });
       }
     }
@@ -76,9 +76,24 @@ export class MediaDiscovery {
       try { const result = await requestJSON({ url: new URL('/system_stats', origin), fetchImpl: this.options.fetchImpl ?? fetch, timeoutMs: 800 }); version = label(obj(result.body?.system)?.comfyui_version, 40) ?? undefined; } catch { /* a passive probe never starts ComfyUI */ }
       if (version || found.length) add({ id: 'comfyui', kind: 'comfyui', label: 'ComfyUI', origin, version, ...found.length === 1 ? { installationPath: found[0] } : {} });
     }
+    if (!disabled.has('phosphene') && !sources.some(source => source.kind === 'phosphene')) {
+      const origin = PHOSPHENE_ORIGIN, version = await phospheneVersion(origin, this.options.fetchImpl ?? fetch);
+      if (version) add({ id: 'phosphene', kind: 'phosphene', label: 'Phosphene', origin, version });
+    }
     return sources;
   }
 }
+
+/** Phosphene's default address; a `phosphene` entry in media.json names another local origin. */
+export const PHOSPHENE_ORIGIN = 'http://127.0.0.1:8198';
+/** A passive probe: Phosphene's `/version` names its release. Anything else on the port is not Phosphene. */
+export const phospheneVersion = async (origin: string, fetchImpl: FetchImplementation): Promise<string | null> => {
+  try {
+    const body = (await requestJSON({ url: new URL('/version', origin), fetchImpl, timeoutMs: 800, maxBytes: 64_000 })).body;
+    const version = body?.local_version;
+    return typeof version === 'string' && /^\d{1,3}\.\d{1,3}\.\d{1,4}$/.test(version) && typeof body?.local_sha === 'string' ? version : null;
+  } catch { return null; }
+};
 
 /** Only recognize explicit launch metadata or named Qwen/Comfy integrations; never invoke an MCP tool. */
 export const configuredMediaSources = async (home: string, env: NodeJS.ProcessEnv = {}): Promise<MediaSourceConfig[]> => {

@@ -1,0 +1,53 @@
+{
+ "_provenance": "GET /status from Phosphene 4.19.5 on 2026-10-17, idle with one finished render. Redacted: params keep only mode and engine; prompts, paths, log lines and outputs are replaced by fixture values; machine and model details removed.",
+ "running": false,
+ "paused": false,
+ "paused_reason": null,
+ "current": null,
+ "queue": [],
+ "history": [
+  {
+   "id": "j-1a14b4e61c5-001",
+   "status": "done",
+   "queued_at": "2026-10-17 14:19:50",
+   "started_at": "2026-10-17 14:19:50",
+   "started_ts": 1792264790.583356,
+   "finished_at": "2026-10-17 14:26:30",
+   "elapsed_sec": 399.99,
+   "command": null,
+   "error": null,
+   "params": {
+    "mode": "a2v",
+    "engine": "ltx",
+    "prompt": "FIXTURE PRIVATE PROMPT",
+    "image": "/Users/fixture/private/output.mp4"
+   },
+   "raw_path": "/Users/fixture/private/output.mp4",
+   "output_path": "/Users/fixture/private/output.mp4"
+  }
+ ],
+ "log": [
+  "[fixture] /Users/fixture/private/output.mp4"
+ ],
+ "pid": null,
+ "pgid": null,
+ "outputs": [
+  {
+   "name": "output.mp4",
+   "path": "/Users/fixture/private/output.mp4",
+   "prompt": "FIXTURE PRIVATE PROMPT",
+   "url": "/file?path=/Users/fixture/private/output.mp4"
+  }
+ ],
+ "outputs_total": 1,
+ "server_now": 1792269938.619461,
+ "avg_elapsed_sec": 400.0,
+ "eta_sec": 0,
+ "ltx_version": "0.14.19+ltx25.7",
+ "helper": {
+  "alive": false,
+  "pid": null,
+  "low_memory": true,
+  "idle_timeout_sec": 1800
+ }
+}
