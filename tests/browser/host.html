@@ -53,9 +53,9 @@ function theme(name) {
   }};
 }
 window.previewTheme = theme(themeName);
-// OpenChamber 2.0.4 surfaces (plan §8.4): panel (default), page, the Work Status section, and the /scope background frame.
-const surface = ['page', 'status', 'background', 'popover'].includes(params.get('surface')) ? params.get('surface') : 'panel';
-const entry = surface === 'background' ? '/background/index.html' : '/panel/index.html';
+// OpenChamber surfaces: panel (default), page, the Work Status section and a popover.
+const surface = ['page', 'status', 'popover'].includes(params.get('surface')) ? params.get('surface') : 'panel';
+const entry = '/panel/index.html';
 // A status frame starts at the manifest height and follows setHeight, clamped like clampStatusSectionHeight (24–320).
 window.previewHeights = [];
 const statusHeight = value => Math.min(320, Math.max(24, Math.round(value)));

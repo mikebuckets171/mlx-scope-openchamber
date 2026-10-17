@@ -5,7 +5,8 @@ import { REPLY_WAIT_MS, type NextReplyCancel, type NextReplyState } from '../att
 import { summarizeTurn } from '../attribution/turn.ts';
 import { CAPTURE_LIMIT, type CaptureV2 } from '../captures/store.ts';
 import { windowRate, type WindowCaptureState, type WindowLengthMs } from '../captures/window.ts';
-import { clamp, redact, SCOPE_TEXT_MAX_CHARS } from '../share/report.ts';
+import { clamp, redact } from '../share/report.ts';
+const SCOPE_TEXT_MAX_CHARS = 16_000;
 import { clock, gibText, mmss } from './format.ts';
 import { basisNote, weightedTps } from './parts.ts';
 import { ago, delta, dur, HISTORY_TEXT, int, pct, tps, type AttrChip, type HistoryText } from './history.ts';

@@ -18,7 +18,7 @@ export const CHECK_SUITES = [
   { id: 'host-storage', executable: 'bun', args: ['test', 'panel/host', 'panel/sdk-theme.test.ts', 'panel/attribution',
     'panel/state/follow-chat.test.ts', 'panel/data/client.test.ts', 'panel/data/visibility.test.ts', 'panel/data/poller.test.ts',
     'panel/testing/storage.test.ts', 'panel/history/storage-compatibility.test.ts', 'panel/history/migrate-v1.test.ts',
-    'panel/history/ledger.test.ts', 'panel/history/prefs.test.ts', 'panel/captures/store.test.ts', 'background'] },
+    'panel/history/ledger.test.ts', 'panel/history/prefs.test.ts', 'panel/captures/store.test.ts'] },
   { id: 'privacy', executable: 'bun', args: ['scripts/scan-committed.ts'] },
   { id: 'build-consistency', executable: 'bun', args: ['scripts/check-built-artifacts.ts'] },
   // Verifies the existing bundles, a reproducible ZIP and its extracted service under the synthetic smoke host.
@@ -50,7 +50,7 @@ export function packageEntries(pkg) {
   return [...pkg.files].sort();
 }
 
-const sourceRoots = ['panel', 'service', 'background', 'src', 'bridge', 'scripts', 'tests'];
+const sourceRoots = ['panel', 'service', 'src', 'bridge', 'scripts', 'tests'];
 const profiles = ['bridge/opencode/compatibility.js', 'bridge/opencode/qualified.js'];
 const dependencies = ['package.json', 'bun.lock', 'tsconfig.json', 'node_modules/@openchamber/sdk/package.json',
   'node_modules/@openchamber/sdk/dist/host.js', 'node_modules/@openchamber/sdk/dist/contract.js', 'node_modules/@openchamber/sdk/dist/ui/theme.js'];

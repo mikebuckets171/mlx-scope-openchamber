@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseManifestJson } from '@openchamber/sdk/schemas';
 import {
-  BUNDLE_CEILINGS, cspOf, EXEC_G1, execMatch, guestLeaks, manifestProblems, rootBlock, serviceLeaks, spawnPaths, tokenDeclarations,
+  BUNDLE_CEILINGS, cspOf, EXEC_G1, execMatch, guestLeaks, manifestProblems, PANEL_CSP, rootBlock, serviceLeaks, spawnPaths, tokenDeclarations,
 } from './package-checks.ts';
 
 const root = join(import.meta.dir, '..');
@@ -11,31 +11,36 @@ const read = (file: string): string => readFileSync(join(root, file), 'utf8');
 const pkg = JSON.parse(read('package.json'));
 
 describe('the Next manifest with the approved awareness grants', () => {
-  test('parses with SDK 2.3.3 and matches the frozen set exactly', () => {
+  test('parses with SDK 2.4.0 and matches the frozen set exactly', () => {
     const parsed = parseManifestJson(read('package.json'));
     expect(parsed.ok).toBe(true);
     expect(manifestProblems(pkg)).toEqual([]);
-    expect(pkg.dependencies['@openchamber/sdk']).toBe('2.3.3');
+    expect(pkg.dependencies['@openchamber/sdk']).toBe('2.4.0');
   });
-  test('any drift is named: a capability, a missing exec entry, a different floor or command', () => {
+  test('any drift is named: a capability, a missing exec entry, a different floor, a command or a second SDK', () => {
     const changed = structuredClone(pkg);
-    changed.openchamber.contributes.capabilities = ['sessions'];
+    changed.openchamber.contributes.capabilities = ['sessions', 'shells'];
     changed.openchamber.contributes.service.permissions.exec = EXEC_G1.slice(1);
-    changed.openchamber.engines.openchamber = '>=2.0.1';
+    changed.openchamber.engines.openchamber = '>=2.3.3';
     changed.openchamber.contributes.commands = [{ name: 'scope' }];
+    changed.openchamber.contributes.background = { entry: 'background/index.html' };
+    changed.dependencies['@openchamber/sdk-background'] = 'npm:@openchamber/sdk@2.0.4';
     delete changed.openchamber.contributes.statusSection;
     expect(manifestProblems(changed)).toEqual([
-      'engines.openchamber must be ">=2.3.3"',
-      'contributes.capabilities must be exactly sessions and shells',
+      'engines.openchamber must be ">=2.4.0"',
+      'contributes.capabilities must be exactly sessions',
+      'only one OpenChamber SDK may be a dependency',
       'contributes.statusSection must be {"entry":"panel/index.html","title":"MLX Scope","height":72}',
-      'contributes.commands must be exactly [{"name":"scope","description":"Attach a private MLX Scope diagnostics summary"}]',
+      'contributes.background must be absent: 5.1 has no background entry',
+      'contributes.commands must be absent: 5.1 has no slash command',
       'service exec must be exactly the 11 G1 entries, in order',
     ]);
   });
-  test('ships the background entry and bundle, and the extracted tokens', () => {
-    for (const file of ['background/index.html', 'background/main.js', 'ui/tokens.css']) expect(pkg.files).toContain(file);
-    expect(pkg.scripts.build).toContain('build:background');
-    expect(pkg.scripts.test).toContain('./background');
+  test('ships no background entry, and ships the extracted tokens', () => {
+    expect(pkg.files.some((file: string) => file.startsWith('background/'))).toBe(false);
+    expect(pkg.files).toContain('ui/tokens.css');
+    expect(pkg.scripts.build).not.toContain('background');
+    expect(pkg.scripts.test).not.toContain('background');
   });
 });
 
@@ -62,13 +67,11 @@ describe('two-way exec match', () => {
 });
 
 describe('bundles and pages', () => {
-  test('the guest stays within 304 KB while service and background ceilings stay fixed', () => {
-    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 304_000, 'service/main.js': 250_000, 'background/main.js': 25_000 });
+  test('the guest and service ceilings stay fixed', () => {
+    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 304_000, 'service/main.js': 250_000 });
   });
-  test('the background page declares exactly the panel CSP', () => {
-    const panel = cspOf(read('panel/index.html'));
-    expect(panel).toContain("default-src 'none'");
-    expect(cspOf(read('background/index.html'))).toBe(panel);
+  test('the panel page declares exactly the approved CSP', () => {
+    expect(cspOf(read('panel/index.html'))).toBe(PANEL_CSP);
     expect(cspOf('<meta http-equiv="Content-Security-Policy" content="default-src \'self\'">')).toBe("default-src 'self'");
     expect(cspOf('<meta charset="utf-8">')).toBeNull();
   });

@@ -11,12 +11,3 @@ test('production panel SDK imports stay inside the host adapter and pinned theme
   }
   expect(leaks).toEqual([]);
 });
-
-test('the background command keeps its SDK imports in its on-demand host adapter', async () => {
-  const background = new URL('../../background/', import.meta.url), leaks: string[] = [];
-  for (const path of await readdir(background)) {
-    if (!path.endsWith('.ts') || path.endsWith('.test.ts') || path === 'host.ts') continue;
-    if (/from\s+['"][^'"]*@openchamber\/sdk/.test(await readFile(join(background.pathname, path), 'utf8'))) leaks.push(path);
-  }
-  expect(leaks).toEqual([]);
-});

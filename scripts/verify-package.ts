@@ -4,7 +4,7 @@ import { chmodSync, lstatSync, mkdirSync, mkdtempSync, rmSync, utimesSync } from
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { BUNDLE_CEILINGS, cspOf, execMatch, GUEST_BUNDLES, guestLeaks, manifestProblems, serviceLeaks } from './package-checks.ts';
+import { BUNDLE_CEILINGS, cspOf, execMatch, GUEST_BUNDLES, guestLeaks, manifestProblems, PANEL_CSP, serviceLeaks } from './package-checks.ts';
 const root = join(import.meta.dir, '..');
 // Every failed check is listed, not only the first, so one run shows the whole gap (e.g. exec entries not wired yet).
 const problems: string[] = [];
@@ -16,8 +16,8 @@ const pkg = JSON.parse(document);
 problems.push(...manifestProblems(pkg));
 const entries: string[] = pkg.files;
 if (!Array.isArray(entries) || entries.some(entry => typeof entry !== 'string')) throw new Error('Package files must be an explicit file allowlist.');
-for (const file of ['panel/index.html', 'panel/main.js', 'panel/style.css', 'panel/scope-icon.svg', 'service/main.js', 'background/index.html',
-  'background/main.js', 'ui/tokens.css', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) {
+for (const file of ['panel/index.html', 'panel/main.js', 'panel/style.css', 'panel/scope-icon.svg', 'service/main.js',
+  'ui/tokens.css', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) {
   if (!entries.includes(file) || !await Bun.file(join(root, file)).exists()) throw new Error(`Missing installable asset: ${file}`);
 }
 let bytes = 0;
@@ -47,9 +47,8 @@ for (const file of GUEST_BUNDLES) {
   const leaks = guestLeaks(await text(file));
   check(!leaks.length, `Host-only code leaked into ${file}: ${leaks.join(', ')}`);
 }
-// The background frame runs under exactly the panel's policy (plan §6), which the host's guestFramePolicy already allows.
-const panelPolicy = cspOf(await text('panel/index.html'));
-check(panelPolicy !== null && cspOf(await text('background/index.html')) === panelPolicy, 'background/index.html must declare the CSP of panel/index.html.');
+// Every guest frame runs under the approved policy, which the host's guestFramePolicy already allows.
+check(cspOf(await text('panel/index.html')) === PANEL_CSP, 'panel/index.html must declare exactly the approved CSP.');
 const service = await text('service/main.js');
 check(!serviceLeaks(service).length, `The service bundle reads OpenChamber settings or carries a home path: ${serviceLeaks(service).join(', ')}`);
 // The service reads only when a view asks (P5), and serves contract v2 with the 1.x route retired.
@@ -62,6 +61,11 @@ check(!exec.undeclared.length, `Executables the service bundle spawns without de
 // A coarse regression ceiling catches accidental dependencies or build artifacts.
 // Runtime overhead is measured separately; this is not a product size target.
 check(bytes <= 2 * 1024 * 1024, 'Installable content exceeds 2 MiB. Review the package allowlist and dependency change.');
+// A failed check never leaves an installable ZIP behind.
+if (problems.length) {
+  console.error(`FAIL: ${problems.length} package check${problems.length === 1 ? '' : 's'}:\n- ${problems.join('\n- ')}`);
+  process.exit(1);
+}
 // Build from a fresh staging directory, never update a pre-existing ZIP.
 // Fixed file order, mode and timestamp make repeat builds reproducible.
 const stage = mkdtempSync(join(tmpdir(), 'mlx-scope-package-'));
@@ -103,9 +107,6 @@ try {
   const digest = createHash('sha256').update(archiveBytes).digest('hex');
   await Bun.write(`${archive}.sha256`, `${digest}  ${basename(archive)}\n`);
   console.log(`SHA-256: ${digest}  ${basename(archive)}`);
-  if (problems.length) {
-    console.error(`FAIL: ${problems.length} package check${problems.length === 1 ? '' : 's'}:\n- ${problems.join('\n- ')}`);
-    process.exitCode = 1;
-  } else console.log(`PASS: SDK 2.3.3 manifest (§6 set, two-way exec match), ${names.length} assets, ${bytes} uncompressed bytes; ${archiveBytes.byteLength} ZIP bytes; `
-    + `bundle ceilings, background CSP and leak checks; reproducible archive and extracted bytes verified.`);
+  console.log(`PASS: SDK 2.4.0 manifest (§6 set, two-way exec match), ${names.length} assets, ${bytes} uncompressed bytes; ${archiveBytes.byteLength} ZIP bytes; `
+    + `bundle ceilings, panel CSP and leak checks; reproducible archive and extracted bytes verified.`);
 } finally { rmSync(stage, { recursive: true, force: true }); }

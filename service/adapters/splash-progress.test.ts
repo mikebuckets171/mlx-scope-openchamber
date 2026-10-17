@@ -7,7 +7,7 @@ import { classAKeys } from '../../src/contract/guards.ts';
 import { parseSnapshotV2 } from '../../src/contract/snapshot.ts';
 import { mockBody } from '../../panel/testing/mock-states.ts';
 import { prefillReading } from '../../panel/progress.ts';
-import { scopeText } from '../../panel/share/scope.ts';
+import { measurementReport } from '../../panel/report.ts';
 import type { AdapterContextV2 } from '../core/adapter-v2.ts';
 import { createSplashAdapter, splashReading } from './splash.ts';
 import { parseProgressFile, progressKey, PROGRESS_MAX_BYTES, PROGRESS_TTL_MS, readProgressCache, SplashPromptProgress, type ProgressScope } from './splash-progress.ts';
@@ -200,7 +200,7 @@ describe('Splash adapter progress corroboration', () => {
     expect(snapshot.runtime.request!.prefillFraction).toBe(0.999);
     const { fromSnapshot } = await import('../../panel/present/reading.ts');
     expect(prefillReading(fromSnapshot(snapshot))!.completed).toBe('>99% complete');
-    const exported = JSON.stringify(snapshot) + scopeText({ version: '2.1.5', now: AT, snapshot });
+    const exported = JSON.stringify(snapshot) + measurementReport(fromSnapshot(snapshot), null, false, '5.1.0', AT);
     for (const privateValue of [WRITER, REQUEST, 'PRIVATE-SESSION-CANARY', entry().sessionKey, entry().endpointKey, entry().modelKey]) expect(exported).not.toContain(privateValue);
     expect(classAKeys(snapshot)).toEqual([]); expect(gets).toEqual(['/status']); expect(execs).toEqual([]);
   }));

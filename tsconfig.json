@@ -18,7 +18,6 @@
   },
   "include": [
     "panel/**/*.ts",
-    "background/**/*.ts",
     "service/**/*.ts",
     "src/**/*.ts",
     "scripts/**/*.ts",
