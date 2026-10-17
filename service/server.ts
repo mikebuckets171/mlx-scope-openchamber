@@ -46,7 +46,33 @@ export type Sources = {
   trend?: (query: TrendQuery, context: { marks: readonly TurnMark[]; now: number }) => Promise<TrendV2>;
   usage?: (query: UsageQuery) => Promise<UsageV2>;
 };
-export type ServerOptions = { version?: string; instance?: string; now?: () => number; monotonic?: () => number };
+export type ServerOptions = {
+  version?: string; instance?: string; now?: () => number; monotonic?: () => number;
+  /**
+   * With no view request for this long and none in flight, `onIdle` runs once so the process can exit. OpenChamber
+   * starts the service again on the next request. Health checks never count as a view.
+   */
+  idleExitMs?: number; onIdle?: () => void;
+};
+
+/** One lazy timer at most, re-armed for the remaining time; never a repeating timer. */
+export const idleTracker = (idleMs: number, monotonic: () => number, onIdle: () => void) => {
+  let last = monotonic(), inflight = 0, timer: ReturnType<typeof setTimeout> | null = null, done = false;
+  const check = (): void => {
+    timer = null;
+    if (done || inflight > 0) return;
+    const remaining = idleMs - (monotonic() - last);
+    if (remaining > 0) { arm(remaining); return; }
+    done = true; onIdle();
+  };
+  const arm = (delay: number): void => { if (timer === null && !done) { timer = setTimeout(check, delay); timer.unref?.(); } };
+  arm(idleMs);
+  return {
+    begin(): void { inflight++; last = monotonic(); },
+    end(): void { inflight = Math.max(0, inflight - 1); last = monotonic(); arm(idleMs); },
+    dispose(): void { done = true; if (timer !== null) clearTimeout(timer); timer = null; },
+  };
+};
 
 /** Every body is checked against the SDK response limit before a header is written. */
 export const encode = (body: unknown): string => assertBodyLimit(body);
@@ -103,6 +129,7 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
   const service = { version: options.version ?? packageVersion, instance: options.instance ?? randomBytes(4).toString('hex') };
   const now = options.now ?? Date.now, monotonic = options.monotonic ?? (() => performance.now());
   const lease = new Lease(), marks = new Marks(), verdicts = new Verdicts();
+  const idle = options.idleExitMs && options.onIdle ? idleTracker(options.idleExitMs, monotonic, options.onIdle) : null;
   // Media snapshots are immutable shared collection results. Freshness/configuration changes yield a new object.
   // Weak keys keep this wire cache bounded by the snapshots still held by the collection or active requests.
   const mediaBodies = new WeakMap<MediaSnapshotV1, string>();
@@ -112,6 +139,12 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       const url = new URL(request.url ?? '/', 'http://127.0.0.1');
       const header = request.headers.authorization;
       if (typeof header !== 'string' || !timingSafeEqual(digest(header), expected)) { json(response, 401, { error: 'unauthorized' }); return; }
+      if (idle && url.pathname !== ROUTES.health) {
+        idle.begin();
+        let ended = false;
+        const end = (): void => { if (!ended) { ended = true; idle.end(); } };
+        response.once('finish', end); response.once('close', end);
+      }
       if (url.pathname === '/v2/connections') {
         if (request.method !== 'GET') { json(response, 405, { error: 'method_not_allowed' }); return; }
         if (url.search) { json(response, 400, { error: 'bad_request' }); return; }

@@ -176,7 +176,7 @@ test('a visible remote chat retains active cadence while another page owns the p
   let value = await request(query('cloud', 'remote-session', 'remote-model', '&chatBusy=1'));
   expect(value.lease.leader).toBe(false); expect(value.nextPollMs).toBe(1000);
   observed = measurement(); value = await request(query()); expect(value.nextPollMs).toBe(1000);
-  expect((await request(query().replace('surface=status', 'surface=panel'))).nextPollMs).toBe(500);
+  expect((await request(query().replace('surface=status', 'surface=panel'))).nextPollMs).toBe(1_000);
   expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
 });
 

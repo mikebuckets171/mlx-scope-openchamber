@@ -27,7 +27,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const { values: flags, positionals } = parseArgs({ allowPositionals: true, options: {
   runtime: { type: 'string', default: 'all' }, macmon: { type: 'string', default: 'on' }, cold: { type: 'string', default: '30' },
   active: { type: 'string' }, idle: { type: 'string' }, glance: { type: 'string', default: '30' }, tail: { type: 'string', default: '75' },
-  service: { type: 'string' }, out: { type: 'string' },
+  service: { type: 'string' }, out: { type: 'string' }, 'active-poll-ms': { type: 'string', default: '1000' },
   ...Object.fromEntries(Object.keys(BUDGETS).map(name => [name, { type: 'string' }])),
 } });
 const number = (name, value, min, max) => {
@@ -42,6 +42,8 @@ const seconds = {
   glance: number('glance', flags.glance, 10, 600),
   paused: number('tail', flags.tail, 70, 600),
 };
+// Scope 5.1 views poll every second while a reply runs (5.0: 500 ms). Pass 500 to compare like for like with 5.0.
+const activePollMs = number('active-poll-ms', flags['active-poll-ms'], 250, 2_000);
 const budgets = Object.fromEntries(Object.entries(BUDGETS).map(([name, value]) => [name, number(name, flags[name] ?? value, 0, 1e6)]));
 const runtimes = flags.runtime === 'all' ? FAKE_RUNTIMES : [flags.runtime];
 assert(runtimes.every(kind => FAKE_RUNTIMES.includes(kind)), `--runtime must be all or one of ${FAKE_RUNTIMES.join(', ')}.`);
@@ -205,9 +207,9 @@ async function measure({ kind, macmon }) {
     edges.noView = await probe();
     await delay(seconds.cold * 1000);
     edges.noViewEnd = await probe();
-    await poll(seconds.warmup, 500);
+    await poll(seconds.warmup, activePollMs);
     edges.active = await probe();
-    const activeLatency = await poll(seconds.active, 500);
+    const activeLatency = await poll(seconds.active, activePollMs);
     edges.activeEnd = await probe();
     // One transition read keeps the active runtime state out of the idle measurement.
     state.active = false;
@@ -427,7 +429,7 @@ const receipt = {
   node: process.version,
   host: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model ?? null, logicalCores: cpus().length, memGiB: Math.round(totalmem() / 2 ** 30) },
   method: {
-    psSampleMs: SAMPLE_MS, tailBucketSeconds: BUCKET_S, seconds,
+    psSampleMs: SAMPLE_MS, tailBucketSeconds: BUCKET_S, seconds, activePollMs,
     phases: 'settle: 15 s after the service is ready, no reads (not measured; startup heap trim) · noView: no reads · warmup: 5 s at 500 ms (not measured) · active: 500 ms polls, runtime generating · idle: 2 s polls, runtime idle · glance: surface=status&tier=glance at 1 s, runtime generating · paused: no reads · macmon runs: the same phases with a fake `macmon pipe`',
     cpu: 'Percent of one core. Service: its own cpuUsage() at phase edges (each read costs it about 0.2 ms). Children: ps -A every 500 ms, plus children too short-lived for ps, which share the whole-run wait4 rusage (/usr/bin/time -l) evenly per spawn.',
     spawns: 'Counted in-process by a --import preload that wraps child_process; runtime requests are counted by the fake runtime.',

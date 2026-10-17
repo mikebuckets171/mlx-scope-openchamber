@@ -22,15 +22,15 @@ test('a live chat brings an otherwise dormant engine to the active presentation 
   for (const phase of ['waiting', 'generating', 'reasoning', 'tool'] as const) {
     const live = { ...value, chat: { ...chat, phase, tokensPerSecond: phase === 'generating' || phase === 'reasoning' ? chat.tokensPerSecond : undefined } };
     expect(snapshotPollMs(live), phase).toBe(1_000);
-    expect(snapshotPollMs({ ...live, query: { surface: 'panel' } })).toBe(500);
+    expect(snapshotPollMs({ ...live, query: { surface: 'panel' } })).toBe(1_000);
   }
 });
 
 test('a busy selected chat starts active cadence before its first companion observation without bypassing yield or failure backoff', () => {
   const value = input(), starting: ComposeInput = { ...value, chat: null, query: { surface: 'status', chatBusy: true } };
   expect(snapshotPollMs(starting)).toBe(1_000);
-  expect(snapshotPollMs({ ...starting, query: { surface: 'panel', chatBusy: true } })).toBe(500);
-  expect(snapshotPollMs({ ...starting, query: { surface: 'page', chatBusy: true } })).toBe(500);
+  expect(snapshotPollMs({ ...starting, query: { surface: 'panel', chatBusy: true } })).toBe(1_000);
+  expect(snapshotPollMs({ ...starting, query: { surface: 'page', chatBusy: true } })).toBe(1_000);
   expect(snapshotPollMs({ ...starting, lease: { ...value.lease, leader: false, leaderSurface: 'page', yielded: true } })).toBe(10_000);
   const failed = { ...starting, reading: { ...value.reading, meta: { ...value.reading.meta, failures: 3 } } };
   expect(snapshotPollMs(failed)).toBe(snapshotPollMs({ ...failed, query: { surface: 'status' } }));
@@ -50,7 +50,7 @@ test('validated live chat observations keep visible followers current while anot
   const value = input(), lease = { ...value.lease, leader: false, leaderSurface: 'page' as const, yielded: true };
   for (const phase of ['waiting', 'generating', 'reasoning', 'tool'] as const) {
     const observed = { ...chat, phase, tokensPerSecond: phase === 'generating' || phase === 'reasoning' ? chat.tokensPerSecond : undefined };
-    for (const [surface, cadence] of [['status', 1_000], ['panel', 500], ['page', 500]] as const) {
+    for (const [surface, cadence] of [['status', 1_000], ['panel', 1_000], ['page', 1_000]] as const) {
       const current = { ...value, lease, chat: observed, query: { surface } };
       expect(snapshotPollMs(current), `${surface}: ${phase}`).toBe(cadence);
       const snapshot = composeSnapshot(current);

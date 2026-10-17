@@ -71,7 +71,7 @@ test('fresh chat followers retain speed across five-second expiry boundaries wit
       const panel = await poll('panel', '00000002', targetA);
       expect(page.lease.leader).toBe(true);
       expect(panel.lease.leader).toBe(false);
-      expect(panel.nextPollMs).toBe(500);
+      expect(panel.nextPollMs).toBe(1_000);
       expect(panel.chat).toEqual(measurement(phase));
       if (elapsed % 1_000 === 0) {
         const status = await poll('status', '00000003', targetA);

@@ -304,7 +304,7 @@ test('the next poll follows the reading, the backoff and the surface', async () 
   expect(await poll()).toBe(2_000);
   expect(await poll('surface=status')).toBe(3_000);
   current = reading({ state: 'ready', reason: null, params: {} }, { runtime: { ...offline().runtime, phase: 'decode' } });
-  expect([await poll(), await poll('surface=page'), await poll('surface=status')]).toEqual([500, 500, 1_000]);
+  expect([await poll(), await poll('surface=page'), await poll('surface=status')]).toEqual([1_000, 1_000, 1_000]);
 });
 
 test('no body leaves at or above the SDK response limit', async () => {
@@ -315,4 +315,36 @@ test('no body leaves at or above the SDK response limit', async () => {
   const response = await request('/v2/snapshot');
   expect(response.status).toBe(503);
   expect(await response.json()).toEqual({ error: 'service_unavailable' });
+});
+
+test('idle exit: one lazy timer re-armed for the remaining time, held while a request runs, fired once', async () => {
+  const { idleTracker } = await import('./server.ts');
+  let now = 0, fired = 0;
+  const tracker = idleTracker(60, () => now, () => { fired++; });
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  now = 40; tracker.begin(); tracker.end();           // a view at 40 ms moves the deadline to 100 ms
+  now = 70; await wait(70);
+  expect(fired).toBe(0);
+  tracker.begin(); now = 1_000; await wait(80);       // a request in flight past the deadline holds the exit
+  expect(fired).toBe(0);
+  tracker.end(); now = 2_000; await wait(80);
+  expect(fired).toBe(1);
+  tracker.begin(); tracker.end(); await wait(80);
+  expect(fired).toBe(1);
+  tracker.dispose();
+});
+
+test('health checks never count as a view; an authenticated read does, and the service then ends itself once', async () => {
+  let idle = 0;
+  const request = await launch(defaults, { idleExitMs: 80, onIdle: () => { idle++; } });
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  await wait(40); clock.monotonic += 40;
+  expect((await request('/v2/snapshot')).status).toBe(200);
+  for (let i = 0; i < 3; i++) { await wait(30); clock.monotonic += 30; expect((await request('/health')).status).toBe(200); }
+  expect(idle).toBe(0);
+  await wait(60); clock.monotonic += 60;
+  await wait(40);
+  expect(idle).toBe(1);
+  await wait(120); clock.monotonic += 120;
+  expect(idle).toBe(1);
 });

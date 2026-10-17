@@ -121,8 +121,8 @@ test('the slot machine flags re-detection for the next collection, and a bump re
 });
 
 const poll = (input: Partial<PollInput>) => nextPollMs({ active: false, idleMs: 0, failures: 0, hostLive: true, yielded: false, ...input });
-test('frames poll per plan §4.3: 500 ms / 2 s for panel and page, 1 s / 3 s / 10 s for status', () => {
-  expect([poll({ active: true }), poll({}), poll({ surface: 'page', active: true }), poll({ surface: 'panel', idleMs: DORMANT_AFTER_MS })]).toEqual([500, 2_000, 500, 2_000]);
+test('frames poll at 1 s / 2 s for panel and page (5.1), 1 s / 3 s / 10 s for status', () => {
+  expect([poll({ active: true }), poll({}), poll({ surface: 'page', active: true }), poll({ surface: 'panel', idleMs: DORMANT_AFTER_MS })]).toEqual([1_000, 2_000, 1_000, 2_000]);
   expect([poll({ surface: 'status', active: true }), poll({ surface: 'status' }), poll({ surface: 'status', idleMs: DORMANT_AFTER_MS - 1 }),
     poll({ surface: 'status', idleMs: DORMANT_AFTER_MS }), poll({ surface: 'background' })]).toEqual([1_000, 3_000, 3_000, 10_000, 3_000]);
 });
