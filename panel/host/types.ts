@@ -32,6 +32,7 @@ export interface HostClient {
   listWorktrees?(projectId: string): Promise<{ worktrees: Array<{ directory: string }> }>;
   onSessions?(projectId: string, listener: (snapshot: HostSessions) => void): Promise<() => void>;
   onStatusControl?(listener: (event: { id: string; value?: string }) => void): () => void;
+  onDirectory?(listener: (directory: string | null) => void): () => void;
   setStatusControls?(controls: StatusControl[]): Promise<void>;
   openPopover?(request: PopoverRequest): Promise<void>;
   close?(): Promise<void>;

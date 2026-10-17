@@ -16,23 +16,12 @@ const scope = (patch: (snapshot: SnapshotV2) => void = () => {}, extra: Partial<
 };
 const render = (view: LiveView) => liveMarkup(view, new Set()).markup;
 
-test('Session reserves no plot for sparse disconnected readings but preserves measured gaps in a usable trend', () => {
+test('the quiet Session shows no trend and no support row, only the reading and its exceptions', () => {
   const view = presentLive(scope()).hero!.instrument;
-  const samples = [
-    { at: MOCK_NOW - 11_000, rate: 21, phase: 'decode' as const, segment: 1 },
-    { at: MOCK_NOW - 5_500, rate: 22, phase: 'decode' as const, segment: 2 },
-    { at: MOCK_NOW, rate: 21.7, phase: 'decode' as const, segment: 3 },
-  ];
-  const disconnected = liveChart(samples, MOCK_NOW, null)!;
-  expect(disconnected.line).not.toContain('L');
-  const sparse = sessionMarkup(view, null, false, true, { chart: disconnected }).markup;
-  expect(sparse).not.toContain('class="ws-plot"');
-  expect(sparse).toContain('id="ws-signal" aria-label="" hidden');
-  samples[1]!.segment = 1;
-  const observed = liveChart(samples, MOCK_NOW, null)!;
-  const ready = sessionMarkup(view, null, false, true, { chart: observed }).markup;
-  expect(ready).toContain('class="ws-plot"');
-  expect(ready).toContain(`d="${observed.line}"`);
+  const markup = sessionMarkup(view, null, false, true).markup;
+  expect(markup).not.toMatch(/ws-signal|ws-plot|ws-support/);
+  expect(markup).toContain('id="ws-measurement"');
+  expect(markup).toContain('class="ws-exceptions" id="ws-notice" hidden');
 });
 
 test('precision identity uses reported model only, escapes it and keeps cloud delivery separate', () => {

@@ -641,20 +641,16 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 :root[data-design-mode="next"] .ws-next .ws-reading strong { min-width: 0; font-weight: 450; letter-spacing: -.015em; white-space: nowrap; }
 :root[data-design-mode="next"] .ws-next .ws-reading > span { font-size: var(--scope-text-caption); font-weight: 400; letter-spacing: 0; white-space: nowrap; }
 :root[data-design-mode="next"] .ws-next .ws-label { flex: 1 1 8rem; align-self: baseline; font-size: var(--scope-text-caption); line-height: 1.4; }
-:root[data-design-mode="next"] .ws-next .ws-support { display: block; grid-column: 1/-1; grid-row: 3; min-height: 0; margin-top: 5px; color: var(--scope-muted); font-size: var(--scope-text-caption); line-height: 1.4; }
-:root[data-design-mode="next"] .ws-next .ws-support[data-fact="true"] { grid-column: 2; grid-row: 2; align-self: center; min-width: 0; max-width: 7rem; margin-top: 5px; padding-left: 8px; border-left: 1px solid var(--scope-line); }
 :root[data-design-mode="next"] .ws-next .ws-fact-label { display: block; font-size: var(--scope-text-caption); }
 :root[data-design-mode="next"] .ws-next .ws-fact-value { display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 4px; margin-top: 1px; color: var(--scope-fg); font-size: max(16px,1rem); font-weight: 450; line-height: 1.3; letter-spacing: -.01em; }
 :root[data-design-mode="next"] .ws-next .ws-fact-value > span { color: var(--scope-muted); font-size: var(--scope-text-caption); font-weight: 400; letter-spacing: 0; }
-:root[data-design-mode="next"] .ws-next .ws-signal { grid-column: 1/-1; grid-row: 4; min-width: 0; margin-top: 7px; padding: 0; }
 :root[data-design-mode="next"] .ws-next .ws-plot { position: relative; }
-:root[data-design-mode="next"] .ws-next .ws-signal svg { display: block; width: 100%; height: 28px; overflow: hidden; }
 :root[data-design-mode="next"] .ws-next .ws-trace-endpoint { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: var(--precision-accent); transform: translate(-50%,-50%); }
-:root[data-design-mode="next"] .ws-next .ws-signal .trace { fill: none; stroke: var(--precision-accent); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-:root[data-design-mode="next"] .ws-next .ws-signal .area { fill: url(#session-trace-fill); }
-:root[data-design-mode="next"] .ws-next .ws-signal .grid { opacity: .55; }
-:root[data-design-mode="next"] .ws-next .ws-signal figcaption { display: flex; justify-content: space-between; gap: 8px; margin-top: 3px; color: var(--scope-muted); font-size: max(11px,.6875rem); line-height: 1.35; }
-:root[data-design-mode="next"] .ws-next .ws-notice { grid-column: 1/-1; grid-row: 3; margin-top: 5px; font-size: var(--scope-text-caption); line-height: 1.4; }
+:root[data-design-mode="next"] .ws-next .ws-exceptions { display: grid; gap: 2px; grid-column: 1/-1; grid-row: 3; margin-top: 5px; }
+:root[data-design-mode="next"] .ws-next .ws-exceptions[hidden] { display: none; }
+:root[data-design-mode="next"] .ws-next .ws-notice { margin: 0; font-size: var(--scope-text-caption); line-height: 1.4; }
+/* OpenChamber draws Scope and Pause in its own section header once it accepts them; the in-widget row then hides. */
+:root[data-design-mode="next"] [data-host-controls="true"] .ws-next .ws-toolbar { display: none; }
 :root[data-design-mode="next"] .ws-next .ws-warning, :root[data-design-mode="next"] .ws-next .ws-action-error { padding: 0; border: 0; border-radius: 0; background: transparent; }
 :root[data-design-mode="next"] .ws-next .media-glance { margin: 3px 0 0; padding: 5px 0; border-top: 1px solid var(--scope-line); font-size: var(--scope-text-caption); }
 :root[data-design-mode="next"] .ws-next .media-ring { display: none; }
@@ -721,7 +717,6 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 }
 @container (max-width: 18rem) {
   :root[data-design-mode="next"] .ws-next .ws-instrument { column-gap: 8px; }
-  :root[data-design-mode="next"] .ws-next .ws-support[data-fact="true"] { padding-left: 6px; max-width: 6rem; }
 }
 @container (max-width: 16rem) {
   :root[data-design-mode="next"] .masthead .brand { grid-column: 1/-1; min-width: 0; }
@@ -732,7 +727,6 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
   :root[data-design-mode="next"] .machine-line > div > strong { justify-self: start; }
   :root[data-design-mode="next"] .ws-next .ws-heading { flex-wrap: wrap; }
   :root[data-design-mode="next"] .ws-next .ws-measurement { grid-column: 1/-1; }
-  :root[data-design-mode="next"] .ws-next .ws-support[data-fact="true"] { grid-column: 1/-1; grid-row: 3; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; max-width: none; margin-top: 5px; padding-left: 0; border-left: 0; }
   :root[data-design-mode="next"] .ws-next .ws-fact-value { margin-top: 0; }
 }
 @media (prefers-reduced-motion: reduce) {

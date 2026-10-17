@@ -33,7 +33,11 @@ export interface SessionSectionView {
   resting: boolean;
   note: string | null;
   alert: { label: string; value: string; severity: Severity; more: number } | null;
+  /** The compact section's only extra rows: something happening now, most important first, at most two. */
+  exceptions: SessionException[];
 }
+export interface SessionException { key: string; text: string; detail: string; severity: 'info' | 'warning' | 'critical' }
+export const MAX_EXCEPTIONS = 2;
 const positive = (value: number | null | undefined): value is number => value != null && Number.isFinite(value) && value > 0;
 /** Phases where fresh engine records can support a resting glance. */
 const RESTING = new Set(['Idle', 'Ready', 'No model loaded', 'Connected', 'Paused']);
@@ -197,8 +201,12 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   }
   const shownSupport = support ?? restingSupport;
   // Missing readings never invent a measurement row.
+  const exceptions: SessionException[] = [
+    ...alert ? [{ key: 'alert', text: alert.label, detail: text, severity: alert.severity === 'critical' ? 'critical' as const : 'warning' as const }] : [],
+    ...shownNote ? [{ key: 'note', text: shownNote, detail: shownNote, severity: 'info' as const }] : [],
+  ].slice(0, MAX_EXCEPTIONS);
   return { measurementScope, measurement, support: shownSupport, eta, speeds, progress, held,
     resting: atRest && !measurement && !shownSupport && !held,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
-    note: shownNote, alert };
+    note: shownNote, alert, exceptions };
 };

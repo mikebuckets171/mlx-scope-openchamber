@@ -1,8 +1,7 @@
 import type { MediaController } from '../media/controller.ts';
 import { mediaGlanceMarkup } from '../media/view.ts';
 import { beatKey, Motion } from './motion.ts';
-import { liveChart } from './chart.ts';
-import type { HostClient, SessionSnapshot } from '../host/types.ts';
+import type { HostClient, SessionSnapshot, StatusControl } from '../host/types.ts';
 import type { SnapshotClient } from '../data/client.ts';
 import type { PrefsV2 } from '../preferences.ts';
 import { presentSessionSection } from '../present/session.ts';
@@ -25,6 +24,12 @@ export const chatIsLocal = (session: SessionSnapshot | null, connection: { id: s
   return connection.choices.some(choice => choice.id === provider);
 };
 
+/** Scope's two header controls, drawn by OpenChamber in the Work Status section header (2.4: inline up to two). */
+export const statusControls = (scope: 'chat' | 'engine', paused: boolean): StatusControl[] => [
+  { kind: 'select', id: 'watch', label: 'Watch', value: scope, options: [{ value: 'chat', label: 'This chat' }, { value: 'engine', label: 'Engine' }] },
+  { kind: 'button', id: 'pause', label: paused ? 'Resume' : 'Pause' },
+];
+
 export class StatusApp {
   #height = 0;
   #motion: Motion;
@@ -36,6 +41,10 @@ export class StatusApp {
   #features: HostFeatures = {};
   #directory: string | null | undefined;
   #headerKey = '';
+  /** null until the host answers; false on a host without header controls, which keeps the in-widget row. */
+  #hostControls: boolean | null = null;
+  #stopControls: () => void;
+  #stopDirectory: () => void;
   #card: ReadingCard | null = null;
   #p: StatusParts;
   constructor(p: StatusParts, session: SessionSnapshot | null) {
@@ -47,6 +56,9 @@ export class StatusApp {
       this.#features = ready.features ?? {};
       this.render();
     });
+    this.#stopControls = p.host.onStatusControl?.(event => this.#control(event)) ?? (() => {});
+    // A project change clears header controls; publish them again.
+    this.#stopDirectory = p.host.onDirectory?.(() => { this.#headerKey = ''; this.#headers(); }) ?? (() => {});
     this.#unsubscribe = p.host.onSession(next => {
       if (!this.#sameSession(next)) this.#actionError = null;
       this.#session = next; this.render();
@@ -72,11 +84,9 @@ export class StatusApp {
     });
     const actionError = this.#actionError;
     this.#p.mediaJobs.sync(this.#p.visible() && !state.userPaused && state.frame?.reason !== 'needs_approval');
-    const chart = view.measurement?.live && view.measurement.kind === 'speed' && view.measurement.label.startsWith('Engine')
-      ? liveChart(state.signal.points, client.now(), null, snapshot?.connection.runtime === 'splash' ? 'server' : 'request') : null;
     const readingWasFocused = this.#p.root.querySelector('.ws-measurement') === document.activeElement;
     const media = mediaGlanceMarkup(this.#p.mediaJobs, this.#session?.id ?? null, client.now(), true);
-    morph(this.#p.root, sessionMarkup(view, actionError, false, true, { chart, media, paused: state.userPaused }));
+    morph(this.#p.root, sessionMarkup(view, actionError, false, true, { media, paused: state.userPaused }));
     this.#card = readingCard(view, snapshot?.runtime.sampledAt ?? client.now());
     this.#headers();
     const reading = this.#p.root.querySelector<HTMLElement>('.ws-measurement');
@@ -93,21 +103,34 @@ export class StatusApp {
   }
   /** Measure content so increased text size never clips the host's fixed-height iframe. */
   #fitHeight(): void {
-    const root = this.#p.root, chart = root.querySelector<HTMLElement>('.ws-signal'), content = root.querySelector<HTMLElement>('.ws-scroll');
-    // The reading, warning and media take priority. The full-view action sits outside the scrollable content.
-    if (chart?.querySelector('svg') && content) { chart.hidden = false; if (content.scrollHeight > content.clientHeight + 1) chart.hidden = true; }
+    const root = this.#p.root;
     const height = Math.min(320, Math.ceil(root.getBoundingClientRect().height));
     if (height > 0 && height !== this.#height) { this.#height = height; void this.#p.host.setHeight(height).catch(() => {}); }
   }
   onMeasurementScope: (scope: 'chat' | 'engine') => void = () => {};
   onPauseChanged: () => void = () => {};
+  /**
+   * Pause and the scope choice in OpenChamber's own header, published only when they change (the host takes at most 20
+   * changes a second). The in-widget row stays visible until the host accepts them, and for good on a host without them.
+   */
   #headers(): void {
-    const { host } = this.#p;
-    if (!host.setStatusControls || !this.#features.statusControls || this.#headerKey) return;
-    // 2.3.3 puts three host controls in a two-column grid and truncates selects at 5rem.
-    // Keep this small control group together inside the guest; clear any earlier host binding.
-    this.#headerKey = 'cleared';
-    void host.setStatusControls([]).catch(() => {});
+    const { host, root, state, prefs } = this.#p;
+    if (!host.setStatusControls || !this.#features.statusControls || this.#hostControls === false) return;
+    const controls = statusControls(prefs.value.measurementScope ?? 'chat', state.userPaused), key = JSON.stringify(controls);
+    if (key === this.#headerKey) return;
+    this.#headerKey = key;
+    void host.setStatusControls(controls).then(() => {
+      if (this.#headerKey !== key) return;
+      this.#hostControls = true; root.dataset.hostControls = 'true'; this.#fitHeight();
+    }, () => {
+      this.#hostControls = false; delete root.dataset.hostControls; this.#headerKey = ''; this.#fitHeight();
+    });
+  }
+  #control(event: { id: string; value?: string }): void {
+    if (event.id === 'watch' && (event.value === 'chat' || event.value === 'engine')) { this.#actionError = null; this.onMeasurementScope(event.value); }
+    else if (event.id === 'pause') { this.#p.state.userPaused = !this.#p.state.userPaused; this.onPauseChanged(); }
+    else return;
+    this.render();
   }
   #details(): void {
     const anchor = this.#p.root.querySelector<HTMLElement>('.ws-measurement:not([hidden])') ?? this.#p.root.querySelector<HTMLElement>('#ws');
@@ -156,5 +179,5 @@ export class StatusApp {
     this.render();
     this.#p.root.querySelector<HTMLElement>(`[data-action="${action}"]`)?.focus({ preventScroll: true });
   };
-  dispose(): void { this.#stopReady(); this.#headerKey = ''; void this.#p.host.setStatusControls?.([]).catch(() => {}); this.#motion.dispose(); this.#unsubscribe(); this.#resize?.disconnect(); this.#p.root.removeEventListener('click', this.#onClick); this.#p.root.removeEventListener('change', this.#onChange); this.#p.root.removeEventListener('keydown', this.#onKey); }
+  dispose(): void { this.#stopReady(); this.#stopControls(); this.#stopDirectory(); this.#headerKey = ''; void this.#p.host.setStatusControls?.([]).catch(() => {}); this.#motion.dispose(); this.#unsubscribe(); this.#resize?.disconnect(); this.#p.root.removeEventListener('click', this.#onClick); this.#p.root.removeEventListener('change', this.#onChange); this.#p.root.removeEventListener('keydown', this.#onKey); }
 }

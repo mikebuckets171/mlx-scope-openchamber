@@ -109,12 +109,20 @@ export class HostEvents {
 
 export const connectScopeHost = (): HostClient & { setVisible(visible: boolean): void } => {
   const sdk = connectHost(), events = new HostEvents(sdk);
+  // Header control events reach only listeners already registered, so subscribe at connect time and fan out.
+  const controls = new Set<(event: { id: string; value?: string }) => void>(), directories = new Set<(directory: string | null) => void>();
+  const stopControls = sdk.onStatusControl(event => emit(controls, { id: event.id, ...event.value !== undefined ? { value: event.value } : {} }));
+  let directory: string | null | undefined;
+  const stopDirectory = sdk.onDirectory(next => { if (next === directory) return; const known = directory !== undefined; directory = next; if (known) emit(directories, next); });
   return { ...sdk, onReady: events.onReady, onSession: events.onSession, onSessionLifecycle: events.onSessionLifecycle,
+    onStatusControl: listener => { controls.add(listener); return () => { controls.delete(listener); }; },
+    onDirectory: listener => { directories.add(listener); return () => { directories.delete(listener); }; },
     onProjects: listener => sdk.onProjects(value => listener({ state: value.state,
       projects: value.projects.slice(0, 32).map(({ id, name, directory }) => ({ id, name: name.slice(0, 120), directory })) })),
     listWorktrees: async id => ({ worktrees: (await sdk.listWorktrees(id)).worktrees.slice(0, 200).map(({ directory }) => ({ directory })) }),
     onSessions: (id, listener) => sdk.onSessions(id, value => listener({ state: value.state,
       sessions: value.sessions.filter(row => row.archivedAt === null).slice(0, 200).map(({ id, title, parentId, activity, outcome, archivedAt }) =>
         ({ id, title: title.slice(0, 120), parentId, activity, outcome, archivedAt })) })),
-    setVisible: visible => events.setVisible(visible), dispose: () => { events.dispose(); sdk.dispose(); } };
+    setVisible: visible => events.setVisible(visible),
+    dispose: () => { stopControls(); stopDirectory(); controls.clear(); directories.clear(); events.dispose(); sdk.dispose(); } };
 };

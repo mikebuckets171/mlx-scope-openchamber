@@ -2,7 +2,6 @@ import type { SessionMeasurement, SessionSectionView } from '../../present/sessi
 import { BASIS_WORD } from '../../present/parts.ts';
 import { flag, html, type Raw } from '../html.ts';
 import { compactRate, readoutWidth } from './speeds.ts';
-import type { ChartView } from '../chart.ts';
 
 /** Stable readout ids per kind: a % or an elapsed time is never addressed as a rate. */
 export const READOUT_ID = { speed: 'rate', progress: 'prefill-percent', elapsed: 'elapsed' } as const;
@@ -33,29 +32,20 @@ export const sessionMarkup = (view: SessionSectionView, actionError: string | nu
   </div>`;
 };
 
-/** Presentation only: the compact instrument reuses the same reading, samples, and media controller. */
-export interface SessionNextOptions { chart?: ChartView | null; media?: Raw | string; paused?: boolean }
+/** Presentation only: the compact instrument reuses the same reading and media controller. */
+export interface SessionNextOptions { media?: Raw | string; paused?: boolean }
 
+/**
+ * The quiet Session section: the phase, one reading (with the prompt-time estimate while the prompt is read) and,
+ * only when something is happening, up to two exception rows. Scope and Pause live in OpenChamber's section header when
+ * the host draws them; this in-widget row stays until it does.
+ */
 const nextSessionMarkup = (view: SessionSectionView, actionError: string | null, options: SessionNextOptions): Raw => {
-  const measurement = view.measurement, alert = view.alert;
-  // Disconnected single samples cannot form a useful trend; don't reserve an empty plot for them.
-  const chart = options.chart && options.chart.points >= 3 && options.chart.line.includes('L') ? options.chart : null;
-  const label = measurement ? measurementLabel(measurement, true) : '';
-  const support = !alert && !actionError && !view.note ? view.support : null;
-  const held = !support && !alert && !actionError && !view.note ? view.held : null;
-  // Give the two compact, already-present engine facts a readable label/value treatment.
-  // Any other support copy keeps its complete sentence; no measurements are inferred here.
-  const output = support?.text.match(/^(Engine · )?([\d.,]+[KM]?) tokens out$/);
-  const firstToken = support?.text.match(/^(Engine · )?First token (.+)$/);
-  const fact = output ? { label: output[1] ? 'Engine output' : 'Output', value: output[2]!, unit: 'tokens' }
-    : firstToken ? { label: firstToken[1] ? 'Engine first token' : 'First token', value: firstToken[2]!, unit: '' } : null;
-  const notice = actionError ?? alert?.label ?? view.note ?? (!measurement && !view.resting ? 'No measurement available' : '');
-  // Fit the plot to the actual observed interval. There is no invented lead-in or interpolated history.
-  const xs = chart ? Array.from(chart.line.matchAll(/[ML]([\d.]+)/g), match => Number(match[1])) : [];
-  const first = xs.length ? Math.min(...xs) : 0, last = xs.length ? Math.max(...xs) : 600;
-  const inset = Math.max(.2, (last - first) * .008), left = first - inset, width = Math.max(1, last - first + inset * 2);
-  const interval = chart?.label.match(/last (\d+) s:/)?.[1];
-  const end = chart?.line.match(/([\d.]+) ([\d.]+)$/);
+  const measurement = view.measurement;
+  const label = measurement ? measurementLabel(measurement) : '';
+  const rows = actionError ? [{ key: 'error', text: actionError, detail: actionError, severity: 'warning' as const }, ...view.exceptions].slice(0, 2)
+    : view.exceptions.length ? view.exceptions
+      : !measurement && !view.resting ? [{ key: 'empty', text: 'No measurement available', detail: '', severity: 'info' as const }] : [];
   const unit = measurement?.kind === 'speed' ? 'tokens/s' : measurement?.unit;
   const readingText = measurement ? readoutText(measurement) : '';
   return html`<div class="ws ws-session ws-next" id="ws" data-presentation="session" data-mode="summary" data-resting="${String(view.resting)}" tabindex="-1">
@@ -72,11 +62,8 @@ const nextSessionMarkup = (view: SessionSectionView, actionError: string | null,
           <span class="sr-only measurement-accessible">${measurement?.basis === 'estimate' ? 'about ' : ''}${measurement?.text ?? ''}${measurement?.kind === 'speed' ? ' tokens per second' : unit ? ` ${unit}` : ''}</span>
           <span class="ws-label" data-crossfade>${label}${view.eta ? html`<span class="prompt-eta">${view.eta.text}</span>` : ''}</span><span class="sr-only basis">${measurement?.detail ?? ''}</span>
         </div>
-        <figure class="ws-signal" id="ws-signal" aria-label="${chart?.label ?? ''}"${flag('hidden', !chart)}>
-          ${chart ? html`<div class="ws-plot"><svg viewBox="${left.toFixed(1)} 0 ${width.toFixed(1)} 120" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="session-trace-fill" x1="0" y1="0" x2="0" y2="1"><stop class="trace-wash-start" offset="0"/><stop class="trace-wash-end" offset="1"/></linearGradient></defs><path class="grid" d="M${left.toFixed(1)} 60h${width.toFixed(1)} M${left.toFixed(1)} 116h${width.toFixed(1)}"/><path class="area" d="${chart.area}"/><path class="trace" d="${chart.line}" vector-effect="non-scaling-stroke"/></svg>${end ? html`<span class="ws-trace-endpoint" aria-hidden="true" style="left:${((Number(end[1]) - left) / width * 100).toFixed(2)}%;top:${(Number(end[2]) / 1.2).toFixed(2)}%"></span>` : ''}</div><figcaption><span>${interval ? `${interval} s observed` : 'Engine trend'}</span><span>Scale ${chart.ceiling.replace('tok/s', 'tokens/s')}</span></figcaption>` : ''}
-        </figure>
-        <div class="ws-line ws-support${held ? ' ws-held' : ''}" id="ws-support" data-fact="${String(!!fact)}"${flag('hidden', !support && !held)} title="${support?.detail ?? held?.detail ?? ''}">${fact ? html`<span class="ws-fact-label">${fact.label}</span><strong class="ws-fact-value">${fact.value}${fact.unit ? html`<span>${fact.unit}</span>` : ''}</strong>` : support?.text ?? held?.text ?? ''}${support?.basis && support.basis !== 'reported' ? html` <span class="basis">${BASIS_WORD[support.basis]}</span>` : ''}</div>
-        <div class="ws-notice ${actionError ? 'ws-action-error' : alert ? 'ws-warning' : 'ws-note'}" id="ws-notice"${actionError ? html` role="status"` : ''} data-severity="${alert?.severity ?? 'warning'}"${flag('hidden', !notice)}>${notice}</div>
+        <div class="ws-exceptions" id="ws-notice"${actionError ? html` role="status"` : ''}${flag('hidden', !rows.length)}>${rows.map(row =>
+          html`<p class="ws-notice ${row.key === 'error' ? 'ws-action-error' : row.severity === 'info' ? 'ws-note' : 'ws-warning'}" data-exception="${row.key}" data-severity="${row.severity === 'info' ? 'warning' : row.severity}" title="${row.detail}">${row.text}</p>`)}</div>
       </section>
       <div class="ws-media" id="ws-media"${flag('hidden', !options.media)}>${options.media ?? ''}</div>
     </div>
