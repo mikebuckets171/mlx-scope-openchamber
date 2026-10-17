@@ -229,7 +229,7 @@ test('an unidentified chat withholds local reads until Whole engine is chosen ex
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#startup-fallback')).toHaveCount(0);
   await expect(frame.locator('#scope')).toBeVisible();
-  await expect(frame.locator('#panel-live')).toContainText('This chat’s identity is unavailable. Choose Whole engine to inspect a local connection.');
+  await expect(frame.locator('#panel-live')).toContainText('This chat’s identity is unavailable. Choose Engine to inspect a local connection.');
   await expect(frame.locator('#phase')).toHaveText('Chat identity unavailable');
   await expect(frame.locator('#panel-live')).not.toContainText('read its service');
   expect(await requests(page)).toBe(0);

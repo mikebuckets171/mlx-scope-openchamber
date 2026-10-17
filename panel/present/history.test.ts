@@ -26,10 +26,10 @@ describe('History presenter (plan §5.6, G2 mock)', () => {
   test('the list is newest first: a turn above its last step, the gap in its place, each reply with its label', () => {
     const view = presentHistory(input());
     expect(presentHistory(input({ listLimit: 12 })).entries.map(e => e.kind === 'gap' ? e.text : e.kind === 'turn' ? `${e.at} ${e.title}` : `${e.at} ${e.rate} ${e.attr.text}`)).toEqual([
-      '14:04 Turn · 3 steps', '14:04 24.9 tok/s Likely this chat', '13:58 25.6 tok/s Likely this chat', '13:56 25.1 tok/s Likely this chat',
-      '13:51 24.3 tok/s Next reply', '13:49 23.8 tok/s Server-wide · overlapping requests', 'Not recorded · Scope wasn’t open · 13:24–13:46',
-      '13:22 24.4 tok/s Server-wide · outside this chat’s turn', '13:17 24.0 tok/s Likely this chat', '13:09 23.6 tok/s Server-wide · not observed',
-      'Sep 28 24.4 tok/s Server-wide · not observed', 'Sep 28 26.2 tok/s Likely this chat']);
+      '14:04 Turn · 3 steps', '14:04 24.9 tok/s This chat', '13:58 25.6 tok/s This chat', '13:56 25.1 tok/s This chat',
+      '13:51 24.3 tok/s This chat', '13:49 23.8 tok/s Server-wide · overlapping requests', 'Not recorded · Scope wasn’t open · 13:24–13:46',
+      '13:22 24.4 tok/s Server-wide · outside this chat’s turn', '13:17 24.0 tok/s This chat', '13:09 23.6 tok/s Server-wide · not observed',
+      'Sep 28 24.4 tok/s Server-wide · not observed', 'Sep 28 26.2 tok/s This chat']);
     expect(view.entries).toHaveLength(HISTORY_LIST_LIMIT);
     expect(view.more).toBe('Showing the newest 6 of 43 entries');
     expect(view.showMore).toBe('Show 24 more');
@@ -38,7 +38,7 @@ describe('History presenter (plan §5.6, G2 mock)', () => {
   test('a turn summary: observed time minus waits, token-weighted rate, reuse from its own steps', () => {
     const [first] = presentHistory(input()).entries;
     expect(first).toEqual(expect.objectContaining({ kind: 'turn', title: 'Turn · 3 steps', time: '2 m 46 s', rate: '25.2 tok/s token-weighted',
-      detail: '3,284 out · 84% of input reused', attr: { attr: 'inferred', text: 'Likely this chat', reason: null } }));
+      detail: '3,284 out · 84% of input reused', attr: { attr: 'inferred', text: 'This chat', reason: null } }));
     const lone = presentHistory(input({ rows: [turn(NOW - 60_000, NOW - 1000, { steps: 2, output: 500, wDecodeTps: 30 })] })).entries[0];
     expect(lone).toEqual(expect.objectContaining({ title: 'Turn · 2 steps', detail: '500 out', time: '59 s' }));
   });
@@ -59,7 +59,7 @@ describe('History presenter (plan §5.6, G2 mock)', () => {
     expect(attrChip('withheld:overlap', MOCK_TEXT)).toEqual({ attr: 'server', text: 'Server-wide · overlapping requests', reason: 'overlap' });
     expect(attrChip('not-observed', MOCK_TEXT).text).toBe('Server-wide · not observed');
     expect(attrChip('withheld:made-up' as never, MOCK_TEXT)).toEqual({ attr: 'server', text: 'Server-wide · not observed', reason: 'not-observed' });
-    expect(attrChip('armed', MOCK_TEXT).text).toBe('Next reply');
+    expect(attrChip('armed', MOCK_TEXT)).toEqual({ attr: 'inferred', text: 'This chat', reason: null });
   });
   test('empty after a fresh upgrade: honest lines, and items kept from earlier versions are counted in storage', () => {
     const empty = presentHistory(input({ rows: [], baselines: new Map(), trend: mockTrend(3_600_000, true), storage: { ...mockAccounting(), ledgerBytes: 2048, keptItems: 3, keptBytes: 4096 }, alertLog: [] }));

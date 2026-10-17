@@ -25,10 +25,10 @@ test('a retained completed chat average remains labeled and never supplies a liv
     timingBasis: 'completed-step', tokensPerSecond: 35, observedAtMs: MOCK_NOW - 60_000, expiresAtMs: MOCK_NOW - 45_000,
     observation: { startedAtMs: MOCK_NOW - 62_000, endedAtMs: MOCK_NOW - 60_000 } };
   const input = inputOf('idle', { lastChat, chatActivity: 'idle', chatIsLocal: true, last: null });
-  expect(presentSessionSection(input)).toMatchObject({ phase: 'Complete', measurement: { label: 'Last chat · avg.', live: false,
-    text: '35.0', result: { label: 'Last chat result', durationMs: 2_000, timing: 'step' } } });
+  expect(presentSessionSection(input)).toMatchObject({ phase: 'Complete', measurement: { label: 'Last reply', live: false,
+    text: '35.0', result: { label: 'Last reply', durationMs: 2_000, timing: 'step' } } });
   for (const extra of [{ chatActivity: 'busy' as const }, { paused: true }, { fresh: false }, { measurementScope: 'engine' as const }]) {
-    expect(presentSessionSection({ ...input, ...extra }).measurement?.label).not.toBe('Last chat · avg.');
+    expect(presentSessionSection({ ...input, ...extra }).measurement?.label).not.toBe('Last reply');
   }
   expect(presentSessionSection({ ...input, lastChat: { ...lastChat, freshness: 'live' } }).measurement).toBeNull();
   const current = { ...lastChat, observedAtMs: MOCK_NOW, expiresAtMs: MOCK_NOW + 15_000 };
@@ -40,7 +40,7 @@ test('native completed facts belong to the exact last average and omit unknown d
   const input = inputOf('idle', { chatActivity: 'idle' });
   input.last = { label: SERVER_WIDE, completion: { seq: 42, finishedAt: MOCK_NOW - 1_000, startedAt: MOCK_NOW - 4_000,
     model: 'fixture', basis: 'reported', decodeTps: 30, outputTokens: 90, ttftMs: 120, overlapped: false, host: {} } };
-  expect(presentSessionSection(input).measurement?.result).toEqual({ label: 'Last engine result', timing: 'request',
+  expect(presentSessionSection(input).measurement?.result).toEqual({ label: 'Last reply · Engine', timing: 'request',
     outputTokens: 90, ttftMs: 120, durationMs: 3_000 });
   input.last.completion.startedAt = null;
   expect(presentSessionSection(input).measurement?.result).not.toHaveProperty('durationMs');
@@ -51,15 +51,15 @@ test('a stored native verdict labels this chat only inside its currently selecte
     startedAt: MOCK_NOW - 5_000, endedAt: MOCK_NOW, outcome: 'completed' } });
   input.last = { label: { kind: 'inferred' }, completion: { seq: 42, finishedAt: MOCK_NOW - 1_000, startedAt: MOCK_NOW - 4_000,
     model: 'fixture', basis: 'reported', decodeTps: 30, outputTokens: 90, overlapped: false, host: {} } };
-  expect(presentSessionSection(input).measurement?.label).toBe('Last chat · matched · avg.');
+  expect(presentSessionSection(input).measurement?.label).toBe('Last reply');
   for (const window of [null, { ...input.window!, startedAt: MOCK_NOW - 500 },
     { ...input.window!, endedAt: MOCK_NOW - 2_000 }, { ...input.window!, startedAt: null }]) {
-    expect(presentSessionSection({ ...input, window }).measurement?.label).toBe('Last engine · avg.');
+    expect(presentSessionSection({ ...input, window }).measurement?.label).toBe('Last reply · Engine');
   }
   expect(presentSessionSection({ ...input, window: { ...input.window!, startedAt: null, joinedAt: MOCK_NOW - 5_000 } }).measurement?.label)
-    .toBe('Last chat · matched · avg.');
+    .toBe('Last reply');
   input.last.completion.startedAt = null;
-  expect(presentSessionSection(input).measurement?.label).toBe('Last engine · avg.');
+  expect(presentSessionSection(input).measurement?.label).toBe('Last reply · Engine');
 });
 
 test('Session leads with current performance despite a remembered expanded preference and older reply', () => {
@@ -81,7 +81,7 @@ test.each(['processing', 'queued', 'decode'] as const)('current %s without speed
   expect(view.support).toBeNull();
   expect(view.measurementScope).toBe('chat');
   expect(view.phase).not.toBe('Last reply');
-  expect(sessionMarkup(view).markup).not.toContain('Chat · matched · prompt');
+  expect(sessionMarkup(view).markup).not.toMatch(/class="ws-label"[^>]*>This chat/);
 });
 
 test('an idle reply without measured speed keeps current idle state and warning visible', () => {
@@ -136,7 +136,7 @@ test('prefill and generation keep distinct current readings and attribution', ()
   expect(view.phase).toBe('Reading prompt');
   expect(view.speeds.speeds[0]).toMatchObject({ label: 'Prefill speed', value: '185', basis: 'reported' });
   expect(view.speeds.speeds[1]).toMatchObject({ label: 'Generation speed', value: null, detail: 'No text being generated' });
-  expect(view.measurement?.label).toBe('Chat · matched · prompt');
+  expect(view.measurement?.label).toBe('This chat');
   expect(presentSessionSection(inputOf('prefill')).speeds.speeds[0].value).toBe('185');
 });
 
@@ -205,7 +205,7 @@ test('Splash shows reported whole-prompt counts separately from its independentl
   expect(view.progress).toMatchObject({ text: '64%', detail: 'Prompt read · 3840 of 6000 tokens', basis: 'reported' });
   expect(view.speeds.speeds[0]).toMatchObject({ value: '612', basis: 'derived' });
   expect(presentSessionSection(inputOf('splash-progress-held')).measurement).toMatchObject({
-    text: '64%', label: 'Engine · prompt · last seen', live: false,
+    text: '64%', label: 'Engine · last seen', live: false,
   });
   expect(presentSessionSection(inputOf('splash-progress', { paused: true })).progress).toBeNull();
   const unsupported = inputOf('splash-progress'); delete unsupported.snapshot!.capabilities['request.prefillProgress'];
@@ -233,9 +233,9 @@ test('activity changes retain Session structure while withholding absent reading
 
 test('measurement preference chooses matched runtime, chat estimate, and explicit engine fallback in that order', () => {
   const input = inputOf('decode', { attribution: { kind: 'inferred' } }, body => { body.chat = chatSample(); });
-  expect(presentSessionSection(input).measurement).toMatchObject({ label: 'Chat · matched', text: '26.4', basis: 'reported' });
+  expect(presentSessionSection(input).measurement).toMatchObject({ label: 'This chat', text: '26.4', basis: 'reported' });
   input.attribution = { kind: 'server-wide', reason: 'overlap' };
-  expect(presentSessionSection(input).measurement).toMatchObject({ label: 'Chat · est.', text: '19.2', basis: 'estimate' });
+  expect(presentSessionSection(input).measurement).toMatchObject({ label: 'This chat', text: '19.2', basis: 'estimate' });
   expect(presentSessionSection({ ...input, measurementScope: 'engine' }).measurement).toMatchObject({ label: 'Engine', text: '26.4', basis: 'reported' });
   input.snapshot!.chat = null;
   expect(presentSessionSection(input).measurement).toMatchObject({ label: 'Engine', text: '26.4' });
@@ -246,18 +246,18 @@ test('reasoning delivery stays explicitly estimated after calibration and cannot
   const view = presentSessionSection(input);
   expect(view.phase).toBe('Reasoning');
   expect(view.progress).toBeNull();
-  expect(view.measurement).toMatchObject({ label: 'Chat · est.', text: '19.2', basis: 'estimate' });
+  expect(view.measurement).toMatchObject({ label: 'This chat', text: '19.2', basis: 'estimate' });
   expect(view.measurement!.detail).toContain('calibrated');
-  expect(sessionMarkup(view).markup).toContain('Chat · est.');
+  expect(sessionMarkup(view).markup).toContain('This chat');
 });
 
 test.each(['generating', 'reasoning'])('a newer %s event cannot relabel a matched runtime prefill rate as output speed', phase => {
   const input = inputOf('prefill', { attribution: { kind: 'inferred' } }, body => { body.chat = chatSample({ phase }); });
-  expect(presentSessionSection(input).measurement).toMatchObject({ label: 'Chat · est.', text: '19.2' });
+  expect(presentSessionSection(input).measurement).toMatchObject({ label: 'This chat', text: '19.2' });
   delete input.snapshot!.chat!.tokensPerSecond;
   expect(presentSessionSection(input).measurement).toBeNull();
   input.snapshot!.runtime.phase = 'decode'; input.snapshot!.runtime.request!.decodeTps = 27.4;
-  expect(presentSessionSection(input).measurement).toMatchObject({ label: 'Chat · matched', text: '27.4' });
+  expect(presentSessionSection(input).measurement).toMatchObject({ label: 'This chat', text: '27.4' });
 });
 
 test.each([['tool', 'Using tools'], ['waiting', 'Waiting'], ['cancelled', 'Stopped']] as const)('%s clears speed and never resurrects a previous request', (phase, label) => {
@@ -271,7 +271,7 @@ test.each([['tool', 'Using tools'], ['waiting', 'Waiting'], ['cancelled', 'Stopp
 test('a completed chat average is explicitly last, with a separate timing explanation; short replies stay empty', () => {
   const input = inputOf('decode', {}, body => { body.chat = chatSample({ phase: 'complete', basis: 'reported-output', timingBasis: 'completed-step', freshness: 'last' }); });
   const view = presentSessionSection(input);
-  expect(view.measurement).toMatchObject({ label: 'Last chat · avg.', live: false, text: '19.2', basis: 'derived' });
+  expect(view.measurement).toMatchObject({ label: 'Last reply', live: false, text: '19.2', basis: 'derived' });
   expect(view.measurement!.detail).toContain('step duration');
   expect(sessionMarkup(view).markup).toContain('data-live="false"');
   delete input.snapshot!.chat!.tokensPerSecond;
@@ -291,7 +291,7 @@ test('finished engine readings are marked last and disappear after a model chang
   input.snapshot!.runtime.phase = 'idle'; input.snapshot!.runtime.request = null;
   input.last!.completion.decodeTps = 24; input.last!.completion.basis = 'reported';
   const view = presentSessionSection(input);
-  expect(view.measurement).toMatchObject({ label: 'Last engine · avg.', text: '24.0', live: false });
+  expect(view.measurement).toMatchObject({ label: 'Last reply · Engine', text: '24.0', live: false });
   expect(presentSessionSection({ ...input, sessionModel: 'local/different-model' }).measurement).toBeNull();
   expect(presentSessionSection({ ...input, window: { tag: 'a', startedAt: MOCK_NOW - 100, endedAt: MOCK_NOW, outcome: 'failure' } }).measurement).toBeNull();
 });
@@ -309,7 +309,7 @@ test('Whole engine keeps its completed result independent of another chat model,
     window: { tag: 'a', startedAt: MOCK_NOW - 100, endedAt: MOCK_NOW, outcome: 'failure' } });
   input.snapshot!.runtime.phase = 'idle'; input.snapshot!.runtime.request = null;
   input.last!.completion.decodeTps = 24; input.last!.completion.basis = 'reported';
-  expect(presentSessionSection(input)).toMatchObject({ phase: 'Idle', measurement: { label: 'Last engine · avg.', text: '24.0', live: false } });
+  expect(presentSessionSection(input)).toMatchObject({ phase: 'Idle', measurement: { label: 'Last reply · Engine', text: '24.0', live: false } });
 });
 
 test('the native scope menu is accessible and empty measurement lanes are omitted', () => {
@@ -319,7 +319,7 @@ test('the native scope menu is accessible and empty measurement lanes are omitte
   expect(markup.match(/class="ws-line/g)).toHaveLength(3);
   expect(markup).toContain(view.support!.text);
   expect(markup).not.toMatch(/Prefill speed|Prompt progress|Generation speed|>—</);
-  expect(sessionMarkup(presentSessionSection(inputOf('decode', { measurementScope: 'engine' }))).markup).toContain('<option value="engine" selected>Whole engine</option>');
+  expect(sessionMarkup(presentSessionSection(inputOf('decode', { measurementScope: 'engine' }))).markup).toContain('<option value="engine" selected>Engine</option>');
 });
 
 test('waiting for chat output preserves supported prompt progress while the engine reads', () => {
@@ -327,33 +327,36 @@ test('waiting for chat output preserves supported prompt progress while the engi
   expect(presentSessionSection(input)).toMatchObject({ phase: 'Reading prompt', measurement: { kind: 'progress', text: '64%' } });
 });
 
-test('cloud delivery is labelled Cloud · est. and never becomes an engine reading, even beside a native rate', () => {
+test('cloud delivery is labelled This chat and never becomes an engine reading, even beside a native rate', () => {
   const input = inputOf('pressure', { chatIsLocal: false }, body => { body.chat = chatSample(); });
   const view = presentSessionSection(input);
   expect(view).toMatchObject({ phase: 'Generating', alert: null, note: null,
-    measurement: { label: 'Cloud · est.', text: '19.2', basis: 'estimate', live: true } });
+    measurement: { label: 'This chat', text: '19.2', basis: 'estimate', live: true } });
   expect(view.measurement!.detail).toContain('provider buffering');
   expect(view.speeds.speeds).toEqual([]);
-  expect(sessionMarkup(view).markup).not.toMatch(/Engine|Memory pressure|Chat · est\./);
+  const markup = sessionMarkup(view).markup;
+  expect(markup).toContain('<span class="ws-label" data-crossfade>This chat</span>');
+  expect(markup).toContain('>≈ 19.2</strong>');
+  expect(markup).not.toMatch(/class="ws-label"[^>]*>Engine|Memory pressure/);
   expect(presentSessionSection({ ...input, now: MOCK_NOW + 5_001 }).measurement).toBeNull();
   expect(presentSessionSection({ ...input, now: MOCK_NOW - 1 }).measurement).toBeNull();
   expect(presentSessionSection({ ...input, fresh: false })).toMatchObject({ phase: 'Waiting for update', measurement: null });
   expect(presentSessionSection({ ...input, paused: true })).toMatchObject({ phase: 'Paused', measurement: null });
   // A local chat's estimate keeps its own label.
-  expect(presentSessionSection(inputOf('idle', { chatIsLocal: true }, body => { body.chat = chatSample(); })).measurement?.label).toBe('Chat · est.');
+  expect(presentSessionSection(inputOf('idle', { chatIsLocal: true }, body => { body.chat = chatSample(); })).measurement?.label).toBe('This chat');
 });
 
 test.each([['reasoning', 'Reasoning'], ['tool', 'Using tools'], ['waiting', 'Waiting'], ['cancelled', 'Stopped']] as const)(
   'cloud %s is explicit and never borrows the local engine speed', (phase, label) => {
     const input = inputOf('decode', { chatIsLocal: false }, body => { body.chat = chatSample({ phase, tokensPerSecond: phase === 'reasoning' ? 19.2 : undefined }); });
     expect(presentSessionSection(input)).toMatchObject({ phase: label });
-    expect(presentSessionSection(input).measurement?.label ?? null).toBe(phase === 'reasoning' ? 'Cloud · est.' : null);
+    expect(presentSessionSection(input).measurement?.label ?? null).toBe(phase === 'reasoning' ? 'This chat' : null);
   });
 
 test('cloud completed average stays labelled last and cloud, and does not claim native timing', () => {
   const input = inputOf('decode', { chatIsLocal: false }, body => { body.chat = chatSample({ phase: 'complete', basis: 'reported-output', timingBasis: 'completed-step', freshness: 'last' }); });
   const view = presentSessionSection(input);
-  expect(view.measurement).toMatchObject({ label: 'Last cloud · avg.', live: false, basis: 'derived', result: { label: 'Last cloud result', timing: 'step' } });
+  expect(view.measurement).toMatchObject({ label: 'Last reply', live: false, basis: 'derived', result: { label: 'Last reply', timing: 'step' } });
   expect(view.measurement!.detail).toContain('cloud engine');
   expect(presentSessionSection({ ...input, window: { tag: 'a', startedAt: MOCK_NOW - 100, endedAt: MOCK_NOW, outcome: 'failure' } })).toMatchObject({ phase: 'Stopped', measurement: null });
 });
@@ -366,7 +369,7 @@ test('cloud full view excludes local diagnostics, charts, older replies and capt
   expect(view.tiles).toEqual([]);
   expect(view.mac).toBeNull();
   expect(view.hero).toMatchObject({ chatOnly: true, body: null, reply: null, engineTrend: null,
-    instrument: { measurement: { label: 'Cloud · est.' } } });
+    instrument: { measurement: { label: 'This chat' } } });
 });
 
 test('Session supports the reading with one fresh fact whose engine scope stays explicit', () => {
@@ -388,7 +391,7 @@ test('Session supports the reading with one fresh fact whose engine scope stays 
   const estimate = inputOf('decode', { attribution: { kind: 'inferred' } }, body => {
     body.chat = chatSample(); body.runtime.request.decodeTps = null;
   });
-  expect(presentSessionSection(estimate).measurement?.label).toBe('Chat · est.');
+  expect(presentSessionSection(estimate).measurement?.label).toBe('This chat');
   expect(presentSessionSection(estimate).support?.text).toMatch(/^Engine · /);
 });
 
@@ -396,7 +399,7 @@ test('never dark: a prompt without reported progress holds the reply’s elapsed
   const window = { tag: 't', startedAt: MOCK_NOW - 12_400, endedAt: null, outcome: null } as const;
   const waiting = inputOf('splash-prefill-waiting', { window, chatActivity: 'busy' });
   expect(presentSessionSection(waiting)).toMatchObject({ phase: 'Reading prompt',
-    measurement: { kind: 'elapsed', text: '12\u00a0s', unit: null, label: 'This reply · elapsed', basis: 'observed', live: true } });
+    measurement: { kind: 'elapsed', text: '12\u00a0s', unit: null, label: 'This chat · elapsed', basis: 'observed', live: true } });
   const markup = sessionMarkup(presentSessionSection(waiting)).markup;
   expect(markup).toContain('id="elapsed"'); expect(markup).not.toMatch(/id="rate"|id="prefill-percent"|%/);
   // A turn joined mid-way has no known start: the phase stays, nothing is invented.
@@ -417,7 +420,7 @@ test('never dark: the engine’s own request clock is preferred, and reported pr
     delete body.runtime.request.prefillTps; delete body.runtime.request.prefillEtaMs;
   });
   const view = presentSessionSection(noProgress), elapsed = noProgress.snapshot!.runtime.request!.elapsedMs!;
-  expect(view.measurement).toMatchObject({ kind: 'elapsed', label: 'Chat · matched · prompt · elapsed', live: true,
+  expect(view.measurement).toMatchObject({ kind: 'elapsed', label: 'This chat · elapsed', live: true,
     text: `${Math.floor(elapsed / 1_000)}\u00a0s` });
   expect(presentSessionSection(inputOf('prefill', { window, chatActivity: 'busy' })).measurement).toMatchObject({ kind: 'progress', text: '64%' });
   // The hero's elapsed time is not repeated as a tile.
@@ -429,9 +432,9 @@ test('never dark: a cloud reply waiting for its first output shows elapsed time,
   const window = { tag: 't', startedAt: MOCK_NOW - 4_000, endedAt: null, outcome: null } as const;
   const input = inputOf('pressure', { chatIsLocal: false, window, chatActivity: 'busy' }, body => { body.chat = chatSample({ phase: 'waiting', tokensPerSecond: undefined }); });
   expect(presentSessionSection(input)).toMatchObject({ phase: 'Waiting', held: null,
-    measurement: { kind: 'elapsed', text: '4\u00a0s', label: 'This reply · elapsed' } });
+    measurement: { kind: 'elapsed', text: '4\u00a0s', label: 'This chat · elapsed' } });
   input.snapshot!.chat = chatSample() as never;
-  expect(presentSessionSection(input).measurement).toMatchObject({ kind: 'speed', label: 'Cloud · est.' });
+  expect(presentSessionSection(input).measurement).toMatchObject({ kind: 'speed', label: 'This chat' });
   // After tools or between steps the phase itself is the truth.
   input.snapshot!.chat = chatSample({ phase: 'tool', tokensPerSecond: undefined }) as never;
   expect(presentSessionSection(input).measurement).toBeNull();
@@ -464,11 +467,11 @@ test('at rest the glance shows the engine’s own record instead of empty rows, 
   }));
   const view = rest();
   expect(view).toMatchObject({ phase: 'Idle', resting: false, support: { text: '23.9 GiB GPU memory · first token 0.41 s' },
-    measurement: { label: 'Engine · overall avg.', text: '35.7', unit: 'tok/s', live: false, kind: 'speed' } });
+    measurement: { label: 'Engine · overall average', text: '35.7', unit: 'tok/s', live: false, kind: 'speed' } });
   const markup = sessionMarkup(view).markup;
   expect(markup).toContain('data-live="false"'); expect(markup).toContain('data-resting="false"');
   // The same rest in This chat scope is the labelled engine fallback for a local chat.
-  expect(rest({ measurementScope: 'chat' }).measurement?.label).toBe('Engine · overall avg.');
+  expect(rest({ measurementScope: 'chat' }).measurement?.label).toBe('Engine · overall average');
   // The presenter never fills by itself; the sidebar/compact glance and the full-page hero opt in where they render.
   expect(rest({ restingFacts: false }).measurement).toBeNull();
   // A reply in progress never borrows the resting record.
@@ -502,7 +505,7 @@ test('every mock glance omits unmeasured lanes while retaining its truthful supp
 
 
 test('unknown chat identity explains withheld collection without claiming a failed connection', () => {
-  const message = 'Choose Whole engine to inspect a local connection.';
+  const message = 'Choose Engine to inspect a local connection.';
   const input = inputOf('decode', { snapshot: null, last: null, reading: frameReading('chat_unavailable', message, MOCK_NOW) });
   expect(presentSessionSection(input)).toMatchObject({ phase: 'Chat identity unavailable', note: message, measurement: null, held: null });
 });

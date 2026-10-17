@@ -52,13 +52,16 @@ test('precision identity uses reported model only, escapes it and keeps cloud de
 
 test('precision keeps the time basis, unit and current or retained meaning beside the measurement', () => {
   const view = presentLive(scope()), reading = view.hero!.instrument.measurement!;
-  expect(render(view)).toContain('Engine · request average');
+  expect(render(view)).toContain('data-crossfade="Engine">Engine<button');
+  expect(render(view)).toContain('average for this request');
   expect(render(view)).toContain('>tokens/s</span>');
-  reading.label = 'Last engine · avg.'; reading.live = false;
-  expect(render(view)).toContain('Last engine · avg.');
+  reading.label = 'Last reply · Engine'; reading.live = false;
+  expect(render(view)).toContain('Last reply · Engine');
   expect(render(view)).toContain('data-live="false"');
-  reading.label = 'Chat · est.'; reading.basis = 'estimate';
-  expect(render(view)).toContain('Chat · est.');
+  reading.label = 'This chat'; reading.basis = 'estimate';
+  expect(render(view)).toContain('data-crossfade="This chat">This chat<button');
+  expect(render(view)).toContain('>≈ 26.4</strong>');
+  expect(render(view)).toContain('about 26.4 tokens per second');
   expect(render(view)).toContain('data-basis="estimate"');
 });
 

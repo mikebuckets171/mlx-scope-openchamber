@@ -34,7 +34,7 @@ test('Splash live throughput leads with derived server-wide speed, never the lif
     expect(heroKind(input)).toBe('server-decode');
     expect(hero.body).toMatchObject({ kind: 'decode' });
     expect(hero.instrument.measurement).toMatchObject({ text: '43.8', basis: 'derived', label: 'Engine' });
-    expect(hero.attr?.chip.text).toBe('All server activity · all requests');
+    expect(hero.attr?.chip).toMatchObject({ text: 'Engine', reason: 'all requests' });
     expect(hero.context).toBeNull();
     expect(view.tiles.map(tile => tile.label)).toEqual(['Active requests', 'Metal allocations', 'Median first token']);
     expect(view.tiles[0]?.value).toBe(String(active));
@@ -49,7 +49,7 @@ test('Splash live throughput leads with derived server-wide speed, never the lif
     expect(markup).toContain('Calculated · last 4.0 s');
     expect(markup).toContain('last 4.0 s');
     expect(markup).not.toContain('Request average');
-    expect(markup).not.toContain('Likely this chat');
+    expect(markup).not.toMatch(/data-attr="inferred"|instrument-source" data-crossfade="This chat"/);
   }
 });
 
@@ -62,7 +62,8 @@ test('Session and Compact keep live server throughput visible with derived basis
     const markup = sessionMarkup(view, null, compact, true).markup;
     expect(markup).toContain('data-basis="derived"');
     expect(markup).toContain('43.8');
-    expect(markup).not.toMatch(/Likely this chat|Next reply/);
+    expect(markup).toContain('<span class="ws-label" data-crossfade>Engine');
+    expect(markup).not.toMatch(/class="ws-label"[^>]*>This chat|Next reply/);
   }
 });
 

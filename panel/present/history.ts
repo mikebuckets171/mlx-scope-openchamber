@@ -20,7 +20,7 @@ import { BASIS_WORD } from './parts.ts';
 /** The English this tab borrows: withhold reasons and alert titles live in panel/present/copy.ts (one source). */
 export interface HistoryText { withheld(reason: WithholdReason | 'all-requests'): string; alert(id: AlertId, params: ReasonParams): string }
 /** The mock's chip and alert wording, from the one copy table the other views use (present/copy.ts). */
-export const HISTORY_TEXT: HistoryText = { withheld: reason => `All server activity · ${withheldWhy(reason)}`, alert: (id, params) => alertCopy(id, params)[0] };
+export const HISTORY_TEXT: HistoryText = { withheld: () => 'Engine', alert: (id, params) => alertCopy(id, params)[0] };
 
 export interface HistoryInput {
   now: number;
@@ -108,9 +108,9 @@ const iso = (at: number): string => new Date(at).toISOString();
 // ---------- labels ----------
 const WITHHOLD = new Set<string>(WITHHOLD_REASONS);
 export const attrChip = (attr: LedgerAttr, text: HistoryText): AttrChip => {
-  if (attr === 'inferred') return { attr: 'inferred', text: 'Likely this chat', reason: null };
-  if (attr === 'armed') return { attr: 'armed', text: 'Next reply', reason: null };
-  // A server-wide label always names its reason; an unknown stored reason reads as not observed.
+  // Replies Scope 5.0 stored as armed were measured for this chat, as inferred ones were.
+  if (attr === 'inferred' || attr === 'armed') return { attr: 'inferred', text: 'This chat', reason: null };
+  // An engine label keeps its reason for the explanation; an unknown stored reason reads as not observed.
   const stored = attr.startsWith('withheld:') ? attr.slice('withheld:'.length) : 'not-observed';
   const reason = (WITHHOLD.has(stored) ? stored : 'not-observed') as WithholdReason;
   return { attr: 'server', text: text.withheld(reason), reason };

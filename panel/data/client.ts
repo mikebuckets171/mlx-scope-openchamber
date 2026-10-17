@@ -57,7 +57,7 @@ export class SnapshotClient {
   /** The frame's current time on the service clock, which every `*At` field uses. */
   now(): number { return this.#clock() + this.offsetMs; }
   async read(query: SnapshotQuery): Promise<Reading> {
-    if (query.chatUnavailable === '1') return frameReading('chat_unavailable', 'This chat’s identity is unavailable. Choose Whole engine to inspect a local connection.', this.now());
+    if (query.chatUnavailable === '1') return frameReading('chat_unavailable', 'This chat’s identity is unavailable. Choose Engine to inspect a local connection.', this.now());
     const sent = this.#clock();
     const response = await this.#host.serviceRequest({ method: 'GET', path: ROUTES.snapshot, query: snapshotQuery(query) });
     const received = this.#clock(), reading = readResponse(response.status, response.body, this.now());

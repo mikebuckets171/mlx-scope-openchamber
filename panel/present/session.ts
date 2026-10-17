@@ -80,7 +80,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   const readingPrompt = usable && snapshot.runtime.phase === 'prefill' && (!chat || chat.phase === 'waiting');
   const chatStopped = chat && (['tool', 'cancelled', 'complete'].includes(chat.phase) || chat.phase === 'waiting' && !readingPrompt);
   const matched = !engine && input.attribution.kind !== 'server-wide' && snapshot?.connection.runtime !== 'splash';
-  const source = matched ? 'Chat · matched' : 'Engine';
+  const source = matched ? 'This chat' : 'Engine';
   const sourceDetail = 'Runtime match to this chat; other requests with this model remain possible.';
   let phase = speeds.phase === 'Status stale' ? 'Waiting for update' : speeds.phase === 'Not admitting' ? 'Not accepting requests'
     : snapshot?.status.reason === 'admin_unauthorized' ? 'Limited access' : speeds.phase;
@@ -103,11 +103,11 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     progress = { text: reading.completed.replace(' complete', ''),
       detail: `Prompt read${reading.stale ? ' · last seen' : ''}${reading.counts ? ` · ${reading.counts.done} of ${reading.counts.total} tokens` : ''}`,
       basis: snapshot!.capabilities['request.prefillProgress']?.basis ?? 'reported' };
-    measurement = { label: `${source} · prompt${reading.stale ? ' · last seen' : ''}`, ...progress, unit: null, live: !reading.stale, kind: 'progress' };
+    measurement = { label: `${source}${reading.stale ? ' · last seen' : ''}`, ...progress, unit: null, live: !reading.stale, kind: 'progress' };
   } else if (usable && !chatStopped && matched && activeSpeed?.value !== null && activeSpeed) {
     measurement = speedMeasurement(source, activeSpeed.value!, activeSpeed.basis, `${sourceDetail} ${activeSpeed.detail}`);
   } else if (chat?.freshness === 'live' && ['generating', 'reasoning'].includes(chat.phase) && positive(chat.tokensPerSecond)) {
-    measurement = speedMeasurement(nonLocal ? 'Cloud · est.' : 'Chat · est.', tps(chat.tokensPerSecond), 'estimate', `Estimated delivery over ${dur(chat.observation.endedAtMs - chat.observation.startedAtMs)}${chat.basis === 'calibrated-characters' ? ' · calibrated from reported output' : ' · four characters per token'}. Includes observable reasoning${nonLocal ? ', network delivery and provider buffering' : ''}.`);
+    measurement = speedMeasurement('This chat', tps(chat.tokensPerSecond), 'estimate', `Estimated delivery over ${dur(chat.observation.endedAtMs - chat.observation.startedAtMs)}${chat.basis === 'calibrated-characters' ? ' · calibrated from reported output' : ' · four characters per token'}. Includes observable reasoning${nonLocal ? ', network delivery and provider buffering' : ''}.`);
   } else if (usable && !chatStopped && activeSpeed?.value !== null && activeSpeed) {
     measurement = speedMeasurement('Engine', activeSpeed.value!, activeSpeed.basis, `All engine requests · ${activeSpeed.detail}`);
   }
@@ -115,8 +115,8 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     phase = readingPrompt ? 'Reading prompt' : chat.phase === 'complete' && input.chatActivity === 'busy' ? 'Waiting'
       : { generating: 'Generating', reasoning: 'Reasoning', tool: 'Using tools', waiting: 'Waiting', complete: 'Complete', cancelled: 'Stopped' }[chat.phase];
     if (chat.phase === 'complete' && input.chatActivity !== 'busy' && positive(chat.tokensPerSecond)) {
-      measurement = { ...speedMeasurement(nonLocal ? 'Last cloud · avg.' : 'Last chat · avg.', tps(chat.tokensPerSecond), 'derived', `Reported output tokens divided by observed step duration, including waiting before delivery${nonLocal ? '; cloud engine timing is unknown' : ''}.`, false),
-        result: { label: nonLocal ? 'Last cloud result' : 'Last chat result', durationMs: chat.observation.endedAtMs - chat.observation.startedAtMs, timing: 'step' } };
+      measurement = { ...speedMeasurement('Last reply', tps(chat.tokensPerSecond), 'derived', `Average for this chat’s last reply: reported output tokens divided by observed step duration, including waiting before delivery${nonLocal ? '; cloud engine timing is unknown' : ''}.`, false),
+        result: { label: 'Last reply', durationMs: chat.observation.endedAtMs - chat.observation.startedAtMs, timing: 'step' } };
       age = ago(chat.observedAtMs, input.now);
     }
   }
@@ -129,8 +129,8 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     const lastMatched = !engine && last.label.kind !== 'server-wide' && snapshot.connection.runtime !== 'splash'
       && window && last.completion.startedAt !== null && last.completion.startedAt >= (window.startedAt ?? window.joinedAt ?? Infinity)
       && last.completion.finishedAt <= (window.endedAt ?? input.now);
-    measurement = { ...speedMeasurement(`Last ${lastMatched ? 'chat · matched' : 'engine'} · avg.`, tps(last.completion.decodeTps), last.completion.basis, `Completed request average · ${ago(last.completion.finishedAt, input.now)}`, false),
-      result: { label: `Last ${lastMatched ? 'chat · matched' : 'engine'} result`, timing: 'request',
+    measurement = { ...speedMeasurement(lastMatched ? 'Last reply' : 'Last reply · Engine', tps(last.completion.decodeTps), last.completion.basis, `Completed request average · ${ago(last.completion.finishedAt, input.now)}`, false),
+      result: { label: lastMatched ? 'Last reply' : 'Last reply · Engine', timing: 'request',
         outputTokens: last.completion.outputTokens, ttftMs: last.completion.ttftMs,
         ...last.completion.startedAt !== null ? { durationMs: last.completion.finishedAt - last.completion.startedAt } : {} } };
     age = ago(last.completion.finishedAt, input.now);
@@ -142,9 +142,9 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   if (!measurement && !cancelled && awaitingOutput && fresh) {
     const request = snapshot.runtime.request, engineClock = readingPrompt && request?.elapsedMs != null ? snapshot.capabilities['request.elapsed'] : undefined;
     const turn = !engine && input.window?.endedAt === null && input.window.startedAt !== null && input.window.startedAt <= input.now ? input.window.startedAt : null;
-    if (engineClock && request!.elapsedMs! >= 0) measurement = { label: `${source} · prompt · elapsed`, text: elapsedText(request!.elapsedMs!), unit: null,
+    if (engineClock && request!.elapsedMs! >= 0) measurement = { label: `${source} · elapsed`, text: elapsedText(request!.elapsedMs!), unit: null,
       basis: engineClock.basis, live: true, kind: 'elapsed', detail: 'Time since the engine started this request. Prompt progress is not reported.' };
-    else if (turn !== null) measurement = { label: `This reply · elapsed`, text: elapsedText(input.now - turn), unit: null, basis: 'observed', live: true,
+    else if (turn !== null) measurement = { label: `This chat · elapsed`, text: elapsedText(input.now - turn), unit: null, basis: 'observed', live: true,
       kind: 'elapsed', detail: readingPrompt ? 'Time since this reply started. The engine does not report prompt progress.' : 'Time since this reply started, waiting for its first output.' };
   }
   if (cancelled && !engine) { measurement = null; phase = 'Stopped'; }
@@ -188,7 +188,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   if (input.restingFacts && atRest && usable && !measurement && !support) {
     const server = snapshot.runtime.server, memory = snapshot.runtime.memory, caps = snapshot.capabilities;
     const average = server.averages?.decodeTps, averaged = caps['server.averages'];
-    if (positive(average) && averaged) measurement = speedMeasurement('Engine · overall avg.', tps(average), averaged.basis, `Average generation speed across all requests · ${speeds.averageNote}. Not a live reading.`, false);
+    if (positive(average) && averaged) measurement = speedMeasurement('Engine · overall average', tps(average), averaged.basis, `Average generation speed across all requests · ${speeds.averageNote}. Not a live reading.`, false);
     const bytes = memory.modelBytes ?? memory.metalBytes, bytesCap = caps[memory.modelBytes != null ? 'server.memory.model' : 'server.memory.metal'];
     const firstToken = server.histograms?.ttftMs?.p50, latency = caps['server.latency'];
     const facts = [bytes != null && bytesCap ? `${size(bytes)} ${memory.modelBytes != null ? 'model' : 'GPU'} memory` : null,

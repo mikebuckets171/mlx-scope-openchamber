@@ -6,7 +6,7 @@ import { tile, type HeroView, LiveView, MacRow, MacView, ReplyView, Tile } from 
 import type { ChartView } from '../chart.ts';
 import { flag, html, type Part, type Raw } from '../html.ts';
 import { averagesMarkup, compactRate, readoutWidth, speedsMarkup } from './speeds.ts';
-import { measurementLabel, READOUT_ID, scopeMenuMarkup } from './session.ts';
+import { measurementLabel, READOUT_ID, readoutText, scopeMenuMarkup } from './session.ts';
 import { callouts, chip, disclosure, meter, pct100, tipParts, val, type Open } from './parts.ts';
 
 // Activity, speed and available engine context share one flat instrument.
@@ -35,7 +35,7 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open): Raw | stri
   if (!h) return '';
   const a = h.attr ? tipParts(P, h.attr.tip, open) : null, c = h.context ? tipParts(P, h.context.tip, open) : null;
   const instrument = h.instrument, reading = instrument.measurement;
-  const readingText = reading ? reading.kind === 'speed' ? compactRate(reading.text) : reading.text : '';
+  const readingText = reading ? readoutText(reading) : '';
   const explanation = h.speeds.source === 'Splash' ? tipParts(P, tip('basis', 'How engine speeds are measured', SPLASH_SPEED_HELP), open)
     : h.body?.kind === 'decode' || h.body?.kind === 'prefill' ? tipParts(P, h.body.tip, open) : null;
   const measurementTip = reading ? tipParts(P, tip('measurement', reading.label, [reading.detail, ...instrument.eta ? [instrument.eta.detail] : []]), open) : null;
@@ -67,7 +67,7 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open): Raw | stri
     <div class="instrument-heading"><div class="precision-identity"><h2 class="instrument-phase" data-tone="${instrument.tone}" data-live="${String(!!reading?.live)}" data-crossfade>${instrument.phase}</h2>${!h.chatOnly ? html`<p class="precision-engine"><span>${h.speeds.source}</span>${h.model ? html`<span class="precision-model" translate="no">${h.model}</span>` : ''}</p>` : ''}</div><label class="precision-watch"><span>Watch</span>${scopeMenuMarkup(instrument.measurementScope)}</label></div>
     <div class="instrument-readout" data-measured="${String(reading !== null)}" data-quiet="${String(measureQuiet && evidenceQuiet)}">
       <div class="instrument-measure" data-quiet="${String(measureQuiet)}">
-      ${reading ? html`<div class="instrument-primary" data-live="${String(reading.live)}" data-basis="${reading.basis}" data-arrive><div class="speed-value"><span class="sr-only">${reading.text}${reading.unit ? ' tokens per second' : ''}</span><strong id="${READOUT_ID[reading.kind]}" aria-hidden="true" style="--reading-width:${readoutWidth(readingText)}">${readingText}</strong><div class="precision-reading-context">${reading.unit ? html`<span class="precision-unit" aria-hidden="true">${reading.unit === 'tok/s' ? 'tokens/s' : reading.unit}</span>` : ''}${readingSource}</div></div></div>` : ''}
+      ${reading ? html`<div class="instrument-primary" data-live="${String(reading.live)}" data-basis="${reading.basis}" data-arrive><div class="speed-value"><span class="sr-only">${reading.basis === 'estimate' ? 'about ' : ''}${reading.text}${reading.unit ? ' tokens per second' : ''}</span><strong id="${READOUT_ID[reading.kind]}" aria-hidden="true" style="--reading-width:${readoutWidth(readingText)}">${readingText}</strong><div class="precision-reading-context">${reading.unit ? html`<span class="precision-unit" aria-hidden="true">${reading.unit === 'tok/s' ? 'tokens/s' : reading.unit}</span>` : ''}${readingSource}</div></div></div>` : ''}
       ${instrument.held ? html`<p class="instrument-held" data-held="true" data-arrive title="${instrument.held.detail}">${instrument.held.text}</p>` : ''}
       ${instrument.support && !instrument.alert && !supportCovered ? html`<p class="coverage-note">${result ? html`<time>${instrument.support.text}</time>` : instrument.support.text}${instrument.support.basis && instrument.support.basis !== 'reported' ? html` <span class="basis">${BASIS_WORD[instrument.support.basis]}</span>` : ''}</p>` : ''}${notes}${measurementTip?.pop ?? ''}
       </div>

@@ -47,7 +47,7 @@ test('decode: one hero speed with its basis ⓘ, context used, the request tiles
   expect(hero.body).toMatchObject({ kind: 'decode' });
   expect(hero.instrument.measurement).toMatchObject({ text: '26.4', basis: 'reported' });
   expect(hero.engineTrend?.chart).toBeNull();
-  expect(hero.attr?.chip).toEqual({ text: 'Likely this chat', attr: 'inferred' });
+  expect(hero.attr?.chip).toEqual({ text: 'This chat', attr: 'inferred' });
   expect(hero.attr?.tip.paras.join(' ')).toContain('Alternating requests from another chat can’t be ruled out.');
   expect(hero.context?.used).toBe('52.7K of 131K tokens');
   expect(hero.reply?.values.map(v => [v.strong, v.unit, v.basis])).toEqual([['24.9', 'tok/s', 'last-observed'], ['1,104', 'out', 'reported']]);
@@ -76,16 +76,17 @@ test('the live chart appears only after 2 readings and never draws across a gap'
   expect(chart.label).toMatch(/^Generation speed · average for this request, last 20 s: 25\.0 to 26\.4 tokens per second, now 26\.2$/);
 });
 
-test('attribution chips: inferred and armed say so; server-wide always names its reason', () => {
+test('attribution chips: two layers, This chat or Engine; an engine chip keeps its reason for the explanation', () => {
   const chip = (attribution: AttributionLabel) => presentLive(inputOf('decode', { attribution })).hero!.attr!.chip;
-  expect(chip({ kind: 'armed' })).toEqual({ text: 'Next reply', attr: 'armed', outline: true });
-  expect(chip({ kind: 'server-wide', reason: 'model-differs' }).text).toBe('All server activity · different chat model');
-  expect(presentLive(inputOf('decode', { attribution: { kind: 'server-wide', reason: 'other-provider' }, chatRuntime: 'Splash' })).hero!.attr!.chip.text)
-    .toBe('All server activity · this chat uses Splash');
+  expect(chip({ kind: 'inferred' })).toEqual({ text: 'This chat', attr: 'inferred' });
+  expect(chip({ kind: 'armed' })).toEqual({ text: 'This chat', attr: 'inferred' });
+  expect(chip({ kind: 'server-wide', reason: 'model-differs' })).toEqual({ text: 'Engine', attr: 'server', outline: true, reason: 'different chat model' });
+  expect(presentLive(inputOf('decode', { attribution: { kind: 'server-wide', reason: 'other-provider' }, chatRuntime: 'Splash' })).hero!.attr!.chip.reason)
+    .toBe('this chat uses Splash');
   // Readings server-wide by nature carry their own reason, whatever the join says.
-  expect(presentLive(inputOf('llama')).hero!.attr!.chip.text).toBe('All server activity · several requests at once');
-  expect(presentLive(inputOf('ollama')).hero!.attr!.chip.text).toBe('All server activity · request count unavailable');
-  expect(presentLive(inputOf('admin-unauthorized')).hero!.attr!.chip.text).toBe('All server activity · all requests');
+  expect(presentLive(inputOf('llama')).hero!.attr!.chip).toMatchObject({ text: 'Engine', reason: 'several requests at once' });
+  expect(presentLive(inputOf('ollama')).hero!.attr!.chip).toMatchObject({ text: 'Engine', reason: 'request count unavailable' });
+  expect(presentLive(inputOf('admin-unauthorized')).hero!.attr!.chip).toMatchObject({ text: 'Engine', reason: 'all requests' });
 });
 
 test('prefill: progress, counts and the server\'s own estimate lead; three tiles while nothing is output', () => {

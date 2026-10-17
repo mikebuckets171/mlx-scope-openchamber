@@ -42,7 +42,7 @@ test('ⓘ disclosures are 24 px buttons with aria-expanded and aria-controls, th
   }
   const open = liveMarkup(presentLive(input), new Set(['pop-live-attr'])).markup;
   expect(open).toContain('aria-expanded="true" aria-controls="pop-live-attr"');
-  expect(open).toMatch(/<div class="pop" id="pop-live-attr" role="note"><strong>Likely this chat<\/strong>/);
+  expect(open).toMatch(/<div class="pop" id="pop-live-attr" role="note"><strong>This chat<\/strong>/);
 });
 
 test('every mock state renders every view without a raw placeholder', () => {
@@ -67,7 +67,7 @@ test('the full page fills its readout at rest and folds only the parts that hold
     body.capabilities['server.latency'] = { scope: 'server', basis: 'derived' };
   }, { chatActivity: 'idle', last: null, measurementScope: 'engine' });
   const filled = liveMarkup(presentLive(rest), new Set()).markup;
-  expect(filled).toContain('Engine · overall avg.');
+  expect(filled).toContain('Engine · overall average');
   expect(filled).toContain('23.9 GiB');
   expect(filled).toMatch(/class="instrument-measure" data-quiet="false"/);
   expect(filled).toMatch(/class="instrument-evidence" data-quiet="false"/);
@@ -182,7 +182,7 @@ test('completed native facts belong to the exact selected last average', () => {
     const view = presentLive(input);
     const markup = liveMarkup(view, new Set()).markup, visible = markup.split('id="measurement-details"')[0]!;
     expect(visible).toContain('id="completed-facts" data-count="3"');
-    expect(visible).toContain(measurementScope === 'engine' ? 'Last engine result' : 'Last chat · matched result');
+    expect(visible).toContain(measurementScope === 'engine' ? 'Last reply · Engine' : 'Last reply');
     expect(visible).toContain('>Output</span><strong data-basis="reported">1,104</strong>');
     expect(visible).toContain('>Duration</span><strong data-basis="derived">48 s</strong>');
     expect(visible).toContain('>First token</span><strong data-basis="reported">0.85 s</strong>');
@@ -209,7 +209,7 @@ test('completed chat facts never borrow output or first-token timing from an eng
     }, { chatIsLocal }));
     const markup = liveMarkup(view, new Set()).markup, visible = markup.split('id="measurement-details"')[0]!;
     expect(visible).toContain('id="completed-facts" data-count="1"');
-    expect(visible).toContain(chatIsLocal ? 'Last chat result' : 'Last cloud result');
+    expect(visible).toContain(chatIsLocal ? 'Last reply' : 'Last reply');
     expect(visible).toContain('<time>Finished just now</time>');
     expect(visible).toContain('>Step duration</span><strong data-basis="derived">3.0 s</strong>');
     expect(visible).not.toContain('>Output</span>');

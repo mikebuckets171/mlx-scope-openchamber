@@ -50,19 +50,16 @@ const WITHHOLD: Record<string, string> = {
 };
 export const withheldWhy = (reason: string, chatRuntime: string | null = null): string => reason === 'other-provider' && chatRuntime ? `this chat uses ${chatRuntime}` : WITHHOLD[reason] ?? WITHHOLD['not-observed']!;
 
-const allActivity = (...detail: [string, ...string[]]): [string, string, ...string[]] => ['All server activity', ...detail];
+const allActivity = (...detail: [string, ...string[]]): [string, string, ...string[]] => ['Engine', ...detail];
 const attributionBoundary = (rt: string): string => `${rt} does not identify which chat made a request. Alternating requests from another chat can’t be ruled out.`;
 /** The ⓘ behind an attribution chip: [title, first, second?]. */
 export const whyCopy = (key: string, rt: string, live: boolean, chatRuntime: string | null = null): [string, string, ...string[]] => {
   switch (key) {
-    case 'inferred': return ['Likely this chat', live
+    case 'inferred': return ['This chat', live
       ? `${rt} matches this chat’s model with one request at a time. Scope has observed this turn from the start.`
       : `${rt} matched this chat’s model with one request at a time. Scope observed the whole reply.`,
     `Scope matches chat activity; ${attributionBoundary(rt)} Calls for titles may be included.`];
-    case 'armed': return ['Next reply', live
-      ? `You chose to measure your next reply. Each step matches this chat’s model on ${rt}.`
-      : `You chose to measure your next reply. Every step matched this chat’s model on ${rt}.`,
-    attributionBoundary(rt)];
+    case 'armed': return ['This chat', `You measured this reply with Scope 5.0; every step matched this chat’s model on ${rt}.`, attributionBoundary(rt)];
     case 'other-provider': return allActivity(`This chat uses ${chatRuntime ?? 'another server'}. ${rt} is serving another app or chat.`,
       chatRuntime ? `Watch ${chatRuntime} to label this chat’s readings.` : 'Watch this chat’s server to label its readings.');
     case 'model-differs': return allActivity(`${rt} is running a different model for another app or chat.`, 'Scope never loads or switches models.');
@@ -71,8 +68,8 @@ export const whyCopy = (key: string, rt: string, live: boolean, chatRuntime: str
     case 'overlap': return allActivity(`Several requests ran at once on ${rt}, so Scope cannot separate this chat’s readings.`, 'Individual request speed returns when one request runs.');
     case 'cannot-count': return allActivity(`${rt} does not count requests, so Scope cannot match readings to this chat.`);
     case 'outside-turn': return allActivity(`${rt} ran this request outside the reply, perhaps for a title or recap.`);
-    case 'joined-mid-turn': return allActivity(`Scope started watching this reply on ${rt} after it began.`, 'The next reply can be measured from its start.');
-    case 'auto-off': return allActivity('Automatic chat labels are turned off.', 'You can still choose to measure your next reply.');
+    case 'joined-mid-turn': return allActivity(`Scope started watching this reply on ${rt} after it began.`, 'The next reply can be matched from its start.');
+    case 'auto-off': return allActivity('Automatic chat labels are turned off.', 'Turn them on in History → Reply history.');
     default: return allActivity(`Everything ${rt} is doing, from any app or chat.`, 'Chat labels need separate request readings and one request at a time.');
   }
 };

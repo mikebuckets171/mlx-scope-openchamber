@@ -25,12 +25,13 @@ export const weightedTps = (steps: readonly CompletionV2[]): number | null => {
 
 export type ChipTone = 'accent' | 'warn' | 'bad';
 export interface Chip { text: string; tone?: ChipTone; outline?: boolean; attr?: 'inferred' | 'armed' | 'server'; reason?: string; basis?: Basis }
-/** A server-wide chip always names its reason: inside the chip, or (glance) in a line the chip points to. */
-export const attrChip = (label: AttributionLabel, short = false, chatRuntime: string | null = null): Chip => {
-  if (label.kind === 'inferred') return { text: 'Likely this chat', attr: 'inferred' };
-  if (label.kind === 'armed') return { text: 'Next reply', attr: 'armed', outline: true };
-  const why = withheldWhy(label.reason, chatRuntime);
-  return { text: short ? 'All server activity' : `All server activity · ${why}`, attr: 'server', outline: true, reason: why };
+/**
+ * Two layers: a reading is this chat's only when Scope can prove it; otherwise it is the engine's. An engine label keeps
+ * its reason for the explanation behind the chip, not in the chip. Replies Scope 5.0 stored as armed read as this chat.
+ */
+export const attrChip = (label: AttributionLabel, _short = false, chatRuntime: string | null = null): Chip => {
+  if (label.kind === 'inferred' || label.kind === 'armed') return { text: 'This chat', attr: 'inferred' };
+  return { text: 'Engine', attr: 'server', outline: true, reason: withheldWhy(label.reason, chatRuntime) };
 };
 
 /** An ⓘ disclosure: a 24 px button whose explanation opens in flow under its row. `key` is stable across polls. */

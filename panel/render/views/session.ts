@@ -7,25 +7,23 @@ import type { ChartView } from '../chart.ts';
 /** Stable readout ids per kind: a % or an elapsed time is never addressed as a rate. */
 export const READOUT_ID = { speed: 'rate', progress: 'prefill-percent', elapsed: 'elapsed' } as const;
 
-/** Keep the presenter's essential time basis visible beside a Next speed. */
-export const measurementLabel = (reading: SessionMeasurement, next = false): string => {
-  if (!next || !reading.live || reading.kind !== 'speed') return reading.label;
-  const recent = reading.detail.match(/Calculated · last (\d+(?:\.\d+)? s)/)?.[1];
-  const qualifier = reading.detail.includes('average for this request') ? 'request average' : recent ? `recent ${recent}` : '';
-  return qualifier ? `${reading.label} · ${qualifier}` : reading.label;
-};
+/** Two layers: "This chat" or "Engine". How the value was measured lives in the reading's explanation, not its label. */
+export const measurementLabel = (reading: SessionMeasurement, _next = false): string => reading.label;
+/** An estimate reads "≈ 24.1", never as a measured value. */
+export const readoutText = (reading: SessionMeasurement): string =>
+  `${reading.basis === 'estimate' ? '≈ ' : ''}${reading.kind === 'speed' ? compactRate(reading.text) : reading.text}`;
 
 /** Native menus stay keyboard accessible and can open outside a short status iframe. */
-export const scopeMenuMarkup = (scope: 'chat' | 'engine'): Raw => html`<select class="scope-choice" data-action="measurement-scope" aria-label="Measurement scope"><option value="chat"${flag('selected', scope === 'chat')}>This chat</option><option value="engine"${flag('selected', scope === 'engine')}>Whole engine</option></select>`;
+export const scopeMenuMarkup = (scope: 'chat' | 'engine'): Raw => html`<select class="scope-choice" data-action="measurement-scope" aria-label="Measurement scope"><option value="chat"${flag('selected', scope === 'chat')}>This chat</option><option value="engine"${flag('selected', scope === 'engine')}>Engine</option></select>`;
 
 export const sessionMarkup = (view: SessionSectionView, actionError: string | null = null, compact = false, next = false, options: SessionNextOptions = {}): Raw => {
   if (next && !compact) return nextSessionMarkup(view, actionError, options);
   const measurement = view.measurement, alert = view.alert, label = measurement ? measurementLabel(measurement, next) : '';
-  const readingText = measurement ? measurement.kind === 'speed' ? compactRate(measurement.text) : measurement.text : '';
+  const readingText = measurement ? readoutText(measurement) : '';
   return html`<div class="ws ws-session" id="ws" data-presentation="session" data-mode="summary" data-resting="${String(view.resting)}">
     <div class="ws-activity">
       <div class="ws-line ws-heading ws-context"><span class="ws-phase" data-tone="${view.tone}" data-crossfade>${view.phase}</span>${scopeMenuMarkup(view.measurementScope)}</div>
-      ${measurement ? html`<div class="ws-line ws-measurement" data-live="${String(measurement.live)}" data-basis="${measurement.basis}" data-arrive title="${measurement.detail}"><span class="ws-reading" aria-hidden="true"><strong id="${READOUT_ID[measurement.kind]}" aria-hidden="true" style="--reading-width:${readoutWidth(readingText)}">${readingText}</strong>${measurement.unit ? html` <span aria-hidden="true">${measurement.unit}</span>` : ''}</span><span class="sr-only measurement-accessible">${measurement.text}${measurement.unit ? ' tokens per second' : ''}</span><span class="ws-label" data-crossfade>${label}${view.eta ? html`<span class="prompt-eta">${view.eta.text}</span>` : ''}</span><span class="sr-only basis">${measurement.detail}</span></div>` : ''}
+      ${measurement ? html`<div class="ws-line ws-measurement" data-live="${String(measurement.live)}" data-basis="${measurement.basis}" data-arrive title="${measurement.detail}"><span class="ws-reading" aria-hidden="true"><strong id="${READOUT_ID[measurement.kind]}" aria-hidden="true" style="--reading-width:${readoutWidth(readingText)}">${readingText}</strong>${measurement.unit ? html` <span aria-hidden="true">${measurement.unit}</span>` : ''}</span><span class="sr-only measurement-accessible">${measurement.basis === 'estimate' ? 'about ' : ''}${measurement.text}${measurement.unit ? ' tokens per second' : ''}</span><span class="ws-label" data-crossfade>${label}${view.eta ? html`<span class="prompt-eta">${view.eta.text}</span>` : ''}</span><span class="sr-only basis">${measurement.detail}</span></div>` : ''}
       ${view.support && !alert && !actionError && !view.note ? html`<div class="ws-line ws-support" title="${view.support.detail}">${view.support.text}${view.support.basis && view.support.basis !== 'reported' ? html` <span class="basis">${BASIS_WORD[view.support.basis]}</span>` : ''}</div>`
         : view.held && !alert && !actionError && !view.note ? html`<div class="ws-line ws-support ws-held" data-held="true" data-arrive title="${view.held.detail}">${view.held.text}</div>` : ''}
     ${!actionError && alert ? html`<div class="ws-line ws-warning" data-severity="${alert.severity}" title="${alert.label}">${alert.label}</div>` : !actionError && view.note ? html`<div class="ws-line ws-note" title="${view.note}">${view.note}</div>` : ''}
@@ -59,7 +57,7 @@ const nextSessionMarkup = (view: SessionSectionView, actionError: string | null,
   const interval = chart?.label.match(/last (\d+) s:/)?.[1];
   const end = chart?.line.match(/([\d.]+) ([\d.]+)$/);
   const unit = measurement?.kind === 'speed' ? 'tokens/s' : measurement?.unit;
-  const readingText = measurement?.kind === 'speed' ? compactRate(measurement.text) : measurement?.text ?? '';
+  const readingText = measurement ? readoutText(measurement) : '';
   return html`<div class="ws ws-session ws-next" id="ws" data-presentation="session" data-mode="summary" data-resting="${String(view.resting)}" tabindex="-1">
     <div class="ws-scroll" id="ws-scroll">
       <div class="ws-toolbar" id="ws-toolbar">
@@ -71,7 +69,7 @@ const nextSessionMarkup = (view: SessionSectionView, actionError: string | null,
         <div class="ws-line ws-heading" id="ws-heading"><span class="ws-phase" data-tone="${view.tone}" data-live="${String(!!measurement?.live)}" data-crossfade><span class="ws-phase-dot" aria-hidden="true"></span>${view.phase}</span><span class="ws-runtime">${view.speeds.source}</span></div>
         <div class="ws-measurement" id="ws-measurement" data-live="${String(!!measurement?.live)}" data-basis="${measurement?.basis ?? 'unavailable'}" title="${measurement?.detail ?? ''}"${flag('hidden', !measurement)}>
           <span class="ws-reading" aria-hidden="true"><strong id="${measurement ? READOUT_ID[measurement.kind] : 'rate'}" style="--reading-width:${readoutWidth(readingText)}">${readingText}</strong>${unit ? html`<span>${unit}</span>` : ''}</span>
-          <span class="sr-only measurement-accessible">${measurement?.text ?? ''}${measurement?.kind === 'speed' ? ' tokens per second' : unit ? ` ${unit}` : ''}</span>
+          <span class="sr-only measurement-accessible">${measurement?.basis === 'estimate' ? 'about ' : ''}${measurement?.text ?? ''}${measurement?.kind === 'speed' ? ' tokens per second' : unit ? ` ${unit}` : ''}</span>
           <span class="ws-label" data-crossfade>${label}${view.eta ? html`<span class="prompt-eta">${view.eta.text}</span>` : ''}</span><span class="sr-only basis">${measurement?.detail ?? ''}</span>
         </div>
         <figure class="ws-signal" id="ws-signal" aria-label="${chart?.label ?? ''}"${flag('hidden', !chart)}>
