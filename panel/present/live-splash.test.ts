@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { parseSnapshotV2, type SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { liveChart } from '../render/chart.ts';
 import { liveMarkup } from '../render/views/live.ts';
-import { statusHeight, statusMarkup } from '../render/views/status.ts';
+import { sessionMarkup } from '../render/views/session.ts';
 import { serverMarkup } from '../render/views/server.ts';
 import { SignalHistory } from '../signal.ts';
 import { MOCK_NOW, mockBody } from '../testing/mock-states.ts';
@@ -10,7 +10,7 @@ import { heroKind, presentLive } from './live.ts';
 import { presentServer } from './server.ts';
 import { fromSnapshot } from './reading.ts';
 import { liveSplashRate, type ScopeInput } from './scope.ts';
-import { presentStatusSection, type StatusSectionInput } from './status.ts';
+import { presentSessionSection, type SessionSectionInput, type SessionSectionView } from './session.ts';
 
 const snapshot = (patch: (body: SnapshotV2) => void = () => {}, at = MOCK_NOW): SnapshotV2 => {
   const body = parseSnapshotV2(mockBody('splash-decode', { now: at }))!;
@@ -19,12 +19,13 @@ const snapshot = (patch: (body: SnapshotV2) => void = () => {}, at = MOCK_NOW): 
 };
 const scope = (body: SnapshotV2, extra: Partial<ScopeInput> = {}): ScopeInput => ({
   now: MOCK_NOW, version: '2.0.1', snapshot: body, fresh: true, frame: null, paused: false,
-  attribution: { kind: 'inferred' }, chatRuntime: 'Splish', last: null, next: { kind: 'idle' }, samples: [], turnStartAt: null, ...extra,
+  attribution: { kind: 'inferred' }, chatRuntime: 'Splish', last: null, samples: [], turnStartAt: null, ...extra,
 });
-const status = (body: SnapshotV2, extra: Partial<StatusSectionInput> = {}) => presentStatusSection({
-  now: MOCK_NOW, reading: fromSnapshot(body), snapshot: body, fresh: true, attribution: { kind: 'inferred' }, turn: null, vsUsual: null,
-  sparkline: null, chatIsLocal: true, expanded: false, tipDismissed: true, ...extra,
+const session = (body: SnapshotV2, extra: Partial<SessionSectionInput> = {}) => presentSessionSection({
+  now: MOCK_NOW, reading: fromSnapshot(body), snapshot: body, fresh: true, attribution: { kind: 'inferred' }, chatIsLocal: true, ...extra,
 });
+/** The Session section's live speed, or null when it shows none. */
+const liveRate = (view: SessionSectionView): string | null => view.measurement?.live && view.measurement.kind === 'speed' ? view.measurement.text : null;
 
 test('Splash live throughput leads with derived server-wide speed, never the lifetime average or a chat label', () => {
   for (const active of [1, 3]) {
@@ -53,17 +54,15 @@ test('Splash live throughput leads with derived server-wide speed, never the lif
 });
 
 test('Session and Compact keep live server throughput visible with derived basis and honest attribution', () => {
-  const view = status(snapshot(), { attribution: { kind: 'armed' }, next: { kind: 'measuring', startedAt: MOCK_NOW - 3_000, steps: [] } as StatusSectionInput['next'] });
-  expect(view.glance?.line1).toMatchObject({ word: 'Recent generation speed', rate: '43.8', rateBasis: 'derived', chip: { text: 'All server activity' } });
-  expect(view.glance?.line2).toMatchObject({ kind: 'spark', spark: null, reason: 'last 4.0 s · all requests' });
-  expect(view.height).toBe(56);
-  expect(statusHeight(view)).toBe(80);
+  const view = session(snapshot());
+  expect(view.measurement).toMatchObject({ text: '43.8', basis: 'derived', live: true, kind: 'speed' });
+  expect(view.measurement!.label.startsWith('Engine')).toBe(true);
+  expect(view.measurement!.detail).toContain('last 4.0 s');
   for (const compact of [false, true]) {
-    const markup = statusMarkup(view, compact).markup;
-    expect(markup).toContain('class="ws-rate" data-basis="derived">43.8');
-    expect(markup).toContain('<small class="basis">calculated</small>');
-    expect(markup).toContain('id="ws-why">last 4.0 s · all requests</span>');
-    expect(markup).not.toMatch(/inferred|Next reply/);
+    const markup = sessionMarkup(view, null, compact, true).markup;
+    expect(markup).toContain('data-basis="derived"');
+    expect(markup).toContain('43.8');
+    expect(markup).not.toMatch(/Likely this chat|Next reply/);
   }
 });
 
@@ -91,7 +90,7 @@ test('warmup, missing counters, idle, stale and unavailable Splash readings neve
     expect(body.runtime.server.averages?.decodeTps).toBe(47.2);
     expect(liveSplashRate(body)).toBeNull();
     expect(heroKind(scope(body))).not.toBe('server-decode');
-    expect(status(body).glance?.line1.rate ?? null).toBeNull();
+    expect(liveRate(session(body))).toBeNull();
     history.observe(fromSnapshot(body));
     expect(history.points).toEqual([]);
   }
@@ -99,8 +98,8 @@ test('warmup, missing counters, idle, stale and unavailable Splash readings neve
   expect(presentLive(scope(warming)).hero?.body).toMatchObject({ kind: 'word', unit: 'Waiting for update' });
   expect(presentLive(scope(snapshot(), { fresh: false })).hero?.body ?? null).toBeNull();
   expect(presentLive(scope(snapshot(), { paused: true })).hero?.body).toMatchObject({ kind: 'paused' });
-  expect(status(snapshot(), { fresh: false }).glance?.line1.rate).toBeNull();
-  expect(status(snapshot(), { paused: true }).glance?.line1.rate).toBeNull();
+  expect(liveRate(session(snapshot(), { fresh: false }))).toBeNull();
+  expect(liveRate(session(snapshot(), { paused: true }))).toBeNull();
 });
 
 test('other server rates remain completion-based readings, while oMLX keeps its reported request average', () => {
@@ -108,7 +107,7 @@ test('other server rates remain completion-based readings, while oMLX keeps its 
     const body = snapshot(body => { body.connection.runtime = runtime; });
     expect(liveSplashRate(body)).toBeNull();
     expect(heroKind(scope(body))).toBe('processing');
-    expect(status(body).glance?.line1.rate).toBeNull();
+    expect(liveRate(session(body))).toBeNull();
     const history = new SignalHistory(); history.observe(fromSnapshot(body));
     expect(history.points).toEqual([]);
   }
@@ -155,8 +154,8 @@ test('Splash Server details distinguish recent decoding from lifetime averages a
 test('Splash displays the actual observed interval and keeps prompt processing separate', () => {
   const body = snapshot(body => { body.runtime.server.rates!.windowMs = 2_350; });
   expect(presentLive(scope(body)).hero?.instrument.measurement?.detail).toContain('last 2.4 s');
-  expect(status(body).glance?.line2).toMatchObject({ reason: 'last 2.4 s · all requests' });
+  expect(session(body).measurement?.detail).toContain('last 2.4 s');
   body.runtime.phase = 'prefill'; delete body.runtime.server.rates;
   expect(presentLive(scope(body)).hero?.body).toMatchObject({ kind: 'word', unit: 'Reading prompt · waiting for update' });
-  expect(status(body).glance?.line1.word).toBe('Reading prompt');
+  expect(session(body).phase).toBe('Reading prompt');
 });

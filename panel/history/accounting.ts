@@ -8,7 +8,11 @@ export const LEDGER_CAP_BYTES = 1_280 * 1024;
 export const HEADROOM_BYTES = 128 * 1024;
 /** Keys kept free for captures, preferences and 1.x keys, as the byte headroom is. */
 export const HEADROOM_KEYS = 64;
-export interface LedgerAccounting { totalBytes: number; keys: number; ledgerBytes: number; capBytes: number; oldestS: number | null }
+export interface LedgerAccounting {
+  totalBytes: number; keys: number; ledgerBytes: number; capBytes: number; oldestS: number | null;
+  /** Captures and 1.x saves from earlier versions: kept untouched and still counted, never shown or written now. */
+  keptItems?: number; keptBytes?: number;
+}
 
 const encoder = new TextEncoder();
 export const jsonBytes = (value: unknown): number => encoder.encode(JSON.stringify(value)).length;
@@ -18,6 +22,7 @@ export const jsonBytes = (value: unknown): number => encoder.encode(JSON.stringi
  */
 export const entryBytes = (key: string, value: unknown): number => jsonBytes(key) + jsonBytes(value) + 2;
 export const isLedgerKey = (key: string): boolean => key.startsWith('ledger.v2.') || key === KEYS.baseline;
+export const isKeptKey = (key: string): boolean => key.startsWith(KEYS.capturePrefix) || key.startsWith(KEYS.legacyObservationPrefix);
 
 /** The oldest row time in a stored chunk value, without keeping its rows. */
 export const chunkOldestS = (key: string, value: unknown): number | null => {
@@ -32,10 +37,12 @@ export class Accounting {
   readonly #oldest = new Map<string, number>();
   #sum = 0;
   #ledger = 0;
+  #kept = 0;
+  #keptItems = 0;
   readonly #capBytes: number;
   constructor(capBytes: number = LEDGER_CAP_BYTES) { this.#capBytes = capBytes;}
   recompute(entries: ReadonlyArray<readonly [string, unknown]>): LedgerAccounting {
-    this.#sizes.clear(); this.#oldest.clear(); this.#sum = 0; this.#ledger = 0;
+    this.#sizes.clear(); this.#oldest.clear(); this.#sum = 0; this.#ledger = 0; this.#kept = 0; this.#keptItems = 0;
     for (const [key, value] of entries) if (value !== undefined) this.#put(key, value);
     return this.view();
   }
@@ -61,13 +68,15 @@ export class Accounting {
   view(): LedgerAccounting {
     let oldestS: number | null = null;
     for (const value of this.#oldest.values()) oldestS = Math.min(oldestS ?? Infinity, value);
-    return { totalBytes: this.#total, keys: this.#sizes.size, ledgerBytes: this.#ledger, capBytes: this.#capBytes, oldestS };
+    return { totalBytes: this.#total, keys: this.#sizes.size, ledgerBytes: this.#ledger, capBytes: this.#capBytes, oldestS,
+      keptItems: this.#keptItems, keptBytes: this.#kept };
   }
   get #total(): number { return this.#sizes.size ? this.#sum + 1 : 2; }
   #put(key: string, value: unknown): void {
     const size = entryBytes(key, value);
     this.#sizes.set(key, size); this.#sum += size;
     if (isLedgerKey(key)) this.#ledger += size;
+    if (isKeptKey(key)) { this.#kept += size; this.#keptItems += 1; }
     if (key.startsWith(KEYS.chunkPrefix)) { const oldestS = chunkOldestS(key, value); if (oldestS !== null) this.#oldest.set(key, oldestS); }
   }
   #remove(key: string): void {
@@ -75,5 +84,6 @@ export class Accounting {
     if (size === undefined) return;
     this.#sizes.delete(key); this.#oldest.delete(key); this.#sum -= size;
     if (isLedgerKey(key)) this.#ledger -= size;
+    if (isKeptKey(key)) { this.#kept -= size; this.#keptItems -= 1; }
   }
 }

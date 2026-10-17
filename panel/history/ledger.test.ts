@@ -429,19 +429,6 @@ test('settings from another frame apply at the next flush; a local Pause still i
   expect((storage.dump()[KEYS.pref] as { history: boolean }).history).toBe(false);
 });
 
-test('a migration the host refuses does not keep the ledger from starting; it is retried at the next start', async () => {
-  let refuse = true;
-  const storage = createFakeStorage({ initial: { 'observation.v1.0001790600061000.aa': { savedAt: T0, sampledAt: T0, kind: 'snapshot', state: 'observed', phase: 'idle', measurements: { cpu: 5 } } },
-    reject: (op, key) => refuse && op === 'set' && !!key?.startsWith('capture.v2.') });
-  const { ledger } = setup(storage);
-  await ledger.start();
-  expect(ledger.state).toBe('idle');
-  expect(storage.dump()[KEYS.meta]).toBeUndefined();
-  refuse = false;
-  await ledger.start();
-  expect((storage.dump()[KEYS.meta] as { migratedAt: number }).migratedAt).toBe(T0);
-});
-
 test('a poll sent with a cursor ahead of the ledger\'s is not recorded; the next poll uses the ledger\'s cursor', async () => {
   const { ledger } = setup(), ring = new FakeRing();
   await ledger.start();
@@ -546,19 +533,13 @@ test('LedgerRecorder: a lease handed away and back while hidden restarts from st
   expect(ids(storage)).toEqual([`${INSTANCE}.1`, `${INSTANCE}.2`, `${INSTANCE}.3`, `${INSTANCE}.4`]);
 });
 
-test('the first leader start migrates 1.x observations once; later starts write nothing', async () => {
+test('1.x observations are left as they are: starting and flushing write nothing new beside them', async () => {
   const fixture = await Bun.file(new URL('../../tests/fixtures/storage/1.6.1/observation-v1.json', import.meta.url)).json() as Record<string, unknown>;
   const storage = createFakeStorage({ initial: fixture }), time = clock();
   const ledger = new Ledger({ storage, now: time.now });
   await ledger.start();
-  const keys = Object.keys(storage.dump());
-  expect(keys.filter(key => key.startsWith(KEYS.capturePrefix))).toHaveLength(3);
-  expect(keys.filter(key => key.startsWith(KEYS.legacyObservationPrefix))).toHaveLength(3);
-  expect((storage.dump()[KEYS.meta] as { migratedAt: number }).migratedAt).toBe(T0);
-  expect(ledger.accounting()!.totalBytes).toBe(storage.stats().fileBytes);
-  const sets = storage.stats().sets;
-  ledger.dispose();
-  await new Ledger({ storage, now: time.now }).start();
-  expect(storage.stats().sets).toBe(sets);
+  expect(storage.dump()).toEqual(fixture);
+  expect(storage.stats().sets).toBe(0);
+  expect(ledger.accounting()).toMatchObject({ keptItems: 3, totalBytes: storage.stats().fileBytes });
 });
 

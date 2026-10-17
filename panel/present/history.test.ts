@@ -61,10 +61,11 @@ describe('History presenter (plan §5.6, G2 mock)', () => {
     expect(attrChip('withheld:made-up' as never, MOCK_TEXT)).toEqual({ attr: 'server', text: 'Server-wide · not observed', reason: 'not-observed' });
     expect(attrChip('armed', MOCK_TEXT).text).toBe('Next reply');
   });
-  test('empty after a fresh upgrade: honest lines, and the 1.6 captures pointer only when there are some', () => {
-    const empty = presentHistory(input({ rows: [], baselines: new Map(), trend: mockTrend(3_600_000, true), storage: { ...mockAccounting(), ledgerBytes: 2048 }, alertLog: [], legacyCaptures: 3 }));
-    expect(empty.repliesEmpty).toBe('No replies yet. Scope records a reply when it finishes while any Scope view is open. Your 1.6 captures are in Captures.');
-    expect(presentHistory(input({ rows: [] })).repliesEmpty).not.toContain('1.6');
+  test('empty after a fresh upgrade: honest lines, and items kept from earlier versions are counted in storage', () => {
+    const empty = presentHistory(input({ rows: [], baselines: new Map(), trend: mockTrend(3_600_000, true), storage: { ...mockAccounting(), ledgerBytes: 2048, keptItems: 3, keptBytes: 4096 }, alertLog: [] }));
+    expect(empty.repliesEmpty).toBe('No replies yet. Scope records a reply when it finishes while any Scope view is open.');
+    expect(empty.storage?.kept).toBe('Kept from earlier versions: 3 items · 4 KiB');
+    expect(presentHistory(input({ rows: [] })).storage?.kept ?? null).toBeNull();
     expect(empty.baseline).toEqual(expect.objectContaining({ model: 'Example-27B-4bit', bucket: null, empty: 'Needs 5 replies for this model and context size.', copy: false }));
     expect(empty.storage).toEqual(expect.objectContaining({ used: '2 KiB', detail: 'of 1.25 MiB · 0 replies · 0 days' }));
     expect(empty.alertLogEmpty).toBe('No alerts while Scope was open.');
@@ -135,7 +136,7 @@ describe('History presenter (plan §5.6, G2 mock)', () => {
     expect(full.detail).toBe('at the limit · 41 replies · 13 days');
     expect(full.full).toBe('After each save Scope removes the oldest replies, so it holds 13 of your 30 days. Shorten retention or clear to make room.');
     expect(presentHistory(input({ paused: true })).storage).toEqual(expect.objectContaining({ paused: true, label: 'Recording paused' }));
-    expect(presentHistory(input({ confirmClear: true })).storage!.confirm).toEqual({ title: 'Clear 41 replies and the baselines built from them?', detail: 'This can’t be undone. Captures are kept.' });
+    expect(presentHistory(input({ confirmClear: true })).storage!.confirm).toEqual({ title: 'Clear 41 replies and the baselines built from them?', detail: 'This can’t be undone.' });
     expect(presentHistory(input({ retentionDays: 45 })).storage!.options).toEqual([7, 14, 30, 45, 60, 90]);
     expect(presentHistory(input({ storage: null })).storage).toEqual(expect.objectContaining({ used: '41 replies', detail: '13 days', meter: false }));
     expect(presentHistory(input({ recording: 'backoff' })).storage!.note).toContain('nothing is removed because of an error');

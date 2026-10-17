@@ -117,7 +117,6 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .engine-facts .metric-detail { white-space: normal; overflow: visible; }
 .instrument-detail-container > summary { width: fit-content; gap: 8px; color: var(--scope-muted); font-size: var(--scope-text-detail); }
 .instrument-detail-content { display: grid; gap: 6px; padding-top: 8px; }
-.instrument-detail-content .machine-summary { margin-top: 12px; }
 .instrument-detail-content .instrument-details { min-width: 0; }
 
 /* Session and compact rail reserve height only for the reading and context they actually show. */
@@ -266,10 +265,8 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .context-headroom, .first-token { margin-top: 12px; }
 .context-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--scope-muted); font-size: var(--scope-text-caption); }
 .context-line strong, .first-token strong { color: var(--scope-fg); font-weight: 500; }
-.machine-summary, .machine { color: var(--scope-muted); font-size: var(--scope-text-caption); }
-.machine-summary h2, .machine-title { color: var(--scope-muted); font-size: var(--scope-text-detail); font-weight: 500; }
-.machine-summary-values, .machine-health { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
-.machine-summary-values strong { margin-left: 4px; font-weight: 500; }
+.machine { color: var(--scope-muted); font-size: var(--scope-text-caption); }
+.machine-title { color: var(--scope-muted); font-size: var(--scope-text-detail); font-weight: 500; }
 .machine-line { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9ch), 1fr)); gap: 12px; margin-top: 12px; }
 .machine-label { display: block; color: var(--scope-muted); font-size: var(--scope-text-caption); }
 .machine-line > div { min-width: 0; }
@@ -291,15 +288,12 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .resident-heading strong { min-width: 0; font-size: var(--scope-text-detail); font-weight: 500; overflow-wrap: anywhere; }
 .resident-reading { color: var(--scope-muted); font-size: var(--scope-text-caption); }
 .resident-row .meter { margin-top: 6px; }
-.reply-head, .reply-values, .split, .next-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; color: var(--scope-muted); font-size: var(--scope-text-caption); }
+.reply-head, .reply-values, .split { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; color: var(--scope-muted); font-size: var(--scope-text-caption); }
 .reply-head { margin-top: 10px; }
 .reply-head time { margin-left: auto; }
 .reply-values, .split { margin-top: 6px; }
 .reply-values strong { color: var(--scope-fg); font-size: max(18px, 1.125rem); font-weight: 550; }
 .reply-model { margin-top: 6px; color: var(--scope-muted); font-size: var(--scope-text-caption); overflow-wrap: anywhere; }
-.next-row { margin-top: 8px; }
-.next-row .btn { padding-left: 0; }
-.next-row time { color: var(--scope-fg); font-weight: 550; }
 .pulse { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--scope-accent); }
 
 /* Charts preserve gaps and measurement types */
@@ -320,16 +314,11 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .legend i.tick { width: 2px; height: 9px; background: var(--scope-muted); }
 .legend i.hatch { width: 12px; height: 9px; background: repeating-linear-gradient(135deg, var(--scope-muted) 0 1px, transparent 1px 4px); }
 
-/* History, captures and their management tools */
+/* History and its management tools */
 .seg { display: inline-flex; flex-wrap: wrap; gap: 2px; }
-.seg button, .capture-methods button { min-width: 24px; min-height: 28px; padding: 3px 6px; border: 0; border-radius: 4px; color: var(--scope-muted); background: transparent; font-size: var(--scope-text-caption); }
-.seg button[aria-pressed="true"], .capture-methods button[aria-pressed="true"] { color: var(--scope-fg); background: var(--scope-surface); }
-.capture-methods { display: flex; width: fit-content; gap: 8px; }
-.capture-card { padding: 12px 0; }
-.capture-card select.btn, .storage-controls select.btn { height: max(30px, 1.875rem); }
-.capture-card .reply-values .val { color: var(--scope-fg); font-size: var(--scope-text-body); }
-.capture-ready { color: var(--scope-muted); font-size: var(--scope-text-caption); }
-.capture-activity { padding: 8px 0; }
+.seg button { min-width: 24px; min-height: 28px; padding: 3px 6px; border: 0; border-radius: 4px; color: var(--scope-muted); background: transparent; font-size: var(--scope-text-caption); }
+.seg button[aria-pressed="true"] { color: var(--scope-fg); background: var(--scope-surface); }
+.storage-controls select.btn { height: max(30px, 1.875rem); }
 .counts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .ledger { margin-top: 10px; }
 .led-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 3px 8px; padding: 9px 0; font-size: var(--scope-text-caption); }
@@ -352,6 +341,7 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .storage .meter { margin-top: 8px; }
 .storage[data-full="true"] .meter i { background: var(--scope-warn); }
 .storage-controls label { display: inline-flex; align-items: center; gap: 6px; }
+.storage-option { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: var(--scope-muted); font-size: var(--scope-text-caption); }
 .alog > li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; padding: 7px 0; font-size: var(--scope-text-caption); }
 .alog time, .alog small { color: var(--scope-muted); font-size: max(10.5px, .65625rem); }
 .alog .sev { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--scope-blue); }
@@ -471,9 +461,6 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .media-configure button { justify-self: start; margin-top: 4px; }
 .scope[data-surface="status"] { max-height: 320px; overflow-y: auto; overscroll-behavior: contain; }
 .scope[data-surface="status"] .media-glance { margin-top: 6px; padding-top: 7px; font-size: max(10px, .625rem); }
-.digit-cell { position: relative; display: inline-block; overflow: hidden; vertical-align: bottom; font-variant-numeric: tabular-nums; }
-.digit-current { display: block; }
-.digit-before { position: absolute; inset: 0; pointer-events: none; }
 @media (max-width: 420px) {
   .masthead { flex-wrap: wrap; gap: 6px; }
   .masthead .monitor-controls { margin-left: auto; }
@@ -585,7 +572,6 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 :root[data-design-mode="next"] .instrument-detail-container > summary { min-height: 35px; gap: 10px; color: var(--scope-muted); font-size: var(--scope-text-detail); }
 :root[data-design-mode="next"] .instrument-detail-container > summary:hover { color: var(--scope-fg); }
 :root[data-design-mode="next"] .instrument-detail-content { padding-block: 8px 16px; }
-:root[data-design-mode="next"] .next-row { margin-top: 8px; }
 :root[data-design-mode="next"] .next-live-context { display: flex; flex-direction: column; gap: 13px; margin-top: 5px; padding-top: 15px; border-top: 1px solid var(--scope-line); }
 :root[data-design-mode="next"] .machine { padding: 0; border: 0; border-radius: 0; background: none; }
 :root[data-design-mode="next"] .machine-title { color: var(--scope-fg); font-size: var(--scope-text-body); font-weight: 550; }

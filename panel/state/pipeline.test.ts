@@ -25,7 +25,7 @@ test('a frame with nothing to send sends no mark or attr, labels nothing it did 
   expect(pipeline.label(fresh[0]!)).toEqual({ kind: 'inferred' });
   expect(pipeline.label({ ...fresh[0]!, verdict: undefined })).toEqual(SERVER_WIDE);
   expect(pipeline.liveLabel(snapshot)).toEqual(SERVER_WIDE);
-  expect([pipeline.turn(), pipeline.chatRuntime(), pipeline.firstRun, pipeline.nextState]).toEqual([null, null, false, { kind: 'idle' }]);
+  expect([pipeline.turn(), pipeline.chatRuntime(), pipeline.firstRun]).toEqual([null, null, false]);
   pipeline.hidden();
   expect(calls.filter(call => call === 'set')).toEqual([]);
   pipeline.dispose();

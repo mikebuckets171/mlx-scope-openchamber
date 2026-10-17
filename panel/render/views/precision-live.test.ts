@@ -11,10 +11,10 @@ const scope = (patch: (snapshot: SnapshotV2) => void = () => {}, extra: Partial<
   const snapshot = parseSnapshotV2(mockBody('decode'))!;
   patch(snapshot);
   return { now: MOCK_NOW, version: '5.0.0', snapshot, fresh: true, frame: null, paused: false,
-    attribution: { kind: 'server-wide', reason: 'all-requests' }, chatRuntime: 'oMLX', last: null, next: { kind: 'idle' }, samples: [],
+    attribution: { kind: 'server-wide', reason: 'all-requests' }, chatRuntime: 'oMLX', last: null, samples: [],
     turnStartAt: null, measurementScope: 'engine', ...extra };
 };
-const render = (view: LiveView, next = true) => liveMarkup(view, new Set(), next).markup;
+const render = (view: LiveView) => liveMarkup(view, new Set()).markup;
 
 test('Session reserves no plot for sparse disconnected readings but preserves measured gaps in a usable trend', () => {
   const view = presentLive(scope()).hero!.instrument;
@@ -73,7 +73,6 @@ test('the standard readout renders one escaped value without obsolete per-digit 
   }
   reading.kind = 'elapsed'; reading.text = '<elapsed>';
   expect(render(view)).toContain('&lt;elapsed&gt;</strong>');
-  expect(render(view, false)).toContain('digit-cell');
 });
 
 test('precision removes only a current support fact duplicated with the same basis', () => {
@@ -88,15 +87,11 @@ test('precision removes only a current support fact duplicated with the same bas
   expect(render(view)).toContain('Finished 3 minutes ago');
 });
 
-test('precision detail routes remain available while Classic retains its original heading, unit and support', () => {
-  const view = presentLive(scope()), next = render(view), classic = render(view, false);
+test('precision detail routes remain available', () => {
+  const next = render(presentLive(scope()));
   expect(next).toContain('class="precision-detail-actions"');
   expect(next).toContain('data-action="open-run"');
   expect(next).toContain('data-action="open-server"');
-  expect(classic).not.toContain('class="precision-identity"');
-  expect(classic).not.toContain('class="precision-detail-actions"');
-  expect(classic).toContain('>tok/s</span>');
-  expect(classic).toContain('<p class="coverage-note">Engine · 612 tokens out');
 });
 
 test('a paused or stale precision trace names its endpoint as the last reading', () => {
@@ -109,20 +104,17 @@ test('a paused or stale precision trace names its endpoint as the last reading',
     expect(render(view)).toContain(', last reading 26');
     expect(render(view)).toContain('<span>last reading</span>');
     expect(render(view)).not.toContain(', now 26');
-    expect(render(view, false)).toContain('<span>now</span>');
   }
 });
 
-test('accumulated engine history keeps its trace in Classic without a Next endpoint node', () => {
+test('accumulated engine history keeps its trace with an endpoint node', () => {
   const view = presentLive(scope(undefined, { samples: [
     { at: MOCK_NOW - 30_000, rate: 21, phase: 'decode', segment: 1 },
     { at: MOCK_NOW - 15_000, rate: 24, phase: 'decode', segment: 1 },
     { at: MOCK_NOW, rate: 26, phase: 'decode', segment: 1 },
   ] }));
-  const chart = view.hero!.engineTrend!.chart!, classic = render(view, false), next = render(view);
+  const chart = view.hero!.engineTrend!.chart!, next = render(view);
   expect(chart.points).toBe(3);
-  expect(classic).toContain(`class="trace" d="${chart.line}"`);
-  expect(classic).not.toContain('trace-endpoint');
   expect(next).toContain(`class="trace" d="${chart.line}"`);
   expect(next).toContain('class="trace-endpoint"');
 });

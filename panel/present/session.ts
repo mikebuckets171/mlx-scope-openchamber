@@ -7,7 +7,12 @@ import { alertCopy, APPROVAL, CHAT_UNAVAILABLE, RESTART, statusGlanceNote } from
 import { ago, dur, kt, mmss, size, tps } from './format.ts';
 import { visibleAlerts } from './parts.ts';
 import { presentSpeeds, type SpeedsView } from './speeds.ts';
-import type { StatusSectionInput } from './status.ts';
+import type { CompletionV2 } from '../../src/contract/completion.ts';
+import type { ChatMeasurement } from '../../src/contract/chat.ts';
+import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
+import type { AttributionLabel } from '../attribution/join.ts';
+import type { TurnWindow } from '../attribution/sessions.ts';
+import type { Reading } from './reading.ts';
 
 /** One relevant measurement, with its scope always visible beside the number. */
 export interface SessionMeasurement {
@@ -28,20 +33,38 @@ export interface SessionSectionView {
   resting: boolean;
   note: string | null;
   alert: { label: string; value: string; severity: Severity; more: number } | null;
-  cancelMeasurement: boolean;
 }
 const positive = (value: number | null | undefined): value is number => value != null && Number.isFinite(value) && value > 0;
 /** Phases where fresh engine records can support a resting glance. */
 const RESTING = new Set(['Idle', 'Ready', 'No model loaded', 'Connected', 'Paused']);
 /** Whole seconds, rounded down: an elapsed time never runs ahead of the clock. */
 const elapsedText = (ms: number): string => (ms < 60_000 ? `${Math.floor(ms / 1_000)} s` : dur(Math.floor(ms / 1_000) * 1_000)).replace(/ /g, '\u00a0');
-type SessionSectionInput = Omit<StatusSectionInput, 'turn' | 'vsUsual' | 'sparkline' | 'expanded' | 'tipDismissed'> & Partial<StatusSectionInput>;
+/** What the Session section and the compact glance read. Absent optional fields mean "not known". */
+export interface SessionSectionInput {
+  now: number;
+  reading: Reading;                          // frame reasons (contract_mismatch, needs_approval…) arrive here
+  snapshot: SnapshotV2 | null;
+  attribution: AttributionLabel;
+  chatIsLocal: boolean | null;               // the open chat's provider is a configured local connection; null = unknown
+  fresh?: boolean;
+  paused?: boolean;
+  efficient?: boolean;
+  last?: { completion: CompletionV2; label: AttributionLabel } | null;
+  window?: TurnWindow | null;                // the open chat's newest turn window
+  measurementScope?: 'chat' | 'engine';
+  sessionModel?: string | null;
+  chatActivity?: 'idle' | 'busy' | null;
+  lastChat?: ChatMeasurement | null;
+  promptEtaMs?: number | null;               // recent observed prompt progress; never persisted
+  /** The sidebar and compact glance: at rest, show the engine's own record instead of empty rows. */
+  restingFacts?: boolean;
+}
 
 const speedMeasurement = (label: string, text: string, basis: Basis, detail: string, live = true): SessionMeasurement =>
   ({ label, text, basis, detail, live, unit: 'tok/s', kind: 'speed' });
 
 export const presentSessionSection = (input: SessionSectionInput): SessionSectionView => {
-  const snapshot = input.snapshot, next = input.next, measurementScope = input.measurementScope ?? 'chat';
+  const snapshot = input.snapshot, measurementScope = input.measurementScope ?? 'chat';
   const engine = measurementScope === 'engine';
   const nonLocal = !engine && input.chatIsLocal === false;
   const speeds: SpeedsView = nonLocal ? { phase: input.chatActivity === 'busy' ? 'Working' : 'Ready', model: null,
@@ -135,9 +158,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     note = snapshot.status.reason === 'status_stale' ? 'Checking again automatically'
       : snapshot.status.reason === 'admin_unauthorized' ? 'Check access in MLX Scope'
         : snapshot.status.reason === 'metrics_required' ? 'Open MLX Scope for setup' : statusGlanceNote(snapshot);
-  } else if (next?.kind === 'armed') note = `Next reply armed · ${mmss(Math.max(0, 120_000 - (input.now - next.at)))} left`;
-  else if (next?.kind === 'measuring') note = `Recording reply · ${dur(input.now - next.startedAt)}`;
-  else if (!measurement && speeds.speeds.some(speed => speed.detail.startsWith('Turn off Energy'))) note = 'Energy saving is on';
+  } else if (!measurement && speeds.speeds.some(speed => speed.detail.startsWith('Turn off Energy'))) note = 'Energy saving is on';
   const top = !nonLocal && fresh && snapshot ? visibleAlerts(snapshot)[0] : null;
   const text = top ? alertCopy(top.id, top.params)[0] : '';
   const alert = top ? { label: text.startsWith('macOS memory pressure:') ? `Memory pressure · ${top.severity}` : text,
@@ -179,6 +200,5 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   return { measurementScope, measurement, support: shownSupport, eta, speeds, progress, held,
     resting: atRest && !measurement && !shownSupport && !held,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
-    note: shownNote, alert,
-    cancelMeasurement: !nonLocal && (next?.kind === 'armed' || next?.kind === 'measuring') };
+    note: shownNote, alert };
 };

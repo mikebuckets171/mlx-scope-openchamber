@@ -5,7 +5,6 @@ import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { Signals, type ToastPreference } from '../alerts/signals.ts';
 import { Attribution, type TurnView } from '../attribution/controller.ts';
 import type { AttributionLabel } from '../attribution/join.ts';
-import type { NextReplyState } from '../attribution/next-reply.ts';
 import type { FrameSessionState, TurnWindow } from '../attribution/sessions.ts';
 import type { TurnSummary } from '../attribution/turn.ts';
 import { baselineKey, replyMetric, type Baselines } from '../history/baselines.ts';
@@ -17,7 +16,7 @@ import { SERVER_WIDE } from '../present/scope.ts';
 import type { ScopeState } from './scope-state.ts';
 
 // Owner: ui-core. The frame's side effects around each poll, wired to the attribution controller, the ledger recorder
-// and the signals (INTERFACES §4.2–§4.5): marks and verdicts out, labels and Next reply in, ledger rows and badge/toasts
+// and the signals (INTERFACES §4.2–§4.5): marks and verdicts out, labels in, ledger rows and badge/toasts
 // from the leader only (P9). Nothing here reaches the DOM; presenters read what it exposes.
 
 type Host = Pick<HostClient, 'onSession' | 'onSessionLifecycle' | 'storage' | 'setBadge' | 'toast'>;
@@ -122,7 +121,7 @@ export class Pipeline {
       steps: summary.steps, outputTokens: summary.outputTokens, firstTtftMs: summary.firstTtftMs, decodeTps: summary.decodeTps,
       waitMs: summary.toolMs, attr: ledgerAttr(view.label), cofactors: view.steps.reduce((bits, step) => bits | cofactorBits(step), 0) }));
   }
-  /** Visibility gate: a hidden frame cancels Next reply and stops listening; a leader flushes what it holds. */
+  /** Visibility gate: a hidden frame stops listening; a leader flushes what it holds. */
   setVisible(visible: boolean): void {
     if (visible === this.#visible) return;
     this.#visible = visible;
@@ -136,7 +135,7 @@ export class Pipeline {
   panelMounted(): void { safe(() => this.#signals.panelMounted(), undefined); }
 
   frame(): FrameSessionState { return safe(() => this.attribution.frame(), { connected: false, observedFrom: null, chat: null, windows: [] }); }
-  /** A completion's label: this frame's armed step, else the service's recorded verdict, else this frame's own join. */
+  /** A completion's label: the service's recorded verdict, else this frame's own join. */
   label(completion: CompletionV2): AttributionLabel { return safe(() => this.attribution.label(completion), SERVER_WIDE); }
   /** The live reading's label: the join rule applied to the request so far; server-wide while nothing runs. */
   liveLabel(_snapshot: SnapshotV2 | null): AttributionLabel { return safe(() => this.attribution.live(), null) ?? SERVER_WIDE; }
@@ -152,11 +151,7 @@ export class Pipeline {
     const provider = this.frame().chat?.provider;
     return provider ? RT[provider as keyof typeof RT] ?? null : null;
   }
-  watchable(): string | null { return safe(() => this.attribution.watchable(), null); }
   chatIsLocal(): boolean | null { return safe(() => this.attribution.chatIsLocal(), null); }
-  get nextState(): NextReplyState { return safe(() => this.attribution.nextReply, { kind: 'idle' }); }
-  arm(_snapshot?: SnapshotV2 | null): void { safe(() => this.attribution.arm(), undefined); }
-  cancel(): void { safe(() => this.attribution.cancel(), undefined); }
   get firstRun(): boolean { return safe(() => this.ledger.firstRun, false); }
   get recording(): boolean { return this.#recorder.recording; }
   dispose(): void { this.#stopChatBoundary(); safe(() => this.attribution.dispose(), undefined); safe(() => this.#signals.dispose(), undefined); safe(() => this.#recorder.dispose(), undefined); }

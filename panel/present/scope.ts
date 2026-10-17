@@ -2,7 +2,6 @@ import type { CompletionV2 } from '../../src/contract/completion.ts';
 import type { ChatMeasurement } from '../../src/contract/chat.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import type { AttributionLabel } from '../attribution/join.ts';
-import type { NextReplyState } from '../attribution/next-reply.ts';
 import type { TurnWindow } from '../attribution/sessions.ts';
 import type { RegressionFlag, VsUsual } from '../history/regress.ts';
 import type { SignalPoint } from '../signal.ts';
@@ -26,7 +25,6 @@ export interface ScopeInput {
   attribution: AttributionLabel;             // the live reading's label (attribution join)
   chatRuntime: string | null;                // the open chat's runtime name, for "this chat uses …"
   last: LastReply | null;
-  next: NextReplyState;
   samples: readonly SignalPoint[];           // the panel's own 90 s ring
   turnStartAt: number | null;                // this chat's turn start, when observed live
   window?: TurnWindow | null;

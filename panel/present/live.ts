@@ -11,8 +11,8 @@ import { heldBySource, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING, typ
 import { presentSessionSection, type SessionSectionView } from './session.ts';
 import { fromSnapshot } from './reading.ts';
 
-// The Live tab (plan §5.9, the G2 mock): callouts, the hero (one speed with its basis ⓘ, the attribution chip, Last
-// reply and Next reply), the request tiles and the This Mac card with the short labels (full wording in its ⓘ).
+// The Live tab (plan §5.9, the G2 mock): callouts, the hero (one speed with its basis ⓘ, the attribution chip and the
+// last reply), the request tiles and the This Mac card with the short labels (full wording in its ⓘ).
 
 export type HeroKind = 'prefill' | 'decode' | 'server-decode' | 'busy' | 'slots' | 'ollama' | 'server' | 'queued' | 'processing' | 'inventory' | 'idle';
 export type HeroBody =
@@ -20,12 +20,9 @@ export type HeroBody =
   | { kind: 'prefill'; fraction: number; counts: string | null; eta: string | null; tip: Tip }
   | { kind: 'decode'; tip: Tip }
   | { kind: 'word'; unit: string; note: Val | null };
-export type NextView =
-  | { kind: 'offer' } | { kind: 'watch'; runtime: string } | { kind: 'armed'; left: string; tip: Tip }
-  | { kind: 'measuring'; elapsed: string } | { kind: 'result' };
 export interface ReplyView {
   chip: Chip | null; tip: Tip | null; when: string | null; empty: string | null;
-  values: Val[]; split: Val[]; usual: Chip | null; next: NextView | null; model?: string;
+  values: Val[]; split: Val[]; usual: Chip | null; model?: string;
 }
 export interface HeroView { instrument: SessionSectionView; speeds: SpeedsView; title: string; model?: string | null; chatOnly?: boolean; attr: { chip: Chip; tip: Tip } | null; body: HeroBody | null; engineTrend: { chart: ChartView | null; current?: boolean } | null; firstToken: Val | null; context: { used: string; basis: Basis; fraction: number; tip: Tip } | null; reply: ReplyView | null }
 export interface Tile { label: string; value: string; detail: string; meter: number | null; basis?: Basis }
@@ -100,46 +97,19 @@ const contextBlock = (s: ScopeInput): HeroView['context'] => {
     tip: tip('ctx', 'Context used', ['Prompt and output tokens compared with the model’s context limit.', 'OpenCode may shorten the chat before this limit.']) };
 };
 
-const nextView = (s: ScopeInput): NextView | null => {
-  const snapshot = s.snapshot!, next = s.next;
-  if (s.paused || statusCopy(snapshot) || !snapshot.capabilities['server.completions'] || snapshot.runtime.phase === 'not-loaded') return null;
-  switch (next.kind) {
-    case 'offer-watch': return { kind: 'watch', runtime: next.runtime };
-    case 'armed': return { kind: 'armed', left: mmss(Math.max(0, 120_000 - (s.now - next.at))),
-      tip: tip('armed', 'Next reply', ['Waiting for your next message in this chat. Measures one reply, then stops.', 'Cancels if you switch chats, the server stops responding, or Scope closes or becomes hidden.']) };
-    case 'measuring': return { kind: 'measuring', elapsed: dur(Math.max(0, s.now - next.startedAt)) };
-    case 'result': return { kind: 'result' };
-    default: return { kind: 'offer' };
-  }
-};
 const usualChip = (s: ScopeInput): Chip | null => {
   const flag = s.last?.flag, usual = s.last?.vsUsual;
   if (flag) return { text: `Slower · ${delta(flag.recentMedian / flag.p50 - 1)} · last 3`, tone: 'warn', basis: 'derived' };
   return usual ? { text: `${delta(usual.ratio - 1)} vs usual`, basis: 'derived' } : null;
 };
 const replyView = (s: ScopeInput): ReplyView | null => {
-  const snapshot = s.snapshot!, rt = rtName(snapshot.connection), next = s.next;
+  const snapshot = s.snapshot!, rt = rtName(snapshot.connection);
   if (!snapshot.capabilities['server.completions'] || s.paused) return null;
-  const nextRow = nextView(s);
-  if (next.kind === 'result') {
-    const steps = next.steps, rate = weightedTps(steps), output = steps.reduce((sum, step) => sum + (step.outputTokens ?? 0), 0);
-    const model = steps.reduce((sum, step) => sum + (step.startedAt === null ? 0 : step.finishedAt - step.startedAt), 0), whole = next.endedAt - next.startedAt;
-    const label: AttributionLabel = next.attributed ? { kind: 'armed' }
-      : { kind: 'server-wide', reason: steps.find(step => step.verdict?.attr === 'withheld')?.verdict?.reason ?? 'not-observed' };
-    return { chip: attrChip(label), when: ago(next.endedAt, s.now), empty: null, usual: null, next: nextRow,
-      tip: next.attributed
-        ? tip('reply', 'Last reply · Next reply', ['Measured at your request. Turn times come from OpenChamber; speed comes from server readings for each step.'])
-        : tip('reply', 'Last reply · All server activity', ['A step couldn’t be tied to this chat: no turn summary.', ...attrTip('reply', label, snapshot, false, s.chatRuntime).paras]),
-      values: [...rate !== null ? [{ text: '', strong: tps(rate), unit: 'tok/s', basis: steps.length > 1 ? 'derived' : steps[0]!.basis } satisfies Val] : [],
-        { text: '', strong: int(output), unit: 'out', basis: 'reported' },
-        ...steps[0]?.ttftMs != null && steps[0].basis !== 'last-observed' ? [{ text: 'First token', strong: dur(steps[0].ttftMs), basis: steps[0].basis } satisfies Val] : []],
-      split: next.attributed ? [{ text: 'Turn', strong: dur(whole), basis: 'observed' }, ...model > 0 ? [{ text: 'Model · tool', strong: `${dur(model)} · ${dur(Math.max(0, whole - model))}`, basis: 'observed' } satisfies Val] : []] : [] };
-  }
   const last = s.last;
-  if (!last) return { chip: null, tip: null, when: null, empty: 'No replies yet · replies appear while Scope is open', values: [], split: [], usual: null, next: nextRow };
+  if (!last) return { chip: null, tip: null, when: null, empty: 'No replies yet · replies appear while Scope is open', values: [], split: [], usual: null };
   const c = last.completion, flag = last.flag, usual = last.vsUsual;
   return {
-    chip: attrChip(last.label), model: c.model ?? undefined, when: ago(c.finishedAt, s.now), empty: null, next: nextRow, split: [], usual: usualChip(s),
+    chip: attrChip(last.label), model: c.model ?? undefined, when: ago(c.finishedAt, s.now), empty: null, split: [], usual: usualChip(s),
     tip: tip('reply', 'Last reply', [
       flag ? `Middle speed of the last 3 replies: ${tps(flag.recentMedian)} tok/s. Usual middle speed: ${tps(flag.p50)}, from ${flag.n} replies.`
         : usual ? `${delta(usual.ratio - 1)} against the usual speed for this model and context size, from ${usual.n} replies.` : null,

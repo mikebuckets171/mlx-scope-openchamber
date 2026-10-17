@@ -3,14 +3,14 @@ import { parseSnapshotV2 } from '../../../src/contract/snapshot.ts';
 import { presentLive } from '../../present/live.ts';
 import { SERVER_WIDE, type ScopeInput } from '../../present/scope.ts';
 import { presentServer } from '../../present/server.ts';
-import { presentStatusSection } from '../../present/status.ts';
+import { presentSessionSection } from '../../present/session.ts';
 import { fromSnapshot } from '../../present/reading.ts';
 import { MOCK_NOW, MOCK_STATES, mockBody } from '../../testing/mock-states.ts';
 import { esc, html } from '../html.ts';
 import { frameCardMarkup, shellMarkup } from '../shell.ts';
 import { liveMarkup } from './live.ts';
 import { serverMarkup } from './server.ts';
-import { statusHeight, statusMarkup } from './status.ts';
+import { sessionMarkup } from './session.ts';
 
 const snapshotOf = (state: string, patch: (body: Record<string, any>) => void = () => {}) => {
   const body = JSON.parse(JSON.stringify(mockBody(state))); patch(body);
@@ -19,7 +19,7 @@ const snapshotOf = (state: string, patch: (body: Record<string, any>) => void = 
 const inputOf = (state: string, patch?: (body: Record<string, any>) => void, extra: Partial<ScopeInput> = {}): ScopeInput => {
   const snapshot = snapshotOf(state, patch), last = snapshot.completions.items.at(-1) ?? null;
   return { now: MOCK_NOW, version: '2.0.0', snapshot, fresh: true, frame: null, paused: false, attribution: { kind: 'inferred' }, chatRuntime: null,
-    last: last ? { completion: last, label: { kind: 'inferred' }, vsUsual: null, flag: null } : null, next: { kind: 'idle' }, samples: [], turnStartAt: null, ...extra };
+    last: last ? { completion: last, label: { kind: 'inferred' }, vsUsual: null, flag: null } : null, samples: [], turnStartAt: null, ...extra };
 };
 
 test('every value is escaped: a hostile model name renders as text in every view', () => {
@@ -47,12 +47,11 @@ test('ⓘ disclosures are 24 px buttons with aria-expanded and aria-controls, th
 
 test('every mock state renders every view without a raw placeholder', () => {
   for (const state of MOCK_STATES) {
-    const input = inputOf(state), status = presentStatusSection({ now: MOCK_NOW, reading: fromSnapshot(input.snapshot!), snapshot: input.snapshot,
-      attribution: SERVER_WIDE, turn: null, vsUsual: null, sparkline: null, chatIsLocal: true, expanded: false, tipDismissed: true, fresh: true });
-    const markup = [liveMarkup(presentLive(input), new Set()), serverMarkup(presentServer(input.snapshot, MOCK_NOW), new Set()), statusMarkup(status)].map(item => item.markup).join('');
+    const input = inputOf(state), session = presentSessionSection({ now: MOCK_NOW, reading: fromSnapshot(input.snapshot!), snapshot: input.snapshot,
+      attribution: SERVER_WIDE, chatIsLocal: true, fresh: true });
+    const markup = [liveMarkup(presentLive(input), new Set()), serverMarkup(presentServer(input.snapshot, MOCK_NOW), new Set()),
+      sessionMarkup(session, null, false, true), sessionMarkup(session, null, true, true)].map(item => item.markup).join('');
     expect(markup, state).not.toMatch(/undefined|NaN|\[object|VRAM/);
-    expect(markup, state).toContain(`style="height:${statusHeight(status)}px"`);
-    expect(statusMarkup(status, true).markup, `${state} compact`).toContain(`style="height:${statusHeight(status, true)}px"`);
   }
 });
 
@@ -85,7 +84,7 @@ test('the full page fills its readout at rest and folds only the parts that hold
   expect(live).toMatch(/class="instrument-measure" data-quiet="false"/);
 });
 
-test('one column of truth: no workspace tabs; History, Captures and Server are secondary views with Back', () => {
+test('one column of truth: no workspace tabs; History and Server are secondary views with Back', () => {
   const shell = shellMarkup().markup;
   expect(shell).not.toMatch(/role="tab"|role="tablist"|role="tabpanel"/);
   // The column holds This chat and its engine, then the state-driven Media block, then the foot actions.
@@ -94,10 +93,9 @@ test('one column of truth: no workspace tabs; History, Captures and Server are s
   expect(shell).toMatch(/<section class="column-block" id="view-media" aria-label="Media" hidden>/);
   expect(shell).toContain('data-action="open-history">History</button>');
   expect(shell).toContain('data-action="open-server" id="open-server">Server &amp; Mac details</button>');
-  for (const [id, back] of [['history', 'back-live'], ['captures', 'back-history']] as const) {
-    expect(shell).toContain(`aria-labelledby="${id}-title"`);
-    expect(shell).toContain(`data-action="${back}"`);
-  }
+  expect(shell).toContain('aria-labelledby="history-title"');
+  expect(shell).toContain('data-action="back-live"');
+  expect(shell).not.toMatch(/captures|Captures|back-history/);
 });
 
 test('runtime diagnostics are available in a disclosure without displacing server measurements', () => {
@@ -134,7 +132,7 @@ test('Engine trend retains compatible history during tools without admitting cha
   expect(view.hero?.instrument).toMatchObject({ phase: 'Using tools', measurement: null });
   expect(view.hero?.engineTrend?.chart).toMatchObject({ points: 2, ceiling: '35 tok/s' });
   expect(markup).toContain('id="engine-trend"');
-  expect(markup).toContain('Engine trend · 90 seconds');
+  expect(markup).toContain('<span>Engine trend</span>');
   expect(markup.indexOf('id="engine-trend"')).toBeLessThan(markup.indexOf('id="measurement-details"'));
   expect(markup).toContain('id="signal"');
   expect(markup).not.toContain('id="rate"');
@@ -222,18 +220,13 @@ test('completed chat facts never borrow output or first-token timing from an eng
 });
 
 
-test('the machine summary omits empty health and measurement regions without hiding reported facts', () => {
+test('This Mac sits beside the instrument with its readings, and warns only where macOS reports pressure', () => {
   const view = presentLive(inputOf('decode'));
   expect(view.mac).not.toBeNull();
-  const mac = view.mac!;
-  const healthy = { ...mac, rows: mac.rows.map(row => ({ ...row, level: 'normal' as const })) };
-  const filled = liveMarkup({ ...view, mac: healthy }, new Set()).markup;
-  expect(filled).toContain('class="machine-summary-values"');
-  expect(filled).not.toContain('class="machine-health"');
-  const empty = liveMarkup({ ...view, mac: { ...healthy, line: [] } }, new Set()).markup;
-  expect(empty).not.toContain('class="machine-summary-values"');
-  expect(empty).not.toContain('class="machine-health"');
-  expect(empty).toContain(esc(mac.title));
-  const warning = liveMarkup(presentLive(inputOf('pressure')), new Set()).markup;
-  expect(warning).toContain('class="machine-health"');
+  const markup = liveMarkup(view, new Set()).markup;
+  expect(markup).toContain('<aside class="next-live-context" aria-label="This Mac">');
+  expect(markup).toContain('class="machine-line"');
+  expect(markup).toContain(esc(view.mac!.title));
+  expect(markup).not.toContain('data-level="warning"');
+  expect(liveMarkup(presentLive(inputOf('pressure')), new Set()).markup).toContain('data-level="warning"');
 });

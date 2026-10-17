@@ -116,8 +116,5 @@ export const connectScopeHost = (): HostClient & { setVisible(visible: boolean):
     onSessions: (id, listener) => sdk.onSessions(id, value => listener({ state: value.state,
       sessions: value.sessions.filter(row => row.archivedAt === null).slice(0, 200).map(({ id, title, parentId, activity, outcome, archivedAt }) =>
         ({ id, title: title.slice(0, 120), parentId, activity, outcome, archivedAt })) })),
-    onRunningShells: (scope, listener) => sdk.onRunningShells(scope, value => listener({
-      shells: value.shells.slice(0, 200).map(({ id, command, startedAt, background }) => ({ id, command: command.slice(0, 240), startedAt, background })),
-      ended: value.ended.slice(-200).map(({ id, command, startedAt, background, status, exit }) => ({ id, command: command.slice(0, 240), startedAt, background, status, exit })) })),
     setVisible: visible => events.setVisible(visible), dispose: () => { events.dispose(); sdk.dispose(); } };
 };

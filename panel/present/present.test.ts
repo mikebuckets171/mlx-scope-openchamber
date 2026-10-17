@@ -6,8 +6,6 @@ import type { TurnSummary } from '../attribution/turn.ts';
 import { liveChart } from '../render/chart.ts';
 import type { SignalPoint } from '../signal.ts';
 import { MOCK_NOW, MOCK_STATES, mockBody } from '../testing/mock-states.ts';
-import { presentAlerts } from './alerts.ts';
-import { presentCapture, presentGeneration, savedValue } from './captures.ts';
 import { APPROVAL, RESTART, TIP } from './copy.ts';
 import { ago, delta, dur, kt, mmss, pct, size, tps } from './format.ts';
 import { frameCard, presentHeader } from './header.ts';
@@ -15,7 +13,6 @@ import { heroKind, presentLive } from './live.ts';
 import { frameReading, fromSnapshot } from './reading.ts';
 import { SERVER_WIDE, type ScopeInput } from './scope.ts';
 import { presentServer } from './server.ts';
-import { HEIGHTS, presentStatusSection, type StatusSectionInput } from './status.ts';
 
 // 2.0 presenters on the approved G2 mock's v2 states (docs/design/2.0-mock-fixtures.json): the strings the mock shows,
 // the basis rule, the left-out rule and the honesty wording, pinned next to the presenters.
@@ -24,7 +21,7 @@ const inputOf = (state: string, extra: Partial<ScopeInput> = {}): ScopeInput => 
   const snapshot = snapshotOf(state), last = snapshot.completions.items.at(-1) ?? null;
   return { now: MOCK_NOW, version: '2.0.0', snapshot, fresh: true, frame: null, paused: false, attribution: { kind: 'inferred' }, chatRuntime: null,
     last: last ? { completion: last, label: last.verdict?.attr === 'inferred' ? { kind: 'inferred' } : SERVER_WIDE, vsUsual: null, flag: null } : null,
-    next: { kind: 'idle' }, samples: [], turnStartAt: null, ...extra };
+    samples: [], turnStartAt: null, ...extra };
 };
 const everything = (value: unknown): string => JSON.stringify(value);
 
@@ -54,7 +51,6 @@ test('decode: one hero speed with its basis ⓘ, context used, the request tiles
   expect(hero.attr?.tip.paras.join(' ')).toContain('Alternating requests from another chat can’t be ruled out.');
   expect(hero.context?.used).toBe('52.7K of 131K tokens');
   expect(hero.reply?.values.map(v => [v.strong, v.unit, v.basis])).toEqual([['24.9', 'tok/s', 'last-observed'], ['1,104', 'out', 'reported']]);
-  expect(hero.reply?.next).toEqual({ kind: 'offer' });
   expect(view.tiles.map(tile => [tile.label, tile.value, tile.detail])).toEqual([['Output', '612', 'tokens so far'], ['Elapsed', '38 s', 'since it started'],
     ['Input reused', '83%', '43.0K cached'], ['Requests', '1', 'Queue clear']]);
   const mac = view.mac!;
@@ -193,98 +189,6 @@ test('Server optional readings preserve measured zero and omit absent values wit
   snapshot.runtime.server.averages = {};
   expect(presentServer(snapshot, MOCK_NOW).cards.some(card => card.key === 'session')).toBe(false);
 });
-
-const statusOf = (state: string, extra: Partial<StatusSectionInput> = {}) => {
-  const snapshot = snapshotOf(state), last = snapshot.completions.items.at(-1) ?? null;
-  return presentStatusSection({ now: MOCK_NOW, reading: fromSnapshot(snapshot), snapshot, attribution: { kind: 'inferred' }, turn: null, vsUsual: null,
-    sparkline: null, chatIsLocal: true, expanded: false, tipDismissed: true, fresh: true,
-    last: last ? { completion: last, label: last.verdict?.attr === 'inferred' ? { kind: 'inferred' } : SERVER_WIDE } : null, ...extra });
-};
-const trend = (values: Array<number | null>): TrendV2 => ({ contractVersion: 2, serverNow: MOCK_NOW, windowMs: 900_000, bucketMs: 5_000, startAt: MOCK_NOW - 900_000,
-  series: { decodeTps: { basis: 'reported', buckets: values.map(v => v === null ? null : [v, v, v]) } }, gaps: [], marks: [] });
-
-test('Work Status glance: 56 px, 80 with an alert, 24 for a non-local chat, 96 with the one-time tip', () => {
-  expect(statusOf('decode')).toMatchObject({ mode: 'glance', height: HEIGHTS.glance, glance: { line1: { model: 'Example-27B', rate: '26.4', chip: { text: 'Likely this chat' } } } });
-  expect(statusOf('pressure')).toMatchObject({ height: HEIGHTS.alert, glance: { alert: { severity: 'warning', text: 'macOS memory pressure: warning', more: 1 } } });
-  expect(statusOf('decode', { chatIsLocal: false })).toMatchObject({ mode: 'non-local', height: 24 });
-  expect(statusOf('decode', { tipDismissed: false })).toMatchObject({ height: 96, glance: { line2: null, notice: { text: TIP, dismiss: 'tip' } } });
-  // A server-wide chip is short and needs its reason line, so the reason stays beside the tip.
-  expect(statusOf('decode', { tipDismissed: false, attribution: { kind: 'server-wide', reason: 'not-observed' } }))
-    .toMatchObject({ height: 120, glance: { line1: { chip: { text: 'All server activity' }, describedBy: true }, line2: { reason: 'not recorded' }, notice: { dismiss: 'tip' } } });
-  expect(TIP).toBe('Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place');
-  expect(statusOf('idle', { firstRun: true })).toMatchObject({ height: 80, glance: { notice: { text: 'Recording reply history locally', action: 'Open Scope to manage' } } });
-  expect(statusOf('prefill').glance!.line2).toEqual({ kind: 'prefill', percent: '64%', eta: '18 s', toggle: true });
-  expect(statusOf('offline').glance!.line1).toMatchObject({ dot: 'bad', title: 'oMLX stopped responding' });
-  expect(statusOf('splash-recovering').glance!.line2).toEqual({ kind: 'note', text: 'Scope reads its status every 30 s' });
-  const approval = presentStatusSection({ ...statusInputFrame('needs_approval') });
-  expect(approval).toMatchObject({ height: 56, glance: { line1: { title: 'MLX Scope needs one approval' } } });
-  // A withheld live reading: a short chip whose reason is line 2.
-  const withheld = statusOf('decode', { attribution: { kind: 'server-wide', reason: 'model-differs' } });
-  expect(withheld.glance!.line1).toMatchObject({ chip: { text: 'All server activity' }, describedBy: true });
-  expect(withheld.glance!.line2).toMatchObject({ kind: 'spark', reason: 'different chat model' });
-  // The glance reserves its limited space for reply measurements and warnings; GPU remains in details.
-  expect(statusOf('decode').glance!.line2).toMatchObject({ chips: [] });
-  expect(statusOf('pressure-critical').glance!.alert).toMatchObject({ severity: 'critical' });
-});
-const statusInputFrame = (reason: 'needs_approval' | 'contract_mismatch'): StatusSectionInput => ({ now: MOCK_NOW, reading: frameReading(reason, null, MOCK_NOW),
-  snapshot: null, attribution: SERVER_WIDE, turn: null, vsUsual: null, sparkline: null, chatIsLocal: null, expanded: false, tipDismissed: true });
-
-test('the sparkline needs 2 readings and breaks where the trend has no reading', () => {
-  expect(statusOf('decode', { sparkline: trend([null, 26, null]) }).glance!.line2).toMatchObject({ spark: null });
-  const line = statusOf('decode', { sparkline: trend([25, 26, null, 24, 25]) }).glance!.line2 as { spark: { path: string; label: string } };
-  expect(line.spark.path.match(/M/g)).toHaveLength(2);
-  expect(line.spark.label).toBe('Generation speed, last 15 min: 24.0 to 26.0 tokens per second');
-});
-
-test('Turn stats replacement: the host\'s rows, basis only on non-reported rows, unreportable rows left out, ≤ 200 px', () => {
-  const summary: TurnSummary = { wallMs: 112_000, modelMs: 75_000, toolMs: 37_000, steps: 3, firstTtftMs: 520, promptTokens: 54_400, cachedTokens: 33_200,
-    outputTokens: 3_104, decodeTps: 38.1, cacheFraction: 0.61 };
-  const fullTurn: Partial<StatusSectionInput> = { expanded: true, turn: summary, vsUsual: { metric: 'decodeTps', ratio: 1.02, n: 23, basis: 'reported' },
-    last: { completion: snapshotOf('bionic').completions.items.at(-1)!, label: { kind: 'inferred' } } };
-  const bionic = statusOf('bionic', fullTurn);
-  expect(bionic.mode).toBe('turn-stats');
-  expect(bionic.rows.map(row => row.label)).toEqual(['Response', 'Turn time', 'Model · tool time', 'First token', 'Tokens in · out', 'Cache %', 'Context used', 'vs usual']);
-  expect(bionic.rows.map(row => row.basis)).toEqual(['derived', 'observed', 'observed', null, null, null, 'calculated', 'derived']);
-  expect(bionic.height).toBe(192);
-  expect(bionic.turn).toMatchObject({ title: 'Last turn', sub: '3 steps', chip: { text: 'Likely this chat' } });
-  const pressure = snapshotOf('pressure'), warning = { ...snapshotOf('bionic'), alerts: pressure.alerts, host: pressure.host };
-  const largest = statusOf('bionic', { ...fullTurn, snapshot: warning });
-  expect(largest.rows).toEqual(bionic.rows);
-  expect(largest.turn?.alert?.severity).toBe('warning');
-  expect(largest.height).toBe(200);
-  // oMLX reports no TTFT: the row is left out, and token counts are Scope's last readings.
-  const omlx = statusOf('idle', { expanded: true, turn: { ...summary, firstTtftMs: null }, last: { completion: snapshotOf('idle').completions.items.at(-1)!, label: { kind: 'inferred' } } });
-  expect(omlx.rows.map(row => row.label)).not.toContain('First token');
-  expect(omlx.rows.find(row => row.label === 'Tokens in · out')?.basis).toBe('last reading');
-  expect(omlx.rows.find(row => row.label === 'Context used')?.basis).toBe('last reading');
-  // A withheld turn: no summary; the last reply, server-wide, with its reason.
-  const withheld = statusOf('bionic', { expanded: true, last: { completion: snapshotOf('bionic').completions.items.at(-1)!, label: { kind: 'server-wide', reason: 'overlap' } } });
-  expect(withheld.turn).toMatchObject({ title: 'Last reply', reason: 'several requests at once · no turn summary', chip: { text: 'All server activity' } });
-  expect(withheld.rows.map(row => row.label)).toEqual(['Response', 'First token', 'Tokens in · out', 'Cache %', 'Context used']);
-  expect(withheld.rows.find(row => row.label === 'Context used')?.basis).toBe('calculated');
-  for (const view of [bionic, omlx, withheld]) expect(view.height).toBeLessThanOrEqual(200);
-});
-
-test('alerts: most severe first, the log with durations', () => {
-  const snapshot = snapshotOf('pressure'), view = presentAlerts(snapshot.alerts, snapshot.alertLog, MOCK_NOW);
-  expect(view.top).toMatchObject({ severity: 'warning', text: 'macOS memory pressure: warning' });
-  expect(view.rows.map(row => row.id)).toEqual(['pressure-warning', 'swap-growth']);
-  expect(view.log.length).toBe(snapshot.alertLog.length);
-  expect(view.log.every(entry => entry.duration)).toBe(true);
-});
-
-test('captures, recent generations and saved values format bytes through the one GiB formatter', () => {
-  const capture = { model: 'm', targetSeconds: 30 as const, startedAt: 0, lastAt: 1, seconds: 12.34, samples: 25, decodeSeconds: 10, decodeTokens: 250,
-    peakProcessBytes: 34.5e9, processSamples: 3, meanCPU: 28.44, peakCPU: 35.1, cpuSamples: 6, meanMemoryBytes: Math.round(36.1 * 1024 ** 3),
-    peakMemoryBytes: 48 * 1024 ** 3, memorySamples: 6, requestCountChange: 2, startSwapBytes: null, lastSwapBytes: null, status: 'finished' as const, note: 'n' };
-  expect(presentCapture(capture, null, false, null)).toMatchObject({ state: 'Captured', speed: '25.0 tok/s', memory: '32.1 GiB', cpu: '28.4 / 35.1 %',
-    hostMemory: '36.1 / 48.0 GiB', requests: '2', duration: '12.3s', change: 'Different recording' });
-  expect(presentGeneration({ sequence: 1, model: 'org/model', epoch: 1, firstSeenAt: 0, lastSeenAt: 0, outputTokens: 1_234, averageTPS: 24,
-    elapsedMs: 1_000, promptTokens: null, cachedTokens: null, peakProcessBytes: 34.5e9, coverage: 'monitoring-gap' }))
-    .toMatchObject({ name: 'model', speed: '24 tok/s', tokens: '1,234 tokens last seen', note: 'Monitoring gap · 32.1 GiB peak server memory' });
-  expect([savedValue('prefillRemaining', 0.4), savedValue('memory', 36.10000000037253), savedValue('cpu', null)]).toEqual(['<1', '36.1', '—']);
-});
-
 
 test('an unidentified chat does not claim a reconnecting service or local connection', () => {
   const view = presentHeader(inputOf('decode', { snapshot: null, frame: { reason: 'chat_unavailable', message: 'Choose Whole engine' } }));

@@ -10,7 +10,6 @@ import {
   parseModels, parsePref, rand4, replyRow, retentionDays, rowIdentity, rowTimeS, toSeconds, verdictAttr,
   type ChunkV2, type LedgerAttr, type LedgerCursor, type LedgerMeta, type LedgerRow, type ReplyRow, type TurnRow,
 } from './ledger-schema.ts';
-import { migrateV1 } from './migrate-v1.ts';
 import { PrefStore } from './prefs.ts';
 
 // Owner: ledger. Leader-only writes (P9); flush at most every 5 min, at 50 pending rows, or on hide/pagehide (S5, G1),
@@ -109,15 +108,9 @@ export class Ledger {
     const epoch = ++this.#epoch;
     this.#reset();
     try {
-      let entries = await this.#entries();
+      // 1.x saves (observation.v1.*) and earlier captures stay in storage untouched; nothing migrates them now.
+      const entries = await this.#entries();
       if (epoch !== this.#epoch) return;
-      const meta = parseMeta(new Map(entries).get(KEYS.meta));
-      if (!meta?.migratedAt && entries.some(([key]) => key.startsWith(KEYS.legacyObservationPrefix))) {
-        // A failed migration is retried at the next start; it never keeps the ledger from recording.
-        await migrateV1(this.#options.storage, this.#options.now()).catch(() => undefined);
-        entries = await this.#entries();
-        if (epoch !== this.#epoch) return;
-      }
       this.#load(entries);
       // A frame that led before this one may have gone without flushing (pagehide cannot finish storage round trips),
       // so the first rows re-read from the ring through the persisted cursor are flushed at once. Idle stays write-free:

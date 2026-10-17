@@ -8,16 +8,15 @@ import { frameReading, fromSnapshot } from './reading.ts';
 import { presentSessionSection } from './session.ts';
 import { presentLive } from './live.ts';
 import { SERVER_WIDE } from './scope.ts';
-import type { StatusSectionInput } from './status.ts';
+import type { SessionSectionInput } from './session.ts';
 import type { ChatMeasurement } from '../../src/contract/chat.ts';
 
-const inputOf = (state: string, extra: Partial<StatusSectionInput> = {}, patch: (body: Record<string, any>) => void = () => {}): StatusSectionInput => {
+const inputOf = (state: string, extra: Partial<SessionSectionInput> = {}, patch: (body: Record<string, any>) => void = () => {}): SessionSectionInput => {
   const body = structuredClone(mockBody(state)); patch(body);
   const snapshot = parseSnapshotV2(body)!;
   const completion = snapshot.completions.items.at(-1);
   return { now: MOCK_NOW, reading: fromSnapshot(snapshot), snapshot, attribution: SERVER_WIDE,
-    turn: null, vsUsual: null, sparkline: null, chatIsLocal: true, expanded: true, tipDismissed: false,
-    firstRun: true, firstRunDismissed: false, fresh: true,
+    chatIsLocal: true, fresh: true,
     last: completion ? { completion, label: SERVER_WIDE } : null, ...extra };
 };
 
@@ -125,16 +124,6 @@ test('the sidebar shows only the priority warning and keeps secondary alerts in 
   expect(sessionMarkup(view).markup).not.toMatch(/\+1 more|Heat:/);
 });
 
-test('an active next-reply measurement remains labelled and cancellable in Session', () => {
-  const armed = presentSessionSection(inputOf('idle', { next: { kind: 'armed', at: MOCK_NOW - 12_000 } }));
-  expect(armed).toMatchObject({ phase: 'Idle', cancelMeasurement: true });
-  expect(armed.note).toMatch(/^Next reply armed/);
-  expect(sessionMarkup(armed).markup).toContain('data-action="next-cancel">Cancel');
-  const measuring = presentSessionSection(inputOf('decode', { next: { kind: 'measuring', startedAt: MOCK_NOW - 9_000, steps: [] } }));
-  expect(measuring).toMatchObject({ phase: 'Generating', cancelMeasurement: true,
-    measurement: { text: '26.4' }, note: 'Recording reply · 9.0 s' });
-});
-
 test('retained readings never appear as live speed and freshness can recover', () => {
   const input = inputOf('decode'), retained = presentSessionSection({ ...input, fresh: false });
   expect(retained).toMatchObject({ phase: 'Waiting for update', measurement: null, tone: 'warning' });
@@ -172,7 +161,7 @@ test('Energy saving explains an absent active recent speed without hiding a vali
 test('a cloud chat stays quiet without borrowing engine measurements or local warnings', () => {
   const view = presentSessionSection(inputOf('pressure', { chatIsLocal: false }));
   expect(view).toMatchObject({ phase: 'Ready', note: null,
-    tone: 'normal', measurement: null, alert: null, cancelMeasurement: false });
+    tone: 'normal', measurement: null, alert: null });
   expect(sessionMarkup(view).markup).not.toMatch(/Memory pressure|tok\/s|ws-model/);
   expect(sessionMarkup(view).markup).toContain('Open MLX Scope');
 });
@@ -372,7 +361,7 @@ test('cloud completed average stays labelled last and cloud, and does not claim 
 test('cloud full view excludes local diagnostics, charts, older replies and captures', () => {
   const input = inputOf('pressure', { chatIsLocal: false }, body => { body.chat = chatSample(); });
   const view = presentLive({ ...input, last: null, version: '3.0.0', fresh: true, paused: false, frame: null,
-    chatRuntime: null, next: { kind: 'idle' }, samples: [], turnStartAt: null });
+    chatRuntime: null, samples: [], turnStartAt: null });
   expect(view.callouts).toEqual([]);
   expect(view.tiles).toEqual([]);
   expect(view.mac).toBeNull();
@@ -432,7 +421,7 @@ test('never dark: the engine’s own request clock is preferred, and reported pr
     text: `${Math.floor(elapsed / 1_000)}\u00a0s` });
   expect(presentSessionSection(inputOf('prefill', { window, chatActivity: 'busy' })).measurement).toMatchObject({ kind: 'progress', text: '64%' });
   // The hero's elapsed time is not repeated as a tile.
-  const live = presentLive({ ...noProgress, last: noProgress.last ? { ...noProgress.last, vsUsual: null, flag: null } : null, fresh: true, paused: false, version: '3.2.0', frame: null, chatRuntime: null, next: { kind: 'idle' }, samples: [], turnStartAt: null });
+  const live = presentLive({ ...noProgress, last: noProgress.last ? { ...noProgress.last, vsUsual: null, flag: null } : null, fresh: true, paused: false, version: '3.2.0', frame: null, chatRuntime: null, samples: [], turnStartAt: null });
   expect(liveMarkup(live, new Set()).markup.split('id="measurement-details"')[0]).not.toContain('>Elapsed</span>');
 });
 
@@ -454,7 +443,7 @@ test('the previous completed average is held, dimmed and labelled, below a live 
   const input = inputOf('decode', {}, body => { body.completions.items.at(-1).basis = 'reported'; }), view = presentSessionSection(input);
   expect(view.measurement).toMatchObject({ live: true, kind: 'speed' });
   expect(view.held).toMatchObject({ text: 'Last engine reply · 24.9 tok/s · 1 min ago' });
-  expect(liveMarkup(presentLive({ ...input, last: input.last ? { ...input.last, vsUsual: null, flag: null } : null, fresh: true, paused: false, version: '3.2.0', frame: null, chatRuntime: null, next: { kind: 'idle' }, samples: [], turnStartAt: null }), new Set()).markup)
+  expect(liveMarkup(presentLive({ ...input, last: input.last ? { ...input.last, vsUsual: null, flag: null } : null, fresh: true, paused: false, version: '3.2.0', frame: null, chatRuntime: null, samples: [], turnStartAt: null }), new Set()).markup)
     .toContain('class="instrument-held" data-held="true"');
   for (const extra of [{ chatIsLocal: false }, { paused: true }, { fresh: false }, { window: { tag: 'a', startedAt: MOCK_NOW - 100, endedAt: MOCK_NOW, outcome: 'failure' as const } }])
     expect(presentSessionSection({ ...input, ...extra }).held, JSON.stringify(extra)).toBeNull();
@@ -465,7 +454,7 @@ test('the previous completed average is held, dimmed and labelled, below a live 
 });
 
 test('at rest the glance shows the engine’s own record instead of empty rows, labelled and never live', () => {
-  const rest = (extra: Partial<StatusSectionInput> = {}, patch: (body: Record<string, any>) => void = () => {}) => presentSessionSection(inputOf('idle', { restingFacts: true,
+  const rest = (extra: Partial<SessionSectionInput> = {}, patch: (body: Record<string, any>) => void = () => {}) => presentSessionSection(inputOf('idle', { restingFacts: true,
     chatActivity: 'idle', last: null, measurementScope: 'engine', ...extra }, body => {
     body.runtime.server.averages = { decodeTps: 35.73, prefillTps: 284.2 }; body.capabilities['server.averages'] = { scope: 'server', basis: 'reported' };
     body.runtime.memory = { metalBytes: 25_663_782_912 }; body.capabilities['server.memory.metal'] = { scope: 'server', basis: 'reported' };

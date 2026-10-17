@@ -2,10 +2,14 @@ import { expect, test } from 'bun:test';
 import corpus from '../../tests/fixtures/omlx-monitoring.json';
 import { gbToBytes, percentToFraction, secondsToMs } from '../../src/contract/units.ts';
 import { normalizeOmlxTelemetry } from '../../src/telemetry.ts';
-import { cacheSplit } from '../../panel/insights.ts';
 import { requestOf } from './omlx.ts';
 import { normalizeOmlx, type OmlxNormalized } from './omlx-normalize.ts';
 import { fixture, fixtureFiles, type Version } from './testing/omlx.ts';
+/** Reused share of the prompt, as the 1.x insight computed it. */
+const cacheSplit = (total: number | null | undefined, reused: number | null | undefined) =>
+  total == null || reused == null || !Number.isSafeInteger(total) || !Number.isSafeInteger(reused) || total <= 0 || reused < 0 || reused > total
+    ? null : { percent: reused / total * 100 };
+
 
 type Case = { name: string; activity: unknown; stats?: unknown; contextWindows?: Record<string, number>; invalid?: boolean; expected?: Record<string, unknown> };
 const cases = corpus.cases as Case[];

@@ -17,8 +17,8 @@ export const CHECK_SUITES = [
   { id: 'service', executable: 'bun', args: ['test', ...['companion-setup', 'chat-telemetry', 'chat-telemetry-review'].map(name => `service/${name}.test.ts`)] },
   { id: 'host-storage', executable: 'bun', args: ['test', 'panel/host', 'panel/sdk-theme.test.ts', 'panel/attribution',
     'panel/state/follow-chat.test.ts', 'panel/data/client.test.ts', 'panel/data/visibility.test.ts', 'panel/data/poller.test.ts',
-    'panel/testing/storage.test.ts', 'panel/history/storage-compatibility.test.ts', 'panel/history/migrate-v1.test.ts',
-    'panel/history/ledger.test.ts', 'panel/history/prefs.test.ts', 'panel/captures/store.test.ts'] },
+    'panel/testing/storage.test.ts', 'panel/history/storage-compatibility.test.ts',
+    'panel/history/ledger.test.ts', 'panel/history/prefs.test.ts'] },
   { id: 'privacy', executable: 'bun', args: ['scripts/scan-committed.ts'] },
   { id: 'build-consistency', executable: 'bun', args: ['scripts/check-built-artifacts.ts'] },
   // Verifies the existing bundles, a reproducible ZIP and its extracted service under the synthetic smoke host.

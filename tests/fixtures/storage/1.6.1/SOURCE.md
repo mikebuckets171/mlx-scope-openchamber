@@ -1,7 +1,8 @@
 # Extension storage fixtures · MLX Scope 1.6.1
 
 **What this folder is:** the `observation.v1.*` records MLX Scope 1.6.1 writes to OpenChamber extension storage (Saved
-observations), and the `capture.v2.*` records the 2.0 migration (`panel/history/migrate-v1.ts`) must produce from them.
+observations), and the `capture.v2.*` records the 2.0–5.0 migration produced from them. Scope 5.1 no longer migrates or
+shows either kind; its tests use these files to prove it leaves them untouched and still counts them.
 
 | File | What it holds |
 |---|---|

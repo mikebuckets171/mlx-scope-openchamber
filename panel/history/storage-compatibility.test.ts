@@ -3,7 +3,6 @@ import { createFakeStorage } from '../testing/storage.ts';
 import { FakeRing, T0 } from '../testing/completions.ts';
 import { Ledger } from './ledger.ts';
 import { DEFAULT_PREF, KEYS, verdictAttr } from './ledger-schema.ts';
-import { migrateV1 } from './migrate-v1.ts';
 import { PrefStore } from './prefs.ts';
 
 for (const [key, value] of [
@@ -49,11 +48,20 @@ test('preferences preserve additive fields and refuse another major without affe
   expect(storage.dump()).toEqual(before);
 });
 
-test('legacy migration cannot reset metadata from another major', async () => {
-  const initial = { [KEYS.meta]: { schema: 3 }, 'observation.v1.fixture': { savedAt: T0 } };
-  const storage = createFakeStorage({ initial });
-  await expect(migrateV1(storage, T0)).rejects.toThrow('different format');
-  expect(storage.dump()).toEqual(initial);
+test('captures and 1.x saves from earlier versions are never written or deleted, and are still counted', async () => {
+  const kept = { 'capture.v2.kept.aaaa': { v: 2, savedAt: T0 - 86_400_000, kind: 'window', measurements: { decodeTps: 24.6 } },
+    'observation.v1.fixture': { savedAt: T0 - 2 * 86_400_000 } };
+  const storage = createFakeStorage({ initial: kept }), ledger = new Ledger({ storage, now: () => T0 });
+  await ledger.start();
+  const ring = new FakeRing(); ring.add(T0);
+  ledger.append(ring.response(), verdictAttr, { connection: 'fixture', rt: 'lmstudio' });
+  await ledger.flush('hidden');
+  expect(ledger.accounting()).toMatchObject({ keptItems: 2 });
+  expect(ledger.accounting()!.keptBytes).toBeGreaterThan(0);
+  await ledger.clear();
+  const after = storage.dump();
+  for (const [key, value] of Object.entries(kept)) expect(after[key]).toEqual(value);
+  expect(Object.keys(after).some(key => key.startsWith('ledger.v2.c.'))).toBe(false);
 });
 
 test('a verified open chunk changed to another major is preserved before it can be overwritten', async () => {

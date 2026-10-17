@@ -1,4 +1,3 @@
-import { digitMarkup } from '../digit-roll.ts';
 import type { SessionMeasurement, SessionSectionView } from '../../present/session.ts';
 import { BASIS_WORD } from '../../present/parts.ts';
 import { flag, html, type Raw } from '../html.ts';
@@ -26,13 +25,13 @@ export const sessionMarkup = (view: SessionSectionView, actionError: string | nu
   return html`<div class="ws ws-session" id="ws" data-presentation="session" data-mode="summary" data-resting="${String(view.resting)}">
     <div class="ws-activity">
       <div class="ws-line ws-heading ws-context"><span class="ws-phase" data-tone="${view.tone}" data-crossfade>${view.phase}</span>${scopeMenuMarkup(view.measurementScope)}</div>
-      ${measurement ? html`<div class="ws-line ws-measurement" data-live="${String(measurement.live)}" data-basis="${measurement.basis}" data-arrive title="${measurement.detail}"><span class="ws-reading" aria-hidden="true"><strong id="${READOUT_ID[measurement.kind]}" aria-hidden="true"${next ? html` style="--reading-width:${readoutWidth(readingText)}"` : html` data-roll-value="${readingText}" data-roll-context="${view.phase}/${view.measurementScope}/${measurement.basis}/${measurement.label}"`}>${next ? readingText : digitMarkup(readingText)}</strong>${measurement.unit ? html` <span aria-hidden="true">${measurement.unit}</span>` : ''}</span><span class="sr-only measurement-accessible">${measurement.text}${measurement.unit ? ' tokens per second' : ''}</span><span class="ws-label" data-crossfade>${label}${view.eta ? html`<span class="prompt-eta">${view.eta.text}</span>` : ''}</span><span class="sr-only basis">${measurement.detail}</span></div>` : ''}
+      ${measurement ? html`<div class="ws-line ws-measurement" data-live="${String(measurement.live)}" data-basis="${measurement.basis}" data-arrive title="${measurement.detail}"><span class="ws-reading" aria-hidden="true"><strong id="${READOUT_ID[measurement.kind]}" aria-hidden="true" style="--reading-width:${readoutWidth(readingText)}">${readingText}</strong>${measurement.unit ? html` <span aria-hidden="true">${measurement.unit}</span>` : ''}</span><span class="sr-only measurement-accessible">${measurement.text}${measurement.unit ? ' tokens per second' : ''}</span><span class="ws-label" data-crossfade>${label}${view.eta ? html`<span class="prompt-eta">${view.eta.text}</span>` : ''}</span><span class="sr-only basis">${measurement.detail}</span></div>` : ''}
       ${view.support && !alert && !actionError && !view.note ? html`<div class="ws-line ws-support" title="${view.support.detail}">${view.support.text}${view.support.basis && view.support.basis !== 'reported' ? html` <span class="basis">${BASIS_WORD[view.support.basis]}</span>` : ''}</div>`
         : view.held && !alert && !actionError && !view.note ? html`<div class="ws-line ws-support ws-held" data-held="true" data-arrive title="${view.held.detail}">${view.held.text}</div>` : ''}
     ${!actionError && alert ? html`<div class="ws-line ws-warning" data-severity="${alert.severity}" title="${alert.label}">${alert.label}</div>` : !actionError && view.note ? html`<div class="ws-line ws-note" title="${view.note}">${view.note}</div>` : ''}
     ${actionError ? html`<p class="ws-action-error" id="ws-action-error" role="status">${actionError}</p>` : ''}
     </div>
-    <div class="ws-actions"><button type="button" class="ws-details" data-action="${compact ? 'expand' : 'open-scope'}">${compact ? 'Expand' : 'Open MLX Scope'}</button>${view.cancelMeasurement ? html`<button type="button" class="ws-details" data-action="next-cancel">Cancel</button>` : ''}</div>
+    <div class="ws-actions"><button type="button" class="ws-details" data-action="${compact ? 'expand' : 'open-scope'}">${compact ? 'Expand' : 'Open MLX Scope'}</button></div>
   </div>`;
 };
 
@@ -83,6 +82,6 @@ const nextSessionMarkup = (view: SessionSectionView, actionError: string | null,
       </section>
       <div class="ws-media" id="ws-media"${flag('hidden', !options.media)}>${options.media ?? ''}</div>
     </div>
-    <div class="ws-actions" id="ws-actions"><button type="button" class="ws-details ws-open" data-action="open-scope"><span>Open MLX Scope</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg></button>${view.cancelMeasurement ? html`<button type="button" class="ws-details" data-action="next-cancel">Cancel</button>` : ''}</div>
+    <div class="ws-actions" id="ws-actions"><button type="button" class="ws-details ws-open" data-action="open-scope"><span>Open MLX Scope</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg></button></div>
   </div>`;
 };
