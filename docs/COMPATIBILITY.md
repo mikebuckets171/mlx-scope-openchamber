@@ -101,7 +101,7 @@ native synthetic-provider checks: local HTTP delivery with advancing prompt prog
 prompt), synthetic-remote HTTP, WebSocket reuse with one cached connection, tool continuation and cancellation,
 three-step calibration, completion, hidden shutdown with telemetry writes stopped, and managed hot reload from the
 5.0 companion (3.3.0, which reported 2.0.32 unsupported) to 3.4.0 with no server restart and no duplicated request.
-The receipt is [`docs/receipts/companion-3.4.0.json`](receipts/companion-3.4.0.json); it also records a paired CPU
+The receipt is [`docs/receipts/companion-3.4.0.json`](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/companion-3.4.0.json); it also records a paired CPU
 fixture against 3.3.0 under the same load: incremental idle CPU 0.021 % vs 0.057 % of one core, visible 1.23 % vs
 1.25 %, hidden 0.14 % vs 0.14 %. No real model, inference or cloud account was involved.
 
