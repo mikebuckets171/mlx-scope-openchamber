@@ -13,8 +13,9 @@ export const EXEC_G1 = [
 // 3.1 adds bounded media adapters, reversible helper setup, Media/Connections views and digit motion.
 // The measured candidate adds about 27 KB of guest code and 30 KB of service code, with no new dependencies.
 // Bundle size is a packaging ceiling, distinct from the unchanged CPU/RSS acceptance budgets.
-// 5.1 removes the `/scope` background bundle; the panel and service keep their ceilings until re-baselined on measurement.
-export const BUNDLE_CEILINGS = { 'panel/main.js': 304_000, 'service/main.js': 250_000 } as const;
+// 5.1 guards: the measured 5.1 bundles × 1.05 (panel 257,239 B, service 255,175 B). 5.0 shipped 288,193 B, 247,540 B and
+// a 24 KB background bundle; the service grew with Phosphene, prompt reuse and the OpenCode self-check.
+export const BUNDLE_CEILINGS = { 'panel/main.js': 270_000, 'service/main.js': 268_000 } as const;
 export const GUEST_BUNDLES = ['panel/main.js'] as const;
 export const STATUS_SECTION = { entry: 'panel/index.html', title: 'MLX Scope', height: 72 } as const;
 export const SDK_VERSION = '2.4.0';
