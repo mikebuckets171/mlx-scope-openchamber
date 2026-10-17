@@ -101,6 +101,7 @@ const listing = async (root, entries = new Map(), dir = root) => {
   }
   return entries;
 };
+const check = (id, value, limit) => ({ id, value, limit, pass: value !== null && value <= limit });
 const rusage = text => {
   const value = pattern => { const match = pattern.exec(text); return match ? Number(match[1]) : null; };
   const user = value(/([\d.]+)\s+user/), sys = value(/([\d.]+)\s+sys/);
@@ -326,7 +327,7 @@ function summarize(kind, run) {
   const { edges, lastRequestAt } = run;
   const phases = {
     noView: phase(edges.noView, edges.noViewEnd),
-    active: phase(edges.active, edges.activeEnd, { pollMs: 500, snapshotLatency: run.activeLatency }),
+    active: phase(edges.active, edges.activeEnd, { pollMs: activePollMs, snapshotLatency: run.activeLatency }),
     idle: phase(edges.idle, edges.idleEnd, { pollMs: 2_000, snapshotLatency: run.idleLatency }),
     glance: phase(edges.glance, edges.glanceEnd, { pollMs: 1_000, tier: 'glance', snapshotLatency: run.glanceLatency }),
     paused: phase(edges.paused, edges.pausedEnd),
@@ -375,7 +376,6 @@ function summarize(kind, run) {
   } : undefined;
   const glanceOnly = ['lsof', 'footprint', 'macmon', 'lms'].reduce((sum, file) => sum + (phases.glance.spawns.byFile[file]?.count ?? 0), 0);
   const peakRss = Math.max(...run.readings.filter(reading => reading.service).map(reading => reading.service.rssKiB / 1024));
-  const check = (id, value, limit) => ({ id, value, limit, pass: value !== null && value <= limit });
   const checks = [
     check('noView.cpuPercent', phases.noView.cpu.totalPercent, budgets['no-view-cpu']),
     check('noView.spawns', phases.noView.spawns.total, 0),
@@ -415,9 +415,75 @@ function summarize(kind, run) {
   };
 }
 
+// The idle exit: with no view request for MLX_SCOPE_IDLE_EXIT_MS (test-only, never below 5 s) the service ends itself
+// with code 0, and health checks do not count as views. One fresh service: spawn to the first ready snapshot (a single
+// cold-start sample, reported, not gated), then only /health reads, once a second, until it exits.
+const IDLE_EXIT_MS = 5_000, IDLE_EXIT_GRACE_MS = 3_000, IDLE_EXIT_EARLY_MS = 250;
+async function measureIdleExit() {
+  assert.equal(serviceDigest(), measuredDigest, 'Service bundle changed between measurement runs. Freeze the build and repeat.');
+  const sandbox = await mkdtemp(join(tmpdir(), 'mlx-scope-overhead-home-'));
+  const scratch = await mkdtemp(join(tmpdir(), 'mlx-scope-overhead-log-'));
+  const log = join(scratch, 'service.jsonl');
+  const runtime = createFakeRuntime('omlx', { active: false, began: Date.now() }, () => {});
+  let child = null, exited = null, exit = null, stderr = '';
+  try {
+    const runtimePort = await listen(runtime), servicePort = await freePort(), token = randomBytes(24).toString('hex');
+    const before = await listing(sandbox), spawnedAt = performance.now();
+    child = spawn(process.execPath, ['--import', preload, serviceFile], { cwd: sandbox, stdio: ['ignore', 'ignore', 'pipe'], env: {
+      PATH: '/usr/bin:/bin:/usr/sbin:/sbin', HOME: sandbox, XDG_CONFIG_HOME: join(sandbox, 'config'), XDG_DATA_HOME: join(sandbox, 'data'),
+      TMPDIR: sandbox, TMP: sandbox, TEMP: sandbox, OPENCHAMBER_SERVICE_PORT: String(servicePort), OPENCHAMBER_SERVICE_TOKEN: token,
+      MLX_SCOPE_BASE_URL: `http://127.0.0.1:${runtimePort}`, MLX_SCOPE_MEASURE_LOG: log, MLX_SCOPE_IDLE_EXIT_MS: String(IDLE_EXIT_MS),
+    } });
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-16_384); });
+    exited = new Promise(ok => child.once('exit', (code, signal) => { exit = { code, signal, at: performance.now() }; ok(); }));
+    const get = path => fetch(`http://127.0.0.1:${servicePort}${path}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(4_000) });
+    let firstSnapshotMs = null;
+    for (const deadline = performance.now() + 10_000; firstSnapshotMs === null && exit === null && performance.now() < deadline;) {
+      try {
+        const response = await get(`/v2/snapshot?frame=${randomBytes(4).toString('hex')}&surface=panel&tier=full`);
+        if (response.status === 200 && (await response.json()).status?.state === 'ready') firstSnapshotMs = performance.now() - spawnedAt;
+      } catch {}
+      if (firstSnapshotMs === null) await delay(25);
+    }
+    assert(firstSnapshotMs !== null, `Service did not answer a ready snapshot: ${stderr}`);
+    const lastView = performance.now();
+    let healthReads = 0;
+    while (exit === null && performance.now() - lastView < IDLE_EXIT_MS + IDLE_EXIT_GRACE_MS) {
+      try { if ((await get('/health')).ok) healthReads += 1; } catch {}
+      await Promise.race([exited, delay(1_000)]);
+    }
+    const onItsOwn = exit !== null;
+    if (!onItsOwn) { child.kill('SIGKILL'); await exited; }
+    const records = existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
+    const ended = new Set(records.filter(record => record.kind === 'exit').map(record => record.id));
+    const alive = processTree(await psTable() ?? '', -1).rows;
+    const childrenLeft = records.filter(record => record.kind === 'spawn' && record.pid && !ended.has(record.id) && alive.get(record.pid)?.comm === record.file).length;
+    const changed = [...(await listing(sandbox))].filter(([path, value]) => before.get(path) !== value).length;
+    const afterLastViewMs = onItsOwn ? round(exit.at - lastView, 0) : null;
+    const checks = [
+      check('idleExit.exitedOnItsOwnWithCode0', onItsOwn && exit.code === 0 && exit.signal === null ? 0 : 1, 0),
+      check('idleExit.exitedBeforeDelay', afterLastViewMs !== null && afterLastViewMs < IDLE_EXIT_MS - IDLE_EXIT_EARLY_MS ? 1 : 0, 0),
+      check('idleExit.afterLastViewMs', afterLastViewMs, IDLE_EXIT_MS + IDLE_EXIT_GRACE_MS),
+      check('idleExit.childrenLeft', childrenLeft, 0),
+      check('idleExit.sandboxHomeFilesWritten', changed, 0),
+    ];
+    return { idleExitMs: IDLE_EXIT_MS, graceMs: IDLE_EXIT_GRACE_MS, pass: checks.every(item => item.pass), checks,
+      exit: onItsOwn ? { code: exit.code, signal: exit.signal } : null, afterLastViewMs, healthReadsWhileIdle: healthReads,
+      coldStartToFirstSnapshotMs: round(firstSnapshotMs, 0), spawns: records.filter(record => record.kind === 'spawn').length };
+  } finally {
+    if (child && exit === null) { try { child.kill('SIGKILL'); } catch {} await exited; }
+    runtime.closeAllConnections();
+    await new Promise(ok => runtime.close(ok));
+    await rm(sandbox, { recursive: true, force: true });
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
 const packageFile = join(dirname(serviceFile), '../package.json');
 const runs = [];
 for (const plan of plans) runs.push(await measure(plan));
+const idleExit = await measureIdleExit();
 assert.equal(serviceDigest(), measuredDigest, 'Service bundle changed during measurement. Freeze the build and repeat.');
 const receipt = {
   measurement: 'MLX Scope service overhead: service process plus all descendants, synthetic loopback runtimes',
@@ -430,14 +496,17 @@ const receipt = {
   host: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model ?? null, logicalCores: cpus().length, memGiB: Math.round(totalmem() / 2 ** 30) },
   method: {
     psSampleMs: SAMPLE_MS, tailBucketSeconds: BUCKET_S, seconds, activePollMs,
-    phases: 'settle: 15 s after the service is ready, no reads (not measured; startup heap trim) · noView: no reads · warmup: 5 s at 500 ms (not measured) · active: 500 ms polls, runtime generating · idle: 2 s polls, runtime idle · glance: surface=status&tier=glance at 1 s, runtime generating · paused: no reads · macmon runs: the same phases with a fake `macmon pipe`',
+    phases: `settle: 15 s after the service is ready, no reads (not measured; startup heap trim) · noView: no reads · warmup: 5 s at ${activePollMs} ms (not measured) · active: ${activePollMs} ms polls, runtime generating · idle: 2 s polls, runtime idle · glance: surface=status&tier=glance at 1 s, runtime generating · paused: no reads · macmon runs: the same phases with a fake \`macmon pipe\``,
+    idleExit: `One more fresh service (oMLX fake) with MLX_SCOPE_IDLE_EXIT_MS=${IDLE_EXIT_MS}: spawn to the first ready full snapshot (one cold-start sample, not gated), then /health once a second and no view request. Gates: it exits on its own with code 0, not earlier than ${IDLE_EXIT_MS - IDLE_EXIT_EARLY_MS} ms and within ${IDLE_EXIT_MS + IDLE_EXIT_GRACE_MS} ms after the last view, leaving no child and writing nothing under its HOME.`,
     cpu: 'Percent of one core. Service: its own cpuUsage() at phase edges (each read costs it about 0.2 ms). Children: ps -A every 500 ms, plus children too short-lived for ps, which share the whole-run wait4 rusage (/usr/bin/time -l) evenly per spawn.',
     spawns: 'Counted in-process by a --import preload that wraps child_process; runtime requests are counted by the fake runtime.',
   },
   budgets,
-  pass: runs.every(run => run.pass),
+  pass: runs.every(run => run.pass) && idleExit.pass,
   runs,
+  idleExit,
   limitations: [
+    `The idle exit is checked with a ${IDLE_EXIT_MS / 1000} s delay, not the ten-minute product default, and under Node; OpenChamber's respawn on the next request is not exercised here.`,
     'Synthetic loopback runtimes; no inference was started or measured.',
     'The fake lms is a shell stand-in: ps and runtime ls answer at once and log stream idles; real lms CPU and RSS (docs/2.0/SPIKES.md S8) are not reproduced.',
     'The fake macmon is a node process printing one fixture line per second; real macmon CPU and RSS are not reproduced.',
@@ -452,4 +521,5 @@ for (const privateText of [tmpdir(), homedir(), '/Users/', serviceFile].filter(i
 if (flags.out) await writeFile(resolve(flags.out), `${text}\n`);
 console.log(text);
 for (const run of runs) for (const item of run.checks) if (!item.pass) console.error(`FAIL ${run.runtime} ${item.id}: ${item.value} > ${item.limit}`);
+for (const item of idleExit.checks) if (!item.pass) console.error(`FAIL ${item.id}: ${item.value} > ${item.limit}`);
 if (!receipt.pass) process.exitCode = 1;
