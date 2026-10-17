@@ -15,6 +15,9 @@ async function fixture() {
   const home = await realpath(await mkdtemp(join(tmpdir(), 'scope-chat-'))); homes.push(home);
   const directory = join(home,'.cache','mlx-scope','chat-telemetry'); await mkdir(directory,{recursive:true,mode:0o700});
   const write = async (value: unknown, name = `${writer}.json`) => writeFile(join(directory,name), JSON.stringify(value),{mode:0o600});
+  // A live helper heartbeat; without one the reader does not scan for writers at all.
+  await write({ schemaVersion:1, companionVersion, protocol:'opencode-2.0.25', runtimeVersion:'2.0.32', supported:true,
+    loadedAtMs:at-1_000, updatedAtMs:at, expiresAtMs:at+1e9 }, 'heartbeat.json');
   const body = { schemaVersion:1, writerID:writer, companionVersion, protocol:'opencode-2.0.25', runtimeVersion:'2.0.25',
     updatedAtMs:at, expiresAtMs:at+15_000, entries:[{...target,measurement}] };
   return { home,directory,write,body };
@@ -30,18 +33,20 @@ test('wrong endpoint, stale or future observations and unknown protocols have no
   const f=await fixture(), telemetry=new ChatTelemetry(f.home,()=>at);
   for (const body of [
     {...f.body,entries:[{...target,endpointKey:'e'.repeat(64),measurement}]},
-    {...f.body,updatedAtMs:at+1}, {...f.body,expiresAtMs:at}, {...f.body,protocol:'future'}, {...f.body,runtimeVersion:'2.0.26'}, {...f.body,companionVersion:'2.1.6'}, {...f.body,companionVersion:'3.0.0'},
+    {...f.body,updatedAtMs:at+1}, {...f.body,expiresAtMs:at}, {...f.body,protocol:'future'}, {...f.body,runtimeVersion:'2.1.0'}, {...f.body,companionVersion:'2.1.6'}, {...f.body,companionVersion:'4.0.0'}, {...f.body,companionVersion:'3.4'},
     {...f.body,entries:[{...target,measurement:{...measurement,expiresAtMs:at}}]},
   ]) { await f.write(body); expect(await telemetry.observe('11111111',target)).toBeNull(); }
   await telemetry.dispose();
 });
-for (const runtimeVersion of ['2.0.27', '2.0.28', '2.0.29']) test(`${runtimeVersion} retains the wire format but only accepts the current companion and exact qualified runtime`, async () => {
+for (const runtimeVersion of ['2.0.27', '2.0.28', '2.0.29', '2.0.32', '2.0.33']) test(`${runtimeVersion} retains the wire format and accepts same-major helpers on the accepted 2.0 line`, async () => {
   const f = await fixture(), telemetry = new ChatTelemetry(f.home, () => at);
   await f.write({ ...f.body, runtimeVersion });
   expect(await telemetry.observe('11111111', target)).toEqual(measurement);
-  for (const extra of [{ companionVersion: '3.2.0' }, { protocol: 'unsupported' }, { runtimeVersion: '2.0.30' },
+  await f.write({ ...f.body, runtimeVersion, companionVersion: '3.3.0' });
+  expect(await telemetry.observe('11111111', target)).toEqual(measurement);
+  for (const extra of [{ companionVersion: '2.9.9' }, { companionVersion: '4.0.0' }, { protocol: 'unsupported' }, { runtimeVersion: '2.1.0' },
     { runtimeVersion: '2.0.27-custom' }, { runtimeVersion: '2.0.28-custom' }, { runtimeVersion: '2.0.29-custom' },
-    { runtimeVersion: '2.0.280' }, { runtimeVersion: '2.0.290' }]) {
+    { runtimeVersion: '2.0.24' }, { runtimeVersion: '2.0.029' }]) {
     await f.write({ ...f.body, runtimeVersion, ...extra });
     expect(await telemetry.observe('11111111', target)).toBeNull();
   }
@@ -56,7 +61,7 @@ test('legacy heartbeats still parse and optional feature metadata is allowlisted
   const features = featureSupport('2.0.25'); features['http-delivery'].available = true;
   await f.write({ ...heartbeat, features: { ...features, privateContent: 'not retained' } }, 'heartbeat.json');
   expect((await telemetry.probe())?.features).toEqual(features);
-  await f.write({ ...heartbeat, runtimeVersion: '2.0.26', features }, 'heartbeat.json');
+  await f.write({ ...heartbeat, runtimeVersion: '2.1.0', features }, 'heartbeat.json');
   expect((await telemetry.probe())?.features).toBeUndefined();
   await telemetry.dispose();
 });
@@ -140,5 +145,21 @@ test('remote demand canonicalizes metadata, expires with its views, and clears c
   expect(JSON.parse(demand).watched).toEqual([remote]); expect(demand).not.toContain('PRIVATE');
   now += 16_000; expect(await telemetry.observe('22222222', null)).toBeNull();
   await expect(readFile(join(f.directory, 'demand.json'))).rejects.toThrow();
+  await telemetry.dispose();
+});
+
+test('writers are not scanned unless the helper heartbeat is live', async () => {
+  const f = await fixture(); let now = at; const telemetry = new ChatTelemetry(f.home, () => now); await f.write(f.body);
+  const heartbeat = { schemaVersion: 1, companionVersion, protocol: 'opencode-2.0.25', runtimeVersion: '2.0.32', supported: true, loadedAtMs: at - 1_000 };
+  await f.write(heartbeat, 'heartbeat.json');
+  expect(await telemetry.observe('11111111', target)).toBeNull();
+  await f.write({ ...heartbeat, updatedAtMs: at - 20_000, expiresAtMs: at - 5_000 }, 'heartbeat.json');
+  expect(await telemetry.observe('11111111', target)).toBeNull();
+  await f.write({ ...heartbeat, updatedAtMs: at, expiresAtMs: at + 15_000 }, 'heartbeat.json');
+  expect(await telemetry.observe('11111111', target)).toEqual(measurement);
+  await rm(join(f.directory, 'heartbeat.json'));
+  expect(await telemetry.observe('11111111', target)).toBeNull();
+  // Demand is still renewed so a helper that starts now finds the watched chat.
+  expect(JSON.parse(await readFile(join(f.directory, 'demand.json'), 'utf8')).watched).toEqual([target]);
   await telemetry.dispose();
 });

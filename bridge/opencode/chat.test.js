@@ -384,7 +384,7 @@ test('observer shares one subscription, aborts hidden work, handles reconnect an
   } finally { await observer.close(); }
   const unknown = createChatObserver({ now: () => now, intervalMs: 100_000, storeFactory: memory,
     readDemand: async () => demand(now), heartbeat: async value => heartbeats.push(value) });
-  await unknown.attach(makeContext('2.0.26')); assert.equal(subscriptions, 2); assert.equal(heartbeats.at(-1).supported, false); await unknown.close();
+  await unknown.attach(makeContext('2.1.0')); assert.equal(subscriptions, 2); assert.equal(heartbeats.at(-1).supported, false); await unknown.close();
 });
 
 test('a demand file refused by the private-mode gate is reported once, unlike absent demand', async () => {
@@ -439,4 +439,62 @@ test('step announcement before HTTP dispatch still requires later primary local 
   h.send('step.started', { started: h.time, model: { providerID: 'local', id: 'private-model' } });
   assert.equal(h.measurement, undefined); h.authorize(); assert.equal(h.measurement.phase, 'waiting');
   h.part(); h.delta(); h.advance(2000); h.delta(); assert.equal(h.measurement.tokensPerSecond, 5);
+});
+
+test('trackers report end-to-end delivery per transport and released-shape violations only for watched chats', () => {
+  let time = 100_000, serial = 0; const checks = [];
+  const tracker = createChatTracker({ now: () => time, check: (...args) => checks.push(args) });
+  tracker.setWatched([ident()]);
+  const send = (type, data = {}, session = 'ses_private') => tracker.event({ type: `session.${type}`, id: `evt_${++serial}`, created: time,
+    data: { sessionID: session, assistantMessageID: 'assistant-private', ...data } });
+  tracker.authorizeHttp({ sessionID: 'ses_private', model: { providerID: 'local', id: 'private-model' }, kind: 'primary',
+    request: new Request('http://127.0.0.1:8000/v1/chat/completions', { method: 'POST' }) });
+  send('step.started', { started: time, model: { providerID: 'local', id: 'private-model' } });
+  send('text.started', { ordinal: 0 });
+  for (let i = 0; i < 3; i++) { time += 1_000; send('text.delta', { ordinal: 0, delta: 'a'.repeat(40) }); }
+  send('text.ended', { ordinal: 0, text: 'a'.repeat(120) }); time += 100; send('step.streamed'); send('step.ended', { finish: 'stop', tokens: { output: 30, reasoning: 0 } });
+  assert.deepEqual(checks, [['passed', 'http-delivery']]);
+  // An unrelated chat's odd event proves nothing; a watched chat's broken event is contract evidence.
+  send('step.started', { started: time, model: { providerID: 'local', id: 'private-model' }, assistantMessageID: undefined }, 'ses_other');
+  assert.equal(checks.length, 1);
+  send('step.started', { started: time, model: { providerID: 'local', id: 'private-model' }, assistantMessageID: undefined });
+  assert.deepEqual(checks.at(-1), ['event-shape']);
+});
+
+test('repeated shape violations withdraw delivery for the process and publish the reason at once', async () => {
+  let now = Date.now(); const heartbeats = [], features = { 'http-delivery': { support: 'compatible', available: true, check: { state: 'waiting' } },
+    'websocket-delivery': { support: 'compatible', available: true, check: { state: 'waiting' } },
+    'prompt-progress': { support: 'compatible', available: true, check: { state: 'waiting' } }, 'managed-reload': { support: 'compatible', available: false } };
+  const broken = Array.from({ length: 3 }, (_, i) => ({ type: 'session.step.started', id: `evt_${i}`, created: now,
+    data: { sessionID: 'ses_private', started: now, model: { providerID: 'local', id: 'private-model' } } }));
+  const ctx = { app: { version: '2.0.33' }, event: { subscribe() { return { async *[Symbol.asyncIterator]() { yield* broken; } }; } } };
+  const observer = createChatObserver({ now: () => now, intervalMs: 100_000, storeFactory: () => ({ update() {}, remove() {}, async flush() {}, async close() {} }),
+    readDemand: async () => demand(now), heartbeat: async value => heartbeats.push(JSON.parse(JSON.stringify(value))) });
+  try {
+    await observer.attach(ctx, features);
+    for (let i = 0; i < 20 && features['http-delivery'].available; i++) await new Promise(resolve => setTimeout(resolve, 5));
+    assert.deepEqual(features['http-delivery'], { support: 'compatible', available: false, check: { state: 'failed', reason: 'event-shape' } });
+    assert.deepEqual(features['websocket-delivery'].check, { state: 'failed', reason: 'event-shape' });
+    assert.equal(features['prompt-progress'].available, true, 'prompt progress has its own evidence');
+    const last = heartbeats.at(-1);
+    assert.equal(last.supported, false); assert.equal(last.runtimeVersion, '2.0.33');
+    assert.deepEqual(last.features['http-delivery'].check, { state: 'failed', reason: 'event-shape' });
+    assert.ok(!JSON.stringify(heartbeats).match(/ses_private|private-model/));
+  } finally { await observer.close(); }
+});
+
+test('the demand poll runs every interval only while demanded and slows down when nothing is watched', async () => {
+  let wanted = [], reads = 0;
+  const ctx = { app: { version: '2.0.32' }, event: { subscribe({ signal }) {
+    return { async *[Symbol.asyncIterator]() { await new Promise(resolve => signal.aborted ? resolve() : signal.addEventListener('abort', resolve, { once: true })); } };
+  } } };
+  const observer = createChatObserver({ intervalMs: 10, idleIntervalMs: 80, storeFactory: () => ({ update() {}, remove() {}, async flush() {}, async close() {} }),
+    readDemand: async () => { reads++; return demand(Date.now(), wanted); }, heartbeat: async () => {} });
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  try {
+    await observer.attach(ctx); reads = 0; await sleep(250);
+    const idle = reads; assert.ok(idle <= 4, `idle reads ${idle}`);
+    wanted = [ident()]; await observer.tick(); reads = 0; await sleep(250);
+    assert.ok(reads >= 8, `demanded reads ${reads}`);
+  } finally { await observer.close(); }
 });

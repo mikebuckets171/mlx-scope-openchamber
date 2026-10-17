@@ -18,6 +18,8 @@ test('fresh chat followers retain speed across five-second expiry boundaries wit
   const home = await realpath(await mkdtemp(join(tmpdir(), 'scope-chat-cadence-')));
   const directory = join(home, '.cache', 'mlx-scope', 'chat-telemetry');
   await mkdir(directory, { recursive: true, mode: 0o700 });
+  await writeFile(join(directory, 'heartbeat.json'), JSON.stringify({ schemaVersion: 1, companionVersion, protocol: 'opencode-2.0.25',
+    runtimeVersion: '2.0.25', supported: true, loadedAtMs: now - 1_000, updatedAtMs: now, expiresAtMs: now + 1e9 }), { mode: 0o600 });
   const telemetry = new ChatTelemetry(home, () => now);
   const connection: RuntimeConnectionConfig = { id: 'fixture-local', label: 'Fixture local', runtime: 'lmstudio',
     config: { baseURL: new URL('http://127.0.0.1:1234/'), apiKey: null, preferredModel: null, issue: 'missing_credential',

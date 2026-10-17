@@ -21,18 +21,18 @@ test('synthetic success identifies the reference profile without claiming native
   expect(result.additionalGates).toEqual({ browser: 'not-run', resources: 'not-run', nativeProtocols: 'not-run' });
 });
 
-test('a candidate outside the finite registry stays unqualified even when every reference fixture passes', () => {
-  const result = qualificationReport(checks(), hashes, '', { ...context, candidate: '2.0.26' });
+for (const [candidate, support] of [['2.0.33', 'self-checked'], ['2.1.0', 'unsupported']] as const) test(`an unqualified ${support} candidate gains no qualification even when every reference fixture passes`, () => {
+  const result = qualificationReport(checks(), hashes, '', { ...context, candidate });
   expect(result.result).toBe('synthetic-pass');
-  expect(result.candidate).toEqual({ runtime: 'OpenCode', version: '2.0.26', profile: null, support: 'unqualified' });
+  expect(result.candidate).toEqual({ runtime: 'OpenCode', version: candidate, profile: null, support });
   for (const id of ['http-delivery', 'websocket-delivery', 'prompt-progress', 'managed-reload']) {
-    expect(result.features[id].result).toBe('unqualified'); expect(result.features[id].support).toBe('unqualified');
+    expect(result.features[id].result).toBe(support); expect(result.features[id].support).toBe(support);
   }
   expect(result.features['host-events'].result).toBe('passed'); expect(result.supportChanged).toBe(false);
   expect(result.evidenceKey).not.toBe(qualificationReport(checks(), hashes, '', context).evidenceKey);
 });
 
-for (const version of ['2.0.27', '2.0.28', '2.0.29']) test(`the native-tested ${version} profile keeps fixture and native results distinct`, () => {
+for (const version of ['2.0.27', '2.0.28', '2.0.29', '2.0.32']) test(`the native-tested ${version} profile keeps fixture and native results distinct`, () => {
   const result = qualificationReport(checks(), hashes, '', { ...context, candidate: version });
   expect(result.candidate).toEqual({ runtime: 'OpenCode', version, profile: `opencode-${version}-v1`, support: 'qualified' });
   expect(result.fixtureRuntime).toBe('2.0.25');

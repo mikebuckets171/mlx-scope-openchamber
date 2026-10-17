@@ -1,10 +1,13 @@
 export const CHAT_PROTOCOL: 'opencode-2.0.25';
 export const TELEMETRY_SCHEMA_VERSION: 1;
 export type FeatureId = 'http-delivery' | 'websocket-delivery' | 'prompt-progress' | 'managed-reload';
-export type FeatureStatus = { support: 'qualified' | 'unqualified' | 'unavailable'; available: boolean };
+export type CheckReason = 'hook-missing' | 'hook-rejected' | 'events-missing' | 'event-shape' | 'session-header' | 'options';
+export type FeatureCheck = { state: 'waiting' | 'passed' } | { state: 'failed'; reason: CheckReason };
+export type FeatureStatus = { support: 'compatible' | 'unqualified' | 'unavailable'; available: boolean; check?: FeatureCheck };
 export type FeatureStatuses = Record<FeatureId, FeatureStatus>;
 export const FEATURE_IDS: FeatureId[];
-export function profileFor(runtimeVersion: unknown): { id: string; runtimeVersion: string; protocol: typeof CHAT_PROTOCOL; websocketCancellation: 'unit-only' | 'native' } | null;
+export const CHECK_REASONS: CheckReason[];
+export function acceptsRuntime(runtimeVersion: unknown): boolean;
 export function acceptsChatProtocol(runtimeVersion: unknown, protocol: unknown): boolean;
 export function featureSupport(runtimeVersion: unknown): FeatureStatuses;
 export function parseFeatures(value: unknown, runtimeVersion: unknown): FeatureStatuses | undefined;

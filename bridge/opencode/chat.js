@@ -5,7 +5,7 @@ export const WINDOW_MS = 5_000;
 export const MIN_WINDOW_MS = 2_000;
 export const MAX_CHATS = 16;
 export const PROTOCOL = CHAT_PROTOCOL;
-export const COMPANION_VERSION = '3.3.0';
+export const COMPANION_VERSION = '3.4.0';
 const MAX_PARTS = 64, MAX_CHARACTERS = 10_000_000, MAX_DELTA = 65_536;
 // These released events do not alter the model call or contain observable output.
 const PENDING_METADATA = new Set(['session.renamed', 'session.metadata.updated', 'session.permissions', 'session.viewed', 'session.usage.updated']);
@@ -66,13 +66,19 @@ function characters(text, state) {
   return n;
 }
 
-/** A bounded fold of the released 2.0.25 public events. Never stores event objects, deltas, or tool payloads. */
-export function createChatTracker({ now = Date.now, publish = () => {}, remove = () => {} } = {}) {
+/**
+ * A bounded fold of the released 2.0.25 public events. Never stores event objects, deltas, or tool payloads.
+ * `check` reports contract evidence: a transport whose step completed end to end, or a known event that broke its shape.
+ */
+export function createChatTracker({ now = Date.now, publish = () => {}, remove = () => {}, check = () => {} } = {}) {
   const watched = new Map(), routes = new Map(), chats = new Map(), calibration = new Map();
   const drop = sessionKey => { chats.delete(sessionKey); remove(sessionKey); };
   const resetWindow = state => { state.points = []; state.firstAt = undefined; state.lastDelta = undefined; };
   const clear = () => { for (const sessionKey of chats.keys()) drop(sessionKey); routes.clear(); watched.clear(); };
   const settled = state => state.stale || ['complete', 'cancelled', 'tool'].includes(state.phase);
+  const watchedSession = sessionKey => chats.has(sessionKey) || [...watched.keys()].some(match => match.startsWith(`${sessionKey}:`));
+  // A known event for a watched chat without its released shape is contract evidence, unlike unrelated sessions.
+  const malformed = sessionKey => { drop(sessionKey); check('event-shape'); };
   function setWatched(items) {
     watched.clear();
     for (const item of items.slice(0, MAX_CHATS)) {
@@ -83,6 +89,7 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
     for (const [match, route] of routes) if (!watched.has(match) || !watched.get(match).has(route.destination ?? 'local')) routes.delete(match);
   }
   function authorize(event, webSocket = false) {
+    const transport = webSocket ? 'websocket-delivery' : 'http-delivery';
     // Corroborate a qualified primary transport destination, not a provider name or inferred model alias.
     if (!watched.size || event.kind !== 'primary' || !id(event.sessionID) || !id(event.model?.providerID) || !id(event.model?.id)) return;
     const match = watchKey(identity(event)); if (!watched.has(match)) return;
@@ -91,19 +98,19 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
     if (routes.size >= MAX_CHATS && !routes.has(match)) return;
     const state = chats.get(key('session', event.sessionID));
     if (state?.match === match && !state.endpointKey) {
-      state.endpointKey = endpoint.endpointKey; state.destination = endpoint.destination;
+      state.endpointKey = endpoint.endpointKey; state.destination = endpoint.destination; state.transport = transport;
       state.calibrationKey = `${state.identity.providerKey}:${state.identity.modelKey}:${endpoint.endpointKey}`;
       emit(state, 'waiting'); return;
     }
     // A second primary dispatch to another destination cannot reuse the previous step's delivery window.
     if (state?.match === match && (state.endpointKey !== endpoint.endpointKey || state.destination !== endpoint.destination)) drop(key('session', event.sessionID));
     const at = now(), current = chats.get(key('session', event.sessionID));
-    routes.set(match, { ...endpoint, at });
+    routes.set(match, { ...endpoint, transport, at });
     // The dispatch itself proves this call. If its step.started is lost (a subscription can restart as demand
     // arrives), output after the dispatch is still this call's. step.started, when it arrives, rebuilds the
     // state from the same route; a live step keeps its own state, so its tail and calibration are not cut off.
     if (current && !settled(current) || !current && chats.size >= MAX_CHATS) return;
-    const ident = identity(event), next = { identity: ident, match, endpointKey: endpoint.endpointKey, destination: endpoint.destination,
+    const ident = identity(event), next = { identity: ident, match, endpointKey: endpoint.endpointKey, destination: endpoint.destination, transport,
       calibrationKey: `${ident.providerKey}:${ident.modelKey}:${endpoint.endpointKey}`, dispatchedAt: at, assistantKey: undefined,
       seen: new Set(), parts: new Map(), total: 0, text: 0, reasoning: 0, points: [], eligible: false, updated: at };
     chats.set(key('session', event.sessionID), next); emit(next, 'waiting');
@@ -159,11 +166,11 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
     if (type === 'session.step.started') {
       drop(sessionKey);
       if (!id(data.model?.providerID) || !id(data.model?.id) || !id(data.assistantMessageID)
-        || !safe(data.started) || data.started > time) return;
+        || !safe(data.started) || data.started > time) { if (watchedSession(sessionKey) && !(safe(data.started) && data.started > time)) check('event-shape'); return; }
       const ident = identity(data), match = watchKey(ident), route = routes.get(match);
       if (!watched.has(match) || route && (!watched.get(match).has(route.destination ?? 'local') || time - route.at > 600_000) || chats.size >= MAX_CHATS) return;
       routes.delete(match); // One transport dispatch proves one step, never a later unobserved route.
-      const next = { identity: ident, match, endpointKey: route?.endpointKey, destination: route?.destination,
+      const next = { identity: ident, match, endpointKey: route?.endpointKey, destination: route?.destination, transport: route?.transport,
         calibrationKey: route ? `${ident.providerKey}:${ident.modelKey}:${route.endpointKey}` : undefined,
         assistantKey: key('assistant', data.assistantMessageID), started: data.started,
         seen: new Set(), parts: new Map(), total: 0, text: 0, reasoning: 0, points: [], eligible: true, updated: time };
@@ -201,7 +208,7 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
     }
     const partType = /^session\.(text|reasoning)\.(started|delta|ended)$/.exec(type);
     if (partType) {
-      if (!safe(data.ordinal)) { drop(sessionKey); return; }
+      if (!safe(data.ordinal)) { malformed(sessionKey); return; }
       const partKey = `${partType[1]}:${data.ordinal}`, part = state.parts.get(partKey), kind = partType[1], operation = partType[2];
       if (operation === 'started') {
         if (part || state.parts.size >= MAX_PARTS) { drop(sessionKey); return; }
@@ -209,7 +216,8 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
       }
       if (!part || part.ended) { drop(sessionKey); return; }
       if (operation === 'delta') {
-        if (typeof data.delta !== 'string' || data.delta.length > MAX_DELTA) { drop(sessionKey); return; }
+        if (typeof data.delta !== 'string') { malformed(sessionKey); return; }
+        if (data.delta.length > MAX_DELTA) { drop(sessionKey); return; }
         if (!data.delta.length) return;
         const amount = characters(data.delta, part); part.count += amount; state[kind] += amount;
         if (state.text + state.reasoning > MAX_CHARACTERS) { drop(sessionKey); return; }
@@ -227,6 +235,7 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
     }
     if (type === 'session.step.ended') {
       resetWindow(state);
+      if (!data.tokens || typeof data.tokens !== 'object' || typeof data.finish !== 'string') { malformed(sessionKey); return; }
       const output = data.tokens?.output, reasoning = data.tokens?.reasoning;
       const total = output + reasoning, chars = state.text + state.reasoning;
       const eligible = state.eligible && ['stop', 'length'].includes(data.finish)
@@ -244,6 +253,7 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
             calibration.set(state.calibrationKey, steps = []);
           }
           steps.push({ characters: chars, tokens: total }); if (steps.length > 10) steps.shift();
+          if (state.transport) check('passed', state.transport);
           emit(state, 'complete', total * 1000 / (state.streamed - state.started),
             { startedAtMs: state.started, endedAtMs: state.streamed }, true); return;
         }
@@ -252,7 +262,7 @@ export function createChatTracker({ now = Date.now, publish = () => {}, remove =
       return;
     }
     // Events from unrelated domains never count as output. Unknown session output protocol clears the reading.
-    if (/^session\.(?:text|reasoning|step)\./.test(type)) drop(sessionKey);
+    if (/^session\.(?:text|reasoning|step)\./.test(type)) malformed(sessionKey);
   }
   function tick() {
     const time = now();

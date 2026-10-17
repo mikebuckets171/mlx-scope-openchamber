@@ -2,7 +2,7 @@
 // Copies the previous companion, then hot-updates that isolated copy during a synthetic stream.
 // No real model, live configuration, or application process is changed.
 import assert from 'node:assert/strict';
-import { profileFor } from './compatibility.js';
+import { candidateProfile as profileFor } from './qualified.js';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, unlink, writeFile, copyFile, rename } from 'node:fs/promises';
@@ -18,8 +18,9 @@ if (!binary || !installedBridge || !installedBridge.startsWith('/')) throw new E
 const remote = process.argv.includes('--remote');
 const remoteBase = 'http://scope-protocol-fixture.invalid/v1';
 const profile = profileFor(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim().replace(/^opencode v/, ''));
-assert.ok(profile, 'This OpenCode version has no qualified compatibility profile.');
+assert.ok(profile, 'This OpenCode version is outside the accepted 2.0 line (2.0.25 or later).');
 const bundleBridge = dirname(fileURLToPath(import.meta.url)), repo = resolve(bundleBridge, '../..');
+const bundledVersion = JSON.parse(await readFile(join(bundleBridge, 'package.json'), 'utf8')).version;
 // OpenCode deliberately excludes node_modules dependencies from its local-source watcher.
 // Match the managed addon's actual location outside that boundary.
 const cache = join(repo, 'tests', '.cache'); await mkdir(cache, { recursive: true });
@@ -142,7 +143,7 @@ try {
       for(let poll=0;poll<80&&!activated;poll++){
         await pause(100);
         const receipt=JSON.parse(await readFile(join(base,'telemetry/heartbeat.json'),'utf8'));
-        activated=receipt.companionVersion==='3.3.0'&&receipt.loadedAtMs>heartbeat.loadedAtMs;
+        activated=receipt.companionVersion===bundledVersion&&receipt.loadedAtMs>heartbeat.loadedAtMs;
       }
       assert.ok(activated,'source watcher activated updated helper');
       for(let poll=0;poll<60&&completedStreams<1;poll++)await pause(100);
@@ -150,7 +151,7 @@ try {
       assert.equal(fixtureRequests,1,'update did not duplicate the request');
       assert.equal(child.pid,beforePid);assert.equal(child.exitCode,null);assert.equal(child.signalCode,null);
       console.log(JSON.stringify({hotReload:'pass',serverRestarted:false,existingSyntheticStreamCompleted:true,duplicateRequests:0,
-        previousCompanionSupported:heartbeat.supported,loadedCompanion:'3.3.0'}));
+        previousCompanion:heartbeat.companionVersion,previousCompanionSupported:heartbeat.supported,loadedCompanion:bundledVersion}));
       await pause(600);continue;
     }
     const seen = [];

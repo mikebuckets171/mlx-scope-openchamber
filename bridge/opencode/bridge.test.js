@@ -26,7 +26,7 @@ async function setup(store = memory(), shared = {}, version = '2.0.25') {
   return { hooks, options, store, dispose };
 }
 
-for (const version of ['2.0.25', '2.0.27', '2.0.28', '2.0.29']) test(`http hooks opt in only the same Splash request on ${version}`, async () => {
+for (const version of ['2.0.25', '2.0.27', '2.0.28', '2.0.29', '2.0.32', '2.0.33']) test(`http hooks opt in only the same Splash request on ${version}`, async () => {
   const plugin = await setup(memory(), {}, version), input = event(); const original = await input.request.clone().json();
   await plugin.hooks.get('http.request')(input);
   assert.equal(input.request.url, 'http://127.0.0.1:8000/v1/chat/completions');
@@ -43,8 +43,8 @@ for (const version of ['2.0.25', '2.0.27', '2.0.28', '2.0.29']) test(`http hooks
   await reader.read(); assert.equal(plugin.store.entries.size, 0); await reader.cancel(); await plugin.dispose();
 });
 
-test('unqualified versions never install prompt request mutation or alter a request', async () => {
-  for (const version of ['2.0.24', '2.0.26', '2.0.25-custom', undefined]) {
+test('versions outside the accepted 2.0 line never install prompt request mutation or alter a request', async () => {
+  for (const version of ['2.0.24', '2.1.0', '2.0.25-custom', undefined]) {
     const plugin = await setup(memory(), {}, version ?? 'unknown'), input = event(), original = input.request;
     assert.equal(plugin.hooks.size, 0);
     assert.equal(input.request, original);
