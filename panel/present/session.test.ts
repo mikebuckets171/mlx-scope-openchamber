@@ -562,3 +562,12 @@ test('measured insights follow an alert and precede a note, two rows at most, an
   expect(live).toContain('class="coverage-note instrument-insight" data-exception="slower"');
   expect(live).toContain('data-exception="cache-miss"');
 });
+
+test('prompt counts for a request matched to this chat carry no Engine prefix; unmatched ones do', () => {
+  const matched = presentSessionSection(inputOf('prefill', { attribution: { kind: 'inferred' } }));
+  const engine = presentSessionSection(inputOf('prefill'));
+  expect(matched.measurement?.label).toBe('This chat');
+  expect(matched.support?.text).toBe("5,824 / 9,100 tokens");
+  expect(engine.measurement?.label).toBe('Engine');
+  expect(engine.support?.text).toMatch(/^Engine · /);
+});

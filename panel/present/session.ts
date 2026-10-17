@@ -174,7 +174,8 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   // Keep the one priority warning; repeated setup explanations remain in the full panel.
   if (alert) note = null;
   const request = usable ? snapshot.runtime.request : null;
-  const prefix = measurement?.label.startsWith('Chat · matched') ? '' : 'Engine · ';
+  // Facts about a request matched to this chat need no scope; anything else is the engine's.
+  const prefix = matched && measurement?.label.startsWith('This chat') && measurement.basis !== 'estimate' ? '' : 'Engine · ';
   const output = measurement?.live && runtimePhaseAgrees && usable && ['decode', 'processing'].includes(snapshot.runtime.phase);
   const support = alert || !fresh || cancelled ? null : age && measurement ? { text: `Finished ${age}`, detail: measurement.detail }
     : reading?.counts && measurement?.live ? { text: `${prefix}${kt(reading.counts.done)} / ${kt(reading.counts.total)} tokens`, detail: progress!.detail }

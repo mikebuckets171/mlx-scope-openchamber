@@ -268,7 +268,7 @@ class HistoryViewHandle implements ViewHandle {
     } else if (action === 'auto-label') {
       const on = (target as HTMLInputElement).checked;
       this.#autoLabel = on;
-      try { await this.#deps.setAutoLabel?.(on); this.#status.storage = on ? 'New replies are matched to this chat when Scope can prove it.' : 'New replies stay labelled All server activity.'; }
+      try { await this.#deps.setAutoLabel?.(on); this.#status.storage = on ? 'New replies are matched to this chat when Scope can prove it.' : 'New replies stay labelled Engine.'; }
       catch { this.#status.storage = 'Changed here; this host could not save the preference.'; }
       this.#focus = 'auto-label';
     } else if (action === 'pause') {
