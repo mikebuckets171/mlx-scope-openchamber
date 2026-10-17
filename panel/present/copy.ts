@@ -183,14 +183,14 @@ export const APPROVAL = {
     // By name: the panel bundle never carries the service's own exec paths (scripts/verify-package.ts leak check).
     ['Memory (as in 1.x)', 'vm_stat, sysctl', 'the two commands 1.x already ran'],
   ] as ReadonlyArray<readonly [string, string, string?]>,
-  note: 'Reads start after approval. Saved 1.6 captures stay. No sudo, osascript or powermetrics.',
+  note: 'Reads start after approval. Your history stays. No sudo, osascript or powermetrics.',
   glance: 'Settings → Extensions → MLX Scope',
 } as const;
 export const RESTART = {
   title: 'MLX Scope needs a restart',
   body: 'The panel was updated, but its local service is still the old version.',
   steps: ['Open Settings → Extensions → MLX Scope.', 'Pause it, then resume it.'],
-  note: 'Your history and captures are kept.',
+  note: 'Your history is kept.',
   glance: 'Pause and resume it in Settings → Extensions',
 } as const;
 export const TIP = 'Replace Turn stats: hide it in Panel sections and drag MLX Scope into its place';
