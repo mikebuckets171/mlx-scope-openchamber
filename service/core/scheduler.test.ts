@@ -124,7 +124,7 @@ const poll = (input: Partial<PollInput>) => nextPollMs({ active: false, idleMs: 
 test('frames poll at 1 s / 2 s for panel and page (5.1), 1 s / 3 s / 10 s for status', () => {
   expect([poll({ active: true }), poll({}), poll({ surface: 'page', active: true }), poll({ surface: 'panel', idleMs: DORMANT_AFTER_MS })]).toEqual([1_000, 2_000, 1_000, 2_000]);
   expect([poll({ surface: 'status', active: true }), poll({ surface: 'status' }), poll({ surface: 'status', idleMs: DORMANT_AFTER_MS - 1 }),
-    poll({ surface: 'status', idleMs: DORMANT_AFTER_MS }), poll({ surface: 'background' })]).toEqual([1_000, 3_000, 3_000, 10_000, 3_000]);
+    poll({ surface: 'status', idleMs: DORMANT_AFTER_MS })]).toEqual([1_000, 3_000, 3_000, 10_000]);
 });
 
 test('a failing runtime backs off, but host readings keep the idle cadence', () => {

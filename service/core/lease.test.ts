@@ -31,9 +31,8 @@ test('a leader that stops polling for the TTL hands over to the next visible fra
   expect(lease.observe('0000000b', 'panel', 60_001)).toMatchObject({ leader: true, epoch: 4 });
 });
 
-test('background frames and frameless requests never lead', () => {
+test('frameless requests and frames without a surface never lead', () => {
   const lease = new Lease();
-  expect(lease.observe('0000000a', 'background', 0)).toMatchObject({ leader: false, leaderSurface: null, yielded: false });
   expect(lease.observe(undefined, 'page', 0)).toMatchObject({ leader: false, leaderSurface: null });
   expect(lease.observe('0000000b', undefined, 0)).toMatchObject({ leader: false, leaderSurface: null });
   lease.observe('0000000c', 'panel', 5_000);

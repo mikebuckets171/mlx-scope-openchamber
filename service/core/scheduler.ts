@@ -95,7 +95,7 @@ export interface PollInput {
 }
 /** When the frame should poll next. */
 export const nextPollMs = ({ surface, active, idleMs, failures, hostLive, yielded }: PollInput): number => {
-  const glance = surface === 'status' || surface === 'background';
+  const glance = surface === 'status';
   const idle = glance ? idleMs >= DORMANT_AFTER_MS ? POLL_MS.glanceDormant : POLL_MS.glanceIdle : POLL_MS.idle;
   const cadence = active ? glance ? POLL_MS.glanceActive : POLL_MS.active : idle;
   // Host readings stay current while the runtime is down: the backoff never slows them past the idle cadence.

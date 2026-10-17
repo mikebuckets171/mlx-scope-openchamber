@@ -47,7 +47,7 @@ test('fresh chat followers retain speed across five-second expiry boundaries wit
   const server = createScopeServer('test-token', {
     read: (selection, request) => client.read(selection, request),
     chat: async query => {
-      if (!query.frame || query.surface === 'background') return null;
+      if (!query.frame) return null;
       const target = targets.find(value => value.sessionKey === query.chat && value.modelKey === query.chatModel);
       return telemetry.observe(query.frame, target ?? null);
     },

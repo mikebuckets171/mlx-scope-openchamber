@@ -11,7 +11,7 @@ import { runtimeKind, type RuntimeKind } from './runtime.ts';
 import { CONTRACT_VERSION } from './version.ts';
 
 export type { RuntimeKind } from './runtime.ts';
-export const SURFACES = ['panel', 'page', 'status', 'background'] as const;
+export const SURFACES = ['panel', 'page', 'status'] as const;
 export type Surface = typeof SURFACES[number];
 export const PHASES = ['idle', 'queued', 'prefill', 'decode', 'processing', 'loading', 'not-loaded', 'unknown'] as const;
 export type Phase = typeof PHASES[number];

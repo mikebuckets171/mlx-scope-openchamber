@@ -10,7 +10,7 @@ export const createChatDestination = (client: Pick<RuntimeClient, 'companionTarg
 /** Exact selected-chat matching. Remote demand never consults local runtime configuration or endpoints. */
 export const createChatSource = (chat: Pick<ChatTelemetry, 'observe'>,
   client: Pick<RuntimeClient, 'companionTarget'>): NonNullable<Sources['chat']> => async (query, reading) => {
-  if (!query.frame || query.surface === 'background') return null;
+  if (!query.frame) return null;
   // A selected cloud chat observes only its own delivery through OpenCode. It never reads local runtime state,
   // borrows a local endpoint or reuses a local engine measurement; the companion corroborates the remote origin.
   if (query.chatOnly && query.chat && query.chatModel && query.provider)

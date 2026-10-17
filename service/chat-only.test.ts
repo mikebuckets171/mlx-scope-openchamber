@@ -215,14 +215,8 @@ test('simultaneous local and remote chats share demand without mixing engine rea
     providerKey: f.remote.providerKey, destination: 'remote' });
 });
 
-test('remote telemetry failures and background frames do not trigger fallback collectors', async () => {
+test('remote telemetry failures do not trigger fallback collectors', async () => {
   const failing = guarded(async () => { throw Error('PRIVATE'); });
   const request = await launch(failing.sources); expect((await request(query())).chat).toBeUndefined();
   expect(failing.calls).toEqual({ read: 0, host: 0, history: 0 });
-  let observations = 0, targets = 0;
-  const source = createChatSource({ observe: async () => { observations++; return measurement(); } },
-    { companionTarget: async () => { targets++; return null; } });
-  const background = guarded(source), backgroundRequest = await launch(background.sources);
-  expect((await backgroundRequest(query().replace('surface=status', 'surface=background'))).chat).toBeUndefined();
-  expect([observations, targets]).toEqual([0, 0]); expect(background.calls).toEqual({ read: 0, host: 0, history: 0 });
 });

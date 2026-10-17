@@ -29,7 +29,7 @@ export interface ComposeInput {
 
 /** The frame's next poll delay for this reading: the service's one backoff and cadence table (scheduler.ts). */
 export const snapshotPollMs = ({ reading, host, lease, query, chat, serverNow }: Pick<ComposeInput, 'reading' | 'host' | 'lease' | 'query' | 'chat' | 'serverNow'>): number => {
-  const observed = query.surface === 'background' ? null : parseChatMeasurement(chat, serverNow);
+  const observed = parseChatMeasurement(chat, serverNow);
   const liveChat = observed?.freshness === 'live' && observed.phase !== 'cancelled';
   // Chat observations expire in 5 s. A visible follower must refresh them at active cadence instead of the 10 s
   // presentation yield, even when another chat's page holds the lease. Runtime collections still use their shared

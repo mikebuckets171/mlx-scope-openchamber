@@ -61,7 +61,7 @@ test('validated live chat observations keep visible followers current while anot
   }
 });
 
-test('absence, expiry, future timestamps, invalid measurements and background frames never bypass presentation yield', () => {
+test('absence, expiry, future timestamps, and invalid measurements never bypass presentation yield', () => {
   const value = input(), lease = { ...value.lease, leader: false, leaderSurface: 'page' as const, yielded: true };
   for (const observed of [null, { ...chat, expiresAtMs: NOW }, { ...chat, observedAtMs: NOW + 1 },
     { ...chat, observation: { startedAtMs: NOW - 1_000, endedAtMs: NOW } },
@@ -70,7 +70,6 @@ test('absence, expiry, future timestamps, invalid measurements and background fr
     expect(snapshotPollMs({ ...value, lease, chat: observed })).toBe(10_000);
   }
   expect(snapshotPollMs({ ...value, lease, chat, serverNow: chat.expiresAtMs })).toBe(10_000);
-  expect(snapshotPollMs({ ...value, lease, chat, query: { surface: 'background' } })).toBe(10_000);
 });
 
 test('live chat presentation keeps runtime failure backoff intact', () => {
