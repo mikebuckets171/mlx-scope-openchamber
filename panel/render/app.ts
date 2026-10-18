@@ -103,6 +103,10 @@ export class ScopeApp {
   render(): void {
     const { state } = this.#p;
     if (state.disposed || !state.mounted) return;
+    // Native toggle events are queued: a poll must not undo a click made before that event arrives.
+    for (const details of Array.from(this.#shell.querySelectorAll<HTMLDetailsElement>('details[id]:not(#monitor-menu):not(#connection-help)'))) {
+      if (details.open) state.open.add(details.id); else state.open.delete(details.id);
+    }
     this.#shell.dataset.mediaMotion = String(this.#p.visible() && !state.userPaused && !this.#connections.isOpen);
     const s = this.input(), card = frameCard(s), open = state.open, compact = state.compact && !this.#wide && !card;
     // Service approval and version skew block live readings, not this device's saved history.
