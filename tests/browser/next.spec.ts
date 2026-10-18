@@ -253,9 +253,12 @@ test('a device read finishing after teardown cannot restart workspace subscripti
 });
 
 for (const surface of ['page', 'status']) for (const runtime of ['decode', 'splash-mixed']) test(`Next ${surface} labels the ${runtime} engine speed Engine and keeps its time basis in the explanation`, async ({ page }) => {
+  await page.clock.install();
   const frame = await load(page, `surface=${surface}&design=next&state=${runtime}`, '/v2');
   if (surface === 'status') await page.locator('#fixture-status-controls').getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
   else await frame.locator('#hero .scope-choice').selectOption('engine');
+  // Splash withholds windows crossing the scope switch; deliver fresh samples past its 4 s window.
+  await page.clock.runFor(5_100);
   const reading = frame.locator(surface === 'status' ? '.ws-measurement' : '.instrument-primary');
   const label = frame.locator(surface === 'status' ? '.ws-label' : '.instrument-source');
   await expect(label).toHaveText(/^Engine/);
