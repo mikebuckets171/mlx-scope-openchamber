@@ -113,11 +113,13 @@ test('relay srcdoc transport renders packaged assets, follows theme changes and 
   expect(errors).toEqual([]);
 });
 
-test('responsive layouts keep the masthead aligned and never overflow, in every host theme', async ({ page }) => {
-  for (const theme of ['dark', 'light', 'violet', 'sand']) for (const width of [320, 430, 1160]) {
+for (const theme of ['dark', 'light', 'violet', 'sand']) for (const width of [320, 430, 1160]) {
+  test(`responsive layout keeps the masthead aligned and never overflows at ${width}px in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     const frame = await openPanel(page, `theme=${theme}&surface=${width >= 900 ? 'page' : 'panel'}&long=1`);
     await expect(frame.locator('#model')).toContainText('a-very-long-model-name');
+    // The first timed samples insert the trend above Details; measure/click only after that startup layout settles.
+    await expect(frame.locator('#engine-trend')).toBeVisible();
     expect(await overflows(frame), `${theme}/${width}`).toBe(false);
     const alignment = await frame.locator('.masthead').evaluate(el => {
       const brand = el.querySelector('.brand')!.getBoundingClientRect(), controls = el.querySelector('.monitor-controls')!.getBoundingClientRect();
@@ -132,8 +134,8 @@ test('responsive layouts keep the masthead aligned and never overflow, in every 
     expect(alignment.clear, `${theme}/${width}: header controls overlap the name`).toBe(true);
     await openServerDetails(frame);
     expect(await overflows(frame), `${theme}/${width} server`).toBe(false);
-  }
-});
+  });
+}
 
 test('runtime states and missing readings are explicit, never zero or placeholders', async ({ page }) => {
   for (const state of ['idle', 'prefill', 'queued', 'notLoaded', 'offline', 'auth', 'processing']) {
