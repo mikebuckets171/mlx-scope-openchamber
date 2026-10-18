@@ -4,12 +4,22 @@ import type { CompanionSetupStatus } from '../service/companion-setup.ts';
 import { unavailableForHostError, unavailableForServiceResponse } from './host-errors.ts';
 import { SetupRefresh } from './setup-refresh.ts';
 import { html } from './render/html.ts';
-import { parseFeatures, profileFor, type FeatureId } from '../bridge/opencode/compatibility.js';
+import { parseFeatures, type CheckReason, type FeatureId, type FeatureStatus } from '../bridge/opencode/compatibility.js';
+import { profileFor } from '../bridge/opencode/qualified.js';
 
 const PATH = '/v2/companion/setup';
 const STATES = ['disabled', 'pending', 'ready', 'incompatible', 'manual', 'error'];
 const ACTIVITY = { 'not-loaded': 'Waiting for helper load', 'awaiting-demand': 'Ready for the next observed step', listening: 'Demand active', unavailable: 'Observation unavailable' } as const;
 const FEATURES: Record<FeatureId, string> = { 'http-delivery': 'HTTP delivery', 'websocket-delivery': 'WebSocket delivery', 'prompt-progress': 'Prompt progress', 'managed-reload': 'Managed reload' };
+const MODES = ['qualified', 'self-checked', 'unsupported'] as const;
+const REASONS: Record<CheckReason, string> = {
+  'hook-missing': 'OpenCode offers no plugin hooks', 'hook-rejected': 'OpenCode refused the hook',
+  'events-missing': 'OpenCode offers no event stream', 'event-shape': 'OpenCode events changed shape',
+  'session-header': 'Splash requests no longer identify the chat', options: 'the Splash endpoint is not a local /v1 address',
+};
+/** What a running check has shown, in plain words. Support claims alone never read as working. */
+const featureState = (feature: FeatureStatus): string => feature.check?.state === 'failed' ? `paused · ${REASONS[feature.check.reason]}`
+  : !feature.available ? 'unavailable' : feature.check?.state === 'passed' ? 'working' : 'waiting for the next reply';
 /** Reject a stale service or malformed response before rendering any setup action. */
 export function parseCompanionSetup(value: unknown): CompanionSetupStatus | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -22,17 +32,21 @@ export function parseCompanionSetup(value: unknown): CompanionSetupStatus | null
   if (c && typeof c === 'object' && !Array.isArray(c) && (c.profile === null || typeof c.profile === 'string' && c.profile.length <= 100)
     && typeof c.activity === 'string' && Object.hasOwn(ACTIVITY, c.activity)) {
     const features = parseFeatures(c.features, v.runtimeVersion);
-    if (features) result.compatibility = { profile: c.profile, activity: c.activity, features };
+    if (features) result.compatibility = { profile: c.profile, activity: c.activity, features,
+      ...MODES.includes(c.mode as typeof MODES[number]) ? { mode: c.mode } : {} };
   }
   return result as unknown as CompanionSetupStatus;
 }
-/** Qualification describes understood semantics; demand and hook availability are separate observations. */
+/** Qualification describes understood semantics; running checks and demand are separate observations. */
 export function companionCompatibilityMarkup(value: CompanionSetupStatus): string {
-  const c = value.compatibility;
-  return html`${c ? [paragraph(`${ACTIVITY[c.activity]}. Heartbeat activity is not qualification.`),
-    html`<ul>${Object.entries(FEATURES).map(([id, label]) => { const feature = c.features[id as FeatureId];
-      return html`<li data-companion-feature="${id}">${label}: ${feature.support}${feature.available ? ' · available' : ''}</li>`; })}</ul>`]
-    : paragraph('Feature qualification was not reported.')}
+  const c = value.compatibility, version = value.runtimeVersion ? `OpenCode ${value.runtimeVersion}` : 'This OpenCode';
+  const mode = c?.mode === 'qualified' ? paragraph(`${version} · qualified. Its released binary passed Scope's native checks.`)
+    : c?.mode === 'self-checked' ? paragraph(`${version} · self-checked, not yet qualified. Scope checks the event contract while it runs; meanings such as token accounting are unverified.`)
+      : '';
+  return html`${c ? [mode, paragraph(`${ACTIVITY[c.activity]}. Heartbeat activity is not qualification.`),
+    html`<ul>${Object.entries(FEATURES).filter(([id]) => id !== 'managed-reload').map(([id, label]) =>
+      html`<li data-companion-feature="${id}">${label}: ${featureState(c.features[id as FeatureId])}</li>`)}</ul>`]
+    : paragraph('Feature checks were not reported.')}
     ${c && profileFor(value.runtimeVersion)?.websocketCancellation === 'unit-only' ? paragraph('WebSocket cancellation: unit-tested; native behavior unqualified.') : ''}
     ${paragraph(html`In the Scope repository: <code>bun run qualify:compatibility</code>. Synthetic checks only; does not qualify a live host.`)}`.markup;
 }

@@ -57,6 +57,9 @@ function guarded(chat?: Sources['chat']) {
 async function transportFixture(clock = { now: NOW, monotonic: 1000 }) {
   const home = await realpath(await mkdtemp(join(tmpdir(), 'scope-remote-service-'))); homes.push(home);
   const directory = join(home, '.cache/mlx-scope/chat-telemetry'); await mkdir(directory, { recursive: true, mode: 0o700 });
+  // A live helper heartbeat: the reader scans writers only while one is current.
+  await writeFile(join(directory, 'heartbeat.json'), JSON.stringify({ schemaVersion: 1, companionVersion: version, protocol: 'opencode-2.0.25',
+    runtimeVersion: '2.0.25', supported: true, loadedAtMs: clock.now - 1_000, updatedAtMs: clock.now, expiresAtMs: clock.now + 1e9 }), { mode: 0o600 });
   const transport = new ChatTelemetry(home, () => clock.now); transports.push(transport);
   const id = randomUUID();
   const remote = { sessionKey: chatKey('session', 'remote-session'), modelKey: chatKey('model', 'remote-model'),
@@ -158,7 +161,7 @@ test('remote freshness, cancellation, missing writers and unqualified companions
   await f.write([{ ...f.remote, measurement: cancelled }]);
   expect((await request(query())).chat).toEqual(cancelled);
   // Unsupported companion generations disable estimates without breaking the surrounding snapshot.
-  for (const overrides of [{ companionVersion: '2.1.6' }, { protocol: 'opencode-future' }, { runtimeVersion: '2.0.26' }]) {
+  for (const overrides of [{ companionVersion: '2.1.6' }, { protocol: 'opencode-future' }, { runtimeVersion: '2.1.0' }]) {
     await f.write([{ ...f.remote, measurement: measurement(f.clock.now) }], overrides);
     expect((await request(query())).chat).toBeUndefined();
   }
@@ -173,7 +176,7 @@ test('a visible remote chat retains active cadence while another page owns the p
   let value = await request(query('cloud', 'remote-session', 'remote-model', '&chatBusy=1'));
   expect(value.lease.leader).toBe(false); expect(value.nextPollMs).toBe(1000);
   observed = measurement(); value = await request(query()); expect(value.nextPollMs).toBe(1000);
-  expect((await request(query().replace('surface=status', 'surface=panel'))).nextPollMs).toBe(500);
+  expect((await request(query().replace('surface=status', 'surface=panel'))).nextPollMs).toBe(1_000);
   expect(g.calls).toEqual({ read: 0, host: 0, history: 0 });
 });
 
@@ -212,14 +215,8 @@ test('simultaneous local and remote chats share demand without mixing engine rea
     providerKey: f.remote.providerKey, destination: 'remote' });
 });
 
-test('remote telemetry failures and background frames do not trigger fallback collectors', async () => {
+test('remote telemetry failures do not trigger fallback collectors', async () => {
   const failing = guarded(async () => { throw Error('PRIVATE'); });
   const request = await launch(failing.sources); expect((await request(query())).chat).toBeUndefined();
   expect(failing.calls).toEqual({ read: 0, host: 0, history: 0 });
-  let observations = 0, targets = 0;
-  const source = createChatSource({ observe: async () => { observations++; return measurement(); } },
-    { companionTarget: async () => { targets++; return null; } });
-  const background = guarded(source), backgroundRequest = await launch(background.sources);
-  expect((await backgroundRequest(query().replace('surface=status', 'surface=background'))).chat).toBeUndefined();
-  expect([observations, targets]).toEqual([0, 0]); expect(background.calls).toEqual({ read: 0, host: 0, history: 0 });
 });

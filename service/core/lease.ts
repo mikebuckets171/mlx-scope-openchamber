@@ -3,7 +3,7 @@ import type { LeaseV2, Surface } from '../../src/contract/snapshot.ts';
 export const LEASE_TTL_MS = 12_000;
 export const LEASE_FRAMES = 16;
 type Eligible = 'page' | 'panel' | 'status';
-const PRIORITY: Record<Surface, number> = { page: 3, panel: 2, status: 1, background: 0 };
+const PRIORITY: Record<Surface, number> = { page: 3, panel: 2, status: 1 };
 type Frame = { surface: Eligible; firstAt: number; seenAt: number };
 export type LeaseView = LeaseV2 & { yielded: boolean };
 

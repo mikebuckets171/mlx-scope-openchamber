@@ -2,6 +2,7 @@ import { mediaTerminal, withdrawMediaProgress, MEDIA_ETA_HORIZON_MS, MEDIA_JOB_L
 import { HttpFailure, type FetchImplementation } from '../http.ts';
 import { cancelMedia, collectMedia, type MediaAdapterOptions, type MediaCollection } from './adapters.ts';
 import { MediaDiscovery, type MediaSourceConfig } from './discovery.ts';
+import { PHOSPHENE_READ_MS } from './phosphene.ts';
 
 interface SourceSlot { value?: MediaCollection; until: number; fingerprint: string; flight?: Promise<MediaCollection> }
 interface RateSample { at: number; value: number }
@@ -51,16 +52,29 @@ export class MediaService {
   }
   configurations(): Promise<MediaSourceConfig[]> { return this.input.configurations?.() ?? this.discovery.configurations(); }
   get enabled(): boolean { return this.discovery.enabled; }
+  /**
+   * Whether a local media job is running, from the last snapshot a visible view asked for. Never starts a collection:
+   * without a snapshot from the last 15 s it is unknown (null).
+   */
+  runningNow(now = this.options.now()): boolean | null {
+    const cached = this.snapshotCache?.value;
+    if (!cached || now - cached.sampledAtMs > 15_000) return null;
+    return cached.jobs.some(job => job.state === 'running' && job.freshness === 'live');
+  }
   invalidate(enabled?: boolean): void { this.generation++; this.snapshotCache = null; this.options.videoHistory?.clear(); this.discovery.invalidate(enabled); for (const slot of this.slots.values()) slot.until = 0; }
   /**
    * Keeps this phase's rate window and sets a live or held estimate. Samples are the producer's own times for each distinct
    * value (adapter progress-change time, or the producer observation that first carried the value), never Scope's read time.
    * Any change of phase identity starts a new window, so an estimate is never stitched across phases.
    */
-  private estimate(key: string, job: MediaJobV1, eligible: boolean): void {
-    // Only this service measures an estimate; anything an adapter or producer supplied is discarded first.
+  private estimate(key: string, job: MediaJobV1, eligible: boolean, reported?: number): void {
+    // Only this service measures an estimate; anything an adapter or producer supplied is discarded first. A source
+    // application's own estimate (`reported`) is shown as its estimate, with live counters only, and never measured here.
     delete job.etaAtMs; delete job.lastEtaAtMs; delete job.etaBasis;
     const live = job.state === 'running' && job.freshness === 'live' ? job.progress : null;
+    if (live && reported !== undefined && reported >= job.observedAtMs && reported - job.observedAtMs <= MEDIA_ETA_HORIZON_MS) {
+      job.etaAtMs = reported; job.etaBasis = 'reported'; this.rates.delete(key); return;
+    }
     if (live && job.progressAtMs !== undefined) {
       const identity = phaseIdentity(job, live), sample = { at: job.progressAtMs, value: live.value };
       let window = this.rates.get(key);
@@ -103,7 +117,8 @@ export class MediaService {
         state: config.kind === 'qwen-image' && error instanceof HttpFailure && error.status === 404 ? 'unsupported' : 'disconnected', capabilities: { progress: false, cancel: false },
         message: config.kind === 'qwen-image' && error instanceof HttpFailure && error.status === 404 ? 'This image workflow does not publish media progress yet.' : 'Source unavailable. Open its application or check Connections.' },
       jobs: (current.value?.jobs ?? []).map(job => mediaTerminal(job.state) ? job : withdrawMediaProgress(job, 'unavailable')),
-    })).then(value => { current.value = value; current.until = this.options.now() + 1800; return value; }).finally(() => { delete current.flight; });
+      ...config.kind === 'phosphene' ? { ttlMs: PHOSPHENE_READ_MS.idle, staleMs: current.value?.staleMs } : {},
+    })).then(value => { current.value = value; current.until = this.options.now() + (value.ttlMs ?? 1800); return value; }).finally(() => { delete current.flight; });
     return current.flight;
   }
   snapshot(): Promise<MediaSnapshotV1> {
@@ -126,6 +141,8 @@ export class MediaService {
     let jobs = collections.flatMap(collection => collection.jobs.map(job => ({ ...job, sampledAtMs: now, cancel: { ...job.cancel } })));
     // Each adapter declares, per job, when its current phase is final or dominant. Nothing is inferred here.
     const eligible = new Set(collections.flatMap(collection => [...collection.finalPhase ?? []].map(id => `${collection.source.id}/${id}`)));
+    const reported = new Map<string, number>(collections.flatMap(collection => [...collection.reportedEta ?? []].map(([id, at]) => [`${collection.source.id}/${id}`, at] as const)));
+    const staleAfter = new Map(collections.map(collection => [collection.source.id, collection.staleMs ?? 15_000]));
     // A queue can atomically move a record between directories during a read. Completion wins that race.
     const unique = new Map<string, MediaJobV1>();
     for (const job of jobs) {
@@ -160,14 +177,14 @@ export class MediaService {
         if (!previous || previous.key !== progressKey) this.progress.set(key, { key: progressKey, at: job.observedAtMs });
         job.progressAtMs ??= this.progress.get(key)?.at;
       }
-      this.estimate(key, job, eligible.has(key));
+      this.estimate(key, job, eligible.has(key), reported.get(key));
       if (mediaTerminal(job.state)) this.pending.delete(key);
       const requested = this.pending.get(key);
       if (requested !== undefined && !mediaTerminal(job.state)) {
         job.state = 'cancelling'; job.cancel.supported = false;
         job.message = now - requested > 15_000 ? 'Cancellation has not been confirmed by the source.' : 'Waiting for cancellation acknowledgement';
       }
-      if (!mediaTerminal(job.state) && now - job.observedAtMs > 15_000) Object.assign(job, withdrawMediaProgress(job, job.freshness === 'unavailable' ? 'unavailable' : 'stale'));
+      if (!mediaTerminal(job.state) && now - job.observedAtMs > (staleAfter.get(job.sourceId) ?? 15_000)) Object.assign(job, withdrawMediaProgress(job, job.freshness === 'unavailable' ? 'unavailable' : 'stale'));
       if (job.state !== 'running') { job.progress = null; delete job.etaAtMs; }
       if (job.state !== 'running' || job.freshness === 'live') { job.lastProgress = undefined; job.lastProgressAtMs = undefined; delete job.lastEtaAtMs; }
       if (job.etaAtMs === undefined && job.lastEtaAtMs === undefined) delete job.etaBasis;

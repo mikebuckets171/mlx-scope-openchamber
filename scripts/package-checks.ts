@@ -13,19 +13,21 @@ export const EXEC_G1 = [
 // 3.1 adds bounded media adapters, reversible helper setup, Media/Connections views and digit motion.
 // The measured candidate adds about 27 KB of guest code and 30 KB of service code, with no new dependencies.
 // Bundle size is a packaging ceiling, distinct from the unchanged CPU/RSS acceptance budgets.
-export const BUNDLE_CEILINGS = { 'panel/main.js': 304_000, 'service/main.js': 250_000, 'background/main.js': 25_000 } as const;
-export const GUEST_BUNDLES = ['panel/main.js', 'background/main.js'] as const;
-export const COMMAND = { name: 'scope', description: 'Attach a private MLX Scope diagnostics summary' } as const;
+// 5.1 guards: the measured 5.1 bundles × 1.05 (panel 257,239 B, service 255,175 B). 5.0 shipped 288,193 B, 247,540 B and
+// a 24 KB background bundle; the service grew with Phosphene, prompt reuse and the OpenCode self-check.
+export const BUNDLE_CEILINGS = { 'panel/main.js': 270_000, 'service/main.js': 268_000 } as const;
+export const GUEST_BUNDLES = ['panel/main.js'] as const;
 export const STATUS_SECTION = { entry: 'panel/index.html', title: 'MLX Scope', height: 72 } as const;
-export const BACKGROUND_ENTRY = 'background/index.html';
-export const SDK_VERSION = '2.3.3';
-export const ENGINES_FLOOR = '>=2.3.3';
+export const SDK_VERSION = '2.4.0';
+export const ENGINES_FLOOR = '>=2.4.0';
+/** The exact policy every guest page declares: packaged scripts and styles only, no network, images, fonts or forms. */
+export const PANEL_CSP = "default-src 'none'; script-src 'self' data: http: https:; style-src 'self' data: http: https: 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; form-action 'none'";
 
 type Json = Record<string, unknown>;
 const obj = (value: unknown): Json | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Json : null;
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
-/** The approved host floor, SDKs, awareness grants and unchanged probe permissions. */
+/** The approved host floor, SDK, awareness grant and unchanged probe permissions. */
 export const manifestProblems = (pkg: unknown): string[] => {
   const root = obj(pkg), openchamber = obj(root?.openchamber), contributes = obj(openchamber?.contributes);
   const service = obj(contributes?.service), exec = obj(service?.permissions)?.exec;
@@ -34,11 +36,11 @@ export const manifestProblems = (pkg: unknown): string[] => {
   expect(openchamber?.apiVersion === 1, 'openchamber.apiVersion must be 1');
   expect(obj(openchamber?.engines)?.openchamber === ENGINES_FLOOR, `engines.openchamber must be "${ENGINES_FLOOR}"`);
   expect(obj(root?.dependencies)?.['@openchamber/sdk'] === SDK_VERSION, `@openchamber/sdk must be pinned to ${SDK_VERSION}`);
-  expect(same(contributes?.capabilities, ['sessions', 'shells']), 'contributes.capabilities must be exactly sessions and shells');
-  expect(obj(root?.dependencies)?.['@openchamber/sdk-background'] === 'npm:@openchamber/sdk@2.0.4', 'background SDK must remain pinned to official 2.0.4');
+  expect(same(contributes?.capabilities, ['sessions']), 'contributes.capabilities must be exactly sessions');
+  expect(Object.keys(obj(root?.dependencies) ?? {}).filter(name => name.startsWith('@openchamber/')).length === 1, 'only one OpenChamber SDK may be a dependency');
   expect(same(contributes?.statusSection, STATUS_SECTION), `contributes.statusSection must be ${JSON.stringify(STATUS_SECTION)}`);
-  expect(same(contributes?.background, { entry: BACKGROUND_ENTRY }), `contributes.background must be {"entry":"${BACKGROUND_ENTRY}"}`);
-  expect(same(contributes?.commands, [COMMAND]), `contributes.commands must be exactly [${JSON.stringify(COMMAND)}]`);
+  expect(contributes?.background === undefined, 'contributes.background must be absent: 5.1 has no background entry');
+  expect(contributes?.commands === undefined, 'contributes.commands must be absent: 5.1 has no slash command');
   expect(contributes?.page === true, 'contributes.page must be true');
   expect(Array.isArray(contributes?.actions) && (contributes.actions as unknown[]).some(action =>
     obj(action)?.id === 'open-mlx-scope' && obj(action)?.where === 'session'), 'the open-mlx-scope session action must stay');

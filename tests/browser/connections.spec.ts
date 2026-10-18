@@ -4,7 +4,7 @@ import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 
 // 3.2 has one column and secondary views with Back; these replace the 3.1 Live/History tabs.
 const toColumn = async (frame: FrameLocator): Promise<void> => {
-  for (const name of ['Back to History', 'Back']) { const back = frame.getByRole('button', { name, exact: true }); if (await back.isVisible()) await back.click(); }
+  const back = frame.getByRole('button', { name: 'Back', exact: true }); if (await back.isVisible()) await back.click();
 };
 const toHistory = async (frame: FrameLocator): Promise<void> => { await toColumn(frame); await frame.getByRole('button', { name: 'History', exact: true }).click(); };
 // Connection selection on the synthetic 1.x host: what is stored, what each poll asks for, and that a switch never
@@ -76,7 +76,7 @@ test('standalone Splash: server-wide averages and Metal memory stay separate, an
   await expect(frame.locator('.instrument-phase')).toHaveText('Idle');
   await expect(frame.locator('#rate')).toHaveText('47.2');
   await expect(frame.locator('.instrument-primary')).toHaveAttribute('data-live', 'false');
-  await expect(frame.locator('.instrument-source')).toContainText('Engine · overall avg.');
+  await expect(frame.locator('.instrument-source')).toContainText('Engine · overall average');
   await expect(frame.locator('.instrument-source .basis')).toContainText('Not a live reading.');
   await expect(frame.locator('#metrics')).toHaveCount(0);
   await server(frame);

@@ -21,6 +21,8 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
+    outputs:
+      latest: ${{ steps.latest.outputs.latest }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -51,7 +53,8 @@ jobs:
           const notes = changelog.slice(position + heading.length).split('\n## ')[0].trim();
           assert(notes.length > 0, 'Release notes must not be empty.');
           const asset = `${pkg.name}-${pkg.version}.zip`;
-          const install = `Install **${asset}** in OpenChamber. GitHub source archives are not install packages. A SHA-256 file accompanies the ZIP.`;
+          const git = `https://github.com/${process.env.GITHUB_REPOSITORY}#release`;
+          const install = `Install from Git in OpenChamber with \`${git}\`; updates then keep your History. **${asset}** is the same package, but installing a ZIP over an existing Scope makes OpenChamber delete its stored History. GitHub source archives are not install packages. A SHA-256 file accompanies the ZIP.`;
           writeFileSync(join(process.env.RUNNER_TEMP, 'release-notes.md'), `${notes}\n\n${install}\n`);
           writeFileSync(process.env.GITHUB_ENV, `RELEASE_ASSET=${asset}\n`, { flag: 'a' });
           JS
@@ -60,6 +63,7 @@ jobs:
         run: sha256sum --check "$RELEASE_ASSET.sha256"
       # Only the highest published version is Latest, so a legacy/1.6.x fix after 2.0 gets --latest=false.
       - name: Decide the Latest label
+        id: latest
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
@@ -69,6 +73,7 @@ jobs:
           newest=$({ cat "$RUNNER_TEMP/released-tags"; echo "$RELEASE_TAG"; } | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
           if [ "$newest" = "$RELEASE_TAG" ]; then latest=true; else latest=false; fi
           echo "RELEASE_LATEST=$latest" >> "$GITHUB_ENV"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
       - name: Publish verified package
         env:
           GH_TOKEN: ${{ github.token }}
@@ -79,3 +84,32 @@ jobs:
           --verify-tag --title "MLX Scope $RELEASE_TAG"
           --notes-file "$RUNNER_TEMP/release-notes.md"
           --latest="$RELEASE_LATEST"
+
+  # Git installs follow `#release`. The branch moves only to the newest release, only from the verified ZIP, and only
+  # forward: the script refuses a version that is not newer and re-checks a fresh clone before it reports success.
+  release-branch:
+    needs: publish
+    if: needs.publish.outputs.latest == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: mlx-scope-package
+          path: dist
+      - name: Move the release branch to the verified package
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          bun scripts/release-branch.ts --zip "dist/mlx-scope-openchamber-${GITHUB_REF_NAME#v}.zip" --remote origin --push

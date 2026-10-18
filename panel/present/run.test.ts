@@ -7,7 +7,7 @@ import { SERVER_WIDE, type ScopeInput } from './scope.ts';
 
 const input = (state = 'decode', extra: Partial<ScopeInput> = {}): ScopeInput => ({ now: MOCK_NOW, version: 'fixture',
   snapshot: parseSnapshotV2(mockBody(state))!, fresh: true, paused: false, frame: null, attribution: SERVER_WIDE,
-  chatRuntime: null, last: null, next: { kind: 'idle' }, samples: [], turnStartAt: null, chatIsLocal: true, ...extra });
+  chatRuntime: null, last: null, samples: [], turnStartAt: null, chatIsLocal: true, ...extra });
 
 test('recorded detail shows stored facts, partial basis and co-factors without inventing a timeline', () => {
   const view = presentRecordedRun(reply({ at: MOCK_NOW, basis: 'last-observed', decodeTps: 20, output: 100, ttftMs: 200,

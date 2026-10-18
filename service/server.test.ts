@@ -182,16 +182,16 @@ test('each read gets its selection and tier; the host sampler gets the tier, act
   const request = await launch({ read: async (selection, tier) => { selections.push([selection, tier]); return current; },
     host: async context => { hosts.push(context); return HOST; } });
   for (const query of ['provider=my-local&runtime=mlx-lm', 'runtime=lmstudio', 'provider=other', '', 'provider=my-local&frame=0badc0de&unknown=1',
-    'provider=My%20LM%20Studio%20(Bionic)', 'runtime=llama-server', 'runtime=ollama&surface=status', 'surface=background',
+    'provider=My%20LM%20Studio%20(Bionic)', 'runtime=llama-server', 'runtime=ollama&surface=status',
     'tier=full&detail=server&provider=&runtime=splash']) {
     await snapshot(request, `/v2/snapshot?${query}`);
   }
-  const full = { tier: 'full', detail: false, oneShot: false };
+  const full = { tier: 'full', detail: false };
   expect(selections).toEqual([[{ provider: 'my-local', runtime: 'mlx-lm' }, full], [{ provider: '', runtime: 'lmstudio' }, full],
     [{ provider: 'other', runtime: null }, full], [undefined, full], [{ provider: 'my-local', runtime: null }, full],
     [{ provider: 'My LM Studio (Bionic)', runtime: null }, full], [{ provider: '', runtime: 'llama-server' }, full],
-    [{ provider: '', runtime: 'ollama' }, { tier: 'glance', detail: false, oneShot: false }], [undefined, { tier: 'glance', detail: false, oneShot: true }],
-    [{ provider: '', runtime: 'splash' }, { tier: 'full', detail: true, oneShot: false }]]);
+    [{ provider: '', runtime: 'ollama' }, { tier: 'glance', detail: false }],
+    [{ provider: '', runtime: 'splash' }, { tier: 'full', detail: true }]]);
   expect(hosts.at(-1)).toEqual({ tier: 'full', active: false, generation: 3, omlxPort: null });
   current = reading({ state: 'ready', reason: null, params: {} }, { runtime: { ...offline().runtime, phase: 'decode' },
     meta: meta({ port: 8001, connection: { ...meta().connection, runtime: 'omlx', generation: 7 } }) });
@@ -209,8 +209,7 @@ test('the lease elects page over panel over status among recent frames, and lowe
   expect((await poll('00000003', 'page')).lease).toMatchObject({ leader: true, epoch: 3 });
   const panel = await poll('00000002', 'panel');
   expect([panel.lease, panel.nextPollMs]).toEqual([{ leader: false, epoch: 3, ttlMs: 12_000, leaderSurface: 'page' }, 10_000]);
-  // Background frames and requests without a frame id never lead, and never displace the leader.
-  expect((await poll('00000004', 'background')).lease).toMatchObject({ leader: false, leaderSurface: 'page' });
+  // Requests without a frame id never lead, and never displace the leader.
   expect((await poll(null, 'page')).lease).toMatchObject({ leader: false, epoch: 3 });
   // The page stops polling: after the TTL the panel, still polling, takes over.
   clock.monotonic += 6_000; await poll('00000002', 'panel');
@@ -304,7 +303,7 @@ test('the next poll follows the reading, the backoff and the surface', async () 
   expect(await poll()).toBe(2_000);
   expect(await poll('surface=status')).toBe(3_000);
   current = reading({ state: 'ready', reason: null, params: {} }, { runtime: { ...offline().runtime, phase: 'decode' } });
-  expect([await poll(), await poll('surface=page'), await poll('surface=status')]).toEqual([500, 500, 1_000]);
+  expect([await poll(), await poll('surface=page'), await poll('surface=status')]).toEqual([1_000, 1_000, 1_000]);
 });
 
 test('no body leaves at or above the SDK response limit', async () => {
@@ -315,4 +314,48 @@ test('no body leaves at or above the SDK response limit', async () => {
   const response = await request('/v2/snapshot');
   expect(response.status).toBe(503);
   expect(await response.json()).toEqual({ error: 'service_unavailable' });
+});
+
+test('idle exit: one lazy timer re-armed for the remaining time, held while a request runs, fired once', async () => {
+  const { idleTracker } = await import('./server.ts');
+  let now = 0, fired = 0;
+  const tracker = idleTracker(60, () => now, () => { fired++; });
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  now = 40; tracker.begin(); tracker.end();           // a view at 40 ms moves the deadline to 100 ms
+  now = 70; await wait(70);
+  expect(fired).toBe(0);
+  tracker.begin(); now = 1_000; await wait(80);       // a request in flight past the deadline holds the exit
+  expect(fired).toBe(0);
+  tracker.end(); now = 2_000; await wait(80);
+  expect(fired).toBe(1);
+  tracker.begin(); tracker.end(); await wait(80);
+  expect(fired).toBe(1);
+  tracker.dispose();
+});
+
+test('health checks never count as a view; an authenticated read does, and the service then ends itself once', async () => {
+  let idle = 0;
+  const request = await launch(defaults, { idleExitMs: 80, onIdle: () => { idle++; } });
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  await wait(40); clock.monotonic += 40;
+  expect((await request('/v2/snapshot')).status).toBe(200);
+  for (let i = 0; i < 3; i++) { await wait(30); clock.monotonic += 30; expect((await request('/health')).status).toBe(200); }
+  expect(idle).toBe(0);
+  await wait(60); clock.monotonic += 60;
+  await wait(40);
+  expect(idle).toBe(1);
+  await wait(120); clock.monotonic += 120;
+  expect(idle).toBe(1);
+});
+
+test('a chat sees only its own prompts\' reported counts; other chats and unselected views see none', async () => {
+  const mine = 'a'.repeat(64), other = 'b'.repeat(64), model = 'c'.repeat(64);
+  const ready = reading({ state: 'ready', reason: null, params: {} }, { prompts: [
+    { sessionKey: mine, requestID: '00000000-0000-4000-8000-000000000001', total: 30_000, cache: 27_000, observedAt: NOW - 1_000 }] });
+  const request = await launch({ ...defaults, read: async () => ready });
+  const own = await snapshot(request, `/v2/snapshot?frame=11111111&surface=panel&chat=${mine}&chatModel=${model}`);
+  expect(own.promptCache).toEqual({ basis: 'reported', latest: { total: 30_000, cache: 27_000, observedAt: NOW - 1_000 }, previous: null });
+  expect((await snapshot(request, `/v2/snapshot?frame=11111111&surface=panel&chat=${other}&chatModel=${model}`)).promptCache).toBeUndefined();
+  expect((await snapshot(request, '/v2/snapshot?frame=11111111&surface=panel')).promptCache).toBeUndefined();
+  expect(JSON.stringify(own)).not.toContain('00000000-0000-4000-8000-000000000001');
 });

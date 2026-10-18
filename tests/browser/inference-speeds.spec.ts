@@ -9,7 +9,8 @@ for (const theme of ['light', 'dark']) test(`Session shows the relevant stage an
     const frame = page.frameLocator('iframe');
     await expect(frame.locator('.ws-reading')).toHaveText(/43\.8\s*tokens\/s$/);
     await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /Calculated · last 4.0 s/);
-    await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · recent 4.0 s');
+    // The label names the layer; the measurement window stays in the reading's explanation.
+    await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
     await expect(frame.locator('#ws')).not.toContainText('47.2');
     await expect(frame.locator('.speed-row')).toHaveCount(0);
     for (const fontSize of [24, 32]) {
@@ -110,7 +111,8 @@ test('oMLX progress takes precedence while reading and stale input clears the me
   await page.goto('/v2?surface=status&state=prefill&theme=light');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('.ws-reading')).toHaveText('64%');
-  await expect(frame.locator('.ws-measurement .ws-label')).toContainText('prompt');
+  await expect(frame.locator('.ws-measurement .ws-label')).toContainText('Engine');
+  await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /^Prompt read/);
   await expect(frame.locator('#ws')).not.toContainText('185');
   await page.evaluate(() => (window as any).setPreviewState('splash-prefill'));
   await page.clock.runFor(6_000);

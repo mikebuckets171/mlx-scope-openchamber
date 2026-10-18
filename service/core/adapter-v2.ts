@@ -22,13 +22,13 @@ export type RuntimeGet = (path: string) => Promise<RuntimeReply>;
 /** Text GET (Prometheus); `maxBytes` defaults to the 2 MB http.ts cap. */
 export type RuntimeGetText = (path: string, maxBytes?: number) => Promise<{ status: number; text: string }>;
 
-/**
- * What the frame asked for; adapters skip reads the tier or the Server tab (`detail`) does not need. `oneShot` (`/scope`)
- * reads once: it starts nothing that outlives the read.
- */
-export interface ReadContext { deadline: number; tier: Tier; detail: boolean; oneShot?: boolean }
+/** What the frame asked for; adapters skip reads the tier or the Server tab (`detail`) does not need. */
+export interface ReadContext { deadline: number; tier: Tier; detail: boolean }
 /** A finished request as the adapter saw it. The completion ring assigns `seq`; verdicts and host co-factors come later. */
-export type CompletionDraft = Omit<CompletionV2, 'seq' | 'verdict' | 'host'>;
+/** `spanStartedAt` is service-internal: when Scope first saw the request running, for judging co-factors over its span. */
+export type CompletionDraft = Omit<CompletionV2, 'seq' | 'verdict' | 'host'> & { spanStartedAt?: number };
+/** One prompt's reported counts, matched to a chat by its hashed session key. Service-internal; never on the wire as is. */
+export interface PromptObservation { sessionKey: string; requestID: string; total: number; cache: number; observedAt: number }
 
 export interface AdapterReadingV2 {
   at: number;                                // when the runtime was read (service clock); cached reads keep their time
@@ -39,6 +39,8 @@ export interface AdapterReadingV2 {
   /** Opaque, never on the wire: a change bumps `connection.generation` (LM Studio `/api/v0/models` state, a reload). */
   generationKey?: string;
   completions: CompletionDraft[];            // finished since the previous read, oldest first
+  /** Opaque, never on the wire: prompts observed in this read, for per-chat prompt reuse. */
+  prompts?: PromptObservation[];
 }
 
 export interface AdapterV2 {

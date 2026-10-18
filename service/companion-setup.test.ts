@@ -245,7 +245,7 @@ describe('explicit companion setup', () => {
     await writeFile(join(f.addon, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.0.0' }));
     expect(await setup.status()).toMatchObject({ state: 'pending', live: false,
       message: 'Update chat speed to install the current tracking helper.' });
-    probe = receipt(at, { runtimeVersion: '2.0.26', supported: false, protocol: 'unsupported' });
+    probe = receipt(at, { runtimeVersion: '2.1.0', supported: false, protocol: 'unsupported' });
     const before = await readFile(f.config, 'utf8');
     expect(await setup.enable()).toMatchObject({ state: 'incompatible', canEnable: false, canDisable: true });
     expect(await readFile(f.config, 'utf8')).toBe(before);
@@ -261,18 +261,20 @@ describe('explicit companion setup', () => {
     const setup = createCompanionSetup({ ...f.options, now: () => at + 100, probe: async () => probe });
     const config = await readFile(f.config, 'utf8');
     expect(await setup.status()).toMatchObject({ state: 'ready', live: false,
-      compatibility: { profile: 'opencode-2.0.25-v1', activity: 'awaiting-demand', features } });
+      compatibility: { profile: 'opencode-2.0.25-v1', mode: 'qualified', activity: 'awaiting-demand', features } });
     probe = receipt(at, { features, updatedAtMs: at, expiresAtMs: at + 15_000 });
     expect((await setup.status()).compatibility?.activity).toBe('listening');
     probe = receipt(at, { features, supported: false });
     expect(await setup.status()).toMatchObject({ state: 'error', live: false, compatibility: { activity: 'unavailable' } });
-    probe = receipt(at, { runtimeVersion: '2.0.26', protocol: 'unsupported', supported: false });
-    expect(await setup.status()).toMatchObject({ state: 'incompatible', compatibility: { profile: null,
-      features: { 'prompt-progress': { support: 'unqualified', available: false } } } });
+    probe = receipt(at, { runtimeVersion: '2.0.33', features: featureSupport('2.0.33') });
+    expect(await setup.status()).toMatchObject({ state: 'ready', compatibility: { profile: null, mode: 'self-checked' } });
+    probe = receipt(at, { runtimeVersion: '2.1.0', protocol: 'unsupported', supported: false });
+    expect(await setup.status()).toMatchObject({ state: 'incompatible', message: expect.stringContaining('2.0.25 or a later 2.0 release'),
+      compatibility: { profile: null, mode: 'unsupported', features: { 'prompt-progress': { support: 'unqualified', available: false } } } });
     expect(await readFile(f.config, 'utf8')).toBe(config);
   });
 
-  for (const runtimeVersion of ['2.0.27', '2.0.28', '2.0.29']) it(`updates a helper that predates qualified ${runtimeVersion} without trusting its unsupported telemetry`, async () => {
+  for (const runtimeVersion of ['2.0.27', '2.0.28', '2.0.29', '2.0.32']) it(`updates a helper that predates qualified ${runtimeVersion} without trusting its unsupported telemetry`, async () => {
     let at = 30_000; const f = await fixture('{"plugins":["other-plugin"]}', { now: () => at });
     await writeFile(join(f.bundle, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.2.0' }));
     await f.setup.enable();

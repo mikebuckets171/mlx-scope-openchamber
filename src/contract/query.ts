@@ -99,7 +99,7 @@ export const parseSnapshotQuery = (params: Params): SnapshotQuery | BadQuery => 
     if (detail) throw new Bad('detail');
   }
   return { ...selected, ...(frame ? { frame } : {}), ...(surface ? { surface } : {}),
-    tier: tier ?? (surface === 'status' || surface === 'background' ? 'glance' : 'full'), ...(since !== undefined ? { since } : {}),
+    tier: tier ?? (surface === 'status' ? 'glance' : 'full'), ...(since !== undefined ? { since } : {}),
     marks: repeated(params, 'mark', MAX_MARKS, mark), attrs: repeated(params, 'attr', MAX_ATTRS, attr), ...(detail ? { detail } : {}),
     ...(chat && chatModel ? { chat, chatModel } : {}), ...(chatBusy ? { chatBusy } : {}), ...(chatOnly ? { chatOnly } : {}) };
 });

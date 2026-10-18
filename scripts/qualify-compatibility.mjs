@@ -4,7 +4,8 @@ import { createHash } from 'node:crypto';
 import { lstat, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FEATURE_IDS, profileFor } from '../bridge/opencode/compatibility.js';
+import { FEATURE_IDS } from '../bridge/opencode/compatibility.js';
+import { modeFor, profileFor } from '../bridge/opencode/qualified.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const fixtureVersion = '2.0.25';
@@ -16,8 +17,8 @@ export const CHECK_SUITES = [
   { id: 'service', executable: 'bun', args: ['test', ...['companion-setup', 'chat-telemetry', 'chat-telemetry-review'].map(name => `service/${name}.test.ts`)] },
   { id: 'host-storage', executable: 'bun', args: ['test', 'panel/host', 'panel/sdk-theme.test.ts', 'panel/attribution',
     'panel/state/follow-chat.test.ts', 'panel/data/client.test.ts', 'panel/data/visibility.test.ts', 'panel/data/poller.test.ts',
-    'panel/testing/storage.test.ts', 'panel/history/storage-compatibility.test.ts', 'panel/history/migrate-v1.test.ts',
-    'panel/history/ledger.test.ts', 'panel/history/prefs.test.ts', 'panel/captures/store.test.ts', 'background'] },
+    'panel/testing/storage.test.ts', 'panel/history/storage-compatibility.test.ts',
+    'panel/history/ledger.test.ts', 'panel/history/prefs.test.ts'] },
   { id: 'privacy', executable: 'bun', args: ['scripts/scan-committed.ts'] },
   { id: 'build-consistency', executable: 'bun', args: ['scripts/check-built-artifacts.ts'] },
   // Verifies the existing bundles, a reproducible ZIP and its extracted service under the synthetic smoke host.
@@ -49,8 +50,8 @@ export function packageEntries(pkg) {
   return [...pkg.files].sort();
 }
 
-const sourceRoots = ['panel', 'service', 'background', 'src', 'bridge', 'scripts', 'tests'];
-const profiles = ['bridge/opencode/compatibility.js'];
+const sourceRoots = ['panel', 'service', 'src', 'bridge', 'scripts', 'tests'];
+const profiles = ['bridge/opencode/compatibility.js', 'bridge/opencode/qualified.js'];
 const dependencies = ['package.json', 'bun.lock', 'tsconfig.json', 'node_modules/@openchamber/sdk/package.json',
   'node_modules/@openchamber/sdk/dist/host.js', 'node_modules/@openchamber/sdk/dist/contract.js', 'node_modules/@openchamber/sdk/dist/ui/theme.js'];
 const readHashes = async (directory, names) => Object.fromEntries(await Promise.all([...new Set(names)].sort().map(async name => {
@@ -83,8 +84,8 @@ export function qualificationReport(checks, hashes, at, context = {}) {
   const inputs = inputFingerprint(hashes), identity = { candidate: candidateVersion, hostSdk: context.hostSdk ?? null,
     hostApi: context.hostApi ?? null, companionVersion: context.companionVersion ?? null };
   const features = Object.fromEntries(FEATURE_IDS.map(id => [id, {
-    result: profile ? resultFor(checks, [id === 'managed-reload' ? 'service' : 'bridge', 'source-consistency']) : 'unqualified',
-    support: profile ? 'qualified' : 'unqualified',
+    result: profile ? resultFor(checks, [id === 'managed-reload' ? 'service' : 'bridge', 'source-consistency']) : modeFor(candidateVersion),
+    support: modeFor(candidateVersion),
     fixtures: checks.find(check => check.id === (id === 'managed-reload' ? 'service' : 'bridge'))?.result ?? 'not-run', nativeRuntime: 'not-run',
     limitation: id === 'managed-reload' ? 'File/configuration mocks do not prove native watcher activation or uninterrupted live replies.'
       : id === 'websocket-delivery' ? profile?.websocketCancellation === 'native'
@@ -100,7 +101,7 @@ export function qualificationReport(checks, hashes, at, context = {}) {
     ['privacy', 'privacy', 'Committed-source scan plus package leak checks; this does not certify arbitrary external inputs.'],
   ]) features[id] = { result: resultFor(checks, [check, ...id === 'packaged-artifact' ? ['build-consistency'] : [], 'source-consistency']), nativeRuntime: 'not-run', limitation };
   return { schemaVersion: 2, at, mode: 'synthetic', result: passed ? 'synthetic-pass' : 'synthetic-fail',
-    candidate: { runtime: 'OpenCode', version: candidateVersion, profile: profile?.id ?? null, support: profile ? 'qualified' : 'unqualified' },
+    candidate: { runtime: 'OpenCode', version: candidateVersion, profile: profile?.id ?? null, support: modeFor(candidateVersion) },
     fixtureProfile: profileFor(fixtureVersion).id, fixtureRuntime: fixtureVersion,
     host: { sdk: identity.hostSdk, apiVersion: identity.hostApi, nativeBuild: 'not-observed' }, companionVersion: identity.companionVersion,
     runtimeExecuted: false, supportChanged: false, hashes, inputFingerprint: inputs,

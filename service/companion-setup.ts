@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { parseLocalOrigin, pathsForHome } from './config.ts';
 import { hintFor } from './core/hints.ts';
 import { version as companionVersion } from '../bridge/opencode/package.json';
-import { acceptsChatProtocol, featureSupport, parseFeatures, profileFor, type FeatureStatuses } from '../bridge/opencode/compatibility.js';
+import { acceptsChatProtocol, acceptsRuntime, featureSupport, parseFeatures, type FeatureStatuses } from '../bridge/opencode/compatibility.js';
+import { modeFor, profileFor, type CompatibilityMode } from '../bridge/opencode/qualified.js';
 
 export const COMPANION_SETUP_PATH = '/v2/companion/setup';
 export const COMPANION_ID = 'mlx-scope-prompt-progress';
@@ -29,7 +30,7 @@ export interface CompanionSetupStatus {
   message: string; configured: boolean; managed: boolean; canEnable: boolean; canDisable: boolean;
   runtimeVersion: string | null; companionVersion: string | null; protocol: string | null; live: boolean;
   /** Qualification is independent of an installed helper's currently observed activity. */
-  compatibility?: { profile: string | null; activity: 'not-loaded' | 'awaiting-demand' | 'listening' | 'unavailable'; features: FeatureStatuses };
+  compatibility?: { profile: string | null; mode?: CompatibilityMode; activity: 'not-loaded' | 'awaiting-demand' | 'listening' | 'unavailable'; features: FeatureStatuses };
 }
 export interface CompanionSetupOptions {
   /** The shipped bridge/opencode directory, resolved by the service entry point. Never accepted from HTTP input. */
@@ -296,7 +297,7 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
     const receipt = await probe(), valid = receipt && Number.isFinite(receipt.loadedAtMs) && receipt.loadedAtMs > 0 && receipt.loadedAtMs <= now() + 1_000;
     const runtimeVersion = valid ? receipt.runtimeVersion.slice(0, 40) : null;
     const loadedCompanionVersion = valid ? receipt.companionVersion.slice(0, 40) : null, protocol = valid ? receipt.protocol.slice(0, 80) : null;
-    const runtimeQualified = !!profileFor(runtimeVersion);
+    const runtimeAccepted = acceptsRuntime(runtimeVersion);
     const qualified = valid && acceptsChatProtocol(receipt.runtimeVersion, receipt.protocol);
     const supported = qualified && receipt.supported;
     const configured = info.entry >= 0, installedAt = typeof info.marker?.installedAtMs === 'number' ? info.marker.installedAtMs : 0;
@@ -304,16 +305,16 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
     const needsUpdate = configured && (stale || json(info.files.get('package.json')?.text ?? '{}').version !== companionVersion);
     const current = supported && !stale && receipt.companionVersion === companionVersion && receipt.loadedAtMs >= installedAt;
     const live = !!(current && receipt.updatedAtMs && receipt.updatedAtMs <= now() + 1_000 && receipt.expiresAtMs && receipt.expiresAtMs > now() && receipt.expiresAtMs - receipt.updatedAtMs <= 15_000);
-    const state = valid && !runtimeQualified ? 'incompatible' : qualified && !supported ? 'error' : configured ? current ? 'ready' : 'pending' : 'disabled';
-    const message = state === 'incompatible' ? 'This OpenCode version is not qualified for chat estimates. Runtime measurements remain available.'
+    const state = valid && !runtimeAccepted ? 'incompatible' : qualified && !supported ? 'error' : configured ? current ? 'ready' : 'pending' : 'disabled';
+    const message = state === 'incompatible' ? 'Chat estimates need OpenCode 2.0.25 or a later 2.0 release. Runtime measurements remain available.'
       : state === 'error' ? 'Chat observation hooks are unavailable. Native runtime measurements remain available.'
       : state === 'ready' ? live ? 'Chat tracking is connected. Estimates follow the chat you are watching.' : 'Chat tracking is ready for your next reply.'
         : state === 'pending' ? needsUpdate ? 'Update chat speed to install the current tracking helper.'
           : 'Installed · waiting for OpenCode to load the updated tracking helper. Your current work can continue.'
-          : 'Enable delivery-speed estimates for local and cloud chats. Requires qualified OpenCode.';
+          : 'Enable delivery-speed estimates for local and cloud chats. Requires OpenCode 2.0.25 or a later 2.0 release.';
     return { state, message, configured, managed: info.managed, canEnable: state !== 'incompatible', canDisable: configured || info.managed,
       runtimeVersion, companionVersion: loadedCompanionVersion, protocol, live,
-      compatibility: { profile: profileFor(runtimeVersion)?.id ?? null,
+      compatibility: { profile: profileFor(runtimeVersion)?.id ?? null, mode: modeFor(runtimeVersion),
         activity: !valid ? 'not-loaded' : !supported ? 'unavailable' : !current ? 'not-loaded' : live ? 'listening' : 'awaiting-demand',
         features: parseFeatures(receipt?.features, runtimeVersion) ?? featureSupport(runtimeVersion) } };
   };

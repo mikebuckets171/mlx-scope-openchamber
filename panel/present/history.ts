@@ -20,7 +20,7 @@ import { BASIS_WORD } from './parts.ts';
 /** The English this tab borrows: withhold reasons and alert titles live in panel/present/copy.ts (one source). */
 export interface HistoryText { withheld(reason: WithholdReason | 'all-requests'): string; alert(id: AlertId, params: ReasonParams): string }
 /** The mock's chip and alert wording, from the one copy table the other views use (present/copy.ts). */
-export const HISTORY_TEXT: HistoryText = { withheld: reason => `All server activity · ${withheldWhy(reason)}`, alert: (id, params) => alertCopy(id, params)[0] };
+export const HISTORY_TEXT: HistoryText = { withheld: () => 'Engine', alert: (id, params) => alertCopy(id, params)[0] };
 
 export interface HistoryInput {
   now: number;
@@ -42,7 +42,6 @@ export interface HistoryInput {
   trendError?: string | null;                // why the trend could not be read
   confirmClear?: boolean;
   recording?: 'recording' | 'backoff' | 'idle';
-  legacyCaptures?: number;
   listLimit?: number;                        // entries shown; "Show more" raises it
   ceiling?: number;                          // the page shares one y-scale between Live and the trend
   text?: HistoryText;
@@ -72,7 +71,7 @@ export interface HistoryView {
     ranges: Array<{ label: UsageRange; pressed: boolean }>; bars: Array<{ height: number; label: string }>; dense: boolean; aria: string; tip: string[] } | null;
   storage: { used: string; fraction: number; retention: string; paused: boolean;
     detail: string; label: string; full: string | null; note: string | null; retentionDays: number; options: number[];
-    confirm: { title: string; detail: string } | null; meter: boolean } | null;
+    confirm: { title: string; detail: string } | null; meter: boolean; kept: string | null } | null;
   alertLog: Array<{ at: string; text: string; iso: string; severity: Severity; severityWord: string; duration: string }>;
   // ui-history additions
   counts: string[];                          // "41 last observed", "1 gap"
@@ -109,9 +108,9 @@ const iso = (at: number): string => new Date(at).toISOString();
 // ---------- labels ----------
 const WITHHOLD = new Set<string>(WITHHOLD_REASONS);
 export const attrChip = (attr: LedgerAttr, text: HistoryText): AttrChip => {
-  if (attr === 'inferred') return { attr: 'inferred', text: 'Likely this chat', reason: null };
-  if (attr === 'armed') return { attr: 'armed', text: 'Next reply', reason: null };
-  // A server-wide label always names its reason; an unknown stored reason reads as not observed.
+  // Replies Scope 5.0 stored as armed were measured for this chat, as inferred ones were.
+  if (attr === 'inferred' || attr === 'armed') return { attr: 'inferred', text: 'This chat', reason: null };
+  // An engine label keeps its reason for the explanation; an unknown stored reason reads as not observed.
   const stored = attr.startsWith('withheld:') ? attr.slice('withheld:'.length) : 'not-observed';
   const reason = (WITHHOLD.has(stored) ? stored : 'not-observed') as WithholdReason;
   return { attr: 'server', text: text.withheld(reason), reason };
@@ -242,7 +241,9 @@ const presentStorage = (input: HistoryInput, replies: number, oldestS: number | 
       ? `After each save Scope removes the oldest replies, so it holds ${days} of your ${input.retentionDays} days. Shorten retention or clear to make room.`
       : `After each save Scope removes the oldest replies to stay within ${storageSize(a!.capBytes)}.` : null,
     note: input.recording === 'backoff' ? 'OpenChamber didn’t accept the last save. Scope keeps the replies in memory and tries again; nothing is removed because of an error.' : null,
-    confirm: input.confirmClear ? { title: `Clear ${plural(replies, 'reply', 'replies')} and the baselines built from them?`, detail: 'This can’t be undone. Captures are kept.' } : null,
+    confirm: input.confirmClear ? { title: `Clear ${plural(replies, 'reply', 'replies')} and the baselines built from them?`,
+      detail: a?.keptItems ? 'This can’t be undone. Items kept from earlier versions stay.' : 'This can’t be undone.' } : null,
+    kept: a?.keptItems ? `Kept from earlier versions: ${plural(a.keptItems, 'item')} · ${storageSize(a.keptBytes ?? 0)}` : null,
   };
 };
 
@@ -264,7 +265,7 @@ export const presentHistory = (input: HistoryInput): HistoryView => {
     entries,
     more: sorted.length > limit ? `Showing the newest ${int(limit)} of ${int(sorted.length)} entries` : null,
     showMore: sorted.length > limit ? `Show ${int(Math.min(HISTORY_LIST_STEP, sorted.length - limit))} more` : null,
-    repliesEmpty: input.rows.length ? null : `No replies yet. Scope records a reply when it finishes while any Scope view is open.${input.legacyCaptures ? ' Your 1.6 captures are in Captures.' : ''}`,
+    repliesEmpty: input.rows.length ? null : 'No replies yet. Scope records a reply when it finishes while any Scope view is open.',
     repliesTip: ['Replies seen finish while Scope was open, with their labels.',
       'Turn summaries need every step matched to this chat. Unmatched readings cover all server activity.',
       ...replies.some(row => row[12] === 'last-observed') ? ['When the server doesn’t report finished replies, rows use Scope’s last reading from the request.'] : []],

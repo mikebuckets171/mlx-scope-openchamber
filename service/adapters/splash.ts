@@ -3,7 +3,7 @@ import { count, defined, nonneg, obj, opt, type Json } from '../../src/contract/
 import { hash32 } from '../../src/contract/hash.ts';
 import type { ReasonParams } from '../../src/contract/reasons.ts';
 import { requiredCapabilities, type CatalogV2, type Phase, type Quantiles, type RuntimeV2, type StatusV2 } from '../../src/contract/snapshot.ts';
-import type { AdapterContextV2, AdapterReadingV2, AdapterV2, CompletionDraft, DescriptorV2 } from '../core/adapter-v2.ts';
+import type { AdapterContextV2, AdapterReadingV2, AdapterV2, CompletionDraft, DescriptorV2, PromptObservation } from '../core/adapter-v2.ts';
 import { HttpFailure } from '../http.ts';
 import { modelLabel, positive } from '../lib/parse.ts';
 import { SplashPromptProgress, type ProgressScope } from './splash-progress.ts';
@@ -15,6 +15,8 @@ import { SplashPromptProgress, type ProgressScope } from './splash-progress.ts';
 
 /** While transport.recovering, runtime reads are cached this long so Scope never joins the restart retries. */
 export const SPLASH_RECOVERING_CACHE_MS = 30_000;
+/** A prompt's progress can be observed up to one slow poll before Scope's read first saw the request running. */
+const SPLASH_PROMPT_LEAD_MS = 2_500;
 /** Reads further apart than this bracket a stretch nobody watched: counters that moved across it make no completion. */
 export const SPLASH_GAP_MS = 60_000;
 export const SPLASH_CADENCE_MS = { active: 1_000, idle: 2_000 } as const;
@@ -245,7 +247,9 @@ export const splashCompletion = (before: unknown, after: unknown, at: number): C
     ttftMs: delta.ttftCount === 1 && delta.ttftSum !== null ? round3(delta.ttftSum * 1_000) : undefined,
     prefillMs: whole && delta.prefillMs ? round3(delta.prefillMs) : undefined,
     prefillTps: whole ? rate(delta.prefillTokens, delta.prefillMs) : undefined,
-    decodeTps: whole ? rate(delta.decodeTokens, delta.decodeMs) : undefined });
+    decodeTps: whole ? rate(delta.decodeTokens, delta.decodeMs) : undefined,
+    // Kept output tokens from Splash's own decode counter (draft candidates excluded), only for a whole single request.
+    outputTokens: whole && delta.decodeTokens ? delta.decodeTokens : undefined });
 };
 
 /**
@@ -255,6 +259,8 @@ export const splashCompletion = (before: unknown, after: unknown, at: number): C
 export class SplashCompletions {
   private anchor: unknown = null;
   private lastAt: number | null = null;
+  /** When a read first saw work after the anchor: the reply's observed span start, at most one poll late. */
+  private busySince: number | null = null;
 
   observe(body: unknown, at: number, monotonicAt: number): CompletionDraft[] {
     const gap = this.lastAt !== null && monotonicAt - this.lastAt > SPLASH_GAP_MS;
@@ -263,19 +269,21 @@ export class SplashCompletions {
     if (!splashBody(body)) this.anchor = null;
     if (!current) return [];
     const anchor = counters(this.anchor);
-    if (gap || !anchor || !deltas(anchor, current)) { this.anchor = body; return []; }
-    if (current.busy > 0) return [];
-    const draft = splashCompletion(this.anchor, body, at);
-    this.anchor = body;
-    return draft ? [draft] : [];
+    if (gap || !anchor || !deltas(anchor, current)) { this.anchor = body; this.busySince = current.busy > 0 ? at : null; return []; }
+    if (current.busy > 0) { this.busySince ??= at; return []; }
+    const draft = splashCompletion(this.anchor, body, at), spanStartedAt = this.busySince;
+    this.anchor = body; this.busySince = null;
+    return draft ? [spanStartedAt !== null && spanStartedAt <= at ? { ...draft, spanStartedAt } : draft] : [];
   }
-  reset(): void { this.anchor = null; this.lastAt = null; }
+  reset(): void { this.anchor = null; this.lastAt = null; this.busySince = null; }
 }
 
 class SplashAdapter implements AdapterV2 {
   private held: { reading: AdapterReadingV2; until: number } | null = null;
   private readonly completions = new SplashCompletions();
   private readonly rates = new SplashRates();
+  /** The newest prompt Splash reported for the one request being read; it gives that reply its prompt counts. */
+  private lastPrompt: PromptObservation | null = null;
   private readSequence = 0;
   constructor(private readonly context: AdapterContextV2, private readonly progress = new SplashPromptProgress()) {}
 
@@ -309,12 +317,22 @@ class SplashAdapter implements AdapterV2 {
     const progress = await this.progress.observe(scope, at, monotonicAt);
     if (sequence !== this.readSequence) return { ...splashReading(body, at), completions: [] };
     if (progress) {
+      this.lastPrompt = { sessionKey: progress.sessionKey, requestID: progress.requestID, total: progress.total, cache: progress.cache, observedAt: progress.observedAt };
+      reading.prompts = [this.lastPrompt];
       // Splash reports the whole prompt, including cached input. These are not the current native chunk's counters.
       reading.runtime.request = { model: null, prefillFraction: progress.processed / progress.total,
         prefillProcessedTokens: progress.processed, prefillTotalTokens: progress.total,
         prefillObservedAt: progress.observedAt, ...progress.stale ? { prefillStale: true } : {} };
       reading.capabilities['request.prefillProgress'] = { scope: 'request', basis: 'reported' };
     }
+    // A single whole reply takes the prompt counts Splash reported while that reply's prompt was being read.
+    for (const draft of reading.completions) {
+      const prompt = this.lastPrompt;
+      if (!prompt || draft.overlapped || draft.aggregateOf || draft.decodeTps === undefined) continue;
+      if (draft.spanStartedAt === undefined || prompt.observedAt < draft.spanStartedAt - SPLASH_PROMPT_LEAD_MS || prompt.observedAt > draft.finishedAt) continue;
+      draft.promptTokens = prompt.total; draft.cachedTokens = prompt.cache;
+    }
+    if (reading.completions.length) this.lastPrompt = null;
     this.held = reading.status.state === 'recovering' ? { reading, until: this.context.monotonic() + SPLASH_RECOVERING_CACHE_MS } : null;
     return reading;
   }
@@ -325,7 +343,7 @@ class SplashAdapter implements AdapterV2 {
     return splashBody((await this.context.get('/status')).body) !== null;
   }
 
-  dispose(): void { this.readSequence += 1; this.held = null; this.completions.reset(); this.rates.reset(); this.progress.reset(this.context.now()); }
+  dispose(): void { this.readSequence += 1; this.held = null; this.lastPrompt = null; this.completions.reset(); this.rates.reset(); this.progress.reset(this.context.now()); }
 
   private hold(): AdapterReadingV2 | null {
     const left = this.held ? this.held.until - this.context.monotonic() : 0;

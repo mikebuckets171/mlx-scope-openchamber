@@ -28,14 +28,12 @@ export const shellMarkup = (): Raw => html`<main class="scope" id="scope" aria-l
   <nav class="next-nav" aria-label="Scope views">${actionButton('show-live', 'Live', html` aria-current="page"`)}${actionButton('open-history', 'History')}<button type="button" class="btn quiet" data-action="connection" aria-expanded="false" aria-controls="connection-setup">Connections</button></nav>
   ${raw(connectionsMarkup)}
   <button id="connection-configure" type="button" hidden>Connection…</button><p id="action-status" class="action-status" role="status" hidden></p><div id="frame-card"></div>
-  <div id="next-activity" class="next-activity" hidden></div><div id="capture-activity" class="next-activity" role="region" aria-label="Active timed capture" hidden></div>
   <div id="panels">
     <div class="column" id="panel-live" aria-label="This chat, engine and media" hidden><div class="view" id="view-live"></div><section class="column-block" id="view-media" aria-label="Media" hidden></section>
       <section id="scope-awareness" class="scope-awareness" aria-label="Session activity" hidden></section>
       <nav class="column-foot" id="column-foot" aria-label="More from Scope">${actionButton('open-run', 'Run details')}${actionButton('open-history', 'History')}${actionButton('open-server', 'Server & Mac details', html` id="open-server"`)}</nav></div>
     <section class="view secondary-view" id="panel-server" aria-labelledby="server-title" hidden></section>
-    <section class="view secondary-view" id="panel-history" aria-labelledby="history-title" hidden>${secondaryHeading('history', 'History', 'Back', 'back-live', actionButton('open-captures', 'Captures', '', 'btn quiet secondary-action'))}<div class="view" id="view-history"></div></section>
-    <section class="view secondary-view" id="panel-captures" aria-labelledby="captures-title" hidden>${secondaryHeading('captures', 'Captures', 'Back to History', 'back-history')}<div id="captures-content"></div></section>
+    <section class="view secondary-view" id="panel-history" aria-labelledby="history-title" hidden>${secondaryHeading('history', 'History', 'Back', 'back-live')}<div class="view" id="view-history"></div></section>
   </div>
   <div id="media-glance"></div>
   <section class="compact-glance" id="compact-glance" aria-label="MLX Scope glance" hidden></section>

@@ -24,11 +24,12 @@ for (const legacy of [false, true]) test(`companion compatibility disclosure kee
   const detail = setup.locator('[data-companion-compatibility]');
   await expect(detail).toBeVisible();
   if (legacy) {
-    await expect(detail).toContainText('Feature qualification was not reported');
+    await expect(detail).toContainText('Feature checks were not reported.');
     await expect(detail.locator('ul')).toHaveCount(0);
   } else {
     await expect(detail).toContainText('Ready for the next observed step');
-    await expect(detail.locator('[data-companion-feature="http-delivery"]')).toHaveText('HTTP delivery: qualified · available');
+    // Support claims alone never read as working: an available feature waits for its first passing check.
+    await expect(detail.locator('[data-companion-feature="http-delivery"]')).toHaveText('HTTP delivery: waiting for the next reply');
     await expect(detail.locator('[data-companion-feature="websocket-delivery"]')).toHaveText('WebSocket delivery: unavailable');
   }
   await expect(detail).toContainText('bun run qualify:compatibility');

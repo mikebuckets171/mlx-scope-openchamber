@@ -7,6 +7,8 @@ export type MediaState = typeof MEDIA_STATES[number];
 export type MediaPhase = typeof MEDIA_PHASES[number];
 export type MediaProgressV1 = { value: number; total: number; unit: typeof MEDIA_UNITS[number]; basis: 'phase' };
 export type MediaOwnershipV1 = { sessionKey?: string; projectKey?: string };
+export const MEDIA_ETA_BASES = ['measured-window', 'reported'] as const;
+export type MediaEtaBasis = typeof MEDIA_ETA_BASES[number];
 export interface MediaJobV1 {
   id: string;
   sourceId: string;
@@ -28,8 +30,8 @@ export interface MediaJobV1 {
   etaAtMs?: number;
   /** The held estimate for the same phase while the job is stale or unavailable. Explicitly historical, never live. */
   lastEtaAtMs?: number;
-  /** Present only with `etaAtMs` or `lastEtaAtMs`. */
-  etaBasis?: 'measured-window';
+  /** Present only with `etaAtMs` or `lastEtaAtMs`: measured by this service, or the source application's own estimate. */
+  etaBasis?: MediaEtaBasis;
   /** Reading a file does not refresh its producer observation. */
   sampledAtMs: number;
   observedAtMs: number;
@@ -43,9 +45,11 @@ export interface MediaJobV1 {
   /** Allowlisted explanation, never backend error strings or prompts. */
   message?: string;
 }
+export const MEDIA_SOURCE_KINDS = ['comfyui', 'local-video', 'qwen-image', 'feed', 'phosphene'] as const;
+export type MediaSourceKind = typeof MEDIA_SOURCE_KINDS[number];
 export interface MediaSourceV1 {
   id: string;
-  kind: 'comfyui' | 'local-video' | 'qwen-image' | 'feed';
+  kind: MediaSourceKind;
   label: string;
   state: 'ready' | 'disconnected' | 'unavailable' | 'unsupported';
   capabilities: { progress: boolean; cancel: boolean };
@@ -80,7 +84,7 @@ export const withdrawMediaProgress = (job: MediaJobV1, freshness: 'stale' | 'una
   const eta = progress ? job.progress ? job.etaAtMs : job.lastEtaAtMs : undefined;
   return { ...job, freshness, progress: null, cancel: { supported: false },
     lastProgress: progress ?? undefined, lastProgressAtMs: progress ? observed ?? job.observedAtMs : undefined,
-    etaAtMs: undefined, lastEtaAtMs: eta, etaBasis: eta === undefined ? undefined : 'measured-window' };
+    etaAtMs: undefined, lastEtaAtMs: eta, etaBasis: eta === undefined ? undefined : job.etaBasis ?? 'measured-window' };
 };
 export const parseMediaProgress = (raw: unknown): MediaProgressV1 | null => {
   const item = obj(raw), unit = oneOf(MEDIA_UNITS)(item?.unit), value = unit === 'percent' ? nonneg(item?.value) : count(item?.value), total = count(item?.total);
@@ -103,16 +107,17 @@ export const parseMediaJob = (raw: unknown): MediaJobV1 | null => {
     ? parseMediaProgress(item.lastProgress) : null;
   const liveProgress = freshness === 'live' && state === 'running' ? progress : null, progressAtMs = optionalTime('progressAtMs');
   // An estimate needs its basis and the measured counters it was derived from; it cannot precede that report or run past the horizon.
+  const etaBasis = oneOf(MEDIA_ETA_BASES)(item.etaBasis);
   const estimate = (raw: unknown, from: number | undefined): number | undefined => {
     const value = at(raw);
-    return item.etaBasis === 'measured-window' && value !== null && from !== undefined && value >= from && value <= from + MEDIA_ETA_HORIZON_MS ? value : undefined;
+    return etaBasis && value !== null && from !== undefined && value >= from && value <= from + MEDIA_ETA_HORIZON_MS ? value : undefined;
   };
   const etaAtMs = liveProgress ? estimate(item.etaAtMs, progressAtMs ?? observedAtMs) : undefined;
   const lastEtaAtMs = lastProgress ? estimate(item.lastEtaAtMs, lastAt) : undefined;
   return defined({ id, sourceId, kind, name, state, phase, phaseKey: hash(item.phaseKey), sampledAtMs, observedAtMs, freshness,
     progress: liveProgress,
     lastProgress: lastProgress ?? undefined, lastProgressAtMs: lastProgress ? lastAt : undefined,
-    etaAtMs, lastEtaAtMs, etaBasis: etaAtMs !== undefined || lastEtaAtMs !== undefined ? 'measured-window' as const : undefined,
+    etaAtMs, lastEtaAtMs, etaBasis: etaAtMs !== undefined || lastEtaAtMs !== undefined ? etaBasis! : undefined,
     progressAtMs, queuedAtMs: optionalTime('queuedAtMs'), startedAtMs: optionalTime('startedAtMs'), finishedAtMs: optionalTime('finishedAtMs'),
     ownership: defined({ sessionKey: hash(ownership?.sessionKey), projectKey: hash(ownership?.projectKey) }),
     cancel: { supported: cancel.supported && !mediaTerminal(state) && freshness === 'live' }, message: label(item.message, 120) ?? undefined });
@@ -122,7 +127,7 @@ export const parseMediaSnapshot = (raw: unknown): MediaSnapshotV1 | null => {
   if (item?.schemaVersion !== 1 || sampledAtMs === null || nextPollMs === null || nextPollMs < 1_000 || nextPollMs > 60_000 || !Array.isArray(item.jobs) || !Array.isArray(item.sources)) return null;
   const sources: MediaSourceV1[] = [];
   for (const raw of item.sources.slice(0, MEDIA_SOURCE_LIMIT)) {
-    const source = obj(raw), id = mediaId(source?.id), kind = oneOf(['comfyui', 'local-video', 'qwen-image', 'feed'] as const)(source?.kind);
+    const source = obj(raw), id = mediaId(source?.id), kind = oneOf(MEDIA_SOURCE_KINDS)(source?.kind);
     const state = oneOf(['ready', 'disconnected', 'unavailable', 'unsupported'] as const)(source?.state), name = label(source?.label, 80), capabilities = obj(source?.capabilities);
     if (id && kind && state && name && typeof capabilities?.progress === 'boolean' && typeof capabilities.cancel === 'boolean')
       sources.push(defined({ id, kind, state, label: name, capabilities: { progress: capabilities.progress, cancel: capabilities.cancel }, message: label(source?.message, 120) ?? undefined }));

@@ -5,8 +5,6 @@ export interface SessionLifecycleEvent { sessionId: string; phase: 'started' | '
 export interface HostFeatures { statusControls?: true; popovers?: true; deviceStorage?: true }
 export interface HostProject { id: string; name: string; directory: string }
 export interface HostSessions { state: 'loading' | 'ready' | 'error'; sessions: Array<{ id: string; title: string; parentId: string | null; activity: string; outcome: 'completed' | 'failed' | null; archivedAt: number | null }> }
-export interface HostShell { id: string; command: string; startedAt: number; background: boolean; status?: string; exit?: number }
-export interface HostShells { shells: HostShell[]; ended: HostShell[] }
 export type StatusControl = { kind: 'button'; id: string; label: string; disabled?: boolean } | { kind: 'select'; id: string; label: string; value: string; options: Array<{ value: string; label: string }>; disabled?: boolean };
 export interface PopoverRequest { id: string; anchor: { x: number; y: number; width: number; height: number }; width: number; height: number; side?: 'left' | 'right' | 'top' | 'bottom'; focus?: boolean; data: JsonValue }
 export interface HostReadyContext {
@@ -33,9 +31,8 @@ export interface HostClient {
   onProjects?(listener: (snapshot: { state: string; projects: HostProject[] }) => void): Promise<() => void>;
   listWorktrees?(projectId: string): Promise<{ worktrees: Array<{ directory: string }> }>;
   onSessions?(projectId: string, listener: (snapshot: HostSessions) => void): Promise<() => void>;
-  onRunningShells?(scope: { kind: 'project'; projectId: string }, listener: (snapshot: HostShells) => void): Promise<() => void>;
-  readShellOutput?(id: string, options: { tailBytes: number }): Promise<{ output: string; cursor: number; skipped: boolean }>;
   onStatusControl?(listener: (event: { id: string; value?: string }) => void): () => void;
+  onDirectory?(listener: (directory: string | null) => void): () => void;
   setStatusControls?(controls: StatusControl[]): Promise<void>;
   openPopover?(request: PopoverRequest): Promise<void>;
   close?(): Promise<void>;

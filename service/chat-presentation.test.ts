@@ -18,6 +18,8 @@ test('fresh chat followers retain speed across five-second expiry boundaries wit
   const home = await realpath(await mkdtemp(join(tmpdir(), 'scope-chat-cadence-')));
   const directory = join(home, '.cache', 'mlx-scope', 'chat-telemetry');
   await mkdir(directory, { recursive: true, mode: 0o700 });
+  await writeFile(join(directory, 'heartbeat.json'), JSON.stringify({ schemaVersion: 1, companionVersion, protocol: 'opencode-2.0.25',
+    runtimeVersion: '2.0.25', supported: true, loadedAtMs: now - 1_000, updatedAtMs: now, expiresAtMs: now + 1e9 }), { mode: 0o600 });
   const telemetry = new ChatTelemetry(home, () => now);
   const connection: RuntimeConnectionConfig = { id: 'fixture-local', label: 'Fixture local', runtime: 'lmstudio',
     config: { baseURL: new URL('http://127.0.0.1:1234/'), apiKey: null, preferredModel: null, issue: 'missing_credential',
@@ -45,7 +47,7 @@ test('fresh chat followers retain speed across five-second expiry boundaries wit
   const server = createScopeServer('test-token', {
     read: (selection, request) => client.read(selection, request),
     chat: async query => {
-      if (!query.frame || query.surface === 'background') return null;
+      if (!query.frame) return null;
       const target = targets.find(value => value.sessionKey === query.chat && value.modelKey === query.chatModel);
       return telemetry.observe(query.frame, target ?? null);
     },
@@ -69,7 +71,7 @@ test('fresh chat followers retain speed across five-second expiry boundaries wit
       const panel = await poll('panel', '00000002', targetA);
       expect(page.lease.leader).toBe(true);
       expect(panel.lease.leader).toBe(false);
-      expect(panel.nextPollMs).toBe(500);
+      expect(panel.nextPollMs).toBe(1_000);
       expect(panel.chat).toEqual(measurement(phase));
       if (elapsed % 1_000 === 0) {
         const status = await poll('status', '00000003', targetA);

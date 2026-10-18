@@ -1,19 +1,32 @@
 # Optional OpenCode companion
 
-The 3.3 companion observes demand-gated HTTP and WebSocket chat delivery on exact **OpenCode 2.0.25, 2.0.27, 2.0.28 and 2.0.29**, for local and cloud
-chats alike, and retains the existing Splash prompt-progress observer. Unsupported OpenCode versions disable chat
+The 3.4 companion observes demand-gated HTTP and WebSocket chat delivery on **OpenCode 2.0.25 and later 2.0 releases**, for local and cloud
+chats alike, and retains the existing Splash prompt-progress observer. Other OpenCode versions (2.0.24 and earlier, 2.1 and later) disable chat
 estimates while native runtime monitoring remains available. The plugin ID remains `mlx-scope-prompt-progress` to
 update existing installations in place.
 
-Scope 4 centralizes this qualification in `compatibility.js`. HTTP delivery, experimental WebSocket delivery and
-Splash prompt observation install independently; a missing optional hook leaves other monitoring available. Unknown
-OpenCode versions install no prompt-request mutation. Companion package version, compatibility profile and the legacy
-telemetry protocol spelling remain separate. Feature support and demanded heartbeat activity are reported separately.
+`compatibility.js` holds the rule the helper runs under: OpenCode 2.0 patch releases from 2.0.25 keep the public plugin and event
+contract it reads. Every accepted version runs the same contract checks while it works, and each feature reports what they showed:
+
+| Check | Passes when | Withdraws the feature when |
+|---|---|---|
+| HTTP / WebSocket delivery | a watched step completes end to end over that transport | its hook is missing or refused, the event stream is missing, or three released-schema violations arrive for watched chats with no completed step between them |
+| Prompt progress | Splash returns a valid progress frame | its hooks are missing or refused, the Splash endpoint is not a local `/v1` address, or three Splash requests in a row lack OpenCode's session header |
+
+A withdrawn feature stays off until the helper loads again; other features and native runtime monitoring continue. Checks report
+codes only (`hook-missing`, `hook-rejected`, `events-missing`, `event-shape`, `session-header`, `options`), never paths or contents.
+
+Which versions were **qualified** natively is Scope's own record in `qualified.js`, which is not copied into OpenCode: currently
+2.0.25, 2.0.27, 2.0.28, 2.0.29 and 2.0.32. Another accepted version is shown as **self-checked, not yet qualified**: its contract
+checks run, but meanings such as token accounting are unverified. Qualifying a version changes only `qualified.js`, so the helper
+never needs reinstalling for it. HTTP delivery, experimental WebSocket delivery and Splash prompt observation install independently;
+a missing optional hook leaves other monitoring available. Companion package version, qualification and the legacy telemetry
+protocol spelling remain separate. Feature checks and demanded heartbeat activity are reported separately.
 From the repository, `bun run qualify:compatibility` runs isolated fixtures, privacy checks, source/artifact comparison
 and reproducible package verification. Native checks remain not run; it never launches native OpenCode, sends a prompt
 or changes live configuration. `--candidate` labels a proposed version without broadening runtime support.
 See the repository's `docs/COMPATIBILITY.md`. The native protocol commands below are
-separate, explicitly invoked operations. Native WebSocket cancellation passes on 2.0.27, 2.0.28 and 2.0.29; 2.0.25 retains unit-only coverage.
+separate, explicitly invoked operations. Native WebSocket cancellation passes on 2.0.27, 2.0.28, 2.0.29 and 2.0.32; 2.0.25 retains unit-only coverage.
 
 **Delivery scope:** local and cloud chat delivery. A cloud reading is delivery observed through OpenCode, including network
 and provider buffering; it is never engine throughput, and a cloud chat never borrows a local engine measurement.
@@ -94,7 +107,7 @@ The observer uses the supported `ctx.event.subscribe({ signal })` API. OpenCode 
 
 The `http.request` hook reads primary POST request metadata. The qualified `experimental.ws.handshake` hook reads primary session/model/destination metadata on every model call, including cached WebSocket reuse. It does not read or change headers, socket frames, requests, responses, or the socket. This covers OpenCode 2.0.25's default OpenAI WebSocket transport. Local targets require a literal loopback origin; remote targets require an observed non-loopback origin. Each step needs its own corroborated destination. A primary dispatch refreshes demand before authorizing observation, so the first reply does not depend on the periodic poll's timing. The dispatch also seeds the observation of its own call: a `session.step.started` lost while a subscription restarts (demand arriving as a reply begins) cannot hide that reply, and a step announcement that does arrive upgrades it to a full step. A dispatch-seeded observation binds to the first reply published after the dispatch, ignores everything published before it, proves no later step, and without its step announcement reports no completed-step average and trains no calibration. The separate existing Splash HTTP observer still only adds `return_progress` for its explicitly configured provider.
 
-Protocol qualification is exact for **2.0.25, 2.0.27, 2.0.28 and 2.0.29**. The released schema uses `session.step.started`, `session.step.streamed`, `session.step.ended`, `session.text.*`, `session.reasoning.*`, `session.tool.*`, and `session.execution.*`, with the envelope's numeric `created` timestamp and ordinal text/reasoning parts. These are different from old `session.next.*` events; old payloads are not interpreted as current telemetry. Public primary sources inspected for this implementation:
+Native qualification covers **2.0.25, 2.0.27, 2.0.28, 2.0.29 and 2.0.32**; other 2.0 releases from 2.0.25 run self-checked. The released schema uses `session.step.started`, `session.step.streamed`, `session.step.ended`, `session.text.*`, `session.reasoning.*`, `session.tool.*`, and `session.execution.*`, with the envelope's numeric `created` timestamp and ordinal text/reasoning parts. These are different from old `session.next.*` events; old payloads are not interpreted as current telemetry. Public primary sources inspected for this implementation:
 
 - [OpenCode plugin event API](https://opencode.ai/v2/docs/build/plugins/#events)
 - [2.0.25 public session-event schema](https://github.com/anomalyco/opencode/blob/v2.0.25/packages/schema/src/session-event.ts)
@@ -144,16 +157,21 @@ type ChatDemand = {
 };
 ```
 
-Only matching watched sessions are tracked. A demand file that is not private to the account, not a regular file, or oversized is ignored exactly like absent demand; the companion says so once in the OpenCode log, without paths or contents. Hashes use the existing key scheme above, adding kind `provider` / exact provider ID. The companion checks demand once per second. On expiration it aborts all event subscriptions, clears observations and route proofs, and removes its writer file. No event sampling or telemetry writes continue while hidden. One fixed startup heartbeat is written to `heartbeat.json`:
+Only matching watched sessions are tracked. A demand file that is not private to the account, not a regular file, or oversized is ignored exactly like absent demand; the companion says so once in the OpenCode log, without paths or contents. Hashes use the existing key scheme above, adding kind `provider` / exact provider ID. The companion checks demand once per second while a view demands telemetry and for fifteen seconds afterwards, then every five seconds; a primary dispatch re-reads demand itself, so the slower idle check never delays the first observed step. On expiration it aborts all event subscriptions, clears observations and route proofs, and removes its writer file. No event sampling or telemetry writes continue while hidden. A startup heartbeat is written to `heartbeat.json`, and rewritten at once when a feature check changes:
 
 ```ts
 type CompanionHeartbeat = {
   schemaVersion: 1;
-  companionVersion: '3.3.0';
+  companionVersion: string; // '3.4.0'
   protocol: 'opencode-2.0.25' | 'unsupported';
   runtimeVersion: string;
   loadedAtMs: number;
   supported: boolean;
+  features?: Record<'http-delivery' | 'websocket-delivery' | 'prompt-progress' | 'managed-reload', {
+    support: 'compatible' | 'unqualified' | 'unavailable'; // 3.3 helpers wrote 'qualified' for 'compatible'
+    available: boolean;
+    check?: { state: 'waiting' | 'passed' } | { state: 'failed'; reason: 'hook-missing' | 'hook-rejected' | 'events-missing' | 'event-shape' | 'session-header' | 'options' };
+  }>;
   updatedAtMs?: number; // refreshed at most every five seconds while demanded
   expiresAtMs?: number; // heartbeat update + 15000
 };
@@ -167,9 +185,9 @@ Each process also owns `<writerUUID>.json`, updated at most every 200 ms during 
 type ChatTelemetryFile = {
   schemaVersion: 1;
   writerID: string;
-  companionVersion: '3.3.0';
+  companionVersion: string; // readers accept any 3.x helper
   protocol: 'opencode-2.0.25';
-  runtimeVersion: '2.0.25' | '2.0.27' | '2.0.28' | '2.0.29';
+  runtimeVersion: string; // 2.0.25 or a later 2.0 release
   updatedAtMs: number;
   expiresAtMs: number; // update + 15000
   entries: Array<{ // <= 16

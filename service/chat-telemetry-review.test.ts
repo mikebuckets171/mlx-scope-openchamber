@@ -19,6 +19,8 @@ test('writer freshness is checked after asynchronous IO while truly future data 
   const telemetry = new ChatTelemetry(home, () => now);
   try {
     await mkdir(directory, { recursive: true, mode: 0o700 });
+    await writeFile(join(directory, 'heartbeat.json'), JSON.stringify({ schemaVersion: 1, companionVersion, protocol: 'opencode-2.0.25',
+      runtimeVersion: '2.0.25', supported: true, loadedAtMs: now - 1_000, updatedAtMs: now, expiresAtMs: now + 15_000 }), { mode: 0o600 });
     await writeFile(join(directory, `${writerID}.json`), JSON.stringify({ ...body, updatedAtMs: now, expiresAtMs: now + 15_000 }), { mode: 0o600 });
     expect(await telemetry.observe('11111111', target)).toBeNull(); // Valid writer envelope cannot admit a future measurement.
     await writeFile(join(directory, `${writerID}.json`), JSON.stringify(body), { mode: 0o600 });

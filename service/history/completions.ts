@@ -225,6 +225,8 @@ export class HostCofactors {
   private readonly gpu: Point[] = [];
   private readonly thermal: Point[] = [];
   private readonly power: Point[] = [];
+  private readonly queued: Point[] = [];
+  private readonly media: Point[] = [];
   /** `energy` is the power stream's own integral (svc-host); without it the observed samples are integrated. */
   constructor(private readonly energy?: EnergyRead) {}
 
@@ -236,9 +238,14 @@ export class HostCofactors {
       push(this.thermal, host.thermal?.sampledAt, host.thermal?.level);
       push(this.power, host.power?.sampledAt, host.power?.chipW);
     }
-    for (const points of [this.pressure, this.swap, this.gpu, this.thermal, this.power]) {
+    for (const points of [this.pressure, this.swap, this.gpu, this.thermal, this.power, this.queued, this.media]) {
       while (points.length && points[0]![0] < at - TREND_SPAN_MS) points.shift();
     }
+  }
+  /** Requests the engine reported waiting, and whether a local media job was running (unknown: not recorded). */
+  observeWork(queued: number | null | undefined, mediaRunning: boolean | null, at: number): void {
+    if (typeof queued === 'number') push(this.queued, at, queued);
+    if (mediaRunning !== null) push(this.media, at, mediaRunning ? 1 : 0);
   }
 
   /** A null start has no span: the readings in effect when it finished, and no swap delta or energy. */
@@ -253,6 +260,8 @@ export class HostCofactors {
       thermalMaxLevel: peak(within(this.thermal, from, finishedAt)) as ThermalLevel | undefined,
       energyJ: energy && coverage! >= ENERGY_COVERAGE ? round(energy.energyJ, 1) : undefined,
       powerCoverage: coverage === null ? undefined : round(coverage, 2),
+      queuedMax: peak(within(this.queued, from, finishedAt)),
+      mediaRunning: peak(within(this.media, from, finishedAt)) === 1 ? true : undefined,
     });
   }
 

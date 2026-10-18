@@ -2,4 +2,3 @@
 *.png binary
 panel/main.js linguist-generated=true
 service/main.js linguist-generated=true
-background/main.js linguist-generated=true

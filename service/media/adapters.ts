@@ -5,6 +5,7 @@ import { MEDIA_PHASES, mediaId, mediaTerminal, parseMediaJob, parseMediaProgress
 import { requestJSON, type FetchImplementation } from '../http.ts';
 import type { MediaSourceConfig } from './discovery.ts';
 import { directoryExists, directoryStamp, jsonFiles, readBounded } from './files.ts';
+import { phosphene } from './phosphene.ts';
 
 export interface MediaCollection {
   source: MediaSourceV1; jobs: MediaJobV1[]; correlations?: Map<string, string>;
@@ -12,9 +13,15 @@ export interface MediaCollection {
    * Job ids whose current phase the source declares final or dominant, so that phase's end is effectively the job's end.
    * Internal to the service; it permits a measured finish-time estimate and is never inferred. See docs/MEDIA.md.
    * ComfyUI graphs, Qwen workflows and local-video shot sequences can each repeat or follow sampling with other
-   * substantial work, so those adapters declare nothing. Only a feed producer can declare it, per job and observation.
+   * substantial work, so those adapters declare nothing; nor does Phosphene, whose denoising is followed by decoding.
+   * Only a feed producer can declare it, per job and observation.
    */
   finalPhase?: Set<string>;
+  /** Finish times (Unix ms) the source application itself reported for its running jobs, shown as its estimate. */
+  reportedEta?: Map<string, number>;
+  /** How long this collection is reused, and after how long a job it holds is stale; defaults 1.8 s and 15 s. */
+  ttlMs?: number;
+  staleMs?: number;
 }
 export interface VideoHistory { stamp: string; until: number; jobs: MediaJobV1[]; active: Set<string> }
 export interface MediaAdapterOptions { now: () => number; fetchImpl: FetchImplementation; cancelLocalVideo?: (id: string) => Promise<boolean>; localVideoDirectory?: string; videoHistory?: Map<string, VideoHistory> }
@@ -201,7 +208,7 @@ export const localFeed = async (config: MediaSourceConfig, options: MediaAdapter
 };
 
 export const collectMedia = (config: MediaSourceConfig, options: MediaAdapterOptions): Promise<MediaCollection> =>
-  config.kind === 'comfyui' ? comfyUI(config, options) : config.kind === 'local-video' ? localVideo(config, options) : config.kind === 'qwen-image' ? qwenImage(config, options) : localFeed(config, options);
+  config.kind === 'phosphene' ? phosphene(config, options) : config.kind === 'comfyui' ? comfyUI(config, options) : config.kind === 'local-video' ? localVideo(config, options) : config.kind === 'qwen-image' ? qwenImage(config, options) : localFeed(config, options);
 
 export const cancelMedia = async (config: MediaSourceConfig, id: string, options: MediaAdapterOptions): Promise<boolean> => {
   if (config.kind === 'local-video') return config.directory === options.localVideoDirectory && await options.cancelLocalVideo?.(id) || false;

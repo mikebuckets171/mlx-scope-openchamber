@@ -7,6 +7,9 @@ import { parseChatMeasurement, type ChatMeasurement } from '../src/contract/chat
 import { acceptsChatProtocol, parseFeatures, type FeatureStatuses } from '../bridge/opencode/compatibility.js';
 
 const TTL = 15_000, MAX_BYTES = 65_536, HEX = /^[a-f0-9]{64}$/, UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
+/** Telemetry is a versioned wire format: any helper of this major release writes it, so a newer helper never blanks readings. */
+const MAJOR = companionVersion.split('.')[0];
+export const compatibleWriter = (version: unknown): boolean => typeof version === 'string' && /^\d+\.\d+\.\d+$/.test(version) && version.split('.')[0] === MAJOR;
 const object = (v: unknown): Record<string, any> | null => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, any> : null;
 interface ChatIdentity { sessionKey: string; providerKey: string; modelKey: string }
 export interface LocalChatTarget extends ChatIdentity { endpointKey: string; destination?: undefined }
@@ -103,6 +106,9 @@ export class ChatTelemetry {
       await this.queue;
     }
     if (!target) return null;
+    // Writers publish only while their helper is live; without a current heartbeat there is nothing to scan.
+    const beat = await this.json('heartbeat.json');
+    if (!beat || !Number.isSafeInteger(beat.expiresAtMs) || beat.expiresAtMs <= this.now()) return null;
     const found: ChatMeasurement[] = [];
     try {
       const directory = await opendir(this.directory);
@@ -112,7 +118,7 @@ export class ChatTelemetry {
         if (!file.isFile() || !file.name.endsWith('.json') || !UUID.test(file.name.slice(0,-5))) continue;
         const value = await this.json(file.name);
         const checkedAt = this.now();
-        if (!value || value.schemaVersion !== 1 || value.companionVersion !== companionVersion || value.writerID !== file.name.slice(0,-5) || !acceptsChatProtocol(value.runtimeVersion, value.protocol)
+        if (!value || value.schemaVersion !== 1 || !compatibleWriter(value.companionVersion) || value.writerID !== file.name.slice(0,-5) || !acceptsChatProtocol(value.runtimeVersion, value.protocol)
           || !Number.isSafeInteger(value.updatedAtMs) || !Number.isSafeInteger(value.expiresAtMs)
           || value.updatedAtMs > checkedAt || value.expiresAtMs <= checkedAt || value.expiresAtMs - value.updatedAtMs > TTL
           || !Array.isArray(value.entries) || value.entries.length > 16) continue;

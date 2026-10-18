@@ -1,7 +1,7 @@
 # splash-decode · /v2?state=splash-decode
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -10,32 +10,37 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#workspace-action: Server & Mac details
 #panels
-#panel-live {aria-labelledby="tab-live"}
-#view-live
-#hero {aria-label="Activity and speed"}: tok/s Engine 43.8 tokens per second. All engine requests · Calculated · last 4.0 s
-h2.instrument-phase {data-tone="normal"}: Generating
-#rate: 43.8
-#engine-facts {aria-label="Engine" data-count="3"}: Engine | Active requests | 1 | Queue clear | Metal allocations | 12.5 GiB | engine allocations | Median first token | 0.41 s | 212 recent requests
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
+#hero {aria-label="Activity and speed" data-arrive=""}: Splash example/Example-27B-Splash Watch | 43.8 tokens per second tokens/s Engine All engine requests · Calculated · last 4.0 s
+h2.instrument-phase {data-crossfade="" data-live="true" data-tone="normal"}: Generating
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 43.8
+#engine-facts {aria-label="Engine" data-count="3"}: Active requests | 1 | Queue clear | Metal allocations | 12.5 GiB | engine allocations | Median first token | 0.41 s | 212 recent requests
 #engine-trend
-#signal: Engine trend · 90 seconds −90s Each reading covers up to 5 s now
-#ceiling: 50 tok/s
+#signal {data-current="true" data-short="true"}: Engine trend −8s now
+#ceiling: 50 tokens/s
 div.plot[role=img] {aria-label="Recent generation speed · all server activity · calculated, last 8 s: 43.8 to 43.8 tokens per second, now 43.8"}
-#reply-strip: Measure next reply
+#precision-trace-fill
+#reply-strip
 #measurement-details: Measurement details
+#machine {aria-label="This Mac" data-stale="false"}: CPU 12% Memory allocated 29.4 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status Normal
+#mac-details: Mac details
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -44,13 +49,8 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
 #panels
-#panel-live {aria-labelledby="tab-live"}
-#panel-server {aria-labelledby="server-title"}: Back to Live
+#panel-server {aria-labelledby="server-title"}: Back
 #server-title: Server & Mac details
 [server-rates]: All server activity · last 4.0 s Generation speed last 4.0 s Processing · deferred
 h2: Recent speeds
@@ -78,14 +78,16 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
+#media-glance
 #freshness: Updated just now
 live #connection: Splash
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## live · 320 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -94,32 +96,37 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#workspace-action: Server & Mac details
 #panels
-#panel-live {aria-labelledby="tab-live"}
-#view-live
-#hero {aria-label="Activity and speed"}: tok/s Engine 43.8 tokens per second. All engine requests · Calculated · last 4.0 s
-h2.instrument-phase {data-tone="normal"}: Generating
-#rate: 43.8
-#engine-facts {aria-label="Engine" data-count="3"}: Engine | Active requests | 1 | Queue clear | Metal allocations | 12.5 GiB | engine allocations | Median first token | 0.41 s | 212 recent requests
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
+#hero {aria-label="Activity and speed" data-arrive=""}: Splash example/Example-27B-Splash Watch | 43.8 tokens per second tokens/s Engine All engine requests · Calculated · last 4.0 s
+h2.instrument-phase {data-crossfade="" data-live="true" data-tone="normal"}: Generating
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 43.8
+#engine-facts {aria-label="Engine" data-count="3"}: Active requests | 1 | Queue clear | Metal allocations | 12.5 GiB | engine allocations | Median first token | 0.41 s | 212 recent requests
 #engine-trend
-#signal: Engine trend · 90 seconds −90s Each reading covers up to 5 s now
-#ceiling: 50 tok/s
+#signal {data-current="true" data-short="true"}: Engine trend −8s now
+#ceiling: 50 tokens/s
 div.plot[role=img] {aria-label="Recent generation speed · all server activity · calculated, last 8 s: 43.8 to 43.8 tokens per second, now 43.8"}
-#reply-strip: Measure next reply
+#precision-trace-fill
+#reply-strip
 #measurement-details: Measurement details
+#machine {aria-label="This Mac" data-stale="false"}: CPU 12% Memory allocated 29.4 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status Normal
+#mac-details: Mac details
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -128,26 +135,31 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#workspace-action: Server & Mac details
 #panels
-#panel-live {aria-labelledby="tab-live"}
-#view-live
-#hero {aria-label="Activity and speed"}: tok/s Engine 43.8 tokens per second. All engine requests · Calculated · last 4.0 s
-h2.instrument-phase {data-tone="normal"}: Generating
-#rate: 43.8
-#engine-facts {aria-label="Engine" data-count="3"}: Engine | Active requests | 1 | Queue clear | Metal allocations | 12.5 GiB | engine allocations | Median first token | 0.41 s | 212 recent requests
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
+#hero {aria-label="Activity and speed" data-arrive=""}: Splash example/Example-27B-Splash Watch | 43.8 tokens per second tokens/s Engine All engine requests · Calculated · last 4.0 s
+h2.instrument-phase {data-crossfade="" data-live="true" data-tone="normal"}: Generating
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 43.8
+#engine-facts {aria-label="Engine" data-count="3"}: Active requests | 1Queue clear | Metal allocations | 12.5 GiBengine allocations | Median first token | 0.41 s212 recent requests
 #engine-trend
-#signal: Engine trend · 90 seconds −90s Each reading covers up to 5 s now
-#ceiling: 50 tok/s
+#signal {data-current="true" data-short="true"}: Engine trend −8s now
+#ceiling: 50 tokens/s
 div.plot[role=img] {aria-label="Recent generation speed · all server activity · calculated, last 8 s: 43.8 to 43.8 tokens per second, now 43.8"}
-#reply-strip: Measure next reply
+#precision-trace-fill
+#reply-strip
 #measurement-details: Measurement details
+#machine {aria-label="This Mac" data-stale="false"}: CPU 12% Memory allocated 29.4 / 48 GiB Swap 1.1 GiB
+h2.machine-title: This Mac
+[mac-pressure]: Memory pressure | Normal
+[mac-thermal]: Heat status Normal
+#mac-details: Mac details
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 

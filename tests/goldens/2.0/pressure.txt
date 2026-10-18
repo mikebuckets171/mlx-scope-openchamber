@@ -1,7 +1,7 @@
 # pressure · /v2?state=pressure
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -10,49 +10,55 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#workspace-action: Server & Mac details
 #panels
-#panel-live {aria-labelledby="tab-live"}
+#panel-live {aria-label="This chat, engine and media"}
 #view-live
 [callout-live] {data-severity="warning"}: Warning: macOS memory pressure: warning since 14:02 Reported by macOS · it may move some app memory to disk 1 more alert
-#hero {aria-label="Activity and speed"}: tok/s Engine 21.2 tokens per second. All engine requests · From server · average for this request
-h2.instrument-phase {data-tone="warning"}: Generating
-#rate: 21.2
-#engine-facts {aria-label="Engine" data-count="2"}: Engine | Output | 612 | tokens so far | Elapsed | 38 s | since it started
+#hero {aria-label="Activity and speed" data-arrive=""}: oMLX Example-27B-4bit Watch | 21.2 tokens per second tokens/s Engine All engine requests · From server · average for this request
+h2.instrument-phase {data-crossfade="" data-live="true" data-tone="warning"}: Generating
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 21.2
+#engine-facts {aria-label="Engine" data-count="2"}: Output | 612 | tokens so far | Elapsed | 38 s | since it started
 #engine-trend
-#signal: Engine trend · 90 seconds −90s Recent generation speed now
-#ceiling: 25 tok/s
+#signal {data-current="true" data-short="true"}: Engine trend −8s now
+#ceiling: 25 tokens/s
 div.plot[role=img] {aria-label="Generation speed · average for this request, last 8 s: 21.2 to 21.2 tokens per second, now 21.2"}
-#reply-strip: Measure next reply
+#precision-trace-fill
+#reply-strip
 #measurement-details: Measurement details
+#machine {aria-label="This Mac" data-stale="false"}: CPU 31% Memory allocated 45.3 / 48 GiB Swap 2.4 GiB
+h2.machine-title: This Mac
+[mac-pressure]: Memory pressure | Warning
+[mac-thermal]: Heat status Normal
+#mac-details: Mac details
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
 #freshness: Updated just now
 live #connection: Local oMLX
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 live [callout-live]: Warning: macOS memory pressure: warningsince 14:02Reported by macOS · it may move some app memory to disk1 more alertNotice: Swap grew 1.3 GiB in 4 minsince 14:02Within one continuous stretch of readings
 
 ## compact · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="true" data-layout="tabs" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="true" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}
 #scope-title: MLX Scope
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
+#media-glance
 #compact-glance {aria-label="MLX Scope glance"}
-#ws {data-mode="summary" data-presentation="session"}: Generating | tok/s Engine 21.2 tokens per second. All engine requests · From server · average for this request | Memory pressure · warning | Expand
-#rate: 21.2
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}: Generating | tok/s 21.2 tokens per second Engine All engine requests · From server · average for this request | Memory pressure · warning | Expand
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 21.2
 live #connection (hidden): Local oMLX
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 live [callout-live] (hidden): Warning: macOS memory pressure: warningsince 14:02Reported by macOS · it may move some app memory to disk1 more alertNotice: Swap grew 1.3 GiB in 4 minsince 14:02Within one continuous stretch of readings
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -61,28 +67,32 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #pause {aria-label="Pause monitoring" aria-pressed="false"}
 #monitor-menu
 #frame-card
-#workspace-nav {aria-label="Scope workspaces"}
-#tablist
-#tab-live {aria-controls="panel-live" aria-selected="true" data-tab="live"}: Live
-#tab-history {aria-controls="panel-history" aria-selected="false" data-tab="history"}: History
-#workspace-action: Server & Mac details
 #panels
-#panel-live {aria-labelledby="tab-live"}
+#panel-live {aria-label="This chat, engine and media"}
 #view-live
 [callout-live] {data-severity="warning"}: Warning: macOS memory pressure: warning since 14:02 Reported by macOS · it may move some app memory to disk 1 more alert
-#hero {aria-label="Activity and speed"}: tok/s Engine 21.2 tokens per second. All engine requests · From server · average for this request
-h2.instrument-phase {data-tone="warning"}: Generating
-#rate: 21.2
-#engine-facts {aria-label="Engine" data-count="2"}: Engine | Output | 612 | tokens so far | Elapsed | 38 s | since it started
+#hero {aria-label="Activity and speed" data-arrive=""}: oMLX Example-27B-4bit Watch | 21.2 tokens per second tokens/s Engine All engine requests · From server · average for this request
+h2.instrument-phase {data-crossfade="" data-live="true" data-tone="warning"}: Generating
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 21.2
+#engine-facts {aria-label="Engine" data-count="2"}: Output | 612tokens so far | Elapsed | 38 ssince it started
 #engine-trend
-#signal: Engine trend · 90 seconds −90s Recent generation speed now
-#ceiling: 25 tok/s
+#signal {data-current="true" data-short="true"}: Engine trend −8s now
+#ceiling: 25 tokens/s
 div.plot[role=img] {aria-label="Generation speed · average for this request, last 8 s: 21.2 to 21.2 tokens per second, now 21.2"}
-#reply-strip: Measure next reply
+#precision-trace-fill
+#reply-strip
 #measurement-details: Measurement details
+#machine {aria-label="This Mac" data-stale="false"}: CPU 31% Memory allocated 45.3 / 48 GiB Swap 2.4 GiB
+h2.machine-title: This Mac
+[mac-pressure]: Memory pressure | Warning
+[mac-thermal]: Heat status Normal
+#mac-details: Mac details
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
 #freshness: Updated just now
 live #connection: Local oMLX
+live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
+live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
-live p.insight-note[role=status] (hidden): Checking companion…
 live #action-status (hidden): 
 live [callout-live]: Warning: macOS memory pressure: warningsince 14:02Reported by macOS · it may move some app memory to disk1 more alertNotice: Swap grew 1.3 GiB in 4 minsince 14:02Within one continuous stretch of readings

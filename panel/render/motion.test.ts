@@ -53,13 +53,13 @@ test('motion reads every candidate before animating and scans once per render', 
 
 test('a crossfade key follows the visible label without animating changed hidden basis text', () => {
   const { motion, nodes, node, calls } = harness();
-  const source = node('source', { 'data-crossfade': 'Chat · est.' }, 'Chat · est. Estimated delivery over 3s.');
+  const source = node('source', { 'data-crossfade': 'This chat' }, 'This chat Estimated delivery over 3s.');
   nodes.push(source); motion.sync(true, null);
-  source.textContent = 'Chat · est. Estimated delivery over 5s.';
+  source.textContent = 'This chat Estimated delivery over 5s.';
   motion.sync(true, null);
   expect(calls).toEqual([]);
-  source.attributes['data-crossfade'] = 'Last chat · avg.';
-  source.textContent = 'Last chat · avg. Reported output divided by duration.';
+  source.attributes['data-crossfade'] = 'Last reply';
+  source.textContent = 'Last reply Reported output divided by duration.';
   motion.sync(true, null);
   expect(calls.map(call => call.name)).toEqual(['source']);
 });

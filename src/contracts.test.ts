@@ -2,11 +2,15 @@ import { expect, test } from 'bun:test';
 import { parse } from 'jsonc-parser/lib/esm/main.js';
 import { normalizeOmlxTelemetry } from './telemetry.ts';
 import { contextBudget } from '../panel/context.ts';
-import { cacheSplit } from '../panel/insights.ts';
 import { fromV1 } from '../panel/testing/readings.ts';
 import { parseMediaJob, parseMediaSnapshot, withdrawMediaProgress, type MediaJobV1 } from './contract/media.ts';
 import corpus from '../tests/fixtures/omlx-monitoring.json';
 import configurations from '../tests/fixtures/jsonc.json';
+/** Reused share of the prompt, as the 1.x insight computed it. */
+const cacheSplit = (total: number | null | undefined, reused: number | null | undefined) =>
+  total == null || reused == null || !Number.isSafeInteger(total) || !Number.isSafeInteger(reused) || total <= 0 || reused < 0 || reused > total
+    ? null : { percent: reused / total * 100 };
+
 
 for (const fixture of corpus.cases) test(`oMLX contract: ${fixture.name}`, () => {
   const input = fixture as {name: string; activity: unknown; stats?: unknown; contextWindows?: Record<string, number>; invalid?: boolean; expected?: Record<string, unknown>};

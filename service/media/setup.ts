@@ -7,7 +7,7 @@ import { parseMediaSetupAction } from '../../src/contract/media-setup.ts';
 import { requestText } from '../lib/http-text.ts';
 import type { FetchImplementation } from '../http.ts';
 import { localOrigin, mediaConfigPath, type MediaSourceConfig } from './discovery.ts';
-import { mediaId, type MediaSnapshotV1, type MediaSourceV1 } from '../../src/contract/media.ts';
+import { mediaId, MEDIA_SOURCE_KINDS, type MediaSnapshotV1, type MediaSourceV1 } from '../../src/contract/media.ts';
 import { label as safeLabel } from '../../src/contract/guards.ts';
 
 export const MEDIA_HELPER_FILES = ['__init__.py', 'snapshot.py'] as const;
@@ -127,14 +127,14 @@ export function createMediaSetup(options: MediaSetupOptions) {
       const ready = observed?.state === 'ready';
       return { id: source.id, kind: source.kind, label: source.label, enabled: true,
         state: ready ? 'ready' as const : observed?.state === 'unsupported' ? 'unsupported' as const : 'offline' as const,
-        message: ready ? source.kind === 'local-video' ? 'Connected to your existing video queue.' : source.kind === 'feed' ? 'Connected to the private media feed.' : 'Connected to your image workflow.'
+        message: ready ? source.kind === 'local-video' ? 'Connected to your existing video queue.' : source.kind === 'feed' ? 'Connected to the private media feed.' : source.kind === 'phosphene' ? 'Reading Phosphene’s queue. Scope never starts, stops or changes a render.' : 'Connected to your image workflow.'
           : observed?.message ?? 'Source unavailable. Open its application or check its connection.',
         canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: null, locations: [] };
     }));
     for (const raw of Array.isArray(saved?.sources) ? saved.sources.slice(0, 8) : []) {
       const source = object(raw), id = mediaId(source?.id);
       if (!source || !id || source.enabled !== false || sources.some(item => item.id === id) || sources.length >= 8) continue;
-      sources.push({ id, ...['comfyui','local-video','qwen-image','feed'].includes(String(source.kind)) ? {kind:source.kind as MediaSourceV1['kind']} : {}, label: safeLabel(source.label, 80) ?? 'Media connection', enabled: false, state: 'offline',
+      sources.push({ id, ...MEDIA_SOURCE_KINDS.includes(source.kind as MediaSourceV1['kind']) ? {kind:source.kind as MediaSourceV1['kind']} : {}, label: safeLabel(source.label, 80) ?? 'Media connection', enabled: false, state: 'offline',
         message: 'Monitoring is paused for this connection.', canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: null, locations: [] });
     }
     return { schemaVersion: 1, enabled: true, sources };

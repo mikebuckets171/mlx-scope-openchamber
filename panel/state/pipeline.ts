@@ -5,19 +5,18 @@ import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { Signals, type ToastPreference } from '../alerts/signals.ts';
 import { Attribution, type TurnView } from '../attribution/controller.ts';
 import type { AttributionLabel } from '../attribution/join.ts';
-import type { NextReplyState } from '../attribution/next-reply.ts';
 import type { FrameSessionState, TurnWindow } from '../attribution/sessions.ts';
 import type { TurnSummary } from '../attribution/turn.ts';
 import { baselineKey, replyMetric, type Baselines } from '../history/baselines.ts';
-import { vsUsual, type RegressionFlag, type VsUsual } from '../history/regress.ts';
-import { cofactorBits, KEYS, parseModels, replyRow, turnRowOf, type LedgerAttr } from '../history/ledger-schema.ts';
+import { REGRESSION, RegressionTracker, vsUsual, type RegressionFlag, type VsUsual } from '../history/regress.ts';
+import { cofactorBits, KEYS, parseModels, replyRow, turnRowOf, type LedgerAttr, type ReplyRow } from '../history/ledger-schema.ts';
 import { Ledger, LedgerRecorder } from '../history/ledger.ts';
 import { RT } from '../present/copy.ts';
 import { SERVER_WIDE } from '../present/scope.ts';
 import type { ScopeState } from './scope-state.ts';
 
 // Owner: ui-core. The frame's side effects around each poll, wired to the attribution controller, the ledger recorder
-// and the signals (INTERFACES §4.2–§4.5): marks and verdicts out, labels and Next reply in, ledger rows and badge/toasts
+// and the signals (INTERFACES §4.2–§4.5): marks and verdicts out, labels in, ledger rows and badge/toasts
 // from the leader only (P9). Nothing here reaches the DOM; presenters read what it exposes.
 
 type Host = Pick<HostClient, 'onSession' | 'onSessionLifecycle' | 'storage' | 'setBadge' | 'toast'>;
@@ -27,6 +26,12 @@ export const ledgerAttr = (label: AttributionLabel): LedgerAttr => label.kind ==
   : label.reason === 'not-observed' || label.reason === 'all-requests' ? 'not-observed' : `withheld:${label.reason}`;
 /** baseline.v2 changes at most every 10 min (the leader's write), so a frame re-reads it no more often. */
 export const USUAL_EVERY_MS = 600_000;
+/** Replies this frame keeps in memory for "slower than usual"; the median needs only the newest 3 per model. */
+export const RECENT_REPLIES = 24;
+/** Re-evaluated at least this often, so a flag clears once its replies leave the 30-minute window. */
+const EVALUATE_EVERY_MS = 30_000;
+// What else was running during a reply: in memory only, never written to the ledger (stored bits stay below 32).
+const QUEUED = 32, MEDIA = 64;
 /** Another track's module that throws must not take monitoring down with it. */
 const safe = <T>(run: () => T, fallback: T): T => { try { return run(); } catch { return fallback; } };
 
@@ -39,7 +44,10 @@ export class Pipeline {
   #sent: number | undefined;
   #visible = true;
   #turnKey = '';
-  flags: readonly RegressionFlag[] = [];
+  readonly #regressions = new RegressionTracker();
+  #replies: Array<{ completion: CompletionV2; instance: string; rt: RuntimeKind }> = [];
+  #stored: readonly ReplyRow[] = [];
+  #evaluatedAt = -Infinity;
   /** The ledger dictionary's model names (class B), kept out of every share this frame makes. */
   ledgerModels: readonly string[] = [];
   #usual: { baselines: Baselines; models: readonly string[] } | null = null;
@@ -74,8 +82,12 @@ export class Pipeline {
     return this.#sent;
   }
   /** After a 200: acknowledge what was sent, observe the body, then the leader's signals and ledger. */
-  received(snapshot: SnapshotV2, _fresh: readonly CompletionV2[], visible: boolean, cadenceMs = 0): void {
+  received(snapshot: SnapshotV2, fresh: readonly CompletionV2[], visible: boolean, cadenceMs = 0): void {
     if (visible && this.#o.now() - this.#usualAt >= USUAL_EVERY_MS) void this.#readUsual();
+    const rt = snapshot.connection.runtime;
+    if (rt) for (const completion of fresh) this.#replies.push({ completion, instance: snapshot.completions.instance, rt });
+    if (this.#replies.length > RECENT_REPLIES) this.#replies.splice(0, this.#replies.length - RECENT_REPLIES);
+    if (fresh.length || this.#o.now() - this.#evaluatedAt >= EVALUATE_EVERY_MS) this.#evaluate();
     safe(() => this.attribution.acknowledge(), undefined);
     safe(() => this.attribution.observe(snapshot, cadenceMs), undefined);
     safe(() => this.#signals.apply(snapshot, this.flags), undefined);
@@ -98,6 +110,41 @@ export class Pipeline {
       const [baselines, models] = await Promise.all([this.ledger.storedBaselines(), this.#o.host.storage.get(KEYS.models)]);
       this.#usual = baselines ? { baselines, models: parseModels(models) } : null;
     } catch { this.#usual = null; }
+    this.#evaluate();
+  }
+  /**
+   * Active "slower than usual" flags: History's stored replies from the last 30 minutes plus the replies this frame saw,
+   * which also say whether requests were queued or a media job ran. Same rule and baselines as History.
+   */
+  get flags(): readonly RegressionFlag[] { return this.#regressions.current; }
+  /** The flags for one runtime and, when known, one model; a model with no stored history has none. */
+  flagsFor(runtime: RuntimeKind | null, model: string | null): readonly RegressionFlag[] {
+    const ref = model === null ? null : String(this.#usual?.models.indexOf(model) ?? -1);
+    return runtime && ref !== '-1' ? this.flags.filter(flag => { const [, rt, index] = flag.key.split('|'); return rt === runtime && (ref === null || index === ref); }) : [];
+  }
+  /** The History view's latest read of the ledger. */
+  storedReplies(rows: readonly ReplyRow[]): void {
+    const now = this.#o.now();
+    this.#stored = rows.filter(row => now - row[1] * 1000 <= REGRESSION.withinMs);
+    this.#evaluate();
+  }
+  /** History and baselines were cleared: nothing seen before counts any more. */
+  historyCleared(): void {
+    this.#stored = []; this.#replies = []; this.#usual = null; this.#usualAt = -Infinity; this.#regressions.clear();
+  }
+  #evaluate(): void {
+    const now = this.#o.now(), usual = this.#usual;
+    this.#evaluatedAt = now;
+    if (!usual) { this.#regressions.clear(); return; }
+    safe(() => {
+      const own = this.#replies.map(({ completion, instance, rt }) => {
+        const index = completion.model ? usual.models.indexOf(completion.model) : -1;
+        const row = replyRow(completion, instance, rt, index < 0 ? null : index, 'not-observed');
+        row[15] |= (completion.host.queuedMax ? QUEUED : 0) | (completion.host.mediaRunning ? MEDIA : 0);
+        return row;
+      }), seen = new Set(own.map(row => row[17]));
+      return this.#regressions.update([...this.#stored.filter(row => !seen.has(row[17])), ...own], usual.baselines, now);
+    }, []);
   }
   /**
    * A reply's decode speed against its usual (p50 with n) and the regression flag that covers it, from the stored
@@ -122,7 +169,7 @@ export class Pipeline {
       steps: summary.steps, outputTokens: summary.outputTokens, firstTtftMs: summary.firstTtftMs, decodeTps: summary.decodeTps,
       waitMs: summary.toolMs, attr: ledgerAttr(view.label), cofactors: view.steps.reduce((bits, step) => bits | cofactorBits(step), 0) }));
   }
-  /** Visibility gate: a hidden frame cancels Next reply and stops listening; a leader flushes what it holds. */
+  /** Visibility gate: a hidden frame stops listening; a leader flushes what it holds. */
   setVisible(visible: boolean): void {
     if (visible === this.#visible) return;
     this.#visible = visible;
@@ -136,7 +183,7 @@ export class Pipeline {
   panelMounted(): void { safe(() => this.#signals.panelMounted(), undefined); }
 
   frame(): FrameSessionState { return safe(() => this.attribution.frame(), { connected: false, observedFrom: null, chat: null, windows: [] }); }
-  /** A completion's label: this frame's armed step, else the service's recorded verdict, else this frame's own join. */
+  /** A completion's label: the service's recorded verdict, else this frame's own join. */
   label(completion: CompletionV2): AttributionLabel { return safe(() => this.attribution.label(completion), SERVER_WIDE); }
   /** The live reading's label: the join rule applied to the request so far; server-wide while nothing runs. */
   liveLabel(_snapshot: SnapshotV2 | null): AttributionLabel { return safe(() => this.attribution.live(), null) ?? SERVER_WIDE; }
@@ -152,11 +199,7 @@ export class Pipeline {
     const provider = this.frame().chat?.provider;
     return provider ? RT[provider as keyof typeof RT] ?? null : null;
   }
-  watchable(): string | null { return safe(() => this.attribution.watchable(), null); }
   chatIsLocal(): boolean | null { return safe(() => this.attribution.chatIsLocal(), null); }
-  get nextState(): NextReplyState { return safe(() => this.attribution.nextReply, { kind: 'idle' }); }
-  arm(_snapshot?: SnapshotV2 | null): void { safe(() => this.attribution.arm(), undefined); }
-  cancel(): void { safe(() => this.attribution.cancel(), undefined); }
   get firstRun(): boolean { return safe(() => this.ledger.firstRun, false); }
   get recording(): boolean { return this.#recorder.recording; }
   dispose(): void { this.#stopChatBoundary(); safe(() => this.attribution.dispose(), undefined); safe(() => this.#signals.dispose(), undefined); safe(() => this.#recorder.dispose(), undefined); }

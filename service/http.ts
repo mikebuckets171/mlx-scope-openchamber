@@ -35,12 +35,14 @@ export const requestJSON = async ({
   fetchImpl,
   timeoutMs = 3_000,
   allowLoadingHealth = false,
+  maxBytes = 2_000_000,
 }: {
   url: URL;
   init?: RequestInit;
   fetchImpl: FetchImplementation;
   timeoutMs?: number;
   allowLoadingHealth?: boolean;
+  maxBytes?: number;
 }): Promise<JsonResponse> => {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -70,7 +72,7 @@ export const requestJSON = async ({
             const { done, value } = await reader.read();
             if (done) break;
             size += value.byteLength;
-            if (size > 2_000_000) {
+            if (size > maxBytes) {
               await reader.cancel();
               throw new Error('Response too large');
             }

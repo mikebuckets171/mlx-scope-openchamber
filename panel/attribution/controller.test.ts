@@ -6,7 +6,6 @@ import { parseSnapshotQuery } from '../../src/contract/query.ts';
 import { SnapshotClient } from '../data/client.ts';
 import { Attribution } from './controller.ts';
 import { body, CHAT, fakeHost, INSTANCE, OTHER, step, T0, type BodyOptions } from './testing.ts';
-import { ALTERNATING, attributionWhy } from './why.ts';
 
 // End to end in one frame: the real SDK's session events (with its replays), polls every 500 ms, and what reaches the
 // wire. Times are ms after T0 on the service clock.
@@ -107,7 +106,6 @@ test('two requests at once withhold the step as overlap; one request of another 
   s.chat(8_300, false); s.run(8_500, 10_000);
   expect(verdicts(s)).toEqual(['1.withheld.overlap', '2.inferred.-']);
   // S2: the second request may well be another chat's; the ⓘ says so.
-  expect(attributionWhy({ kind: 'inferred' }, 'Splash', false).join(' ')).toContain(ALTERNATING);
 });
 
 test('provider, model and counting withhold with their reasons', () => {
@@ -150,44 +148,39 @@ test('clock skew ±5 s: stamps on the service clock (SnapshotClient offset) keep
   expect(await run(5_000, false)).toContain('2.inferred.-');
 });
 
-test('a switch mid-reply cancels Next reply at once; later steps are not observed', () => {
+test('a switch mid-reply: later steps are not observed', () => {
   const s = setup();
   s.run(0, 1_000);
-  expect(s.attribution.arm()).toMatchObject({ kind: 'armed' });
   s.chat(1_000, true); s.run(1_000, 3_000, 1);
   s.at(3_000); s.fake.session({ ...OTHER, busy: false });
-  expect(s.attribution.nextReply).toEqual({ kind: 'cancelled', reason: 'switched' });
   s.run(3_000, 5_000, 1); s.poll(5_000, 0, [reply(1, 1_200, 4_900)]); s.run(5_500, 7_000);
   expect(s.attribution.label({ seq: 1 })).toEqual({ kind: 'server-wide', reason: 'not-observed' });
   expect(verdicts(s)).toEqual([]);
 });
 
-test('Next reply: armed steps reach the wire as `armed` and win over the auto verdict', () => {
+test('replies Scope 5.0 stored as armed still read as attributed; nothing new is sent as armed', () => {
   const s = setup();
-  s.run(0, 1_000); s.attribution.arm(); s.chat(1_000, true);
-  s.run(1_000, 3_000, 1);
-  expect(s.attribution.live()).toEqual({ kind: 'armed' });
-  s.poll(3_000, 0, [reply(1, 1_200, 2_900)]); s.chat(3_200, false); s.run(3_500, 5_000);
-  expect(verdicts(s)).toEqual(['1.armed.-']);
-  expect(s.attribution.label({ seq: 1 })).toEqual({ kind: 'armed' });
-  expect(s.attribution.nextReply).toMatchObject({ kind: 'result', attributed: true, summary: { steps: 1 } });
-  expect(s.attribution.turn()).toMatchObject({ label: { kind: 'armed' } });
+  s.run(0, 1_000); s.chat(1_000, true); s.run(1_000, 3_000, 1);
+  expect(s.attribution.live()).toEqual({ kind: 'inferred' });
+  const armed = { attr: 'armed' as const, at: T0 };
+  s.poll(3_000, 0, [reply(1, 1_200, 2_900, { verdict: armed })]); s.chat(3_200, false); s.run(3_500, 5_000);
+  expect(s.attribution.label({ seq: 1, verdict: armed })).toEqual({ kind: 'armed' });
+  expect(s.attribution.turn()).toMatchObject({ label: { kind: 'armed' }, summary: { steps: 1 } });
+  expect(verdicts(s)).toEqual([]);
 });
 
-test('auto-labelling off: server-wide · auto-off, while Next reply still measures', () => {
+test('auto-labelling off: server-wide · auto-off', () => {
   const s = setup({ auto: false });
   s.run(0, 1_000); s.chat(1_000, true); s.run(1_000, 3_000, 1);
   expect(s.attribution.live()).toEqual({ kind: 'server-wide', reason: 'auto-off' });
   s.poll(3_000, 0, [reply(1, 1_200, 2_900)]); s.chat(3_200, false); s.run(3_500, 5_000);
-  s.attribution.arm(); s.chat(5_000, true); s.run(5_000, 7_000, 1); s.poll(7_000, 0, [reply(2, 5_200, 6_900)]); s.chat(7_200, false); s.run(7_500, 9_000);
-  expect(verdicts(s)).toEqual(['1.withheld.auto-off', '2.armed.-']);
+  expect(verdicts(s)).toEqual(['1.withheld.auto-off']);
 });
 
-test('hidden: no listening, Next reply cancelled, readings broken; shown again it rejoins mid-turn', () => {
+test('hidden: no listening, readings broken; shown again it rejoins mid-turn', () => {
   const s = setup();
-  s.run(0, 1_000); s.attribution.arm(); s.chat(1_000, true); s.run(1_000, 2_000, 1);
+  s.run(0, 1_000); s.chat(1_000, true); s.run(1_000, 2_000, 1);
   s.attribution.setVisible(false);
-  expect(s.attribution.nextReply).toEqual({ kind: 'cancelled', reason: 'hidden' });
   expect(s.fake.listeners()).toBe(1);                          // the SDK's own; the feed has let go
   expect(s.attribution.frame().connected).toBe(false);
   s.chat(4_000, false); s.chat(5_000, true);                   // missed while hidden
@@ -211,38 +204,33 @@ test('a new service instance drops queued verdicts and marks; a completion the s
   expect(s2.attribution.label({ seq: 1, verdict: { attr: 'withheld', reason: 'overlap', at: T0 } })).toEqual({ kind: 'server-wide', reason: 'overlap' });
 });
 
-test('a runtime that stops answering cancels Next reply; a failed poll breaks the readings', () => {
+test('a runtime that stops answering has no live label; a failed poll breaks the readings', () => {
   const s = setup();
-  s.run(0, 1_000); s.attribution.arm(); s.chat(1_000, true); s.run(1_000, 2_000, 1);
+  s.run(0, 1_000); s.chat(1_000, true); s.run(1_000, 2_000, 1);
   s.setBody({ state: 'failing' }); s.poll(2_000, 1);
-  expect(s.attribution.nextReply).toEqual({ kind: 'cancelled', reason: 'unavailable' });
   expect(s.attribution.live()).toBeNull();
-  s.setBody({}); s.attribution.arm(); s.run(2_500, 3_000, 1);
+  s.setBody({}); s.run(2_500, 3_000, 1);
   s.at(3_000); s.attribution.observe(null);
-  expect(s.attribution.nextReply).toEqual({ kind: 'cancelled', reason: 'unavailable' });
   s.run(3_000, 5_000, 1); s.poll(5_000, 0, [reply(1, 1_200, 4_900)]); s.chat(5_300, false); s.run(5_500, 7_000);
   expect(s.attribution.label({ seq: 1 })).toEqual({ kind: 'server-wide', reason: 'not-observed' });
 });
 
-test('live label, Watch and the local-chat test', () => {
+test('live label and the local-chat test', () => {
   const s = setup();
   s.setBody({ choices: ['splish', 'omlx'] });
   s.run(0, 1_000);
   expect(s.attribution.live()).toBeNull();
   expect(s.attribution.chatIsLocal()).toBe(true);
-  expect(s.attribution.watchable()).toBeNull();
   s.chat(1_000, true); s.run(1_000, 2_000, 1);
   expect(s.attribution.live()).toEqual({ kind: 'inferred' });
   s.run(2_000, 2_500, 2);
   expect(s.attribution.live()).toEqual({ kind: 'server-wide', reason: 'overlap' });
   const omlx = { ...CHAT, model: 'omlx/Qwen3.8-27B-4bit' };
   s.chat(2_500, false); s.run(2_500, 3_000); s.fake.session(omlx);
-  expect(s.attribution.watchable()).toBe('omlx');
   s.chat(3_000, true, omlx); s.run(3_000, 4_000, 1);
   expect(s.attribution.live()).toEqual({ kind: 'server-wide', reason: 'other-provider' });
   s.fake.session({ ...CHAT, busy: true, model: 'cloud/model' });
   expect(s.attribution.chatIsLocal()).toBe(false);
-  expect(s.attribution.watchable()).toBeNull();
   s.attribution.dispose();
   expect(s.attribution.frame().chat).toBeNull();
 });

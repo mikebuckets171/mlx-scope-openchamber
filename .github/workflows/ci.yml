@@ -35,7 +35,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run check
       - name: Verify tracked bundles
-        run: git diff --exit-code -- panel/main.js service/main.js background/main.js
+        run: git diff --exit-code -- panel/main.js service/main.js
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: matrix.os == 'ubuntu-latest'
         with:
@@ -66,18 +66,18 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
       - name: Verify tracked bundles after build
-        run: git diff --exit-code -- panel/main.js panel/style.css service/main.js background/main.js package.json bun.lock
+        run: git diff --exit-code -- panel/main.js panel/style.css service/main.js package.json bun.lock
       - run: bunx playwright install --with-deps ${{ matrix.engine }}
       - name: Browser source provenance
         run: |
           git show -s --format='checkout_commit=%H%ncheckout_tree=%T' HEAD
-          shasum -a 256 panel/main.js panel/style.css service/main.js background/main.js package.json bun.lock
+          shasum -a 256 panel/main.js panel/style.css service/main.js package.json bun.lock
           node --version
           bun --version
       - run: bun run test:browser --project=${{ matrix.engine }} --workers=2
       - name: Verify tracked bundles after browser tests
         if: always()
-        run: git diff --exit-code -- panel/main.js panel/style.css service/main.js background/main.js package.json bun.lock
+        run: git diff --exit-code -- panel/main.js panel/style.css service/main.js package.json bun.lock
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:

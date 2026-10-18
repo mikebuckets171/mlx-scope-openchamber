@@ -2,7 +2,7 @@
 
 MLX Scope reads local runtime and host measurements through its OpenChamber-managed service. It does not upload
 telemetry, send prompts, change runtime settings, or run an analytics service. Nothing leaves your computer unless you
-share it yourself: Copy, Add to chat draft, Copy baseline summary, or a `/scope` chip you send.
+share it yourself: Copy, Add to chat draft or Copy baseline summary.
 
 ## Data handled
 
@@ -63,8 +63,13 @@ Guided setup installs bundled companion files into `~/.config/opencode/addons/ml
 OpenCode's plugin entry. It never restarts OpenCode or an active inference session. Disable removes the managed entry
 and unchanged owned files; altered files are preserved. Manual installations stay under your control.
 
-Chat delivery estimates are transient: they are not added to engine charts, reply baselines, history or captures.
+Chat delivery estimates are transient: they are not added to engine charts, reply baselines or history.
 Existing records retain their original measurement basis. See [Measurements](docs/METRICS.md).
+
+**Prompt cache counts.** For **Prompt cache miss**, the service keeps, in memory only, the two newest prompt sizes and
+reused-token counts the companion's prompt-progress records reported for each chat: at most 32 chats, each dropped after
+30 minutes, and gone when the service exits. A view receives them only for the open chat, matched by its hashed key, and
+only for a local provider. They are never stored, charted, shared or added to History.
 
 ## Reply history stored on this computer
 
@@ -82,7 +87,8 @@ OpenChamber's data folder and is verified in Stage 12.
 - how each value was obtained (reported, derived, observed, last observed or estimate), and the per-chat label with its
   reason;
 - which conditions were present during the reply (memory pressure, swap growth, thermal pressure), and the chip energy
-  estimate when macmon is installed.
+  estimate when macmon is installed. Whether requests were queued or a media job was running is noted for the
+  **Slower than usual** row in the open view's memory only and never stored.
 
 A turn record adds the step count, total output, first-step time to first token, a token-weighted decode speed and time
 spent waiting.
@@ -94,8 +100,8 @@ IDs; file paths; credentials. The per-chat tag the service uses to mark turns is
 them up with your chat history in OpenChamber.
 
 **Model names stay in Scope's own views.** They appear in the reply history and in Scope's panel, page and Work Status
-section. They are left out of every share path: Copy, Add to chat draft, `/scope`, toasts, the baseline summary (which
-calls models "Model A", "Model B"), and saved captures. Canary tests cover each of these paths.
+section. They are left out of every share path: Copy, Add to chat draft, toasts and the baseline summary (which
+calls models "Model A", "Model B"). Canary tests cover each of these paths.
 
 **When records are written.** Only while a Scope view is visible, and only by one view at a time. Writes are batched: at
 most every 5 minutes, at 50 pending replies, or when the view is hidden. Nothing is written while idle.
@@ -107,22 +113,23 @@ most every 5 minutes, at 50 pending replies, or when the view is hidden. Nothing
 - A usage bar shows the space used. History is capped at 1,280 KiB; when it is full, the oldest replies are removed first.
 - The first recording shows "Recording reply history locally · Open Scope to manage".
 
-**Other saved data.** View preferences and the selected provider ID and runtime (never a URL or key), and up to 12
-captures you save yourself. Captures hold a timestamp and numeric measurements and exclude model names, chat content,
-request identifiers, credentials and private paths. **Delete** and **Clear saved** remove them. A storage failure is
-reported without claiming the write succeeded and does not stop monitoring.
+**Other saved data.** View preferences and the selected provider ID and runtime (never a URL or key). A storage failure
+is reported without claiming the write succeeded and does not stop monitoring.
 
-**1.6 saved observations** stay untouched through 3.0. 2.0 copies them into its own captures and leaves
-the originals, so rolling back to 1.6 still shows them. See the
+**Data from earlier versions.** Captures saved by Scope 2.0–5.0 and 1.6 saved observations are left untouched, so
+rolling back still shows them. Scope 5.1 no longer reads or creates them; **History → Storage** counts them under
+**Kept from earlier versions**. **Clear…** does not remove them; uninstalling does. See the
 [rollback runbook](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/2.0/ROLLBACK.md).
 
-**Uninstalling** MLX Scope in Settings → Extensions deletes all of its storage: reply history, baselines, captures and
-any 1.6 observations. This is OpenChamber's documented behaviour for extension storage. Backups keep their own copies.
+**Uninstalling** MLX Scope in Settings → Extensions deletes all of its storage: reply history, baselines, preferences and
+data kept from earlier versions. This is OpenChamber's documented behaviour for extension storage. **Installing a ZIP
+over an existing Scope does the same**, because OpenChamber replaces the extension; a Git install updates in place and
+keeps it. Backups keep their own copies.
 
 ## Per-chat labels and optional project awareness
 
-- Scope 5 declares `sessions` and `shells`. OpenChamber asks for update reapproval; both optional views start disabled. Enabling **Chats and subagents** subscribes to host-reported activity in the current project. Enabling **Agent commands** subscribes to command status. Both stop when Live is hidden, paused or closed.
-- Project activity may include titles, subagent relationships and command text. Scope holds it only in the visible view. **View output** reads at most the last 8 KiB on request, clears it when hidden or closed, and never stores or exports it. Scope never starts/stops a command or sends a session prompt.
+- Scope 5.1 declares `sessions` only; 5.0's `shells` permission and agent command output are gone. **Chats and subagents** starts disabled. Enabling it subscribes to host-reported activity in the current project, and it stops when Live is hidden, paused or closed.
+- Project activity may include titles and subagent relationships. Scope holds it only in the visible view and never sends a session prompt.
 - Design and opt-in flags are stored in device-scoped preferences where supported, never mixed with saved measurement records.
 - It uses only what OpenChamber gives every extension about the **open** chat: its ID, whether it is busy, its model,
   and its turn start and finish events.
@@ -136,22 +143,6 @@ any 1.6 observations. This is OpenChamber's documented behaviour for extension s
 shared text: it excludes model names, paths, request identifiers, credentials and conversation content. Draft sharing
 appends text, preserves existing text, and never sends a message. If you later send that draft, its provider receives
 the report under that provider's policies.
-
-## `/scope`
-
-- Typing `/scope` attaches an "MLX Scope diagnostics" chip. Its text is at most 16,000 characters and is built by the same
-  sanitizer as Copy. It ignores anything typed after the command.
-- **It contains** the runtime kind and version, status and phase, speeds with their basis, the context size as a range,
-  the last reply's per-chat label and vs-usual changes with sample counts, memory pressure, GPU and thermal readings, and
-  active alert names.
-- **It never contains** model names, chat titles, IDs, paths, prompt text or credentials.
-- To build it, Scope reads its own service once and two local history values (the baselines and the model list, to
-  match the last reply). It writes nothing.
-- Attaching sends nothing. When you send your message, the summary goes to this chat's model, **which may be a cloud
-  provider**, under that provider's policies. The summary's first line says so.
-- The chip **replaces a pending GitHub or Linear chip**, because the composer holds one of them at a time, and after you
-  send, OpenChamber keeps the chip and its text in the chat's session record, like any attached item. Both come from the
-  OpenChamber SDK 2.0.4 documentation and are verified in Stage 12.
 
 ## Alerts
 
@@ -185,6 +176,8 @@ conversations to a public issue.
 ## Optional media monitoring
 
 Media adapters read existing local job APIs or bounded files only while a relevant Scope view is visible. Raw backend records may contain prompts and file paths; the service selects only job identifiers, a neutral job name, type, lifecycle/phase, measured counters and units, times, freshness and supported control capabilities. It does not forward prompts, references, previews, output files, raw errors or credentials. Ownership is correlated with hashed matching identifiers; hashes are not anonymization. Media data never enters LLM history or exported diagnostics.
+
+Phosphene's `/status` answer includes prompts, render parameters, file paths, logs and output lists. Scope reads at most 1 MB of it and keeps only job ids, states, start and run times, the mode and engine names (to tell an image from a video), the phase, step counters, the H3 window number and Phosphene's own time-left estimate. Its discovery probe reads `/version` and keeps only the release number. Scope sends Phosphene nothing but these two GET requests.
 
 The optional ComfyUI helper answers a token-authenticated loopback GET on the existing ComfyUI server. It snapshots bounded existing progress state without a watcher, WebSocket takeover, telemetry file, model call or workflow change. Its managed token and ownership receipt are private local files. Source configuration lives in `~/.config/mlx-scope/media.json`; secrets remain server-side. Setup changes occur only after a deliberate action and preserve unrelated configuration.
 

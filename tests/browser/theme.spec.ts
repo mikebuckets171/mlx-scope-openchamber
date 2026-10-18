@@ -5,7 +5,7 @@ import { inspect } from './ui-checks.ts';
 
 // 3.2 has one column and secondary views with Back; these replace the 3.1 Live/History tabs.
 const toColumn = async (frame: Pick<Frame | FrameLocator, 'getByRole'>): Promise<void> => {
-  for (const name of ['Back to History', 'Back']) { const back = frame.getByRole('button', { name, exact: true }); if (await back.isVisible()) await back.click(); }
+  const back = frame.getByRole('button', { name: 'Back', exact: true }); if (await back.isVisible()) await back.click();
 };
 const toHistory = async (frame: Pick<Frame | FrameLocator, 'getByRole'>): Promise<void> => { await toColumn(frame); await frame.getByRole('button', { name: 'History', exact: true }).click(); };
 
@@ -168,8 +168,9 @@ for (const [name, palette] of [['violet', VIOLET], ['paper', PAPER]] as const) {
       expect(await frame.evaluate(inspect, false), `${name} Server @ ${width}`).toEqual([]);
       await toHistory(frame);
       expect(await frame.evaluate(inspect, false), `${name} History @ ${width}`).toEqual([]);
-      await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-      expect(await frame.evaluate(inspect, false), `${name} Captures @ ${width}`).toEqual([]);
+      await frame.locator('.history-storage > summary').click();
+      await expect(frame.getByRole('checkbox', { name: 'Label replies to this chat automatically' })).toBeVisible();
+      expect(await frame.evaluate(inspect, false), `${name} History storage @ ${width}`).toEqual([]);
     }
   });
 }

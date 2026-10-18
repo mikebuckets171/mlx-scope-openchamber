@@ -34,7 +34,7 @@ test('device storage failure remains visible without undoing the current design'
   await expect(frame.locator('#scope-awareness')).toContainText('could not save device preferences');
 });
 
-for (const state of ['needs-approval', 'contract-mismatch']) test(`local History and Captures stay available while ${state} blocks live readings`, async ({ page }) => {
+for (const state of ['needs-approval', 'contract-mismatch']) test(`local History stays available while ${state} blocks live readings`, async ({ page }) => {
   const frame = await load(page, `surface=page&state=${state}`, '/v2');
   await expect(frame.locator('#frame-card .approval-card')).toBeVisible();
   const history = frame.locator('.next-nav [data-action="open-history"]');
@@ -42,9 +42,9 @@ for (const state of ['needs-approval', 'contract-mismatch']) test(`local History
   await expect(frame.locator('.history-storage')).toBeVisible();
   await expect(frame.locator('#history-title')).toBeFocused();
   await expect(frame.locator('#frame-card')).toBeHidden();
-  await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-  await expect(frame.locator('.capture-card')).toBeVisible();
-  await frame.getByRole('button', { name: 'Back to History', exact: true }).click();
+  await frame.locator('.history-storage > summary').click();
+  await expect(frame.getByRole('checkbox', { name: 'Label replies to this chat automatically' })).toBeVisible();
+  await expect(frame.getByRole('button', { name: 'Captures', exact: true })).toHaveCount(0);
   await frame.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(frame.locator('#frame-card .approval-card')).toBeVisible();
   await expect(history).toBeFocused();
@@ -101,39 +101,65 @@ test('a mounted Session ignores retired design choices and reloads optional pref
   expect(await state(page, 'window.previewNextWrites')).toEqual([]);
 });
 
-test('workspace and shell awareness are separate opt-ins and hidden views stop every subscription', async ({ page }) => {
+test('chats and subagents are the only awareness opt-in, never read agent commands, and hidden views stop the subscription', async ({ page }) => {
   const frame = await load(page, 'design=next');
   await expect(frame.locator('html')).toHaveAttribute('data-design-mode', 'next');
   const settings = frame.locator('.awareness-settings'); await settings.locator('summary').click();
+  await expect(settings.getByRole('checkbox')).toHaveCount(1);
+  await expect(settings.getByLabel('Agent commands')).toHaveCount(0);
   await settings.getByLabel('Chats and subagents').check();
   await expect(frame.locator('.awareness-card')).toContainText('Fixture subagent');
-  expect(await state(page, 'window.previewNextCalls.filter(x => x === "shells-subscribe").length')).toBe(0);
-  await settings.getByLabel('Agent commands').check();
-  await expect(frame.locator('.awareness-card')).toContainText('fixture_private_command_canary');
+  await expect(frame.locator('.awareness-card')).not.toContainText('fixture_private_command_canary');
+  await expect(frame.getByRole('button', { name: 'View output', exact: true })).toHaveCount(0);
+  expect(await state<string[]>(page, 'window.previewNextCalls')).toContain('workspace-subscribe');
+  expect(await state<string[]>(page, 'window.previewNextCalls')).not.toContain('shells-subscribe');
   expect(await state(page, 'window.previewShellReads.length')).toBe(0);
-  await frame.getByRole('button', { name: 'View output', exact: true }).click();
-  await expect(frame.locator('.shell-output pre')).toContainText('fixture_private_output_canary');
-  expect(await frame.locator('.shell-output pre').textContent()).toHaveLength(8192);
-  expect(await state(page, 'window.previewShellReads')).toEqual([{ shellId: 'fixture-shell', tailBytes: 8192 }]);
-  const persisted = await state<string>(page, 'JSON.stringify(window.previewNextWrites)');
-  expect(persisted).not.toContain('canary');
   await page.evaluate('window.setPreviewFrameHidden(true)');
   await expect.poll(() => state(page, 'window.previewSubscriptions.size')).toBe(0);
   await page.evaluate('window.setPreviewFrameHidden(false)');
   await expect(frame.locator('.awareness-card')).toContainText('Fixture active chat');
-  await expect(frame.locator('.shell-output')).toHaveCount(0);
   await frame.locator('.next-nav [data-action="open-history"]').click();
   await expect.poll(() => state(page, 'window.previewSubscriptions.size')).toBe(0);
   await frame.locator('.next-nav [data-action="show-live"]').click();
   await expect(frame.locator('.awareness-card')).toContainText('Fixture subagent');
+  expect(await state<string[]>(page, 'window.previewNextCalls')).not.toContain('shells-subscribe');
   expect(await state(page, 'window.previewForbiddenNextCalls')).toEqual([]);
 });
 
-test('Session toolbar pauses and switches scope without depending on host header layout', async ({ page }) => {
+const watchControl = (value: string) => ({ kind: 'select', id: 'watch', label: 'Watch', value,
+  options: [{ value: 'chat', label: 'This chat' }, { value: 'engine', label: 'Engine' }] });
+const pauseControl = (label: string) => ({ kind: 'button', id: 'pause', label });
+
+test('Session publishes Watch and Pause to the host header, hides its own toolbar, and follows header events', async ({ page }) => {
   const frame = await load(page, 'surface=status&design=next');
+  const header = page.locator('#fixture-status-controls');
+  await expect.poll(() => state(page, 'window.previewHeaderControls')).toEqual([watchControl('chat'), pauseControl('Pause')]);
+  await expect(frame.locator('#scope')).toHaveAttribute('data-host-controls', 'true');
+  await expect(frame.locator('.ws-toolbar')).toBeHidden();
+  await expect(frame.getByRole('button', { name: 'Pause', exact: true })).toHaveCount(0);
+  // This fixture's chat model is not a configured local connection, so This chat reads its busy phase, "Working".
+  await expect(frame.locator('.ws-phase')).toHaveText('Working');
+  await header.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(frame.locator('.ws-phase')).toHaveText('Paused');
+  await expect.poll(() => state(page, 'window.previewHeaderControls')).toEqual([watchControl('chat'), pauseControl('Resume')]);
+  await header.getByRole('button', { name: 'Resume', exact: true }).click();
+  await expect(frame.locator('.ws-phase')).toHaveText('Working');
+  await header.getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
+  await expect(frame.locator('.ws-label')).toHaveText('Engine');
+  await expect(frame.locator('.scope-choice')).toHaveValue('engine');
+  await expect.poll(() => state(page, 'window.previewHeaderControls')).toEqual([watchControl('engine'), pauseControl('Pause')]);
+  // The reading itself opens the snapshot details when the host offers popovers.
+  await frame.getByRole('button', { name: /^Measurement details: .* · Engine$/ }).click();
+  const popover = page.frameLocator('iframe[title="Scope detail popover"]');
+  await expect(popover.getByRole('region', { name: 'Measurement details' })).toBeVisible();
+  expect(await state(page, 'window.previewPopoverCollectorCalls')).toEqual([]);
+});
+
+test('Session keeps its own toolbar for scope, pause and details when the host rejects header controls', async ({ page }) => {
+  const frame = await load(page, 'surface=status&design=next&headers=fail');
   await expect(frame.locator('.ws-toolbar')).toBeVisible();
+  await expect(frame.locator('#scope')).not.toHaveAttribute('data-host-controls', 'true');
   expect(await state(page, 'window.previewHeaderControls')).toEqual([]);
-  await expect(frame.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
   await frame.getByRole('button', { name: 'Pause', exact: true }).click();
   await expect(frame.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
   await frame.getByRole('button', { name: 'Resume', exact: true }).click();
@@ -143,8 +169,6 @@ test('Session toolbar pauses and switches scope without depending on host header
   const popover = page.frameLocator('iframe[title="Scope detail popover"]');
   await expect(popover.getByRole('region', { name: 'Measurement details' })).toBeVisible();
   expect(await state(page, 'window.previewPopoverCollectorCalls')).toEqual([]);
-  await page.goto('/?sdk=next&surface=status&design=next&headers=fail&state=decode&chat=1');
-  await expect(frame.locator('.scope-choice')).toBeVisible();
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();
 });
 
@@ -158,19 +182,19 @@ test('popover surface uses the supplied snapshot and starts no monitoring or sto
 });
 
 
-test('optional awareness saves only its device choices and never persists a retired design value', async ({ page }) => {
+test('optional awareness saves its device choice, keeps fields this release does not use, and never revives a retired design', async ({ page }) => {
   const frame = await load(page, 'design=classic');
   await frame.locator('.awareness-settings > summary').click();
   await expect(frame.getByLabel('Chats and subagents')).not.toBeChecked();
-  await expect(frame.getByLabel('Agent commands')).not.toBeChecked();
-  await frame.getByLabel('Agent commands').check();
+  await frame.getByLabel('Chats and subagents').check();
   await expect.poll(() => state(page, 'window.previewNextWrites.length')).toBe(1);
-  expect(await state(page, 'window.previewNextWrites')).toEqual([{ op: 'set', key: 'view.next', scope: 'device', value: { workspace: false, shells: true } }]);
+  // 5.0's design and agent-command fields are written back unchanged, so an older release still reads its own choices.
+  expect(await state(page, 'window.previewNextWrites')).toEqual([{ op: 'set', key: 'view.next', scope: 'device', value: { designMode: 'classic', workspace: true, shells: false } }]);
   await page.reload();
   await expect(frame.locator('html')).toHaveAttribute('data-design-mode', 'next');
   await frame.locator('.awareness-settings > summary').click();
-  await expect(frame.getByLabel('Agent commands')).toBeChecked();
-  await expect(frame.getByLabel('Chats and subagents')).not.toBeChecked();
+  await expect(frame.getByLabel('Chats and subagents')).toBeChecked();
+  await expect(frame.getByLabel('Agent commands')).toHaveCount(0);
 });
 
 test('steady polls leave navigation stable and navigation preserves awareness and the actual trace', async ({ page }) => {
@@ -202,7 +226,7 @@ test('steady polls leave navigation stable and navigation preserves awareness an
 test('enlarged Next status prioritizes the accessible numeric reading and live media within the host height', async ({ page }) => {
   const frame = await load(page, 'surface=status&design=next&media=eta');
   await page.setViewportSize({ width: 320, height: 900 });
-  await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
+  await page.locator('#fixture-status-controls').getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
   await expect(frame.locator('.media-glance-finish')).toBeVisible();
   await frame.locator('html').evaluate(element => { (element as HTMLElement).style.fontSize = '24px'; });
   await expect(frame.getByRole('button', { name: /^Measurement details: .*tok\/s · Engine/ })).toBeVisible();
@@ -228,26 +252,13 @@ test('a device read finishing after teardown cannot restart workspace subscripti
   expect(await state(page, 'window.previewNextCalls.length')).toBe(calls);
 });
 
-for (const surface of ['page', 'status']) for (const runtime of ['decode', 'splash-mixed']) test(`Next ${surface} shows the ${runtime} time basis beside its speed`, async ({ page }) => {
+for (const surface of ['page', 'status']) for (const runtime of ['decode', 'splash-mixed']) test(`Next ${surface} labels the ${runtime} engine speed Engine and keeps its time basis in the explanation`, async ({ page }) => {
   const frame = await load(page, `surface=${surface}&design=next&state=${runtime}`, '/v2');
-  if (surface === 'status') await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
+  if (surface === 'status') await page.locator('#fixture-status-controls').getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
   else await frame.locator('#hero .scope-choice').selectOption('engine');
+  const reading = frame.locator(surface === 'status' ? '.ws-measurement' : '.instrument-primary');
   const label = frame.locator(surface === 'status' ? '.ws-label' : '.instrument-source');
-  await expect(label).toContainText(runtime === 'decode' ? 'Engine · request average' : 'Engine · recent 4.0 s');
-});
-
-for (const output of ['unicode', 'empty']) test(`shell ${output} output is bounded in UTF-8 bytes and remains transient`, async ({ page }) => {
-  const frame = await load(page, `design=next&output=${output}`);
-  const settings = frame.locator('.awareness-settings'); await settings.locator('summary').click();
-  await settings.getByLabel('Agent commands').check();
-  await frame.getByRole('button', { name: 'View output', exact: true }).click();
-  const pre = frame.locator('.shell-output pre');
-  if (output === 'empty') await expect(pre).toHaveText('No output reported.');
-  else {
-    await expect(pre).toContainText('fixture_utf8_tail');
-    const text = await pre.textContent(); expect(text).not.toContain('\ufffd');
-    expect(new TextEncoder().encode(text ?? '').byteLength).toBeLessThanOrEqual(8_192);
-  }
-  await frame.getByRole('button', { name: 'Close output', exact: true }).click();
-  await expect(pre).toHaveCount(0);
+  await expect(label).toHaveText(/^Engine/);
+  expect(await label.evaluate(el => Array.from(el.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim())).toBe('Engine');
+  await expect(reading.locator('.basis')).toContainText(runtime === 'decode' ? 'average for this request' : 'Calculated · last 4.0 s');
 });

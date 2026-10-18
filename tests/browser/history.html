@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en" data-oc-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
-<title>MLX Scope · History and Captures preview</title>
+<title>MLX Scope · History preview</title>
 <!-- Set the fixture's color scheme before WebKit styles native controls. -->
 <script>
   const historyLight = new URLSearchParams(location.search).get('theme') === 'light', historyRoot = document.documentElement;
@@ -10,7 +10,7 @@
 </script>
 <link rel="stylesheet" href="/history.css"></head>
 <body>
-<!-- Isolated synthetic data around the real History and Captures views. -->
+<!-- Isolated synthetic data around the real History view. -->
 <main class="scope" id="scope" data-phase="decode" data-stale="false" data-approval="false" data-paused="false">
   <header class="masthead">
     <div class="brand"><h1>MLX Scope</h1></div>
@@ -22,7 +22,7 @@
 </main>
 <script>
   // The shell is static; the entry script mounts the real view into the selected tab's panel.
-  const q = new URLSearchParams(location.search), page = q.get('surface') === 'page', tab = q.get('tab') === 'captures' ? 'captures' : 'history';
+  const q = new URLSearchParams(location.search), page = q.get('surface') === 'page';
   const scope = document.getElementById('scope');
   scope.dataset.surface = page ? 'page' : 'panel';
   scope.dataset.layout = page ? 'wide' : 'tabs';
@@ -31,7 +31,7 @@
   document.getElementById('tabs').innerHTML = tabs.map(([id, label]) => `<button class="tab" role="tab" type="button" id="tab-${id}" aria-controls="panel-${id}" aria-selected="${id === active}" tabindex="${id === active ? 0 : -1}">${label}</button>`).join('');
   document.getElementById('views').innerHTML = '<div role="tabpanel" id="panel-live" aria-labelledby="tab-live" hidden></div>'
     + '<div class="view" role="tabpanel" id="panel-history" aria-labelledby="tab-history" tabindex="0">'
-    + (tab === 'captures' ? '<div id="panel-captures"></div>' : page ? '<div id="history-column"></div>' : '') + '</div>';
+    + (page ? '<div id="history-column"></div>' : '') + '</div>';
 </script>
 <script src="/history.js"></script>
 </body></html>

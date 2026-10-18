@@ -1,4 +1,8 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type FrameLocator } from '@playwright/test';
+
+// A reading's visible layer label, without its explanation or controls ("Last reply", "Last reply · Engine").
+const layer = (frame: FrameLocator, selector: string) => () => frame.locator(selector).evaluate(el =>
+  Array.from(el.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim());
 
 for (const theme of ['light', 'obsidian']) for (const textSize of [16, 32]) {
   test(`completed native result keeps its real facts visible in ${theme} at ${textSize}px text`, async ({ page }) => {
@@ -103,11 +107,11 @@ for (const chat of ['local']) {
         observation: { startedAtMs: now - 3_000, endedAtMs: now }, freshness: 'last' } });
     });
     await expect(frame.locator('#rate')).toHaveText('7.2');
-    await expect(frame.locator('.instrument-source')).toContainText('Last chat · avg.');
+    await expect.poll(layer(frame, '.instrument-source')).toBe('Last reply');
     const facts = frame.locator('#completed-facts');
     await expect(facts).toBeVisible();
     await expect(facts).toHaveAttribute('data-count', '1');
-    await expect(facts).toContainText('Last chat result');
+    await expect(facts.locator('.engine-facts-heading')).toHaveText('Last reply');
     await expect(facts).toContainText('Step duration');
     await expect(facts).toContainText('3.0 s');
     await expect(facts).not.toContainText('Output');
@@ -140,12 +144,12 @@ for (const surface of ['status', 'page', 'compact']) {
     });
     await page.clock.fastForward(600);
     await expect(frame.locator('#rate')).toHaveText('27.7');
-    await expect(frame.locator(label)).toContainText('Last chat · matched · avg.');
+    await expect.poll(layer(frame, label)).toBe('Last reply');
     await page.evaluate(() => (window as any).setPreviewSession({ id: 'different-idle-chat', busy: false, model: 'omlx/Example-27B-4bit' }));
     await page.clock.fastForward(600);
     await expect(frame.locator('#rate')).toHaveText('27.7');
-    await expect(frame.locator(label)).toContainText('Last engine · avg.');
-    await expect(frame.locator(label)).not.toContainText('chat · matched');
+    // Another chat cannot claim this reply: it stays the engine's last result.
+    await expect.poll(layer(frame, label)).toBe('Last reply · Engine');
     await expect(frame.locator(surface === 'page' ? '.instrument-primary' : '.ws-measurement')).toHaveAttribute('data-live', 'false');
     expect(await page.evaluate(() => (window as any).previewUnexpectedSends)).toBe(0);
   });
@@ -176,7 +180,7 @@ for (const surface of ['status', 'page']) for (const chat of ['local']) {
     await page.clock.fastForward(21_000);
     await expect(frame.locator('#rate')).toHaveText('7.2');
     await expect(frame.locator(surface === 'status' ? '.ws-measurement' : '.instrument-primary')).toHaveAttribute('data-live', 'false');
-    await expect(frame.locator(surface === 'status' ? '.ws-label' : '.instrument-source')).toContainText('Last chat · avg.');
+    await expect.poll(layer(frame, surface === 'status' ? '.ws-label' : '.instrument-source')).toBe('Last reply');
     if (surface === 'page') {
       await expect(frame.locator('#completed-facts')).toContainText('Step duration');
       await expect(frame.locator('.instrument-measure time')).toContainText('Finished');
@@ -255,7 +259,8 @@ for (const surface of ['status', 'page']) for (const oldPhase of ['generating', 
         observation: { startedAtMs: now - 3_000, endedAtMs: now }, freshness: complete ? 'last' : 'live' } });
     }, oldPhase);
     await page.clock.fastForward(600);
-    await expect(frame.locator('#rate')).toHaveText('7.2');
+    // A live delivery reading is an estimate; a completed step is a measured average.
+    await expect(frame.locator('#rate')).toHaveText(oldPhase === 'generating' ? '≈ 7.2' : '7.2');
     await page.evaluate(() => { const w = window as any; w.previewHold = true; w.sendPreviewLifecycle('started'); });
     // The host busy snapshot has not changed and the service supplies no new response.
     await expect(frame.locator('#rate')).toBeHidden();
@@ -311,7 +316,7 @@ for (const surface of ['status', 'page']) {
     });
     await expect(frame.locator('#rate')).toHaveText('9.8');
     await expect(frame.locator(surface === 'status' ? '.ws-measurement' : '.instrument-primary')).toHaveAttribute('data-live', 'false');
-    await expect(frame.locator(surface === 'status' ? '.ws-label' : '.instrument-source')).toContainText('Last chat · avg.');
+    await expect.poll(layer(frame, surface === 'status' ? '.ws-label' : '.instrument-source')).toBe('Last reply');
     expect(await page.evaluate(() => (window as any).previewUnexpectedSends)).toBe(0);
   });
 

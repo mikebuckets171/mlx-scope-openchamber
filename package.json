@@ -1,6 +1,6 @@
 {
   "name": "mlx-scope-openchamber",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "description": "Lightweight local model monitoring for OpenChamber.",
   "private": true,
   "license": "MIT",
@@ -31,7 +31,7 @@
   "openchamber": {
     "apiVersion": 1,
     "engines": {
-      "openchamber": ">=2.3.3"
+      "openchamber": ">=2.4.0"
     },
     "contributes": {
       "panel": {
@@ -45,21 +45,12 @@
         "title": "MLX Scope",
         "height": 72
       },
-      "background": {
-        "entry": "background/index.html"
-      },
       "actions": [
         {
           "id": "open-mlx-scope",
           "label": "Open MLX Scope",
           "icon": "panel/scope-icon.svg",
           "where": "session"
-        }
-      ],
-      "commands": [
-        {
-          "name": "scope",
-          "description": "Attach a private MLX Scope diagnostics summary"
         }
       ],
       "service": {
@@ -83,19 +74,17 @@
       },
       "page": true,
       "capabilities": [
-        "sessions",
-        "shells"
+        "sessions"
       ]
     }
   },
   "scripts": {
-    "build": "bun run build:panel && bun run build:service && bun run build:background",
+    "build": "bun run build:panel && bun run build:service",
     "build:panel": "openchamber-guest-bundle panel/main.ts panel/main.js && bun scripts/minify-guest.ts panel/main.js",
     "build:service": "bun build service/main.ts --target=node --format=esm --minify --outfile=service/main.js",
-    "build:background": "openchamber-guest-bundle background/main.ts background/main.js && bun scripts/minify-guest.ts background/main.js",
     "type-check": "tsc --noEmit",
-    "test": "bun test ./service ./src ./panel ./background ./scripts ./tests/fixtures && node --test bridge/opencode/*.test.js",
-    "preview": "bun run build:panel && bun run build:background && bun tests/browser/server.ts",
+    "test": "bun test ./service ./src ./panel ./scripts ./tests/fixtures && node --test bridge/opencode/*.test.js",
+    "preview": "bun run build:panel && bun tests/browser/server.ts",
     "test:browser": "playwright test",
     "test:goldens": "playwright test tests/browser/goldens.spec.ts",
     "verify:package": "bun scripts/verify-package.ts",
@@ -107,9 +96,8 @@
     "test:helpers": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s bridge/comfyui -p \"test_*.py\""
   },
   "dependencies": {
-    "@openchamber/sdk": "2.3.3",
-    "jsonc-parser": "3.3.1",
-    "@openchamber/sdk-background": "npm:@openchamber/sdk@2.0.4"
+    "@openchamber/sdk": "2.4.0",
+    "jsonc-parser": "3.3.1"
   },
   "devDependencies": {
     "@playwright/test": "1.61.0",
@@ -132,8 +120,6 @@
     "panel/style.css",
     "panel/scope-icon.svg",
     "service/main.js",
-    "background/index.html",
-    "background/main.js",
     "ui/tokens.css",
     "docs/CONFIGURATION.md",
     "docs/METRICS.md",

@@ -114,3 +114,7 @@ test('trend and usage queries', () => {
   expect(parseUsageQuery(q(''))).toEqual({ range: '7d' });
   expect(parseUsageQuery(q('range=today'))).toEqual({ error: 'bad_query', param: 'range' });
 });
+
+test('5.1 has no background surface: the /scope bundle that sent it is gone', () => {
+  expect(parseSnapshotQuery(q('surface=background'))).toEqual({ error: 'bad_query', param: 'surface' });
+});

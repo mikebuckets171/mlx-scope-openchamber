@@ -1,7 +1,7 @@
 // Optional qualification: node bridge/opencode/protocol-smoke.mjs /absolute/path/to/opencode [--remote]
 // Starts an isolated released OpenCode process and a synthetic loopback SSE provider. No real model is used.
 import assert from 'node:assert/strict';
-import { profileFor } from './compatibility.js';
+import { candidateProfile as profileFor } from './qualified.js';
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import http from 'node:http';
@@ -17,7 +17,7 @@ if (!binary) throw new Error('Pass the absolute path to a qualified OpenCode bin
 const remote = process.argv.includes('--remote');
 const remoteBase = 'http://scope-protocol-fixture.invalid/v1';
 const profile = profileFor(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim().replace(/^opencode v/, ''));
-assert.ok(profile, 'This OpenCode version has no qualified compatibility profile.');
+assert.ok(profile, 'This OpenCode version is outside the accepted 2.0 line (2.0.25 or later).');
 const bridge = dirname(fileURLToPath(import.meta.url));
 // The isolated plugin must not live under a node_modules ancestor: OpenCode excludes those local sources and
 // would silently load nothing. The temporary root is canonicalized because the companion refuses to write

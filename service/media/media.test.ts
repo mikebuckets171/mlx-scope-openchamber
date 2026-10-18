@@ -18,7 +18,7 @@ const options = (fetchImpl: MediaAdapterOptions['fetchImpl']): MediaAdapterOptio
 const COMFY: MediaSourceConfig = { id: 'comfy', kind: 'comfyui', label: 'ComfyUI', origin: 'http://127.0.0.1:8188', version: '0.38.0' };
 test('discovery is read-only, shared, finite, and fully disabled by explicit configuration', async () => {
   const home = await temp(); let calls = 0;
-  const discovery = new MediaDiscovery({ home, now: () => NOW, fetchImpl: async () => { calls++; return json({ system: { comfyui_version: '0.38.0' } }); } });
+  const discovery = new MediaDiscovery({ home, now: () => NOW, fetchImpl: async url => { if (String(url).endsWith('/system_stats')) calls++; return json({ system: { comfyui_version: '0.38.0' } }); } });
   const [a,b] = await Promise.all([discovery.configurations(), discovery.configurations()]);
   expect(a).toEqual(b); expect(a[0]?.origin).toBe('http://127.0.0.1:8188'); expect(calls).toBe(1);
   await mkdir(join(home, '.config/mlx-scope'), { recursive: true });

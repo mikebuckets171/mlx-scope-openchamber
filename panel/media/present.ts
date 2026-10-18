@@ -24,15 +24,17 @@ export interface MediaFinish { text: string; basis: 'live' | 'held' | 'measured'
 export const mediaFinish = (job: MediaJobV1, now: number, lost: boolean, cancelling = false, clock: Intl.DateTimeFormat = CLOCK): MediaFinish | null => {
   if (job.state === 'completed') return job.finishedAtMs === undefined ? null : { text: `finished ${clock.format(job.finishedAtMs)}`, basis: 'measured' };
   if (job.state !== 'running' || cancelling) return null;
+  // The source application's own estimate says so; Scope's is measured from this phase's counters.
+  const by = job.etaBasis === 'reported' ? ' · app estimate' : '';
   if (!lost && job.freshness === 'live') {
     if (job.etaAtMs === undefined || !job.progress) return null;
     const remaining = job.etaAtMs - now;
     if (remaining < -MINUTE) return null;
-    return { text: remaining < MINUTE ? 'finishes any moment' : `finishes around ${clock.format(upToMinute(job.etaAtMs))}`, basis: 'live' };
+    return { text: `${remaining < MINUTE ? 'finishes any moment' : `finishes around ${clock.format(upToMinute(job.etaAtMs))}`}${by}`, basis: 'live' };
   }
   // The same rule as retained progress: a lost Scope response turns the last live estimate into a held one.
   const held = job.lastProgress ? job.lastEtaAtMs : lost && job.progress ? job.etaAtMs : undefined;
-  return held === undefined ? null : { text: `last estimate · around ${clock.format(upToMinute(held))}`, basis: 'held' };
+  return held === undefined ? null : { text: `last estimate · around ${clock.format(upToMinute(held))}${by}`, basis: 'held' };
 };
 /** A producer timestamp can be old during a long phase: only the service's freshness verdict, or a lost Scope response, invalidates it. */
 export const mediaJobView = (job: MediaJobV1, now: number, lost: boolean, cancelling = false, clock: Intl.DateTimeFormat = CLOCK) => {

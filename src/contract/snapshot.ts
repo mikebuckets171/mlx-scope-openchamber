@@ -11,7 +11,7 @@ import { runtimeKind, type RuntimeKind } from './runtime.ts';
 import { CONTRACT_VERSION } from './version.ts';
 
 export type { RuntimeKind } from './runtime.ts';
-export const SURFACES = ['panel', 'page', 'status', 'background'] as const;
+export const SURFACES = ['panel', 'page', 'status'] as const;
 export type Surface = typeof SURFACES[number];
 export const PHASES = ['idle', 'queued', 'prefill', 'decode', 'processing', 'loading', 'not-loaded', 'unknown'] as const;
 export type Phase = typeof PHASES[number];
@@ -34,7 +34,23 @@ export interface SnapshotV2 {
   nextPollMs: number;
   chat?: ChatMeasurement | null;              // 3.0 optional selected-chat delivery observation
   mediaEnabled?: boolean;                    // Cached setting only; snapshot reads never collect media.
+  /** 5.1: the selected chat's newest two prompts as the runtime reported them (total and reused tokens). Never exported. */
+  promptCache?: PromptCacheV2;
 }
+export interface PromptCountsV2 { total: number; cache: number; observedAt: number }
+export interface PromptCacheV2 { basis: 'reported'; latest: PromptCountsV2; previous: PromptCountsV2 | null }
+const promptCounts = (value: unknown, serverNow: number): PromptCountsV2 | null => {
+  const item = obj(value), total = count(item?.total), cache = count(item?.cache), observedAt = at(item?.observedAt);
+  return total && cache !== null && cache <= total && observedAt !== null && observedAt <= serverNow ? { total, cache, observedAt } : null;
+};
+/** Both prompts must be well formed and in order; anything else is withheld rather than partly shown. */
+export const parsePromptCache = (value: unknown, serverNow: number): PromptCacheV2 | undefined => {
+  const item = obj(value), latest = promptCounts(item?.latest, serverNow);
+  if (!item || item.basis !== 'reported' || !latest) return undefined;
+  if (item.previous === null || item.previous === undefined) return { basis: 'reported', latest, previous: null };
+  const previous = promptCounts(item.previous, serverNow);
+  return previous && previous.observedAt <= latest.observedAt ? { basis: 'reported', latest, previous } : undefined;
+};
 export interface StatusV2 { state: StatusState; reason: StatusReason | null; params: ReasonParams; sinceAt?: number }
 
 export const DETECTION_BASES = ['explicit', 'hint', 'probe'] as const;
@@ -315,6 +331,7 @@ export const parseSnapshotV2 = (value: unknown): SnapshotV2 | null => {
     alerts: parseAlerts(item.alerts), alertLog: parseAlertLog(item.alertLog), lease: parsedLease, nextPollMs,
     chat: item.chat === undefined ? undefined : parseChatMeasurement(item.chat, serverNow),
     mediaEnabled: opt(bool(item.mediaEnabled)),
+    promptCache: item.promptCache === undefined ? undefined : parsePromptCache(item.promptCache, serverNow),
   });
   withhold(snapshot);
   return snapshot;

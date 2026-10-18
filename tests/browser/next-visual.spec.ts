@@ -39,8 +39,8 @@ for (const width of [320, 430, 652, 1160]) for (const theme of ['light', 'dark']
     await frame.locator('.next-nav [data-action="open-history"]').click();
     await expect(frame.locator('#panel-history')).toBeVisible();
     expect(await frame.evaluate(inspect, false)).toEqual([]);
-    await frame.getByRole('button', { name: 'Captures', exact: true }).click();
-    await expect(frame.locator('#panel-captures')).toBeVisible();
+    await frame.locator('.history-storage > summary').click();
+    await expect(frame.getByRole('checkbox', { name: 'Label replies to this chat automatically' })).toBeVisible();
     expect(await frame.evaluate(inspect, false)).toEqual([]);
     await expect(frame.locator('.next-nav [data-action="open-history"]')).toHaveAttribute('aria-current', 'page');
     await frame.locator('.next-nav [data-action="show-live"]').click();
@@ -154,10 +154,16 @@ test('Next session stays compact at enlarged text, honors reduced motion and exp
   await page.goto('/?sdk=next&surface=status&design=next&state=decode&chat=1');
   const frame = page.frames().find(f => f !== page.mainFrame())!;
   await expect(frame.locator('#ws')).toBeVisible();
+  // This host draws Watch and Pause in its own header, so the in-widget toolbar is hidden; the reading opens details.
+  await expect(frame.locator('#scope')).toHaveAttribute('data-host-controls', 'true');
+  await expect(frame.locator('#ws-toolbar')).toBeHidden();
+  // The fixture's chat is not local, so This chat has no reading to explain; Engine has one.
+  await page.locator('#fixture-status-controls').getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
+  await expect(frame.locator('.ws-label')).toHaveText('Engine');
   await frame.addStyleTag({ content: ':root { font-size: 24px !important; }' });
   expect(await frame.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await frame.evaluate(() => document.getAnimations().filter(a => a.playState === 'running').length)).toBe(0);
-  await frame.getByRole('button', { name: 'Details', exact: true }).click();
+  await frame.getByRole('button', { name: /^Measurement details: / }).click();
   await expect(page.frameLocator('iframe[title="Scope detail popover"]').getByRole('region', { name: 'Measurement details' })).toBeVisible();
   expect(await page.evaluate('window.previewPopoverCollectorCalls')).toEqual([]);
 });

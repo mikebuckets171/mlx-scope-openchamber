@@ -29,12 +29,16 @@ export interface HistoryDeps {
   version: string;
   /** The same provider/runtime the frame's snapshot poll uses; default: the snapshot's connection id. */
   selection?(snapshot: SnapshotV2 | null): { provider?: string; runtime?: string };
-  legacyCaptures?(): Promise<number>;        // "Your 1.6 captures are in Captures"
-  flags?(flags: readonly RegressionFlag[]): void;   // for panel/alerts/signals.ts
+  /** The replies just read, so the frame's own "slower than usual" check also counts other frames' replies. */
+  replies?(rows: readonly ReplyRow[]): void;
+  cleared?(): void;
   text?: HistoryText;
   current?(): ScopeInput;
   inspectInitially?: boolean;
   inspectionChanged?(open: boolean): void;
+  /** pref.v2 `autoLabel`: whether replies are matched to the open chat automatically (default on). */
+  autoLabel?(): boolean;
+  setAutoLabel?(value: boolean): Promise<void>;
 }
 // Each storage read makes the host re-read the whole namespace file (S5): the ledger is read on mount, after a new
 // reply (at most every 5 s) and otherwise only as often as another frame can flush (5 min).
@@ -88,7 +92,7 @@ const baselineBody = (card: BaselineCard, tips: Tips, status: string): Child => 
     status ? el('p', { class: 'insight-note', role: 'status' }, status) : null,
   ];
 };
-const storageSection = (view: NonNullable<HistoryView['storage']>, tips: Tips, prefix: string, status: string): HTMLElement => {
+const storageSection = (view: NonNullable<HistoryView['storage']>, tips: Tips, prefix: string, status: string, autoLabel: boolean | null): HTMLElement => {
   const tip = tips.make('storage', 'Reply history', ['Local OpenChamber storage, included in backups. Model names stay on this Mac.',
     'The recording Scope view saves at most every 5 min or when hidden, never while idle.']);
   const confirm = view.confirm;
@@ -107,7 +111,10 @@ const storageSection = (view: NonNullable<HistoryView['storage']>, tips: Tips, p
         box('storage-controls',
           el('label', {}, 'Keep ', el('select', { class: 'btn', 'data-action': 'retention', 'data-focus': 'retention', 'aria-label': 'Keep reply history for' },
             view.options.map(days => el('option', { value: days, selected: days === view.retentionDays }, `${days} days`)))),
-          button(view.paused ? 'Resume recording' : 'Pause recording', 'pause'), button('Clear…', 'clear'))],
+          button(view.paused ? 'Resume recording' : 'Pause recording', 'pause'), button('Clear…', 'clear')),
+        autoLabel === null ? null : el('label', { class: 'storage-option' }, el('input', { type: 'checkbox', 'data-action': 'auto-label', 'data-focus': 'auto-label', checked: autoLabel }),
+          'Label replies to this chat automatically'),
+        view.kept ? el('p', { class: 'insight-note' }, view.kept) : null],
     status ? el('p', { class: 'insight-note', role: 'status' }, status) : null);
 };
 
@@ -126,8 +133,7 @@ class HistoryViewHandle implements ViewHandle {
   #retention: number;
   #paused: boolean;
   #confirm = false;
-  #legacy = 0;
-  #legacyLoaded = false;
+  #autoLabel: boolean | null = null;
   #listLimit = HISTORY_LIST_LIMIT;
   #status = { baseline: '', storage: '' };
   readonly #tips: Tips;
@@ -156,6 +162,7 @@ class HistoryViewHandle implements ViewHandle {
     this.#prefix = `history-${Math.random().toString(36).slice(2, 8)}`;
     this.#tips = new Tips(this.#prefix);
     this.#retention = deps.retentionDays();
+    this.#autoLabel = deps.autoLabel ? deps.autoLabel() : null;
     this.#paused = deps.paused();
     this.#undelegate = delegate(root, (action, arg, target) => void this.#act(action, arg, target));
     root.addEventListener('keydown', this.#escape);
@@ -196,10 +203,6 @@ class HistoryViewHandle implements ViewHandle {
     if (this.#disposed || !this.#context.visible()) return;
     const now = this.#context.now(), completions = this.#snapshot?.completions, cursor = completions ? `${completions.instance}.${completions.cursor}` : '';
     if (this.#inspection === 'current') return;
-    if (!this.#legacyLoaded) {
-      this.#legacyLoaded = true;
-      void this.#deps.legacyCaptures?.().then(count => { this.#legacy = count; this.#render(); }).catch(() => {});
-    }
     if (!this.#inspection && now - this.#trendAt >= Math.max(TREND_MIN_MS, this.#windowMs / 180)) void this.#readTrend();
     if (!this.#inspection && this.#snapshot?.capabilities['server.usage'] && now - this.#usageAt >= USAGE_EVERY_MS) void this.#readUsage();
     if (now - this.#readAt >= READ_EVERY_MS || cursor !== this.#cursor && now - this.#readAt >= READ_MIN_MS) { this.#cursor = cursor; void this.#readLedger(); }
@@ -241,7 +244,8 @@ class HistoryViewHandle implements ViewHandle {
       this.#rows = rows; this.#models = models;
       const replies = rows.filter((row): row is ReplyRow => row[0] === 'r');
       this.#baselines = buildBaselines(replies, now);
-      this.#deps.flags?.(this.#regressions.update(replies, this.#baselines, now));
+      this.#regressions.update(replies, this.#baselines, now);
+      this.#deps.replies?.(replies);
       this.#render();
     } catch { /* Storage can refuse a read; the last rows stay until the next one succeeds. */ }
     finally { this.#busy.read = false; }
@@ -261,6 +265,12 @@ class HistoryViewHandle implements ViewHandle {
         await this.#deps.copy(baselineSummary(this.#baselines, this.#models, this.#deps.version, this.#context.now()));
         this.#status.baseline = 'Baseline summary copied, with models as “Model A, B”.';
       } catch { this.#status.baseline = 'Couldn’t copy the summary: the clipboard wasn’t confirmed.'; }
+    } else if (action === 'auto-label') {
+      const on = (target as HTMLInputElement).checked;
+      this.#autoLabel = on;
+      try { await this.#deps.setAutoLabel?.(on); this.#status.storage = on ? 'New replies are matched to this chat when Scope can prove it.' : 'New replies stay labelled Engine.'; }
+      catch { this.#status.storage = 'Changed here; this host could not save the preference.'; }
+      this.#focus = 'auto-label';
     } else if (action === 'pause') {
       this.#paused = !this.#paused; this.#deps.ledger.setPaused(this.#paused);
       this.#status.storage = this.#paused ? 'Recording paused. Replies that finish now aren’t kept.' : 'Recording again.';
@@ -274,8 +284,8 @@ class HistoryViewHandle implements ViewHandle {
       this.#confirm = false; this.#focus = 'clear'; this.#reads += 1;
       try {
         await this.#deps.ledger.clear();
-        this.#rows = []; this.#baselines = new Map(); this.#regressions.clear(); this.#deps.flags?.([]);
-        this.#status.storage = 'Reply history and baselines cleared. Captures were kept.';
+        this.#rows = []; this.#baselines = new Map(); this.#regressions.clear(); this.#deps.cleared?.();
+        this.#status.storage = 'Reply history and baselines cleared.';
       } catch { this.#status.storage = 'Couldn’t clear the history. Nothing was confirmed removed.'; }
       this.#readAt = -Infinity;
     } else return;
@@ -290,7 +300,7 @@ class HistoryViewHandle implements ViewHandle {
       usage: s?.capabilities['server.usage'] ? this.#usage : null, storage: this.#deps.ledger.accounting(), paused: this.#paused, retentionDays: this.#retention,
       alertLog: s?.alertLog ?? [], runtimeName: runtime ? connectionName(runtime, { engine: s!.connection.engine ?? null, host: s!.connection.host ?? null }) : undefined,
       model: s?.runtime.request?.model ?? s?.runtime.residency[0]?.model ?? null, windowMs: this.#windowMs, usageRange: this.#usageRange, trendError: this.#trendError,
-      confirmClear: this.#confirm, listLimit: this.#listLimit, recording: this.#deps.ledger.state === 'backoff' ? 'backoff' : 'recording', legacyCaptures: this.#legacy,
+      confirmClear: this.#confirm, listLimit: this.#listLimit, recording: this.#deps.ledger.state === 'backoff' ? 'backoff' : 'recording',
       ...this.#deps.text ? { text: this.#deps.text } : {},
     });
   }
@@ -306,7 +316,7 @@ class HistoryViewHandle implements ViewHandle {
         view.more ? box('actions', el('span', { class: 'insight-note', style: 'margin:0' }, view.more),
           view.showMore ? button(view.showMore, 'more', { className: 'btn quiet' }) : null) : null], tip('replies', 'Replies', view.repliesTip),
       page ? 'insight-section recent-replies' : 'insight-section');
-    const storage = view.storage ? storageSection(view.storage, tips, this.#prefix, this.#status.storage) : null;
+    const storage = view.storage ? storageSection(view.storage, tips, this.#prefix, this.#status.storage, this.#autoLabel) : null;
     // Keep the native disclosure's state across polling morphs. Warnings and confirmation remain visible.
     const storageOpen = this.#root.querySelector<HTMLDetailsElement>('.history-storage')?.open ?? false;
     const storageNeedsAttention = !!view.storage?.full || !!view.storage?.note || !!view.storage?.confirm;
@@ -377,7 +387,6 @@ export const historyView = (deps: HistoryDeps): MountView => (root, context) => 
 export const defaultHistoryDeps = (context: ViewContext): HistoryDeps => ({
   ledger: new Ledger({ storage: context.host.storage, now: context.now }), client: new HistoryClient(context.host),
   retentionDays: () => RETENTION_DAYS.default, paused: () => false, copy: text => context.host.writeClipboard(text), version: packageVersion,
-  legacyCaptures: async () => (await context.host.storage.keys()).filter(key => key.startsWith(KEYS.legacyObservationPrefix)).length,
 });
 
 export const mountHistory: MountView = (root, context) => historyView(defaultHistoryDeps(context))(root, context);

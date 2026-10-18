@@ -26,8 +26,13 @@ const glanceGeometry = (frame: FrameLocator) => frame.locator('#ws').evaluate(se
   const rect = (node: Element) => { const r = node.getBoundingClientRect(); return { y: r.y, height: r.height }; };
   const activity = section.querySelector('.ws-scroll')!, measurement = section.querySelector('.ws-measurement:not([hidden])');
   const support = section.querySelector('.ws-support:not([hidden]), .ws-notice:not([hidden])');
+  // A reading's unit wraps below its value when both do not fit on one line (an "≈" estimate at 200% text); the
+  // reading then grows by the wrapped line and the gap above it.
+  const reading = measurement?.querySelector('.ws-reading'), value = reading?.querySelector(':scope > strong'), unit = reading?.querySelector(':scope > span');
+  const unitLine = reading && value && unit && unit.getBoundingClientRect().top >= value.getBoundingClientRect().bottom - 1
+    ? reading.getBoundingClientRect().height - value.getBoundingClientRect().height : 0;
   return { activity: rect(activity), section: rect(section), actions: rect(section.querySelector('.ws-actions')!),
-    measurement: measurement ? rect(measurement) : null, support: support ? rect(support) : null,
+    measurement: measurement ? rect(measurement) : null, unitLine, support: support ? rect(support) : null,
     hiddenHeights: Array.from(section.querySelectorAll('[hidden]'), node => node.getBoundingClientRect().height) };
 });
 const fitsGlance = async (frame: FrameLocator) => {
@@ -54,7 +59,7 @@ for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test
   await frame.locator('html').evaluate((element, size) => { (element as HTMLElement).style.fontSize = `${size}px`; }, fontSize);
   await page.clock.runFor(2_100); // Establish multiple timed engine observations before testing populated rows.
   await setPhase(page, 'generating', 17.8);
-  await expect(frame.locator('#rate')).toHaveText('17.8');
+  await expect(frame.locator('#rate')).toHaveText('≈ 17.8');
   const populated = await fitsGlance(frame);
   for (const [phase, label] of [['reasoning', 'Reasoning'], ['tool', 'Using tools'], ['waiting', 'Waiting'], ['complete', 'Complete'], ['cancelled', 'Stopped']] as const) {
     await setPhase(page, phase, phase === 'reasoning' ? 18.1 : phase === 'complete' ? 19.2 : undefined);
@@ -67,8 +72,13 @@ for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test
       expect(layout.actions).toEqual(populated.actions);
       expect(layout.section).toEqual(populated.section);
     } else if (phase === 'complete') {
-      expect(layout.measurement!.height).toBeGreaterThanOrEqual(populated.measurement!.height);
-      await expect(frame.locator('.ws-support')).toContainText('Finished');
+      // The finished reply keeps its reading row where the live one was. Its value carries no "≈", so where the live
+      // estimate's unit wrapped below it the row may be that one line shorter; it never collapses.
+      expect(layout.measurement!.y).toBeCloseTo(populated.measurement!.y, 5);
+      expect(layout.measurement!.height).toBeGreaterThanOrEqual(populated.measurement!.height - populated.unitLine);
+      // The quiet Session keeps one reading: the finished reply's average, with no support row beneath it.
+      await expect(frame.locator('.ws-label')).toHaveText('Last reply');
+      await expect(frame.locator('.ws-support')).toHaveCount(0);
     } else {
       expect(layout.measurement).toBeNull();
       // A real unavailable-reading notice can replace the collapsed value, and both states may reach the
@@ -78,7 +88,7 @@ for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test
     }
     await expect(frame.locator('#ws')).not.toContainText(/undefined|NaN|—/);
   }
-  // A diagnostic note still owns its populated support row when no reading exists.
+  // A diagnostic note still owns its populated exception row when no reading exists.
   await page.goto(`/v2?surface=status&state=offline&theme=${theme}`);
   await page.locator('iframe').evaluate(element => { (element as HTMLElement).style.width = '260px'; });
   await frame.locator('html').evaluate((element, size) => { (element as HTMLElement).style.fontSize = `${size}px`; }, fontSize);
@@ -141,7 +151,7 @@ for (const width of [320, 1160]) for (const fontSize of [16, 32]) test(`full Liv
   await frame.locator('html').evaluate((element, size) => { (element as HTMLElement).style.fontSize = `${size}px`; }, fontSize);
   await page.clock.runFor(2_100); // Establish multiple timed engine observations before testing populated rows.
   await setPhase(page, 'generating', 17.8);
-  await expect(frame.locator('#rate')).toHaveText('17.8');
+  await expect(frame.locator('#rate')).toHaveText('≈ 17.8');
   await expect(frame.locator('#engine-trend')).toBeVisible();
   const readout = () => frame.locator('.instrument-readout').evaluate(element => {
     const parts = Array.from(element.querySelectorAll<HTMLElement>('.instrument-measure, .instrument-evidence'));

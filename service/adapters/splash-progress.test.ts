@@ -7,7 +7,7 @@ import { classAKeys } from '../../src/contract/guards.ts';
 import { parseSnapshotV2 } from '../../src/contract/snapshot.ts';
 import { mockBody } from '../../panel/testing/mock-states.ts';
 import { prefillReading } from '../../panel/progress.ts';
-import { scopeText } from '../../panel/share/scope.ts';
+import { measurementReport } from '../../panel/report.ts';
 import type { AdapterContextV2 } from '../core/adapter-v2.ts';
 import { createSplashAdapter, splashReading } from './splash.ts';
 import { parseProgressFile, progressKey, PROGRESS_MAX_BYTES, PROGRESS_TTL_MS, readProgressCache, SplashPromptProgress, type ProgressScope } from './splash-progress.ts';
@@ -69,7 +69,8 @@ describe('bounded private file reads', () => {
     const other = randomUUID();
     await write(document([entry(AT, { requestID: randomUUID(), providerID: 'foreign' })], AT, other), other);
     expect(await readProgressCache(AT, { home })).toHaveLength(2);
-    expect(await new SplashPromptProgress({ home }).observe(scope(), AT, 0)).toEqual({ processed: 850, total: 1000, observedAt: AT, stale: false });
+    expect(await new SplashPromptProgress({ home }).observe(scope(), AT, 0)).toEqual({ processed: 850, total: 1000, observedAt: AT, stale: false,
+      cache: 800, sessionKey: progressKey('session', 'PRIVATE-SESSION-CANARY'), requestID: REQUEST });
   }));
   test('symlinks, hardlinks, permissive modes and oversized files are rejected', () => withCache(async ({ home, dir, write }) => {
     const path = join(dir, `${WRITER}.json`);
@@ -200,7 +201,7 @@ describe('Splash adapter progress corroboration', () => {
     expect(snapshot.runtime.request!.prefillFraction).toBe(0.999);
     const { fromSnapshot } = await import('../../panel/present/reading.ts');
     expect(prefillReading(fromSnapshot(snapshot))!.completed).toBe('>99% complete');
-    const exported = JSON.stringify(snapshot) + scopeText({ version: '2.1.5', now: AT, snapshot });
+    const exported = JSON.stringify(snapshot) + measurementReport(fromSnapshot(snapshot), null, false, '5.1.0', AT);
     for (const privateValue of [WRITER, REQUEST, 'PRIVATE-SESSION-CANARY', entry().sessionKey, entry().endpointKey, entry().modelKey]) expect(exported).not.toContain(privateValue);
     expect(classAKeys(snapshot)).toEqual([]); expect(gets).toEqual(['/status']); expect(execs).toEqual([]);
   }));

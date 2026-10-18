@@ -15,6 +15,7 @@ import type { UsageV2 } from '../src/contract/usage.ts';
 import { healthBody, NOT_FOUND_BODY, RETIRED_BODY, RETIRED_STATUS, ROUTES } from '../src/contract/version.ts';
 import { composeSnapshot, snapshotPollMs } from './core/compose.ts';
 import { Lease } from './core/lease.ts';
+import { PromptReuseStore } from './core/prompt-reuse.ts';
 import { ENERGY_FLOOR_MS } from './core/scheduler.ts';
 import { Marks, type TurnMark } from './core/marks.ts';
 import { Verdicts } from './core/verdicts.ts';
@@ -28,7 +29,7 @@ export type Sources = {
   chatDestination?: (query: SnapshotQuery) => Promise<'local' | 'remote'>;
   chat?: (query: SnapshotQuery, reading: RuntimeReading) => Promise<ChatMeasurement | null>;
   companionSetup?: { status(): Promise<CompanionSetupStatus>; enable(): Promise<CompanionSetupStatus>; disable(): Promise<CompanionSetupStatus> };
-  media?: { readonly enabled?: boolean; snapshot(): Promise<MediaSnapshotV1>; cancel(sourceId: string, jobId: string): Promise<MediaCancelResultV1> };
+  media?: { readonly enabled?: boolean; snapshot(): Promise<MediaSnapshotV1>; cancel(sourceId: string, jobId: string): Promise<MediaCancelResultV1>; runningNow?(): boolean | null };
   mediaSetup?: { status(): Promise<MediaSetupStatus>; action(input: unknown): Promise<MediaSetupStatus> };
   read: (selection?: ReadSelection, request?: ReadRequest) => Promise<RuntimeReading>;
   /** Host readings for this request's tier (svc-host's HostSampler.sample). */
@@ -46,7 +47,33 @@ export type Sources = {
   trend?: (query: TrendQuery, context: { marks: readonly TurnMark[]; now: number }) => Promise<TrendV2>;
   usage?: (query: UsageQuery) => Promise<UsageV2>;
 };
-export type ServerOptions = { version?: string; instance?: string; now?: () => number; monotonic?: () => number };
+export type ServerOptions = {
+  version?: string; instance?: string; now?: () => number; monotonic?: () => number;
+  /**
+   * With no view request for this long and none in flight, `onIdle` runs once so the process can exit. OpenChamber
+   * starts the service again on the next request. Health checks never count as a view.
+   */
+  idleExitMs?: number; onIdle?: () => void;
+};
+
+/** One lazy timer at most, re-armed for the remaining time; never a repeating timer. */
+export const idleTracker = (idleMs: number, monotonic: () => number, onIdle: () => void) => {
+  let last = monotonic(), inflight = 0, timer: ReturnType<typeof setTimeout> | null = null, done = false;
+  const check = (): void => {
+    timer = null;
+    if (done || inflight > 0) return;
+    const remaining = idleMs - (monotonic() - last);
+    if (remaining > 0) { arm(remaining); return; }
+    done = true; onIdle();
+  };
+  const arm = (delay: number): void => { if (timer === null && !done) { timer = setTimeout(check, delay); timer.unref?.(); } };
+  arm(idleMs);
+  return {
+    begin(): void { inflight++; last = monotonic(); },
+    end(): void { inflight = Math.max(0, inflight - 1); last = monotonic(); arm(idleMs); },
+    dispose(): void { done = true; if (timer !== null) clearTimeout(timer); timer = null; },
+  };
+};
 
 /** Every body is checked against the SDK response limit before a header is written. */
 export const encode = (body: unknown): string => assertBodyLimit(body);
@@ -102,7 +129,8 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
   const expected = digest(`Bearer ${token}`);
   const service = { version: options.version ?? packageVersion, instance: options.instance ?? randomBytes(4).toString('hex') };
   const now = options.now ?? Date.now, monotonic = options.monotonic ?? (() => performance.now());
-  const lease = new Lease(), marks = new Marks(), verdicts = new Verdicts();
+  const lease = new Lease(), marks = new Marks(), verdicts = new Verdicts(), promptReuse = new PromptReuseStore();
+  const idle = options.idleExitMs && options.onIdle ? idleTracker(options.idleExitMs, monotonic, options.onIdle) : null;
   // Media snapshots are immutable shared collection results. Freshness/configuration changes yield a new object.
   // Weak keys keep this wire cache bounded by the snapshots still held by the collection or active requests.
   const mediaBodies = new WeakMap<MediaSnapshotV1, string>();
@@ -112,6 +140,12 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       const url = new URL(request.url ?? '/', 'http://127.0.0.1');
       const header = request.headers.authorization;
       if (typeof header !== 'string' || !timingSafeEqual(digest(header), expected)) { json(response, 401, { error: 'unauthorized' }); return; }
+      if (idle && url.pathname !== ROUTES.health) {
+        idle.begin();
+        let ended = false;
+        const end = (): void => { if (!ended) { ended = true; idle.end(); } };
+        response.once('finish', end); response.once('close', end);
+      }
       if (url.pathname === '/v2/connections') {
         if (request.method !== 'GET') { json(response, 405, { error: 'method_not_allowed' }); return; }
         if (url.search) { json(response, 400, { error: 'bad_request' }); return; }
@@ -209,13 +243,13 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       const view = lease.observe(query.frame, query.surface, monotonic());
       // 1.6 semantics: provider '' with a runtime is "Automatic, read as that runtime".
       const selection = query.provider || query.runtime ? { provider: query.provider ?? '', runtime: query.runtime ?? null } : undefined;
-      const reading = await Promise.resolve().then(() => sources.read(selection, { tier: query.tier, detail: query.detail === 'server',
-        oneShot: query.surface === 'background' }))
+      const reading = await Promise.resolve().then(() => sources.read(selection, { tier: query.tier, detail: query.detail === 'server' }))
         .catch(() => unread(serverNow));
       const context = hostContextOf(query.tier, reading);
       const nonLocal = !!query.provider && !reading.meta.connection.choices.some(choice => choice.id === query.provider);
       const host = nonLocal ? null : await Promise.resolve().then(() => sources.host?.(context) ?? null).catch(() => null);
       const chat = await Promise.resolve().then(() => sources.chat?.(query, reading) ?? null).catch(() => null);
+      promptReuse.observe(reading.prompts, serverNow);
       const pollMs = snapshotPollMs({ reading, host, lease: view, query, chat, serverNow: now() });
       let parts: SnapshotHistory = { completions: { instance: service.instance, cursor: 0, reset: query.since !== undefined && query.since > 0, items: [] },
         alerts: [], alertLog: [] };
@@ -225,6 +259,7 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
         // Energy-saving floor the frame may apply on top (the service cannot tell whether it does).
         const floorMs = query.surface ? ENERGY_FLOOR_MS[query.surface] ?? 0 : 0;
         sources.history.record(key, historyReading(reading), host, { now: serverNow, pollMs: Math.max(pollMs, reading.meta.cadenceMs, floorMs),
+          mediaRunning: sources.media?.runningNow?.() ?? null,
           selection: { ...query.provider !== undefined ? { provider: query.provider } : {}, ...query.runtime ? { runtime: query.runtime } : {} } });
         parts = sources.history.snapshot(key, { since: query.since, leader: view.leader, now: serverNow, verdict: seq => verdicts.get(seq) });
       }
@@ -233,6 +268,7 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
         // Sources may observe a newer writer while runtime/host IO is pending. Stamp the response after those reads,
         // so a valid fresh chat observation is never rejected as future-dated against request-start time.
         service, serverNow: now(), lease: view, marksHead: marks.head, query, nextPollMs: nonLocal ? Math.max(pollMs, 10_000) : pollMs, chat,
+        promptCache: query.chat && !nonLocal ? promptReuse.for(query.chat) : null,
       })));
     };
     void handle().catch(() => { if (!response.headersSent) json(response, 503, { error: 'service_unavailable' }); else response.end(); });

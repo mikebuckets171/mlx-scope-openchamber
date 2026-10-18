@@ -33,6 +33,8 @@ export interface ProgressScope {
 }
 export interface ProgressReading {
   processed: number; total: number; observedAt: number; stale: boolean;
+  /** Service-internal: the prompt's reused tokens and its hashed chat and request, for prompt reuse and reply counts. */
+  cache: number; sessionKey: string; requestID: string;
 }
 export interface ProgressOptions { home?: string; uid?: number }
 const exactKeys = (item: Json, allowed: readonly string[]): boolean => Object.keys(item).every(key => allowed.includes(key));
@@ -168,7 +170,7 @@ export class SplashPromptProgress {
       || current.processed < previous.processed || current.timeMs < previous.timeMs)) { this.reset(at); return undefined; }
     this.anchor = current;
     return { processed: current.processed, total: current.total, observedAt: current.observedAtMs,
-      stale: at - current.observedAtMs >= STALL_MS };
+      stale: at - current.observedAtMs >= STALL_MS, cache: current.cache, sessionKey: current.sessionKey, requestID: current.requestID };
   }
 
   reset(at: number): void {

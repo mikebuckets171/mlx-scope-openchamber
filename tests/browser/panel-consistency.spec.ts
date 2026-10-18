@@ -79,10 +79,9 @@ for (const theme of ['light', 'dark']) for (const [width, font] of [[320, 32], [
     await expect(historyList).toHaveCSS('margin-top', '0px');
     expect(await historyList.evaluate(node => node.getBoundingClientRect().top - node.parentElement!.getBoundingClientRect().top)).toBe(0);
     await frame.locator('.history-insights > summary').click();
+    await frame.locator('.history-storage > summary').click();
+    await expect(frame.getByRole('checkbox', { name: 'Label replies to this chat automatically' })).toBeVisible();
     await readable(frame, '#view-history');
-    await activate(frame, 'Captures');
-    await secondaryEntry(frame, 'captures');
-    await readable(frame, '#captures-content');
     await activate(frame, 'Connections');
     await frame.locator('#runtime-connection-details > summary').click();
     await frame.locator('#connection-help > summary').click();

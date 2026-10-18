@@ -43,7 +43,7 @@ test('switching chat or model clears the old speed before polling and rejects it
   expect(await newest(page)).toMatchObject({ chat: chatKey('session', 'new-chat'), chatModel: chatKey('model', 'Second-Model') });
 });
 
-test('scope choice persists across reload, keeps Whole engine independent, and follows again when changed back', async ({ page }) => {
+test('scope choice persists across reload, keeps Engine independent, and follows again when changed back', async ({ page }) => {
   await page.goto('/v2?surface=status&state=decode&chat=local');
   const frame = page.frameLocator('iframe'), scope = frame.getByRole('combobox', { name: 'Measurement scope' });
   await expect(scope).toHaveValue('chat');
@@ -53,7 +53,8 @@ test('scope choice persists across reload, keeps Whole engine independent, and f
   expect((await newest(page))?.chatBusy).toBeUndefined();
   await page.reload();
   await expect(scope).toHaveValue('engine');
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine · request average');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Engine');
+  await expect(frame.locator('.ws-measurement')).toHaveAttribute('title', /average for this request/);
   await page.evaluate(() => (window as any).setPreviewSession({ id: 'cloud-chat', title: 'Cloud', busy: false, model: 'cloud-provider/cloud-model' }));
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(scope).toHaveValue('engine');
@@ -98,15 +99,18 @@ test('chat estimate, reasoning, tool waiting, short completion, and cancellation
   }, { phase, rate });
   await phase('reasoning', 17.8);
   await expect(frame.locator('.ws-phase')).toHaveText('Reasoning');
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Chat · est.');
-  await expect(frame.locator('#rate')).toHaveText('17.8');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('This chat');
+  await expect(frame.locator('.ws-measurement')).toHaveAttribute('data-basis', 'estimate');
+  await expect(frame.locator('#rate')).toHaveText('≈ 17.8');
+  await expect(frame.locator('.measurement-accessible')).toHaveText('about 17.8 tokens per second');
   for (const [state, label] of [['tool', 'Using tools'], ['waiting', 'Waiting'], ['complete', 'Complete'], ['cancelled', 'Stopped']]) {
     await phase(state!);
     await expect(frame.locator('.ws-phase')).toHaveText(label!);
     await expect(frame.locator('.ws-measurement')).toBeHidden();
   }
   await phase('complete', 15.3);
-  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Last chat · avg.');
+  await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Last reply');
+  await expect(frame.locator('#rate')).toHaveText('15.3');
   await expect(frame.locator('.ws-measurement')).toHaveAttribute('data-live', 'false');
 });
 

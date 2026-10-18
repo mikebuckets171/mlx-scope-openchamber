@@ -26,21 +26,36 @@ describe('companion setup surface', () => {
     for (const compatibility of [[], {}, { profile: null, activity: 'unknown', features: {} }, { profile: null, activity: 'listening', features: {} }])
       expect(parseCompanionSetup({ ...valid, compatibility })).toEqual(valid);
     const legacy = companionCompatibilityMarkup(valid);
-    expect(legacy).toContain('Feature qualification was not reported');
+    expect(legacy).toContain('Feature checks were not reported');
     expect(legacy).not.toContain('<ul>');
     expect(legacy).toContain('bun run qualify:compatibility');
     expect(legacy).toContain('does not qualify a live host');
   });
-  it('shows independent features and activity without trusting contradictory qualification', () => {
-    const features = featureSupport('2.0.25'); features['http-delivery'].available = true;
-    features['websocket-delivery'] = { support: 'unavailable', available: false };
-    const compatibility = { profile: 'opencode-2.0.25-v1', activity: 'awaiting-demand', features } as const;
-    const parsed = parseCompanionSetup({ ...valid, runtimeVersion: '2.0.25', compatibility })!;
+  it('shows what each running check has shown, never a support claim as working', () => {
+    const features = featureSupport('2.0.32');
+    features['http-delivery'] = { support: 'compatible', available: true, check: { state: 'passed' } };
+    features['websocket-delivery'] = { support: 'compatible', available: true, check: { state: 'waiting' } };
+    features['prompt-progress'] = { support: 'compatible', available: false, check: { state: 'failed', reason: 'session-header' } };
+    const compatibility = { profile: 'opencode-2.0.32-v1', mode: 'qualified', activity: 'awaiting-demand', features } as const;
+    const parsed = parseCompanionSetup({ ...valid, runtimeVersion: '2.0.32', compatibility })!;
     expect(parsed.compatibility).toEqual(compatibility);
     const markup = companionCompatibilityMarkup(parsed);
-    expect(markup).toContain('HTTP delivery: qualified · available');
-    expect(markup).toContain('WebSocket delivery: unavailable');
+    expect(markup).toContain('OpenCode 2.0.32 · qualified');
+    expect(markup).toContain('HTTP delivery: working');
+    expect(markup).toContain('WebSocket delivery: waiting for the next reply');
+    expect(markup).toContain('Prompt progress: paused · Splash requests no longer identify the chat');
+    expect(markup).not.toContain('Managed reload');
     expect(markup).toContain('Ready for the next observed step');
-    expect(parseCompanionSetup({ ...valid, runtimeVersion: '2.0.26', compatibility })?.compatibility).toBeUndefined();
+    const unsupported = { ...compatibility, features: featureSupport('2.0.32') };
+    expect(parseCompanionSetup({ ...valid, runtimeVersion: '2.1.0', compatibility: unsupported })?.compatibility).toBeUndefined();
+  });
+  it('labels a self-checked version as not yet qualified and ignores an unknown mode', () => {
+    const features = featureSupport('2.0.33'); features['http-delivery'] = { support: 'compatible', available: true, check: { state: 'waiting' } };
+    const parsed = parseCompanionSetup({ ...valid, runtimeVersion: '2.0.33', compatibility: { profile: null, mode: 'self-checked', activity: 'listening', features } })!;
+    expect(companionCompatibilityMarkup(parsed)).toContain('OpenCode 2.0.33 · self-checked, not yet qualified');
+    expect(companionCompatibilityMarkup(parsed)).toContain('token accounting are unverified');
+    const unknown = parseCompanionSetup({ ...valid, runtimeVersion: '2.0.33', compatibility: { profile: null, mode: 'trusted', activity: 'listening', features } })!;
+    expect(unknown.compatibility && 'mode' in unknown.compatibility).toBe(false);
+    expect(companionCompatibilityMarkup(unknown)).not.toContain('qualified.');
   });
 });

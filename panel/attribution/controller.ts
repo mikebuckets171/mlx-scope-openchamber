@@ -6,13 +6,12 @@ import type { SnapshotClient, SnapshotQuery } from '../data/client.ts';
 import type { Reading } from '../present/reading.ts';
 import { ActivityTrack } from './coverage.ts';
 import { CLOCK_TOLERANCE_MS, inside, join, joinLive, labelOf, type AttributionLabel, type JoinContext, type JoinVerdict } from './join.ts';
-import { NextReply, type NextReplyState } from './next-reply.ts';
 import { LIFECYCLE_HOLD_MS, SessionFeed, type FrameSessionState, type TurnWindow } from './sessions.ts';
 import { summarizeTurn, type TurnSummary } from './turn.ts';
 import { WireQueue } from './wire.ts';
 
-// Owner: attribution. One frame's attribution: the session feed, the frame's own readings, the auto rule, Next reply
-// and the wire queue, all driven by the frame's polls (no timers, no storage). ui-core wires it (INTERFACES §4.2).
+// Owner: attribution. One frame's attribution: the session feed, the frame's own readings, the auto rule and the wire
+// queue, all driven by the frame's polls (no timers, no storage). ui-core wires it (INTERFACES §4.2).
 
 const AVAILABLE = new Set(['ready', 'degraded']);
 const RUNNING = new Set(['queued', 'prefill', 'decode', 'processing']);
@@ -31,7 +30,7 @@ export interface AttributionOptions {
 /** A turn of the open chat, for Turn stats and the reply strip. */
 export interface TurnView {
   window: TurnWindow;
-  label: AttributionLabel;                   // inferred/armed when every step is; else the first withheld step's reason
+  label: AttributionLabel;                   // inferred when every step is (armed: stored by Scope 5.0); else the first withheld step's reason
   summary: TurnSummary | null;               // only when every step is attributed
   steps: readonly CompletionV2[];            // with their verdicts
   live: boolean;
@@ -46,7 +45,6 @@ export const runtimeModels = (body: SnapshotV2): string[] => [...new Set([body.r
 
 export class Attribution {
   readonly feed: SessionFeed;
-  readonly next = new NextReply();
   readonly activity = new ActivityTrack();
   #queue = new WireQueue();
   #stopFeed: () => void;
@@ -55,7 +53,6 @@ export class Attribution {
   #visible = true;
   #seen = new Map<number, CompletionV2>();
   #verdicts = new Map<number, JoinVerdict>();
-  #armed = new Set<number>();
   #pending: CompletionV2[] = [];
   #settled: { key: string; view: TurnView | null } | null = null;
 
@@ -64,16 +61,14 @@ export class Attribution {
     this.#options = options;
     // Subscribed once a snapshot has synced the service clock, so every lifecycle stamp is in service time.
     this.feed = new SessionFeed(options.host, options.now, () => this.#instance, { active: false });
-    this.#stopFeed = this.feed.onChange(() => this.#sessionChanged());
+    this.#stopFeed = () => {};
   }
 
-  get nextReply(): NextReplyState { return this.next.state; }
   frame(): FrameSessionState { return this.feed.state(); }
 
   /** `mark` / `attr` for the next `/v2/snapshot` (merge into panel/data/client.ts SnapshotQuery). */
   query(): { mark?: string; attr?: string } {
     this.#queue.mark(this.feed.drainMarks());
-    this.#takeArmed();
     return this.#queue.query();
   }
 
@@ -97,34 +92,30 @@ export class Attribution {
   observe(body: SnapshotV2 | null, cadenceMs = 0): void {
     const now = this.#options.now();
     // A failed poll: no reading to label, and the readings so far no longer run up to now.
-    if (!body) { this.#body = null; this.activity.observe(null, now); this.next.cancel('unavailable'); return; }
+    if (!body) { this.#body = null; this.activity.observe(null, now); return; }
     if (body.service.instance !== this.#instance) this.#restart(body.service.instance);
     this.#body = body;
     this.activity.observe(body, now, cadenceMs);
     this.feed.setActive(this.#visible);
-    if (!AVAILABLE.has(body.status.state)) this.next.cancel('unavailable');
     const fresh = body.completions.items.filter(item => !this.#seen.has(item.seq));
     for (const item of fresh) this.#seen.set(item.seq, item);
     trim(this.#seen);
     this.#pending.push(...fresh);
     const frame = this.feed.state(), context = this.context(body), sampledAt = body.runtime.sampledAt ?? body.serverNow;
-    this.next.observe(fresh, frame, now, { context, sampledAt });
-    this.#takeArmed();
     this.#judge(frame, context, now);
     this.#settle(frame, now, sampledAt);
   }
 
-  /** Visibility gate: a hidden frame cancels Next reply, breaks its readings and stops listening to the chat. */
+  /** Visibility gate: a hidden frame breaks its readings and stops listening to the chat. */
   setVisible(visible: boolean): void {
     if (visible === this.#visible) return;
     this.#visible = visible;
-    if (!visible) { this.next.cancel('hidden'); this.activity.break(this.#options.now()); }
+    if (!visible) this.activity.break(this.#options.now());
     if (this.#body) this.feed.setActive(visible);
   }
 
-  /** A completion's label: this frame's armed step, else the service's verdict, else this frame's own. */
+  /** A completion's label: the service's verdict, else this frame's own. */
   label(completion: Pick<CompletionV2, 'seq' | 'verdict'>): AttributionLabel {
-    if (this.#armed.has(completion.seq)) return { kind: 'armed' };
     const own = this.#verdicts.get(completion.seq);
     return completion.verdict || !own ? labelOf(completion) : labelOf({ verdict: verdictOf(own, 0) });
   }
@@ -136,10 +127,8 @@ export class Attribution {
   live(): AttributionLabel | null {
     const body = this.#body, active = body?.runtime.server.active;
     if (!body || !AVAILABLE.has(body.status.state) || !(active === null || active === undefined ? RUNNING.has(body.runtime.phase) : active > 0)) return null;
-    const measuring = this.next.state.kind === 'measuring', context = this.context(body);
-    const verdict = joinLive(this.feed.state(), measuring ? { ...context, auto: true } : context, this.activity.latest() ?? body.serverNow,
-      body.runtime.request?.model ?? null);
-    return verdict.attr === 'inferred' ? { kind: measuring ? 'armed' : 'inferred' } : { kind: 'server-wide', reason: verdict.reason };
+    const verdict = joinLive(this.feed.state(), this.context(body), this.activity.latest() ?? body.serverNow, body.runtime.request?.model ?? null);
+    return verdict.attr === 'inferred' ? { kind: 'inferred' } : { kind: 'server-wide', reason: verdict.reason };
   }
 
   /** The open chat's running turn, else its last settled one; null without a step to show. */
@@ -151,12 +140,6 @@ export class Attribution {
     return view && view.window.tag === chat.tag ? view : null;
   }
 
-  /** The open chat's provider when it is another connection Scope could watch ("Watch …"); null otherwise. */
-  watchable(): string | null {
-    const provider = this.feed.state().chat?.provider, connection = this.#body?.connection;
-    return provider && connection && provider !== connection.id && connection.choices.some(choice => choice.id === provider) ? provider : null;
-  }
-
   /** Whether the open chat runs on a configured local connection; null when unknown (Work Status 24 px line). */
   chatIsLocal(): boolean | null {
     const provider = this.feed.state().chat?.provider, connection = this.#body?.connection;
@@ -165,18 +148,7 @@ export class Attribution {
     return connection.choices.some(choice => choice.id === provider);
   }
 
-  arm(): NextReplyState {
-    const body = this.#body;
-    if (!body) return this.next.state;
-    this.next.arm(this.#options.now(), this.feed.state(), this.context(body));
-    if (!AVAILABLE.has(body.status.state)) this.next.cancel('unavailable');
-    return this.next.state;
-  }
-
-  cancel(): void { this.next.cancel('user'); }
-
   dispose(): void {
-    this.next.cancel('hidden');
     this.#stopFeed(); this.feed.dispose();
   }
 
@@ -194,21 +166,8 @@ export class Attribution {
   #restart(instance: string): void {
     // A new service instance restarts completion seqs and tags: nothing kept names anything it knows.
     this.#instance = instance;
-    this.#queue.clear(); this.#seen.clear(); this.#verdicts.clear(); this.#armed.clear();
+    this.#queue.clear(); this.#seen.clear(); this.#verdicts.clear();
     this.#pending = []; this.#settled = null; this.activity.reset();
-    this.next.cancel('unavailable');
-  }
-
-  #sessionChanged(): void {
-    // A switch cancels Next reply at once, not at the next poll.
-    if (this.next.active && this.#body) this.next.observe([], this.feed.state(), this.#options.now(), { context: this.context(this.#body) });
-  }
-
-  #takeArmed(): void {
-    const attrs = this.next.drainAttrs();
-    for (const item of attrs) this.#armed.add(item.seq);
-    for (const seq of this.#armed) { if (this.#armed.size <= KEEP) break; this.#armed.delete(seq); }
-    this.#queue.attr(attrs);
   }
 
   /** The 1 s hold: a `completed` that came just before a request started has arrived before its verdict is drawn. */
@@ -219,7 +178,7 @@ export class Attribution {
     for (const item of due) {
       const verdict = join(item, frame, context);
       this.#verdicts.set(item.seq, verdict);
-      if (item.verdict || this.#armed.has(item.seq) || verdict.attr === 'withheld' && LOCAL_ONLY.has(verdict.reason)) continue;
+      if (item.verdict || verdict.attr === 'withheld' && LOCAL_ONLY.has(verdict.reason)) continue;
       this.#queue.attr([{ seq: item.seq, attr: verdict.attr, reason: verdict.attr === 'withheld' ? verdict.reason : null }]);
     }
     trim(this.#verdicts);
@@ -241,8 +200,7 @@ export class Attribution {
     for (const item of this.#seen.values()) {
       const start = item.startedAt ?? item.finishedAt;
       if (!inside(window, start, item.finishedAt) || window.joinedAt !== undefined && item.finishedAt < window.joinedAt) continue;
-      const verdict = this.#armed.has(item.seq) ? { attr: 'armed' as const, at: now } : item.verdict
-        ?? (this.#verdicts.has(item.seq) ? verdictOf(this.#verdicts.get(item.seq)!, now) : undefined);
+      const verdict = item.verdict ?? (this.#verdicts.has(item.seq) ? verdictOf(this.#verdicts.get(item.seq)!, now) : undefined);
       // A running turn shows only steps already judged; a settled one has no unjudged step left.
       if (verdict) steps.push({ ...item, verdict });
     }

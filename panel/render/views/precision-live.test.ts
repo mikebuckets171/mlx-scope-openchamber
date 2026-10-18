@@ -11,28 +11,17 @@ const scope = (patch: (snapshot: SnapshotV2) => void = () => {}, extra: Partial<
   const snapshot = parseSnapshotV2(mockBody('decode'))!;
   patch(snapshot);
   return { now: MOCK_NOW, version: '5.0.0', snapshot, fresh: true, frame: null, paused: false,
-    attribution: { kind: 'server-wide', reason: 'all-requests' }, chatRuntime: 'oMLX', last: null, next: { kind: 'idle' }, samples: [],
+    attribution: { kind: 'server-wide', reason: 'all-requests' }, chatRuntime: 'oMLX', last: null, samples: [],
     turnStartAt: null, measurementScope: 'engine', ...extra };
 };
-const render = (view: LiveView, next = true) => liveMarkup(view, new Set(), next).markup;
+const render = (view: LiveView) => liveMarkup(view, new Set()).markup;
 
-test('Session reserves no plot for sparse disconnected readings but preserves measured gaps in a usable trend', () => {
+test('the quiet Session shows no trend and no support row, only the reading and its exceptions', () => {
   const view = presentLive(scope()).hero!.instrument;
-  const samples = [
-    { at: MOCK_NOW - 11_000, rate: 21, phase: 'decode' as const, segment: 1 },
-    { at: MOCK_NOW - 5_500, rate: 22, phase: 'decode' as const, segment: 2 },
-    { at: MOCK_NOW, rate: 21.7, phase: 'decode' as const, segment: 3 },
-  ];
-  const disconnected = liveChart(samples, MOCK_NOW, null)!;
-  expect(disconnected.line).not.toContain('L');
-  const sparse = sessionMarkup(view, null, false, true, { chart: disconnected }).markup;
-  expect(sparse).not.toContain('class="ws-plot"');
-  expect(sparse).toContain('id="ws-signal" aria-label="" hidden');
-  samples[1]!.segment = 1;
-  const observed = liveChart(samples, MOCK_NOW, null)!;
-  const ready = sessionMarkup(view, null, false, true, { chart: observed }).markup;
-  expect(ready).toContain('class="ws-plot"');
-  expect(ready).toContain(`d="${observed.line}"`);
+  const markup = sessionMarkup(view, null, false, true).markup;
+  expect(markup).not.toMatch(/ws-signal|ws-plot|ws-support/);
+  expect(markup).toContain('id="ws-measurement"');
+  expect(markup).toContain('class="ws-exceptions" id="ws-notice" hidden');
 });
 
 test('precision identity uses reported model only, escapes it and keeps cloud delivery separate', () => {
@@ -52,13 +41,16 @@ test('precision identity uses reported model only, escapes it and keeps cloud de
 
 test('precision keeps the time basis, unit and current or retained meaning beside the measurement', () => {
   const view = presentLive(scope()), reading = view.hero!.instrument.measurement!;
-  expect(render(view)).toContain('Engine · request average');
+  expect(render(view)).toContain('data-crossfade="Engine">Engine<button');
+  expect(render(view)).toContain('average for this request');
   expect(render(view)).toContain('>tokens/s</span>');
-  reading.label = 'Last engine · avg.'; reading.live = false;
-  expect(render(view)).toContain('Last engine · avg.');
+  reading.label = 'Last reply · Engine'; reading.live = false;
+  expect(render(view)).toContain('Last reply · Engine');
   expect(render(view)).toContain('data-live="false"');
-  reading.label = 'Chat · est.'; reading.basis = 'estimate';
-  expect(render(view)).toContain('Chat · est.');
+  reading.label = 'This chat'; reading.basis = 'estimate';
+  expect(render(view)).toContain('data-crossfade="This chat">This chat<button');
+  expect(render(view)).toContain('>≈ 26.4</strong>');
+  expect(render(view)).toContain('about 26.4 tokens per second');
   expect(render(view)).toContain('data-basis="estimate"');
 });
 
@@ -73,7 +65,6 @@ test('the standard readout renders one escaped value without obsolete per-digit 
   }
   reading.kind = 'elapsed'; reading.text = '<elapsed>';
   expect(render(view)).toContain('&lt;elapsed&gt;</strong>');
-  expect(render(view, false)).toContain('digit-cell');
 });
 
 test('precision removes only a current support fact duplicated with the same basis', () => {
@@ -88,15 +79,11 @@ test('precision removes only a current support fact duplicated with the same bas
   expect(render(view)).toContain('Finished 3 minutes ago');
 });
 
-test('precision detail routes remain available while Classic retains its original heading, unit and support', () => {
-  const view = presentLive(scope()), next = render(view), classic = render(view, false);
+test('precision detail routes remain available', () => {
+  const next = render(presentLive(scope()));
   expect(next).toContain('class="precision-detail-actions"');
   expect(next).toContain('data-action="open-run"');
   expect(next).toContain('data-action="open-server"');
-  expect(classic).not.toContain('class="precision-identity"');
-  expect(classic).not.toContain('class="precision-detail-actions"');
-  expect(classic).toContain('>tok/s</span>');
-  expect(classic).toContain('<p class="coverage-note">Engine · 612 tokens out');
 });
 
 test('a paused or stale precision trace names its endpoint as the last reading', () => {
@@ -109,20 +96,17 @@ test('a paused or stale precision trace names its endpoint as the last reading',
     expect(render(view)).toContain(', last reading 26');
     expect(render(view)).toContain('<span>last reading</span>');
     expect(render(view)).not.toContain(', now 26');
-    expect(render(view, false)).toContain('<span>now</span>');
   }
 });
 
-test('accumulated engine history keeps its trace in Classic without a Next endpoint node', () => {
+test('accumulated engine history keeps its trace with an endpoint node', () => {
   const view = presentLive(scope(undefined, { samples: [
     { at: MOCK_NOW - 30_000, rate: 21, phase: 'decode', segment: 1 },
     { at: MOCK_NOW - 15_000, rate: 24, phase: 'decode', segment: 1 },
     { at: MOCK_NOW, rate: 26, phase: 'decode', segment: 1 },
   ] }));
-  const chart = view.hero!.engineTrend!.chart!, classic = render(view, false), next = render(view);
+  const chart = view.hero!.engineTrend!.chart!, next = render(view);
   expect(chart.points).toBe(3);
-  expect(classic).toContain(`class="trace" d="${chart.line}"`);
-  expect(classic).not.toContain('trace-endpoint');
   expect(next).toContain(`class="trace" d="${chart.line}"`);
   expect(next).toContain('class="trace-endpoint"');
 });

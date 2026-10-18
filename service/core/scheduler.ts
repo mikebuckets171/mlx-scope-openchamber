@@ -81,7 +81,7 @@ export class Scheduler<C, T> {
 }
 
 // Frame cadence (plan §4.3). The frame applies its own Energy-saving floor.
-export const POLL_MS = { active: 500, idle: 2_000, glanceActive: 1_000, glanceIdle: 3_000, glanceDormant: 10_000, yielded: 10_000 } as const;
+export const POLL_MS = { active: 1_000, idle: 2_000, glanceActive: 1_000, glanceIdle: 3_000, glanceDormant: 10_000, yielded: 10_000 } as const;
 /** The slowest a frame may poll under Energy saving (panel/main.ts `monitorFor` floors), whatever `nextPollMs` says. */
 export const ENERGY_FLOOR_MS: Partial<Record<Surface, number>> = { status: 5_000, panel: 3_000, page: 3_000 };
 export const DORMANT_AFTER_MS = 300_000;
@@ -95,7 +95,7 @@ export interface PollInput {
 }
 /** When the frame should poll next. */
 export const nextPollMs = ({ surface, active, idleMs, failures, hostLive, yielded }: PollInput): number => {
-  const glance = surface === 'status' || surface === 'background';
+  const glance = surface === 'status';
   const idle = glance ? idleMs >= DORMANT_AFTER_MS ? POLL_MS.glanceDormant : POLL_MS.glanceIdle : POLL_MS.idle;
   const cadence = active ? glance ? POLL_MS.glanceActive : POLL_MS.active : idle;
   // Host readings stay current while the runtime is down: the backoff never slows them past the idle cadence.
