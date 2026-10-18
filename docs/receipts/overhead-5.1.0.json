@@ -1,0 +1,1768 @@
+{
+  "measurement": "MLX Scope service overhead: service process plus all descendants, synthetic loopback runtimes",
+  "recordedAt": "2026-10-17T22:26:01.960Z",
+  "service": {
+    "version": "5.1.0",
+    "bundleSha256": "ff9ce302fa0b1f0bab0adf225197f01e49adfef8cf3094300ebacc6779637bf0"
+  },
+  "node": "v22.23.3",
+  "host": {
+    "platform": "darwin",
+    "release": "27.2.0",
+    "arch": "arm64",
+    "cpu": "Apple M5 Pro",
+    "logicalCores": 18,
+    "memGiB": 48
+  },
+  "method": {
+    "psSampleMs": 500,
+    "tailBucketSeconds": 5,
+    "seconds": {
+      "settle": 15,
+      "cold": 30,
+      "warmup": 5,
+      "active": 30,
+      "idle": 30,
+      "glance": 30,
+      "paused": 75
+    },
+    "activePollMs": 1000,
+    "phases": "settle: 15 s after the service is ready, no reads (not measured; startup heap trim) · noView: no reads · warmup: 5 s at 1000 ms (not measured) · active: 1000 ms polls, runtime generating · idle: 2 s polls, runtime idle · glance: surface=status&tier=glance at 1 s, runtime generating · paused: no reads · macmon runs: the same phases with a fake `macmon pipe`",
+    "idleExit": "One more fresh service (oMLX fake) with MLX_SCOPE_IDLE_EXIT_MS=5000: spawn to the first ready full snapshot (one cold-start sample, not gated), then /health once a second and no view request. Gates: it exits on its own with code 0, not earlier than 4750 ms and within 8000 ms after the last view, leaving no child and writing nothing under its HOME.",
+    "cpu": "Percent of one core. Service: its own cpuUsage() at phase edges (each read costs it about 0.2 ms). Children: ps -A every 500 ms, plus children too short-lived for ps, which share the whole-run wait4 rusage (/usr/bin/time -l) evenly per spawn.",
+    "spawns": "Counted in-process by a --import preload that wraps child_process; runtime requests are counted by the fake runtime."
+  },
+  "budgets": {
+    "no-view-cpu": 0.07,
+    "idle-cpu": 0.68,
+    "active-cpu": 1.9,
+    "active-cpu-max": 3,
+    "glance-cpu": 0.68,
+    "rss-mib": 132,
+    "idle-spawns": 24,
+    "active-spawns": 36,
+    "glance-spawns": 18,
+    "children-gone-s": 65
+  },
+  "pass": true,
+  "runs": [
+    {
+      "runtime": "omlx",
+      "macmon": false,
+      "pass": true,
+      "checks": [
+        {
+          "id": "noView.cpuPercent",
+          "value": 0.002,
+          "limit": 0.07,
+          "pass": true
+        },
+        {
+          "id": "noView.spawns",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "noView.runtimeRequests",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "active.cpuPercent",
+          "value": 1.01,
+          "limit": 1.9,
+          "pass": true
+        },
+        {
+          "id": "active.cpuPercentAbsolute",
+          "value": 1.01,
+          "limit": 3,
+          "pass": true
+        },
+        {
+          "id": "active.spawnsPerMinute",
+          "value": 33.99,
+          "limit": 36,
+          "pass": true
+        },
+        {
+          "id": "idle.cpuPercent",
+          "value": 0.349,
+          "limit": 0.68,
+          "pass": true
+        },
+        {
+          "id": "idle.spawnsPerMinute",
+          "value": 12,
+          "limit": 24,
+          "pass": true
+        },
+        {
+          "id": "glance.cpuPercent",
+          "value": 0.447,
+          "limit": 0.68,
+          "pass": true
+        },
+        {
+          "id": "glance.spawnsPerMinute",
+          "value": 12,
+          "limit": 18,
+          "pass": true
+        },
+        {
+          "id": "glance.fullTierSpawns",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "service.peakRssMiB",
+          "value": 71.9,
+          "limit": 132,
+          "pass": true
+        },
+        {
+          "id": "paused.runtimeRequests",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "paused.spawnsAfter60s",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "paused.childrenGoneSeconds",
+          "value": 0,
+          "limit": 65,
+          "pass": true
+        },
+        {
+          "id": "paused.childrenAtEnd",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "sandboxHome.filesWritten",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        }
+      ],
+      "startupSettle": {
+        "wallSeconds": 15.01,
+        "serviceCpuSeconds": 0.0171
+      },
+      "phases": {
+        "noView": {
+          "wallSeconds": 30.01,
+          "psSamples": 59,
+          "cpu": {
+            "totalPercent": 0.002,
+            "servicePercent": 0.002,
+            "childPercent": 0,
+            "seconds": {
+              "service": 0.0007,
+              "servicePs": 0,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0
+            }
+          },
+          "serviceRssMiB": {
+            "first": 56.1,
+            "last": 47.4,
+            "peak": 56.1
+          },
+          "peakTreeRssMiB": 56.1,
+          "children": {
+            "distinct": 0,
+            "maxLive": 0,
+            "peakRssMiBByKind": {},
+            "peakSummedRssMiB": 0
+          },
+          "spawns": {
+            "total": 0,
+            "perMinute": 0,
+            "byFile": {}
+          },
+          "runtimeRequests": {
+            "total": 0,
+            "perSecond": 0,
+            "byPath": {}
+          }
+        },
+        "active": {
+          "wallSeconds": 30.01,
+          "psSamples": 60,
+          "cpu": {
+            "totalPercent": 1.01,
+            "servicePercent": 0.326,
+            "childPercent": 0.684,
+            "seconds": {
+              "service": 0.0978,
+              "servicePs": 0.09,
+              "childrenSeenByPs": 0.06,
+              "childrenReapedEstimate": 0.1452
+            }
+          },
+          "serviceRssMiB": {
+            "first": 61.4,
+            "last": 66,
+            "peak": 67.1
+          },
+          "peakTreeRssMiB": 75.9,
+          "children": {
+            "distinct": 4,
+            "maxLive": 2,
+            "peakRssMiBByKind": {
+              "(ioreg)": 2.1,
+              "(footprint)": 9,
+              "lsof": 1.2
+            },
+            "peakSummedRssMiB": 11.1
+          },
+          "spawns": {
+            "total": 17,
+            "perMinute": 33.99,
+            "byFile": {
+              "ioreg": {
+                "count": 6,
+                "meanWallMs": 21.7,
+                "running": 0
+              },
+              "vm_stat": {
+                "count": 3,
+                "meanWallMs": 2.3,
+                "running": 0
+              },
+              "sysctl": {
+                "count": 3,
+                "meanWallMs": 1.7,
+                "running": 0
+              },
+              "footprint": {
+                "count": 4,
+                "meanWallMs": 22,
+                "running": 0
+              },
+              "lsof": {
+                "count": 1,
+                "meanWallMs": 55,
+                "running": 0
+              }
+            }
+          },
+          "runtimeRequests": {
+            "total": 33,
+            "perSecond": 1.1,
+            "byPath": {
+              "/admin/api/activity": 30,
+              "/api/status": 3
+            }
+          },
+          "pollMs": 1000,
+          "snapshotLatency": {
+            "requests": 30,
+            "meanMs": 11.8,
+            "p95Ms": 28.4
+          }
+        },
+        "idle": {
+          "wallSeconds": 30.01,
+          "psSamples": 60,
+          "cpu": {
+            "totalPercent": 0.349,
+            "servicePercent": 0.126,
+            "childPercent": 0.223,
+            "seconds": {
+              "service": 0.0377,
+              "servicePs": 0.03,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0.067
+            }
+          },
+          "serviceRssMiB": {
+            "first": 66.2,
+            "last": 53.1,
+            "peak": 66.3
+          },
+          "peakTreeRssMiB": 66.3,
+          "children": {
+            "distinct": 0,
+            "maxLive": 0,
+            "peakRssMiBByKind": {},
+            "peakSummedRssMiB": 0
+          },
+          "spawns": {
+            "total": 6,
+            "perMinute": 12,
+            "byFile": {
+              "ioreg": {
+                "count": 2,
+                "meanWallMs": 19.5,
+                "running": 0
+              },
+              "vm_stat": {
+                "count": 1,
+                "meanWallMs": 2,
+                "running": 0
+              },
+              "sysctl": {
+                "count": 1,
+                "meanWallMs": 2,
+                "running": 0
+              },
+              "notifyutil": {
+                "count": 1,
+                "meanWallMs": 2,
+                "running": 0
+              },
+              "footprint": {
+                "count": 1,
+                "meanWallMs": 18,
+                "running": 0
+              }
+            }
+          },
+          "runtimeRequests": {
+            "total": 20,
+            "perSecond": 0.67,
+            "byPath": {
+              "/admin/api/activity": 15,
+              "/api/status": 3,
+              "/health": 1,
+              "/v1/models/status": 1
+            }
+          },
+          "pollMs": 2000,
+          "snapshotLatency": {
+            "requests": 15,
+            "meanMs": 5.36,
+            "p95Ms": 22.39
+          }
+        },
+        "glance": {
+          "wallSeconds": 30.01,
+          "psSamples": 60,
+          "cpu": {
+            "totalPercent": 0.447,
+            "servicePercent": 0.224,
+            "childPercent": 0.223,
+            "seconds": {
+              "service": 0.0671,
+              "servicePs": 0.07,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0.067
+            }
+          },
+          "serviceRssMiB": {
+            "first": 53.2,
+            "last": 54.3,
+            "peak": 54.3
+          },
+          "peakTreeRssMiB": 54.3,
+          "children": {
+            "distinct": 0,
+            "maxLive": 0,
+            "peakRssMiBByKind": {},
+            "peakSummedRssMiB": 0
+          },
+          "spawns": {
+            "total": 6,
+            "perMinute": 12,
+            "byFile": {
+              "vm_stat": {
+                "count": 3,
+                "meanWallMs": 2,
+                "running": 0
+              },
+              "sysctl": {
+                "count": 3,
+                "meanWallMs": 2,
+                "running": 0
+              }
+            }
+          },
+          "runtimeRequests": {
+            "total": 30,
+            "perSecond": 1,
+            "byPath": {
+              "/admin/api/activity": 30
+            }
+          },
+          "pollMs": 1000,
+          "tier": "glance",
+          "snapshotLatency": {
+            "requests": 30,
+            "meanMs": 2.74,
+            "p95Ms": 4.83
+          }
+        },
+        "paused": {
+          "wallSeconds": 75.01,
+          "psSamples": 150,
+          "cpu": {
+            "totalPercent": 0.002,
+            "servicePercent": 0.002,
+            "childPercent": 0,
+            "seconds": {
+              "service": 0.0019,
+              "servicePs": 0,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0
+            }
+          },
+          "serviceRssMiB": {
+            "first": 54.3,
+            "last": 38,
+            "peak": 54.4
+          },
+          "peakTreeRssMiB": 54.4,
+          "children": {
+            "distinct": 0,
+            "maxLive": 0,
+            "peakRssMiBByKind": {},
+            "peakSummedRssMiB": 0
+          },
+          "spawns": {
+            "total": 0,
+            "perMinute": 0,
+            "byFile": {}
+          },
+          "runtimeRequests": {
+            "total": 0,
+            "perSecond": 0,
+            "byPath": {}
+          }
+        }
+      },
+      "paused": {
+        "runtimeRequests": 0,
+        "spawns": 0,
+        "spawnsAfterQuietS": 0,
+        "lastChildSeenAfterMs": null,
+        "lastChildExitAfterMs": null,
+        "childrenGoneSeconds": 0,
+        "childrenAtEnd": 0,
+        "buckets": [
+          {
+            "fromS": 0,
+            "toS": 5,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 5,
+            "toS": 10,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 10,
+            "toS": 15,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 15,
+            "toS": 20,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 20,
+            "toS": 25,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 25,
+            "toS": 30,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 30,
+            "toS": 35,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 35,
+            "toS": 40,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 40,
+            "toS": 45,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 45,
+            "toS": 50,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 50,
+            "toS": 55,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 55,
+            "toS": 60,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 60,
+            "toS": 65,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 65,
+            "toS": 70,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 70,
+            "toS": 75,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          }
+        ]
+      },
+      "wholeRun": {
+        "spawnsByFile": {
+          "vm_stat": 8,
+          "sysctl": 8,
+          "notifyutil": 2,
+          "ioreg": 9,
+          "lsof": 2,
+          "footprint": 6
+        },
+        "serviceCpuSeconds": 0.3637,
+        "rusageCpuSeconds": 0.77,
+        "reapedChildCpuSecondsEstimate": 0.3463,
+        "childrenUnseenByPs": 31,
+        "rusageMaxRssMiB": 72.1
+      }
+    },
+    {
+      "runtime": "lmstudio",
+      "macmon": false,
+      "pass": true,
+      "checks": [
+        {
+          "id": "noView.cpuPercent",
+          "value": 0.002,
+          "limit": 0.07,
+          "pass": true
+        },
+        {
+          "id": "noView.spawns",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "noView.runtimeRequests",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "active.cpuPercent",
+          "value": 0.336,
+          "limit": 1.9,
+          "pass": true
+        },
+        {
+          "id": "active.cpuPercentAbsolute",
+          "value": 0.336,
+          "limit": 3,
+          "pass": true
+        },
+        {
+          "id": "active.spawnsPerMinute",
+          "value": 16,
+          "limit": 36,
+          "pass": true
+        },
+        {
+          "id": "idle.cpuPercent",
+          "value": 0.249,
+          "limit": 0.68,
+          "pass": true
+        },
+        {
+          "id": "idle.spawnsPerMinute",
+          "value": 14,
+          "limit": 24,
+          "pass": true
+        },
+        {
+          "id": "glance.cpuPercent",
+          "value": 0.232,
+          "limit": 0.68,
+          "pass": true
+        },
+        {
+          "id": "glance.spawnsPerMinute",
+          "value": 8,
+          "limit": 18,
+          "pass": true
+        },
+        {
+          "id": "glance.fullTierSpawns",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "service.peakRssMiB",
+          "value": 76.3,
+          "limit": 132,
+          "pass": true
+        },
+        {
+          "id": "paused.runtimeRequests",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "paused.spawnsAfter60s",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "paused.childrenGoneSeconds",
+          "value": 57,
+          "limit": 65,
+          "pass": true
+        },
+        {
+          "id": "paused.childrenAtEnd",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "sandboxHome.filesWritten",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "lms.unverifiedSpawns",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "lms.withoutServerInfoPath",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        }
+      ],
+      "startupSettle": {
+        "wallSeconds": 15.01,
+        "serviceCpuSeconds": 0.0236
+      },
+      "phases": {
+        "noView": {
+          "wallSeconds": 30.01,
+          "psSamples": 59,
+          "cpu": {
+            "totalPercent": 0.002,
+            "servicePercent": 0.002,
+            "childPercent": 0,
+            "seconds": {
+              "service": 0.0006,
+              "servicePs": 0,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0
+            }
+          },
+          "serviceRssMiB": {
+            "first": 46.6,
+            "last": 46.4,
+            "peak": 46.6
+          },
+          "peakTreeRssMiB": 46.6,
+          "children": {
+            "distinct": 0,
+            "maxLive": 0,
+            "peakRssMiBByKind": {},
+            "peakSummedRssMiB": 0
+          },
+          "spawns": {
+            "total": 0,
+            "perMinute": 0,
+            "byFile": {}
+          },
+          "runtimeRequests": {
+            "total": 0,
+            "perSecond": 0,
+            "byPath": {}
+          }
+        },
+        "active": {
+          "wallSeconds": 30.01,
+          "psSamples": 60,
+          "cpu": {
+            "totalPercent": 0.336,
+            "servicePercent": 0.22,
+            "childPercent": 0.116,
+            "seconds": {
+              "service": 0.0661,
+              "servicePs": 0.06,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0.0347
+            }
+          },
+          "serviceRssMiB": {
+            "first": 74.9,
+            "last": 61.6,
+            "peak": 76.3
+          },
+          "peakTreeRssMiB": 77.5,
+          "children": {
+            "distinct": 1,
+            "maxLive": 1,
+            "peakRssMiBByKind": {
+              "sleep": 1.2
+            },
+            "peakSummedRssMiB": 1.2
+          },
+          "spawns": {
+            "total": 8,
+            "perMinute": 16,
+            "byFile": {
+              "vm_stat": {
+                "count": 3,
+                "meanWallMs": 2.3,
+                "running": 0
+              },
+              "sysctl": {
+                "count": 3,
+                "meanWallMs": 1.7,
+                "running": 0
+              },
+              "ioreg": {
+                "count": 2,
+                "meanWallMs": 21,
+                "running": 0
+              }
+            }
+          },
+          "runtimeRequests": {
+            "total": 25,
+            "perSecond": 0.83,
+            "byPath": {
+              "/lmstudio-greeting": 5,
+              "/api/v1/models": 10,
+              "/api/v0/models": 10
+            }
+          },
+          "pollMs": 1000,
+          "snapshotLatency": {
+            "requests": 30,
+            "meanMs": 3.87,
+            "p95Ms": 20.74
+          }
+        },
+        "idle": {
+          "wallSeconds": 30.01,
+          "psSamples": 60,
+          "cpu": {
+            "totalPercent": 0.249,
+            "servicePercent": 0.148,
+            "childPercent": 0.101,
+            "seconds": {
+              "service": 0.0443,
+              "servicePs": 0.04,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0.0304
+            }
+          },
+          "serviceRssMiB": {
+            "first": 61.8,
+            "last": 52.3,
+            "peak": 62.7
+          },
+          "peakTreeRssMiB": 62.9,
+          "children": {
+            "distinct": 1,
+            "maxLive": 1,
+            "peakRssMiBByKind": {
+              "sleep": 0.2
+            },
+            "peakSummedRssMiB": 0.2
+          },
+          "spawns": {
+            "total": 7,
+            "perMinute": 14,
+            "byFile": {
+              "vm_stat": {
+                "count": 2,
+                "meanWallMs": 2.5,
+                "running": 0
+              },
+              "sysctl": {
+                "count": 2,
+                "meanWallMs": 2,
+                "running": 0
+              },
+              "ioreg": {
+                "count": 2,
+                "meanWallMs": 20.5,
+                "running": 0
+              },
+              "notifyutil": {
+                "count": 1,
+                "meanWallMs": 2,
+                "running": 0
+              }
+            }
+          },
+          "runtimeRequests": {
+            "total": 18,
+            "perSecond": 0.6,
+            "byPath": {
+              "/api/v1/models": 7,
+              "/api/v0/models": 7,
+              "/lmstudio-greeting": 4
+            }
+          },
+          "pollMs": 2000,
+          "snapshotLatency": {
+            "requests": 15,
+            "meanMs": 5.95,
+            "p95Ms": 23.57
+          }
+        },
+        "glance": {
+          "wallSeconds": 30.01,
+          "psSamples": 60,
+          "cpu": {
+            "totalPercent": 0.232,
+            "servicePercent": 0.175,
+            "childPercent": 0.058,
+            "seconds": {
+              "service": 0.0524,
+              "servicePs": 0.05,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0.0174
+            }
+          },
+          "serviceRssMiB": {
+            "first": 52.6,
+            "last": 48.6,
+            "peak": 53
+          },
+          "peakTreeRssMiB": 53.2,
+          "children": {
+            "distinct": 1,
+            "maxLive": 1,
+            "peakRssMiBByKind": {
+              "sleep": 0.2
+            },
+            "peakSummedRssMiB": 0.2
+          },
+          "spawns": {
+            "total": 4,
+            "perMinute": 8,
+            "byFile": {
+              "vm_stat": {
+                "count": 2,
+                "meanWallMs": 2.5,
+                "running": 0
+              },
+              "sysctl": {
+                "count": 2,
+                "meanWallMs": 2,
+                "running": 0
+              }
+            }
+          },
+          "runtimeRequests": {
+            "total": 18,
+            "perSecond": 0.6,
+            "byPath": {
+              "/lmstudio-greeting": 4,
+              "/api/v1/models": 7,
+              "/api/v0/models": 7
+            }
+          },
+          "pollMs": 1000,
+          "tier": "glance",
+          "snapshotLatency": {
+            "requests": 30,
+            "meanMs": 2.33,
+            "p95Ms": 5.03
+          }
+        },
+        "paused": {
+          "wallSeconds": 75.01,
+          "psSamples": 150,
+          "cpu": {
+            "totalPercent": 0.006,
+            "servicePercent": 0.006,
+            "childPercent": 0,
+            "seconds": {
+              "service": 0.0044,
+              "servicePs": 0,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0
+            }
+          },
+          "serviceRssMiB": {
+            "first": 48.5,
+            "last": 30.9,
+            "peak": 48.5
+          },
+          "peakTreeRssMiB": 48.8,
+          "children": {
+            "distinct": 1,
+            "maxLive": 1,
+            "peakRssMiBByKind": {
+              "sleep": 0.2
+            },
+            "peakSummedRssMiB": 0.2
+          },
+          "spawns": {
+            "total": 0,
+            "perMinute": 0,
+            "byFile": {}
+          },
+          "runtimeRequests": {
+            "total": 0,
+            "perSecond": 0,
+            "byPath": {}
+          }
+        }
+      },
+      "paused": {
+        "runtimeRequests": 0,
+        "spawns": 0,
+        "spawnsAfterQuietS": 0,
+        "lastChildSeenAfterMs": 56776,
+        "lastChildExitAfterMs": 57013,
+        "childrenGoneSeconds": 57,
+        "childrenAtEnd": 0,
+        "buckets": [
+          {
+            "fromS": 0,
+            "toS": 5,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 5,
+            "toS": 10,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 10,
+            "toS": 15,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 15,
+            "toS": 20,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 20,
+            "toS": 25,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 25,
+            "toS": 30,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 30,
+            "toS": 35,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 35,
+            "toS": 40,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 40,
+            "toS": 45,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 45,
+            "toS": 50,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 50,
+            "toS": 55,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 55,
+            "toS": 60,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 60,
+            "toS": 65,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 65,
+            "toS": 70,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 70,
+            "toS": 75,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          }
+        ]
+      },
+      "lms": {
+        "spawns": 2,
+        "fakeInvocations": 2,
+        "argv": [
+          "ps --json --port <port>",
+          "log stream -s server --json --port <port>"
+        ],
+        "serverInfoPathSet": true
+      },
+      "wholeRun": {
+        "spawnsByFile": {
+          "lms": 2,
+          "vm_stat": 9,
+          "sysctl": 9,
+          "notifyutil": 2,
+          "ioreg": 5
+        },
+        "serviceCpuSeconds": 0.3271,
+        "rusageCpuSeconds": 0.45,
+        "reapedChildCpuSecondsEstimate": 0.1129,
+        "childrenUnseenByPs": 26,
+        "rusageMaxRssMiB": 76.3
+      }
+    },
+    {
+      "runtime": "omlx",
+      "macmon": {
+        "spawns": 1,
+        "samplesWithPower": 79,
+        "samplesWithEstimateCapability": 79,
+        "fakeChildCpuSeconds": 0.05,
+        "fakeChildPeakRssMiB": 36.3
+      },
+      "pass": true,
+      "checks": [
+        {
+          "id": "noView.cpuPercent",
+          "value": 0.002,
+          "limit": 0.07,
+          "pass": true
+        },
+        {
+          "id": "noView.spawns",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "noView.runtimeRequests",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "active.cpuPercent",
+          "value": 0.868,
+          "limit": 1.9,
+          "pass": true
+        },
+        {
+          "id": "active.cpuPercentAbsolute",
+          "value": 0.868,
+          "limit": 3,
+          "pass": true
+        },
+        {
+          "id": "active.spawnsPerMinute",
+          "value": 29.99,
+          "limit": 36,
+          "pass": true
+        },
+        {
+          "id": "idle.cpuPercent",
+          "value": 0.487,
+          "limit": 0.68,
+          "pass": true
+        },
+        {
+          "id": "idle.spawnsPerMinute",
+          "value": 16,
+          "limit": 24,
+          "pass": true
+        },
+        {
+          "id": "glance.cpuPercent",
+          "value": 0.451,
+          "limit": 0.68,
+          "pass": true
+        },
+        {
+          "id": "glance.spawnsPerMinute",
+          "value": 8,
+          "limit": 18,
+          "pass": true
+        },
+        {
+          "id": "glance.fullTierSpawns",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "service.peakRssMiB",
+          "value": 72.3,
+          "limit": 132,
+          "pass": true
+        },
+        {
+          "id": "paused.runtimeRequests",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "paused.spawnsAfter60s",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "paused.childrenGoneSeconds",
+          "value": 28.5,
+          "limit": 65,
+          "pass": true
+        },
+        {
+          "id": "paused.childrenAtEnd",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "sandboxHome.filesWritten",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "macmon.spawns",
+          "value": 1,
+          "limit": 2,
+          "pass": true
+        },
+        {
+          "id": "macmon.missingPower",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        },
+        {
+          "id": "macmon.missingEstimateBasis",
+          "value": 0,
+          "limit": 0,
+          "pass": true
+        }
+      ],
+      "startupSettle": {
+        "wallSeconds": 15.01,
+        "serviceCpuSeconds": 0.0195
+      },
+      "phases": {
+        "noView": {
+          "wallSeconds": 30.01,
+          "psSamples": 59,
+          "cpu": {
+            "totalPercent": 0.002,
+            "servicePercent": 0.002,
+            "childPercent": 0,
+            "seconds": {
+              "service": 0.0006,
+              "servicePs": 0,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0
+            }
+          },
+          "serviceRssMiB": {
+            "first": 49.8,
+            "last": 49.2,
+            "peak": 49.8
+          },
+          "peakTreeRssMiB": 49.8,
+          "children": {
+            "distinct": 0,
+            "maxLive": 0,
+            "peakRssMiBByKind": {},
+            "peakSummedRssMiB": 0
+          },
+          "spawns": {
+            "total": 0,
+            "perMinute": 0,
+            "byFile": {}
+          },
+          "runtimeRequests": {
+            "total": 0,
+            "perSecond": 0,
+            "byPath": {}
+          }
+        },
+        "active": {
+          "wallSeconds": 30.01,
+          "psSamples": 60,
+          "cpu": {
+            "totalPercent": 0.868,
+            "servicePercent": 0.348,
+            "childPercent": 0.521,
+            "seconds": {
+              "service": 0.1043,
+              "servicePs": 0.1,
+              "childrenSeenByPs": 0.06,
+              "childrenReapedEstimate": 0.0963
+            }
+          },
+          "serviceRssMiB": {
+            "first": 57.3,
+            "last": 59,
+            "peak": 63
+          },
+          "peakTreeRssMiB": 102,
+          "children": {
+            "distinct": 8,
+            "maxLive": 3,
+            "peakRssMiBByKind": {
+              "node": 34.2,
+              "(footprint)": 3.2,
+              "(ioreg)": 2.2
+            },
+            "peakSummedRssMiB": 39
+          },
+          "spawns": {
+            "total": 15,
+            "perMinute": 29.99,
+            "byFile": {
+              "ioreg": {
+                "count": 6,
+                "meanWallMs": 23.2,
+                "running": 0
+              },
+              "vm_stat": {
+                "count": 3,
+                "meanWallMs": 3.3,
+                "running": 0
+              },
+              "sysctl": {
+                "count": 3,
+                "meanWallMs": 2.7,
+                "running": 0
+              },
+              "footprint": {
+                "count": 3,
+                "meanWallMs": 22.7,
+                "running": 0
+              }
+            }
+          },
+          "runtimeRequests": {
+            "total": 33,
+            "perSecond": 1.1,
+            "byPath": {
+              "/admin/api/activity": 30,
+              "/api/status": 3
+            }
+          },
+          "pollMs": 1000,
+          "snapshotLatency": {
+            "requests": 30,
+            "meanMs": 8.02,
+            "p95Ms": 28.72
+          }
+        },
+        "idle": {
+          "wallSeconds": 30.01,
+          "psSamples": 60,
+          "cpu": {
+            "totalPercent": 0.487,
+            "servicePercent": 0.166,
+            "childPercent": 0.321,
+            "seconds": {
+              "service": 0.0498,
+              "servicePs": 0.05,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0.0963
+            }
+          },
+          "serviceRssMiB": {
+            "first": 59.4,
+            "last": 59.6,
+            "peak": 59.8
+          },
+          "peakTreeRssMiB": 94,
+          "children": {
+            "distinct": 1,
+            "maxLive": 1,
+            "peakRssMiBByKind": {
+              "node": 34.2
+            },
+            "peakSummedRssMiB": 34.2
+          },
+          "spawns": {
+            "total": 8,
+            "perMinute": 16,
+            "byFile": {
+              "vm_stat": {
+                "count": 2,
+                "meanWallMs": 3,
+                "running": 0
+              },
+              "sysctl": {
+                "count": 2,
+                "meanWallMs": 1.5,
+                "running": 0
+              },
+              "ioreg": {
+                "count": 2,
+                "meanWallMs": 25.5,
+                "running": 0
+              },
+              "notifyutil": {
+                "count": 1,
+                "meanWallMs": 1,
+                "running": 0
+              },
+              "footprint": {
+                "count": 1,
+                "meanWallMs": 18,
+                "running": 0
+              }
+            }
+          },
+          "runtimeRequests": {
+            "total": 20,
+            "perSecond": 0.67,
+            "byPath": {
+              "/admin/api/activity": 15,
+              "/api/status": 3,
+              "/health": 1,
+              "/v1/models/status": 1
+            }
+          },
+          "pollMs": 2000,
+          "snapshotLatency": {
+            "requests": 15,
+            "meanMs": 7.8,
+            "p95Ms": 35.48
+          }
+        },
+        "glance": {
+          "wallSeconds": 30.01,
+          "psSamples": 60,
+          "cpu": {
+            "totalPercent": 0.451,
+            "servicePercent": 0.291,
+            "childPercent": 0.16,
+            "seconds": {
+              "service": 0.0873,
+              "servicePs": 0.09,
+              "childrenSeenByPs": 0,
+              "childrenReapedEstimate": 0.0481
+            }
+          },
+          "serviceRssMiB": {
+            "first": 59.6,
+            "last": 61.7,
+            "peak": 61.7
+          },
+          "peakTreeRssMiB": 96,
+          "children": {
+            "distinct": 1,
+            "maxLive": 1,
+            "peakRssMiBByKind": {
+              "node": 34.3
+            },
+            "peakSummedRssMiB": 34.3
+          },
+          "spawns": {
+            "total": 4,
+            "perMinute": 8,
+            "byFile": {
+              "vm_stat": {
+                "count": 2,
+                "meanWallMs": 2.5,
+                "running": 0
+              },
+              "sysctl": {
+                "count": 2,
+                "meanWallMs": 1.5,
+                "running": 0
+              }
+            }
+          },
+          "runtimeRequests": {
+            "total": 30,
+            "perSecond": 1,
+            "byPath": {
+              "/admin/api/activity": 30
+            }
+          },
+          "pollMs": 1000,
+          "tier": "glance",
+          "snapshotLatency": {
+            "requests": 30,
+            "meanMs": 2.81,
+            "p95Ms": 5.06
+          }
+        },
+        "paused": {
+          "wallSeconds": 75.01,
+          "psSamples": 150,
+          "cpu": {
+            "totalPercent": 0.025,
+            "servicePercent": 0.012,
+            "childPercent": 0.013,
+            "seconds": {
+              "service": 0.0088,
+              "servicePs": 0,
+              "childrenSeenByPs": 0.01,
+              "childrenReapedEstimate": 0
+            }
+          },
+          "serviceRssMiB": {
+            "first": 61.8,
+            "last": 41.8,
+            "peak": 61.8
+          },
+          "peakTreeRssMiB": 97.8,
+          "children": {
+            "distinct": 1,
+            "maxLive": 1,
+            "peakRssMiBByKind": {
+              "node": 36.3
+            },
+            "peakSummedRssMiB": 36.3
+          },
+          "spawns": {
+            "total": 0,
+            "perMinute": 0,
+            "byFile": {}
+          },
+          "runtimeRequests": {
+            "total": 0,
+            "perSecond": 0,
+            "byPath": {}
+          }
+        }
+      },
+      "paused": {
+        "runtimeRequests": 0,
+        "spawns": 0,
+        "spawnsAfterQuietS": 0,
+        "lastChildSeenAfterMs": 28174,
+        "lastChildExitAfterMs": 28504,
+        "childrenGoneSeconds": 28.5,
+        "childrenAtEnd": 0,
+        "buckets": [
+          {
+            "fromS": 0,
+            "toS": 5,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 5,
+            "toS": 10,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 10,
+            "toS": 15,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 15,
+            "toS": 20,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 20,
+            "toS": 25,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 25,
+            "toS": 30,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 1,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 30,
+            "toS": 35,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 35,
+            "toS": 40,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 40,
+            "toS": 45,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 45,
+            "toS": 50,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 50,
+            "toS": 55,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 55,
+            "toS": 60,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 60,
+            "toS": 65,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 65,
+            "toS": 70,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          },
+          {
+            "fromS": 70,
+            "toS": 75,
+            "runtimeRequests": 0,
+            "spawns": 0,
+            "maxLiveChildren": 0,
+            "serviceCpuSecondsPs": 0
+          }
+        ]
+      },
+      "wholeRun": {
+        "spawnsByFile": {
+          "vm_stat": 8,
+          "sysctl": 8,
+          "notifyutil": 2,
+          "ioreg": 9,
+          "lsof": 1,
+          "footprint": 5,
+          "macmon": 1
+        },
+        "serviceCpuSeconds": 0.4471,
+        "rusageCpuSeconds": 0.86,
+        "reapedChildCpuSecondsEstimate": 0.3129,
+        "childrenUnseenByPs": 26,
+        "rusageMaxRssMiB": 72.3
+      }
+    }
+  ],
+  "idleExit": {
+    "idleExitMs": 5000,
+    "graceMs": 3000,
+    "pass": true,
+    "checks": [
+      {
+        "id": "idleExit.exitedOnItsOwnWithCode0",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      },
+      {
+        "id": "idleExit.exitedBeforeDelay",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      },
+      {
+        "id": "idleExit.afterLastViewMs",
+        "value": 5004,
+        "limit": 8000,
+        "pass": true
+      },
+      {
+        "id": "idleExit.childrenLeft",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      },
+      {
+        "id": "idleExit.sandboxHomeFilesWritten",
+        "value": 0,
+        "limit": 0,
+        "pass": true
+      }
+    ],
+    "exit": {
+      "code": 0,
+      "signal": null
+    },
+    "afterLastViewMs": 5004,
+    "healthReadsWhileIdle": 5,
+    "coldStartToFirstSnapshotMs": 154,
+    "spawns": 6
+  },
+  "limitations": [
+    "The idle exit is checked with a 5 s delay, not the ten-minute product default, and under Node; OpenChamber's respawn on the next request is not exercised here.",
+    "Synthetic loopback runtimes; no inference was started or measured.",
+    "The fake lms is a shell stand-in: ps and runtime ls answer at once and log stream idles; real lms CPU and RSS (docs/2.0/SPIKES.md S8) are not reproduced.",
+    "The fake macmon is a node process printing one fixture line per second; real macmon CPU and RSS are not reproduced.",
+    "On macOS, lsof and footprint read the harness's own loopback listener; elsewhere no host probe runs, so host spawns and their CPU are not measured.",
+    "The service runs under Node, not OpenChamber's Electron runtime, where RSS reads higher (S13: 89–92 MiB live).",
+    "ps CPU time has 10 ms resolution; RSS includes shared pages and is sampled every 500 ms.",
+    "Browser rendering, the OpenChamber server, battery use and inference throughput impact are not measured."
+  ]
+}
