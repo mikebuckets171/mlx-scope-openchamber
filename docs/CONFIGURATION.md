@@ -74,7 +74,9 @@ existing global `opencode.json` or `opencode.jsonc`. There is no download or
 package-manager command. Other plugins, provider settings, JSONC comments, and
 the existing companion's options are preserved.
 
-Chat estimates are qualified for **OpenCode 2.0.25**. The companion observes the
+Chat estimates are qualified for **OpenCode 2.0.25, 2.0.27, 2.0.28, 2.0.29,
+2.0.32 and 2.1.1-compaction.1**; later 2.0 releases from 2.0.25 and later 2.1
+releases from 2.1.1 are self-checked. The companion observes the
 selected chat's public events, counts text and observable reasoning in memory, and
 saves only short-lived measurement metadata. Live estimates use a delivery
 window; a finished step uses reported output tokens and is labeled as an
@@ -82,7 +84,7 @@ average. Neither is presented as the engine's native decode timing. The
 companion subscribes while a visible Scope view requests chat measurements;
 after the last view stops, that request expires within 15 seconds.
 
-Connections checks activation while open. On qualified OpenCode 2.0.25, managed updates activate through its normal configuration watcher. Scope records a bundled-file revision on its own plugin entry; other plugin options and JSONC comments remain intact. If setup remains pending, it activates the next time OpenCode starts; leave active work running. Scope never restarts
+Connections checks activation while open. On an accepted OpenCode version, managed updates activate through its normal configuration watcher. Scope records a bundled-file revision on its own plugin entry; other plugin options and JSONC comments remain intact. If setup remains pending, it activates the next time OpenCode starts; leave active work running. Scope never restarts
 OpenCode for you. A startup receipt confirms that the supported companion loaded;
 only a fresh heartbeat confirms a current connection. Unsupported versions keep
 runtime measurements available and withhold chat estimates.

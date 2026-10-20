@@ -1,33 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CHAT_PROTOCOL, FEATURE_IDS, acceptsChatProtocol, acceptsRuntime, featureSupport, parseFeatures } from './compatibility.js';
+import { CHAT_PROTOCOL, FEATURE_IDS, REVIEWED_BUILDS, acceptsChatProtocol, acceptsRuntime, featureSupport, parseFeatures } from './compatibility.js';
 import { QUALIFIED_VERSIONS, candidateProfile, modeFor, profileFor } from './qualified.js';
 import { makePlugin } from './index.js';
 
-test('the helper accepts OpenCode 2.0 patches from 2.0.25 by rule, independent of wire spelling and package version', () => {
-  for (const version of ['2.0.25', '2.0.26', '2.0.29', '2.0.32', '2.0.33', '2.0.100', '2.0.9999']) {
+test('the helper accepts the reviewed OpenCode lines and reviewed local builds only', () => {
+  for (const version of ['2.0.25', '2.0.26', '2.0.29', '2.0.32', '2.0.33', '2.0.100', '2.0.9999', '2.1.1', '2.1.2', '2.1.9999']) {
     assert.equal(acceptsRuntime(version), true, version);
     assert.equal(acceptsChatProtocol(version, CHAT_PROTOCOL), true);
     assert.equal(acceptsChatProtocol(version, 'future-wire'), false);
     assert.equal(acceptsChatProtocol(version, undefined), false);
   }
-  for (const version of [undefined, null, '', 2.0, '2.0.24', '2.0.0', '2.0.032', '2.0.25-custom', '2.0.32.1', ' 2.0.32', '2.1.0', '2.10.25', '3.0.0', '1.19.3', '2.0.10000'])
+  for (const version of REVIEWED_BUILDS) assert.equal(acceptsRuntime(version), true, version);
+  for (const version of [undefined, null, '', 2.0, '2.0.24', '2.0.0', '2.0.032', '2.0.25-custom', '2.0.32.1', ' 2.0.32', '2.1.0', '2.1.01',
+    '2.1.1-compaction', '2.1.1-compaction.2', '2.1.1-custom', '2.1.2-rc.1', '2.2.0', '2.10.25', '3.0.0', '1.19.3', '2.0.10000'])
     assert.equal(acceptsRuntime(version), false, String(version));
 });
 
 test('native qualification is a separate service-side record of exact versions', () => {
-  assert.deepEqual(QUALIFIED_VERSIONS, ['2.0.25', '2.0.27', '2.0.28', '2.0.29', '2.0.32']);
+  assert.deepEqual(QUALIFIED_VERSIONS, ['2.0.25', '2.0.27', '2.0.28', '2.0.29', '2.0.32', '2.1.1-compaction.1']);
   for (const version of QUALIFIED_VERSIONS) {
     assert.equal(profileFor(version).id, `opencode-${version}-v1`);
     assert.equal(profileFor(version).websocketCancellation, version === '2.0.25' ? 'unit-only' : 'native');
     assert.equal(modeFor(version), 'qualified');
   }
-  for (const version of ['2.0.26', '2.0.30', '2.0.31', '2.0.33']) {
+  for (const version of ['2.0.26', '2.0.30', '2.0.31', '2.0.33', '2.1.1', '2.1.2']) {
     assert.equal(profileFor(version), null);
     assert.equal(modeFor(version), 'self-checked');
     assert.equal(candidateProfile(version).candidate, true);
   }
-  for (const version of ['2.0.24', '2.1.0', '2.0.32-custom', undefined]) {
+  for (const version of ['2.0.24', '2.1.0', '2.2.0', '2.0.32-custom', undefined]) {
     assert.equal(modeFor(version), 'unsupported');
     assert.equal(candidateProfile(version), null);
   }
@@ -70,6 +72,20 @@ async function fixture(reject, observerFails = false, { version = '2.0.32', hook
     } } : {} });
   return { hooks, disposed, warnings, dispose, get features() { return features; } };
 }
+
+test('an unsupported release line installs no hook and leaves every feature unqualified', async () => {
+  const f = await fixture(null, false, { version: '2.2.0' });
+  assert.deepEqual(f.hooks, []);
+  for (const id of FEATURE_IDS) assert.deepEqual(f.features[id], { support: 'unqualified', available: false });
+  await f.dispose();
+});
+
+test('a reviewed local build installs the same hooks as its release line', async () => {
+  const f = await fixture(null, false, { version: '2.1.1-compaction.1' });
+  assert.deepEqual(f.hooks.map(hook => hook.id), ['http.request', 'experimental.ws.handshake', 'prompt:http.request', 'prompt:http.response']);
+  assert.deepEqual(f.features['prompt-progress'], { support: 'compatible', available: true, check: { state: 'waiting' } });
+  await f.dispose();
+});
 
 test('failed prompt response hook removes its request mutation while delivery remains available', async () => {
   const f = await fixture('prompt:http.response');

@@ -91,10 +91,12 @@ observation while response delivery continues. Private cache writes are bounded 
 expired, unsafe, oversized or ambiguous records and publish only corroborated numeric progress. Its matching hashes
 and response IDs are never exported. The companion has its own focused stream, isolation, permission and expiry tests.
 
-Chat delivery uses only OpenCode's 2.0 plugin event protocol and loopback request metadata. Qualified versions are listed
-in [Compatibility](docs/COMPATIBILITY.md); a later 2.0 release is self-checked, and each feature whose hooks or event
-shapes fail the check is withdrawn with its reason. OpenCode 2.1 and later, and anything that fails the rule, fail closed
-while runtime monitoring continues. Estimates use character counts, never stored text; only
+Chat delivery uses only OpenCode's public plugin event protocol and loopback request metadata. Qualified versions are
+listed in [Compatibility](docs/COMPATIBILITY.md); a later 2.0 release from 2.0.25 and a later 2.1 release from 2.1.1 are
+self-checked, and each feature whose hooks or event shapes fail the check is withdrawn with its reason. Locally built
+runtimes are accepted only by reviewed identifier, never by suffix pattern. OpenCode 2.1.0, 2.2 and later, any
+unreviewed build, and anything else that fails the rule fail closed while runtime monitoring continues. Estimates use
+character counts, never stored text; only
 bounded numeric measurements and hashed matching keys enter private expiring files. Both service and companion reject
 symlinks, non-regular files, unsafe permissions, oversize bodies, stale timestamps and ambiguous matching writers.
 Event work stops when the visible-view demand expires. See [Privacy](PRIVACY.md) for storage and removal details.

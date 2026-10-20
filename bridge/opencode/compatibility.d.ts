@@ -1,5 +1,6 @@
 export const CHAT_PROTOCOL: 'opencode-2.0.25';
 export const TELEMETRY_SCHEMA_VERSION: 1;
+export const REVIEWED_BUILDS: string[];
 export type FeatureId = 'http-delivery' | 'websocket-delivery' | 'prompt-progress' | 'managed-reload';
 export type CheckReason = 'hook-missing' | 'hook-rejected' | 'events-missing' | 'event-shape' | 'session-header' | 'options';
 export type FeatureCheck = { state: 'waiting' | 'passed' } | { state: 'failed'; reason: CheckReason };

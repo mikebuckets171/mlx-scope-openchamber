@@ -306,12 +306,12 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
     const current = supported && !stale && receipt.companionVersion === companionVersion && receipt.loadedAtMs >= installedAt;
     const live = !!(current && receipt.updatedAtMs && receipt.updatedAtMs <= now() + 1_000 && receipt.expiresAtMs && receipt.expiresAtMs > now() && receipt.expiresAtMs - receipt.updatedAtMs <= 15_000);
     const state = valid && !runtimeAccepted ? 'incompatible' : qualified && !supported ? 'error' : configured ? current ? 'ready' : 'pending' : 'disabled';
-    const message = state === 'incompatible' ? 'Chat estimates need OpenCode 2.0.25 or a later 2.0 release. Runtime measurements remain available.'
+    const message = state === 'incompatible' ? 'Chat estimates need OpenCode 2.0.25 or a later 2.0 release, or OpenCode 2.1.1 or a later 2.1 release. Runtime measurements remain available.'
       : state === 'error' ? 'Chat observation hooks are unavailable. Native runtime measurements remain available.'
       : state === 'ready' ? live ? 'Chat tracking is connected. Estimates follow the chat you are watching.' : 'Chat tracking is ready for your next reply.'
         : state === 'pending' ? needsUpdate ? 'Update chat speed to install the current tracking helper.'
           : 'Installed · waiting for OpenCode to load the updated tracking helper. Your current work can continue.'
-          : 'Enable delivery-speed estimates for local and cloud chats. Requires OpenCode 2.0.25 or a later 2.0 release.';
+          : 'Enable delivery-speed estimates for local and cloud chats. Requires OpenCode 2.0.25 or a later 2.0 release, or OpenCode 2.1.1 or a later 2.1 release.';
     return { state, message, configured, managed: info.managed, canEnable: state !== 'incompatible', canDisable: configured || info.managed,
       runtimeVersion, companionVersion: loadedCompanionVersion, protocol, live,
       compatibility: { profile: profileFor(runtimeVersion)?.id ?? null, mode: modeFor(runtimeVersion),

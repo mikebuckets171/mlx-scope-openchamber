@@ -18,7 +18,7 @@ if (!binary || !installedBridge || !installedBridge.startsWith('/')) throw new E
 const remote = process.argv.includes('--remote');
 const remoteBase = 'http://scope-protocol-fixture.invalid/v1';
 const profile = profileFor(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim().replace(/^opencode v/, ''));
-assert.ok(profile, 'This OpenCode version is outside the accepted 2.0 line (2.0.25 or later).');
+assert.ok(profile, 'This OpenCode version is outside the accepted OpenCode lines (2.0.25 or 2.1.1 or later).');
 const bundleBridge = dirname(fileURLToPath(import.meta.url)), repo = resolve(bundleBridge, '../..');
 const bundledVersion = JSON.parse(await readFile(join(bundleBridge, 'package.json'), 'utf8')).version;
 // OpenCode deliberately excludes node_modules dependencies from its local-source watcher.

@@ -269,8 +269,11 @@ describe('explicit companion setup', () => {
     probe = receipt(at, { runtimeVersion: '2.0.33', features: featureSupport('2.0.33') });
     expect(await setup.status()).toMatchObject({ state: 'ready', compatibility: { profile: null, mode: 'self-checked' } });
     probe = receipt(at, { runtimeVersion: '2.1.0', protocol: 'unsupported', supported: false });
-    expect(await setup.status()).toMatchObject({ state: 'incompatible', message: expect.stringContaining('2.0.25 or a later 2.0 release'),
+    expect(await setup.status()).toMatchObject({ state: 'incompatible', message: expect.stringContaining('2.0.25 or a later 2.0 release, or OpenCode 2.1.1'),
       compatibility: { profile: null, mode: 'unsupported', features: { 'prompt-progress': { support: 'unqualified', available: false } } } });
+    probe = receipt(at, { runtimeVersion: '2.1.1-compaction.1', features: featureSupport('2.1.1-compaction.1') });
+    expect(await setup.status()).toMatchObject({ state: 'ready', runtimeVersion: '2.1.1-compaction.1',
+      compatibility: { profile: 'opencode-2.1.1-compaction.1-v1', mode: 'qualified' } });
     expect(await readFile(f.config, 'utf8')).toBe(config);
   });
 

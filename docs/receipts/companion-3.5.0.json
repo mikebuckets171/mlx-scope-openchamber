@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "kind": "companion-qualification",
+  "helperVersion": "3.5.0",
+  "recordedOn": "2026-10-20",
+  "companionFiles": {
+    "index.js": "1327955c28d04ed7a78d970c2f0b97b64afb381b0a5b677100ab1f51e2039087",
+    "chat.js": "45c5df9395c3153802c9a4fe591442dc450bc53bc96db152f99245567d62e03c",
+    "demand.js": "3d1d7937153c230328d02ab4acd08a26a0a1539e61c44a7af2b582f2f3ef5371",
+    "chat-store.js": "2fbf445a26303acb161f1a9e784eb4dfd1a0de2a4ad6f6bb288bd539eefee6b1",
+    "store.js": "3dd1e68ec4f8263c58f71619c0312fc3143f3cc3bf01685e3b150909bf58b053",
+    "stream.js": "2b0bfbda6a170c369560306522942383039d93ef7de665113d796a11041d6f55",
+    "compatibility.js": "2f8c1b47e48b14470203cc00df1874db8303870cf7ccb88e012fab79ccbb003e",
+    "package.json": "b5854f8181ac7e7800e3c9afa263478c726e7874793898943e7ef89bed004ec6"
+  },
+  "environment": {
+    "node": "v22.23.3",
+    "platform": "darwin",
+    "release": "27.2.0",
+    "cpu": "Apple M5 Pro",
+    "logicalCPUs": 18
+  },
+  "runtime": {
+    "opencode": "2.1.1-compaction.1",
+    "source": "locally built binary from the working copy that adds a compaction retained-tail patch to official v2.1.1; the patch touches no plugin API, event schema or hook",
+    "note": "Stock OpenCode 2.1.1 is accepted and self-checked, not qualified: no stock 2.1.1 binary was run here."
+  },
+  "qualification": {
+    "basis": "Isolated native OpenCode 2.1.1-compaction.1 process with synthetic loopback providers (bridge/opencode/protocol-smoke.mjs, protocol-ws-smoke.mjs, protocol-hot-reload-smoke.mjs, protocol-compaction-smoke.mjs). Temp HOME, temp config, loopback fixture. No real model, no inference, no cloud account, no live configuration.",
+    "httpLocal": {
+     "result": "pass",
+     "destination": "local",
+     "runtimeVersion": "2.1.1-compaction.1",
+     "fixtureRequests": 4,
+     "steps": [
+      { "basis": "estimated-characters", "liveTps": 22.665457842248415, "completedTps": 17.452006980802793, "promptProgress": [200, 500, 900] },
+      { "basis": "estimated-characters", "liveTps": 22.655188038060714, "completedTps": 17.482517482517483, "promptProgress": [200, 500, 900] },
+      { "basis": "estimated-characters", "liveTps": 22.644927536231883, "completedTps": 17.46942850012478, "promptProgress": [200, 500, 900] },
+      { "basis": "calibrated-characters", "calibrationSteps": 3, "liveTps": 22.624434389140273, "completedTps": 17.48688483637272, "promptProgress": [200, 500, 900] }
+     ],
+     "hiddenWritesStopped": true
+    },
+    "httpSyntheticRemote": {
+     "result": "pass",
+     "destination": "synthetic-remote-routed-to-loopback",
+     "runtimeVersion": "2.1.1-compaction.1",
+     "fixtureRequests": 4,
+     "steps": [
+      { "basis": "estimated-characters", "liveTps": 22.644927536231883, "completedTps": 22.508038585209004 },
+      { "basis": "estimated-characters", "liveTps": 22.634676324128566, "completedTps": 22.573363431151243 },
+      { "basis": "estimated-characters", "liveTps": 22.665457842248415, "completedTps": 22.580645161290324 },
+      { "basis": "calibrated-characters", "calibrationSteps": 3, "liveTps": 22.665457842248415, "completedTps": 22.587931590835755 }
+     ],
+     "hiddenWritesStopped": true
+    },
+    "webSocket": {
+     "result": "pass",
+     "destination": "synthetic-remote-routed-to-loopback",
+     "runtimeVersion": "2.1.1-compaction.1",
+     "companionVersion": "3.5.0",
+     "fixtureRequests": 7,
+     "connections": 1,
+     "continuations": 6,
+     "steps": [
+      { "phases": ["waiting", "generating", "complete"], "basis": "estimated-characters", "liveTps": 22.655188038060714, "completedTps": 17.01507049100632 },
+      { "phases": ["waiting", "generating", "complete"], "basis": "estimated-characters", "liveTps": 22.634676324128566, "completedTps": 17.04407109812515 },
+      { "phases": ["waiting", "generating", "complete"], "basis": "estimated-characters", "liveTps": 22.644927536231883, "completedTps": 17.04822211397954 },
+      { "phases": ["waiting", "generating", "complete"], "basis": "calibrated-characters", "calibrationSteps": 3, "liveTps": 22.644927536231883, "completedTps": 17.056530214424953 },
+      { "phases": ["tool", "waiting", "generating", "complete"], "basis": "calibrated-characters", "calibrationSteps": 4, "liveTps": 22.624434389140273, "completedTps": 17.0316301703163 }
+     ],
+     "cancellation": "pass",
+     "hiddenWritesStopped": true
+    },
+    "hotReloadLocal": {
+     "hotReload": "pass",
+     "serverRestarted": false,
+     "existingSyntheticStreamCompleted": true,
+     "duplicateRequests": 0,
+     "previousCompanion": "3.4.0",
+     "previousCompanionSupported": false,
+     "loadedCompanion": "3.5.0",
+     "result": "pass",
+     "destination": "local",
+     "runtimeVersion": "2.1.1-compaction.1",
+     "fixtureRequests": 5,
+     "completedStreams": 5,
+     "hotReloadVerified": true,
+     "steps": [
+      { "basis": "estimated-characters", "liveTps": 22.686025408348456, "completedTps": 22.603126765869277 },
+      { "basis": "estimated-characters", "liveTps": 22.644927536231883, "completedTps": 22.59461495010356 },
+      { "basis": "estimated-characters", "liveTps": 22.655188038060714, "completedTps": 22.573363431151243 },
+      { "basis": "calibrated-characters", "calibrationSteps": 3, "liveTps": 22.655188038060714, "completedTps": 22.598870056497177 }
+     ],
+     "hiddenWritesStopped": true
+    },
+    "compactionAndResume": {
+     "result": "pass",
+     "command": "node bridge/opencode/protocol-compaction-smoke.mjs /absolute/path/to/opencode",
+     "runtimeVersion": "2.1.1-compaction.1",
+     "fixtureRequests": 4,
+     "compactionRequests": 1,
+     "measurementsDuringCompaction": 0,
+     "checkpointKeepReference": true,
+     "contextRecentMaterialized": true,
+     "resumed": { "basis": "reported-output", "tokensPerSecond": 112.93054771315641 }
+    },
+    "schemaReview": "Compared tag to tag, v2.0.32 to v2.1.1: every name and field the companion reads is unchanged, including the session hook names and their provider filter, the request kinds primary/compaction/title/generate, the x-opencode-session-id request header, the event envelope and subscription, the step/text/reasoning/tool/execution events and tokens.output/tokens.reasoning. 2.1 changed only how a summary compaction stores what it keeps (metadata.keepID on the checkpoint, materialized as metadata.recent by session.context), renamed optional providerState to native, and added session.archived/session.unarchived. None of those is read here."
+  },
+  "acceptanceRule": {
+    "releaseLines": ["2.0.N with N >= 25", "2.1.N with N >= 1"],
+    "reviewedBuilds": ["2.1.1-compaction.1"],
+    "note": "A locally built runtime is accepted only by reviewed identifier, never by suffix pattern, so an unreviewed build stays unsupported exactly as an unrecognised release line does.",
+    "unsupportedExamples": ["2.0.24", "2.1.0", "2.2.0", "2.1.1-compaction", "2.1.1-compaction.2", "2.1.1-custom"]
+  },
+  "firstRunNotes": [
+    "The new compaction smoke first failed at the resumed step. The cause was the harness, not OpenCode 2.1: it wrote its demand file once, the 15-second window expired mid-scenario and the observer correctly stopped tracking and cleared the chat. Renewing demand while the harness waits, as protocol-smoke.mjs already does, made the check pass with no companion change.",
+    "A diagnostic plugin added for that investigation whose setup never settled stalled the host's own plugin initialisation and made a later session read time out. Its setup now returns immediately and subscribes in the background. The tap records event shapes only and is read only by the SCOPE_SMOKE_DEBUG failure path."
+  ],
+  "limitations": [
+    "Synthetic providers only: real token accounting, provider buffering, reasoning visibility and real workloads are not covered.",
+    "Stock OpenCode 2.1.1 and later 2.1 releases are accepted and self-checked but not qualified by this receipt; a self-check cannot detect changed meaning.",
+    "No live-host verification is included: this receipt says nothing about an ordinary Splash reply, prompt progress on the real provider, or the installed extension's UI.",
+    "The CPU fixture from companion-3.4.0.json was not re-run; 3.5.0 changes the accepted-version rule and the version string, not the event, storage or polling work it measured."
+  ]
+}

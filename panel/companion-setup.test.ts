@@ -58,4 +58,13 @@ describe('companion setup surface', () => {
     expect(unknown.compatibility && 'mode' in unknown.compatibility).toBe(false);
     expect(companionCompatibilityMarkup(unknown)).not.toContain('qualified.');
   });
+  it('shows a reviewed local build as the exact version that was qualified', () => {
+    const features = featureSupport('2.1.1-compaction.1'); features['http-delivery'] = { support: 'compatible', available: true, check: { state: 'passed' } };
+    const compatibility = { profile: 'opencode-2.1.1-compaction.1-v1', mode: 'qualified', activity: 'listening', features } as const;
+    const parsed = parseCompanionSetup({ ...valid, runtimeVersion: '2.1.1-compaction.1', compatibility })!;
+    expect(companionCompatibilityMarkup(parsed)).toContain('OpenCode 2.1.1-compaction.1 · qualified');
+    // A 2.1 release with no native evidence of its own stays self-checked.
+    const release = parseCompanionSetup({ ...valid, runtimeVersion: '2.1.1', compatibility: { ...compatibility, profile: null, mode: 'self-checked', features: featureSupport('2.1.1') } })!;
+    expect(companionCompatibilityMarkup(release)).toContain('OpenCode 2.1.1 · self-checked, not yet qualified');
+  });
 });
