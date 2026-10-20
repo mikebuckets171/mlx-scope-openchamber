@@ -3,6 +3,8 @@ import { HttpFailure, type FetchImplementation } from '../http.ts';
 import { cancelMedia, collectMedia, type MediaAdapterOptions, type MediaCollection } from './adapters.ts';
 import { MediaDiscovery, type MediaSourceConfig } from './discovery.ts';
 import { PHOSPHENE_READ_MS } from './phosphene.ts';
+import { DRAW_THINGS_READ_MS } from './draw-things.ts';
+import type { Exec } from '../lib/argv.ts';
 
 interface SourceSlot { value?: MediaCollection; until: number; fingerprint: string; flight?: Promise<MediaCollection> }
 interface RateSample { at: number; value: number }
@@ -31,6 +33,8 @@ export interface MediaServiceOptions {
   env?: NodeJS.ProcessEnv;
   cancelLocalVideo?: (id: string) => Promise<boolean>;
   localVideoDirectory?: string;
+  /** The allowlisted host probe (lsof) the Draw Things adapter reads running renders with. */
+  exec?: Exec;
   /** Test seam. Production uses bounded, cached, read-only discovery. */
   configurations?: () => Promise<MediaSourceConfig[]>;
 }
@@ -47,8 +51,8 @@ export class MediaService {
   private snapshotFlight: Promise<MediaSnapshotV1> | null = null;
   private snapshotCache: { value: MediaSnapshotV1; until: number } | null = null;
   constructor(private input: MediaServiceOptions) {
-    this.options = { now: input.now ?? Date.now, fetchImpl: input.fetchImpl ?? fetch, cancelLocalVideo: input.cancelLocalVideo, localVideoDirectory: input.localVideoDirectory, videoHistory: new Map() };
-    this.discovery = new MediaDiscovery({ home: input.home, fetchImpl: this.options.fetchImpl, now: this.options.now, env: input.env });
+    this.options = { now: input.now ?? Date.now, fetchImpl: input.fetchImpl ?? fetch, cancelLocalVideo: input.cancelLocalVideo, localVideoDirectory: input.localVideoDirectory, videoHistory: new Map(), exec: input.exec };
+    this.discovery = new MediaDiscovery({ home: input.home, fetchImpl: this.options.fetchImpl, now: this.options.now, env: input.env, drawThings: input.exec !== undefined });
   }
   configurations(): Promise<MediaSourceConfig[]> { return this.input.configurations?.() ?? this.discovery.configurations(); }
   get enabled(): boolean { return this.discovery.enabled; }
@@ -117,7 +121,7 @@ export class MediaService {
         state: config.kind === 'qwen-image' && error instanceof HttpFailure && error.status === 404 ? 'unsupported' : 'disconnected', capabilities: { progress: false, cancel: false },
         message: config.kind === 'qwen-image' && error instanceof HttpFailure && error.status === 404 ? 'This image workflow does not publish media progress yet.' : 'Source unavailable. Open its application or check Connections.' },
       jobs: (current.value?.jobs ?? []).map(job => mediaTerminal(job.state) ? job : withdrawMediaProgress(job, 'unavailable')),
-      ...config.kind === 'phosphene' ? { ttlMs: PHOSPHENE_READ_MS.idle, staleMs: current.value?.staleMs } : {},
+      ...config.kind === 'phosphene' ? { ttlMs: PHOSPHENE_READ_MS.idle, staleMs: current.value?.staleMs } : config.kind === 'draw-things' ? { ttlMs: DRAW_THINGS_READ_MS.idle, staleMs: current.value?.staleMs } : {},
     })).then(value => { current.value = value; current.until = this.options.now() + (value.ttlMs ?? 1800); return value; }).finally(() => { delete current.flight; });
     return current.flight;
   }

@@ -248,3 +248,13 @@ port, add a source to `~/.config/mlx-scope/media.json`:
 ```
 
 The origin must be loopback. `"enabled": false` on that source stops Scope from probing or reading Phosphene.
+
+## Draw Things
+
+Scope watches renders from Draw Things' command-line tool when `draw-things-cli` is installed (Homebrew, or unpacked
+under `~/Applications/draw-things-cli-*`). A render is visible while its output is redirected to a file, for example
+`draw-things-cli generate … > render.log 2>&1`. Nothing needs configuring; to turn it off:
+
+```json
+{ "schemaVersion": 1, "sources": [{ "id": "draw-things", "kind": "draw-things", "enabled": false }] }
+```

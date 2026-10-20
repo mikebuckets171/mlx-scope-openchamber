@@ -127,7 +127,7 @@ export function createMediaSetup(options: MediaSetupOptions) {
       const ready = observed?.state === 'ready';
       return { id: source.id, kind: source.kind, label: source.label, enabled: true,
         state: ready ? 'ready' as const : observed?.state === 'unsupported' ? 'unsupported' as const : 'offline' as const,
-        message: ready ? source.kind === 'local-video' ? 'Connected to your existing video queue.' : source.kind === 'feed' ? 'Connected to the private media feed.' : source.kind === 'phosphene' ? 'Reading Phosphene’s queue. Scope never starts, stops or changes a render.' : 'Connected to your image workflow.'
+        message: ready ? source.kind === 'local-video' ? 'Connected to your existing video queue.' : source.kind === 'feed' ? 'Connected to the private media feed.' : source.kind === 'phosphene' ? 'Reading Phosphene’s queue. Scope never starts, stops or changes a render.' : source.kind === 'draw-things' ? 'Watching Draw Things command-line renders. Scope never starts, stops or changes one.' : 'Connected to your image workflow.'
           : observed?.message ?? 'Source unavailable. Open its application or check its connection.',
         canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: null, locations: [] };
     }));

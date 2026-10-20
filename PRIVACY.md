@@ -179,6 +179,8 @@ Media adapters read existing local job APIs or bounded files only while a releva
 
 Phosphene's `/status` answer includes prompts, render parameters, file paths, logs and output lists. Scope reads at most 1 MB of it and keeps only job ids, states, start and run times, the mode and engine names (to tell an image from a video), the phase, step counters, the H3 window number and Phosphene's own time-left estimate. Its discovery probe reads `/version` and keeps only the release number. Scope sends Phosphene nothing but these two GET requests.
 
+For Draw Things, `lsof` lists running `draw-things-cli` processes and the file each one's output goes to. The process ids and paths stay in service memory. From the last 64 KB of that file Scope keeps only the phase, the step counter, the file's times and whether the render finished; the tool prints no prompt, and the `Models directory:` and `Wrote:` paths it prints are never kept. Scope never runs the tool.
+
 The optional ComfyUI helper answers a token-authenticated loopback GET on the existing ComfyUI server. It snapshots bounded existing progress state without a watcher, WebSocket takeover, telemetry file, model call or workflow change. Its managed token and ownership receipt are private local files. Source configuration lives in `~/.config/mlx-scope/media.json`; secrets remain server-side. Setup changes occur only after a deliberate action and preserve unrelated configuration.
 
 Cancellation is a separate explicit action directed at one observed job through its supported owner. Scope does not perform broad process kills, global interrupts or automatic retries. Existing completion notifications are unaffected.

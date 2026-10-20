@@ -1,0 +1,38 @@
+Backend: local
+Models directory: /Users/fixture/private/Models
+
+[1A[KStarting... [ ] 0  %
+[1A[KProcessing... [ ] 1  %
+[1A[KProcessing... [ ] 3  %
+[1A[KSampling... 1 / 25 [ ] 1  %
+[1A[KSampling... 2 / 25 [ ] 5  %
+[1A[KSampling... 3 / 25 [ ] 9  %
+[1A[KSampling... 4 / 25 [ ] 12 %
+[1A[KSampling... 5 / 25 [ ] 16 %
+[1A[KSampling... 6 / 25 [ ] 20 %
+[1A[KSampling... 7 / 25 [ ] 24 %
+[1A[KSampling... 8 / 25 [ ] 28 %
+[1A[KSampling... 9 / 25 [ ] 32 %
+[1A[KSampling... 10 / 25 [ ] 35 %
+[1A[KSampling... 11 / 25 [ ] 39 %
+[1A[KSampling... 12 / 25 [ ] 43 %
+[1A[KSampling... 13 / 25 [ ] 47 %
+[1A[KSampling... 14 / 25 [█] 51 %
+[1A[KSampling... 15 / 25 [█] 54 %
+[1A[KSampling... 16 / 25 [█] 58 %
+[1A[KSampling... 17 / 25 [█] 62 %
+[1A[KSampling... 18 / 25 [█] 66 %
+[1A[KSampling... 19 / 25 [█] 70 %
+[1A[KSampling... 20 / 25 [█] 74 %
+[1A[KSampling... 21 / 25 [█] 77 %
+[1A[KSampling... 22 / 25 [█] 81 %
+[1A[KSampling... 23 / 25 [█] 85 %
+[1A[KSampling... 24 / 25 [█] 89 %
+[1A[KSampling... 25 / 25 [█] 93 %
+[1A[KFinishing... [█] 96 %
+[1A[KFinishing... [█] 100%
+[1A[KGenerated [█] 100%
+Wrote: /Users/fixture/private/FIXTURE PRIVATE RENDER.mp4
+Generation timing:
+  Total generation time (including model loading): 773.16 s
+  Sampling step time (25 step(s)): avg 27.75 s, median 26.79 s

@@ -47,6 +47,9 @@ export const ioregArgv = (): Argv => ({ file: EXEC_PATHS.ioreg, args: ['-r', '-d
 export const notifyutilArgv = (): Argv => ({ file: EXEC_PATHS.notifyutil, args: ['-g', 'com.apple.system.thermalpressurelevel'], timeoutMs: 1_500, maxBytes: 4 * 1024 });
 export const lsofListenArgv = (port: number): Argv | null => loopbackPort(port) === null ? null
   : { file: EXEC_PATHS.lsof, args: ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], timeoutMs: 1_500, maxBytes: 4 * 1024 };
+/** Running Draw Things CLI renders and the file each one writes its output to (`p<pid>`, `f1`, `n<path>` lines). */
+export const DRAW_THINGS_COMMAND = 'draw-things-cli';
+export const lsofDrawThingsArgv = (): Argv => ({ file: EXEC_PATHS.lsof, args: ['-w', '-a', '-c', DRAW_THINGS_COMMAND, '-d', '1', '-Fpn'], timeoutMs: 1_500, maxBytes: 16 * 1024 });
 /** Exact bytes (`-f bytes`): the formatted form rounds to whole GB. `--noCategories` skips the category table. */
 export const footprintArgv = (pid: number): Argv | null => processId(pid) === null ? null
   : { file: EXEC_PATHS.footprint, args: ['--noCategories', '-f', 'bytes', '-p', String(pid)], timeoutMs: 3_000, maxBytes: 64 * 1024 };
@@ -99,7 +102,7 @@ export const allowed = (argv: Argv, home: string): boolean => {
     case EXEC_PATHS.sysctl: return same(argv, sysctlArgv());
     case EXEC_PATHS.ioreg: return same(argv, ioregArgv());
     case EXEC_PATHS.notifyutil: return same(argv, notifyutilArgv());
-    case EXEC_PATHS.lsof: return same(argv, lsofListenArgv(decimal(/^-iTCP:(\d+)$/.exec(args[1] ?? '')?.[1])));
+    case EXEC_PATHS.lsof: return same(argv, lsofDrawThingsArgv()) || same(argv, lsofListenArgv(decimal(/^-iTCP:(\d+)$/.exec(args[1] ?? '')?.[1])));
     case EXEC_PATHS.footprint: return same(argv, footprintArgv(decimal(args.at(-1))));
   }
   if ((MACMON_PATHS as readonly string[]).includes(file)) return same(argv, macmonArgv(file));
