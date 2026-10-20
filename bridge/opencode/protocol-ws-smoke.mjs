@@ -21,7 +21,7 @@ const remote = true;
 const remoteBase = 'http://scope-protocol-fixture.invalid/v1';
 const remoteWS = 'ws://scope-protocol-fixture.invalid/v1';
 const profile = profileFor(execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim().replace(/^opencode v/, ''));
-assert.ok(profile, 'This OpenCode version is outside the accepted 2.0 line (2.0.25 or later).');
+assert.ok(profile, 'This OpenCode version is outside the accepted OpenCode lines (2.0.25 or 2.1.1 or later).');
 const bridge = dirname(fileURLToPath(import.meta.url));
 const companionFiles = ['index.js', 'demand.js', 'chat.js', 'chat-store.js', 'store.js', 'stream.js', 'compatibility.js', 'package.json'];
 const hashes = async () => Object.fromEntries(await Promise.all(companionFiles.map(async name => [name, createHash('sha256').update(await readFile(join(bridge, name))).digest('hex')])));
