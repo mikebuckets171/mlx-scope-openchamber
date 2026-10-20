@@ -45,7 +45,7 @@ export interface MediaJobV1 {
   /** Allowlisted explanation, never backend error strings or prompts. */
   message?: string;
 }
-export const MEDIA_SOURCE_KINDS = ['comfyui', 'local-video', 'qwen-image', 'feed', 'phosphene'] as const;
+export const MEDIA_SOURCE_KINDS = ['comfyui', 'local-video', 'qwen-image', 'feed', 'phosphene', 'draw-things'] as const;
 export type MediaSourceKind = typeof MEDIA_SOURCE_KINDS[number];
 export interface MediaSourceV1 {
   id: string;

@@ -106,6 +106,8 @@ The ComfyUI helper is optional, initially qualified for 0.38.0, and loads throug
 
 Media records exclude prompts, references, file paths, credentials and raw error messages. Phosphene is observe-only:
 Scope sends it only `GET /version` (to recognize it) and `GET /status`, reads at most 1 MB, and has no route that changes
-a Phosphene job. Private feed files must be owner-only regular files, bounded and expiring. Job ownership is accepted only from explicit source metadata. Hashes are matching identifiers, not anonymization.
+a Phosphene job. Draw Things is observe-only too: Scope runs one fixed `lsof` argv (`-w -a -c draw-things-cli -d 1 -Fpn`,
+the already approved binary) to find running renders and reads at most the last 64 KB of each render's output file; it
+never runs the tool. Private feed files must be owner-only regular files, bounded and expiring. Job ownership is accepted only from explicit source metadata. Hashes are matching identifiers, not anonymization.
 
 Cancellation rechecks the observed job and the adapter's qualified exact-job capability. ComfyUI uses its job-ID API, Qwen maps its job ID to the existing request cancellation event, and local-video uses its allowlisted job-ID command. No global interrupt, broad process kill, generation retry or arbitrary feed-supplied cancellation URL is permitted. The UI remains Cancelling until acknowledgement is observed.

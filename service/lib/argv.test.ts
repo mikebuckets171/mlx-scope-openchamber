@@ -3,13 +3,13 @@ import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { PassThrough } from 'node:stream';
 import { Glob } from 'bun';
-import { allowed, createExec, createStreamSpawn, EXEC_PATHS, footprintArgv, ioregArgv, LMS_HOME_PATHS, lmsArgv, lsofListenArgv,
+import { allowed, createExec, createStreamSpawn, EXEC_PATHS, footprintArgv, ioregArgv, LMS_HOME_PATHS, lmsArgv, lsofDrawThingsArgv, lsofListenArgv,
   MACMON_PATHS, macmonArgv, notifyutilArgv, sysctlArgv, vmStatArgv, type Argv, type StreamChild } from './argv.ts';
 
 const HOME = '/Users/someone';
 const INFO = `${HOME}/.lmstudio/.internal/http-server.json`;
 const LMS = `${HOME}/.lmstudio/bin/lms`;
-const every = (): Argv[] => [vmStatArgv(), sysctlArgv(), ioregArgv(), notifyutilArgv(), lsofListenArgv(8001)!, lsofListenArgv(1)!,
+const every = (): Argv[] => [vmStatArgv(), sysctlArgv(), ioregArgv(), notifyutilArgv(), lsofDrawThingsArgv(), lsofListenArgv(8001)!, lsofListenArgv(1)!,
   lsofListenArgv(65_535)!, footprintArgv(4242)!, footprintArgv(2)!, ...MACMON_PATHS.map(path => macmonArgv(path)!),
   ...LMS_HOME_PATHS.flatMap(relative => (['ps', 'runtime-ls', 'log-stream'] as const).map(command => lmsArgv(`${HOME}/${relative}`, command, 41_343, INFO)!))];
 
@@ -139,4 +139,13 @@ test('every spawn in the service goes through the argv allowlist', () => {
   expect(graph.has('host/sampler.ts')).toBe(true);
   expect(graph.has('mac-memory.ts')).toBe(false);
   expect(graph.has('system.ts')).toBe(false);
+});
+
+test('Draw Things renders are found with one exact lsof argv; any other process name, descriptor or field is refused', () => {
+  const argv = lsofDrawThingsArgv();
+  expect(argv).toEqual({ file: '/usr/sbin/lsof', args: ['-w', '-a', '-c', 'draw-things-cli', '-d', '1', '-Fpn'], timeoutMs: 1_500, maxBytes: 16_384 });
+  expect(allowed(argv, HOME)).toBe(true);
+  for (const args of [['-w', '-a', '-c', 'node', '-d', '1', '-Fpn'], ['-w', '-a', '-c', 'draw-things-cli', '-d', '0-9', '-Fpn'],
+    ['-w', '-a', '-c', 'draw-things-cli', '-d', '1', '-Fpcn'], ['-a', '-c', 'draw-things-cli', '-d', '1', '-Fpn']]) expect(allowed({ ...argv, args }, HOME), args.join(' ')).toBe(false);
+  expect(allowed({ ...argv, maxBytes: 1 << 20 }, HOME)).toBe(false);
 });

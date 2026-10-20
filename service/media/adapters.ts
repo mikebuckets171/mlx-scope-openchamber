@@ -6,6 +6,8 @@ import { requestJSON, type FetchImplementation } from '../http.ts';
 import type { MediaSourceConfig } from './discovery.ts';
 import { directoryExists, directoryStamp, jsonFiles, readBounded } from './files.ts';
 import { phosphene } from './phosphene.ts';
+import { drawThings } from './draw-things.ts';
+import type { Exec } from '../lib/argv.ts';
 
 export interface MediaCollection {
   source: MediaSourceV1; jobs: MediaJobV1[]; correlations?: Map<string, string>;
@@ -24,7 +26,7 @@ export interface MediaCollection {
   staleMs?: number;
 }
 export interface VideoHistory { stamp: string; until: number; jobs: MediaJobV1[]; active: Set<string> }
-export interface MediaAdapterOptions { now: () => number; fetchImpl: FetchImplementation; cancelLocalVideo?: (id: string) => Promise<boolean>; localVideoDirectory?: string; videoHistory?: Map<string, VideoHistory> }
+export interface MediaAdapterOptions { now: () => number; fetchImpl: FetchImplementation; cancelLocalVideo?: (id: string) => Promise<boolean>; localVideoDirectory?: string; videoHistory?: Map<string, VideoHistory>; exec?: Exec }
 const STALE_MS = 15_000;
 const RETENTION_MS = 86_400_000;
 export const timestamp = (raw: unknown): number | undefined => {
@@ -208,7 +210,7 @@ export const localFeed = async (config: MediaSourceConfig, options: MediaAdapter
 };
 
 export const collectMedia = (config: MediaSourceConfig, options: MediaAdapterOptions): Promise<MediaCollection> =>
-  config.kind === 'phosphene' ? phosphene(config, options) : config.kind === 'comfyui' ? comfyUI(config, options) : config.kind === 'local-video' ? localVideo(config, options) : config.kind === 'qwen-image' ? qwenImage(config, options) : localFeed(config, options);
+  config.kind === 'phosphene' ? phosphene(config, options) : config.kind === 'draw-things' ? drawThings(config, options) : config.kind === 'comfyui' ? comfyUI(config, options) : config.kind === 'local-video' ? localVideo(config, options) : config.kind === 'qwen-image' ? qwenImage(config, options) : localFeed(config, options);
 
 export const cancelMedia = async (config: MediaSourceConfig, id: string, options: MediaAdapterOptions): Promise<boolean> => {
   if (config.kind === 'local-video') return config.directory === options.localVideoDirectory && await options.cancelLocalVideo?.(id) || false;

@@ -30,7 +30,7 @@ const client = new RuntimeClient({ exec });
 const host = new HostSampler({ exec, now: Date.now, home });
 const chat = new ChatTelemetry(home);
 const companionSetup = createCompanionSetup({ home, bundleDirectory: resolve(dirname(fileURLToPath(import.meta.url)), '../bridge/opencode'), probe: () => chat.probe() });
-const media = new MediaService({ home, env: process.env, cancelLocalVideo: async id => {
+const media = new MediaService({ home, env: process.env, exec, cancelLocalVideo: async id => {
   const argv = localVideoCancelArgv(id, home); if (!argv) return false;
   const text = await exec(argv); if (!text) return false;
   try { const result = JSON.parse(text); return result?.ok === true && result?.id === id && ['cancelling', 'cancelled'].includes(result?.state); } catch { return false; }

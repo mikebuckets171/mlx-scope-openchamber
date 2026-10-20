@@ -1,3 +1,4 @@
+import { readdir, stat } from 'node:fs/promises';
 import { join, isAbsolute } from 'node:path';
 import { parse, type ParseError } from 'jsonc-parser/lib/esm/main.js';
 import { chatKey } from '../../src/contract/chat-key.ts';
@@ -34,7 +35,7 @@ export class MediaDiscovery {
   private cached: MediaSourceConfig[] = [];
   private until = 0;
   private flight: Promise<MediaSourceConfig[]> | null = null;
-  constructor(private options: { home: string; fetchImpl?: FetchImplementation; now?: () => number; env?: NodeJS.ProcessEnv }) {}
+  constructor(private options: { home: string; fetchImpl?: FetchImplementation; now?: () => number; env?: NodeJS.ProcessEnv; drawThings?: boolean }) {}
   invalidate(enabled?: boolean): void { this.until = 0; if (enabled !== undefined) this.enabled = enabled; }
   configurations(): Promise<MediaSourceConfig[]> {
     const now = this.options.now?.() ?? Date.now();
@@ -55,8 +56,8 @@ export class MediaDiscovery {
         if (!source || !id || !MEDIA_SOURCE_KINDS.includes(kind as MediaSourceV1['kind'])) continue;
         const origin = localOrigin(source.origin), directory = absolute(source.directory);
         if (source.enabled === false) { disabled.add(id); if (origin) disabledOrigins.add(origin); if (directory) disabledDirectories.add(directory); continue; }
-        if ((kind === 'comfyui' || kind === 'qwen-image' || kind === 'phosphene') && !origin || (kind === 'feed' || kind === 'local-video') && !directory) continue;
-        sources.push({ id, kind: kind as MediaSourceV1['kind'], label: label(source.label, 80) ?? (kind === 'comfyui' ? 'ComfyUI' : kind === 'local-video' ? 'Local video' : kind === 'qwen-image' ? 'Qwen image' : kind === 'phosphene' ? 'Phosphene' : 'Media feed'),
+        if ((kind === 'comfyui' || kind === 'qwen-image' || kind === 'phosphene') && !origin || kind === 'draw-things' && !this.options.drawThings || (kind === 'feed' || kind === 'local-video') && !directory) continue;
+        sources.push({ id, kind: kind as MediaSourceV1['kind'], label: label(source.label, 80) ?? (kind === 'comfyui' ? 'ComfyUI' : kind === 'local-video' ? 'Local video' : kind === 'qwen-image' ? 'Qwen image' : kind === 'phosphene' ? 'Phosphene' : kind === 'draw-things' ? 'Draw Things' : 'Media feed'),
           ...origin ? { origin } : {}, ...directory ? { directory } : {}, installationPath: absolute(source.installationPath), tokenPath: absolute(source.tokenPath), helperTokenPath: absolute(source.helperTokenPath) });
       }
     }
@@ -80,10 +81,28 @@ export class MediaDiscovery {
       const origin = PHOSPHENE_ORIGIN, version = await phospheneVersion(origin, this.options.fetchImpl ?? fetch);
       if (version) add({ id: 'phosphene', kind: 'phosphene', label: 'Phosphene', origin, version });
     }
+    if (this.options.drawThings && !disabled.has('draw-things') && !sources.some(source => source.kind === 'draw-things') && await drawThingsInstalled(home)) {
+      add({ id: 'draw-things', kind: 'draw-things', label: 'Draw Things' });
+    }
     return sources;
   }
 }
 
+/**
+ * Draw Things' command-line tool is installed: a Homebrew package folder, or a build unpacked under ~/Applications.
+ * Presence only; Scope never runs the tool, so no executable path is named here.
+ */
+export const DRAW_THINGS_PACKAGES = ['/opt/homebrew/Cellar/draw-things-cli', '/usr/local/Cellar/draw-things-cli'] as const;
+export const drawThingsInstalled = async (home: string, packages: readonly string[] = DRAW_THINGS_PACKAGES): Promise<boolean> => {
+  for (const directory of packages) if (await directoryExists(directory)) return true;
+  try {
+    for (const entry of (await readdir(join(home, 'Applications'), { withFileTypes: true })).slice(0, 256)) {
+      if (entry.isDirectory() && /^draw-things-cli/.test(entry.name) && await regularFile(join(home, 'Applications', entry.name, 'draw-things-cli'))) return true;
+    }
+  } catch { /* no ~/Applications */ }
+  return false;
+};
+const regularFile = async (file: string): Promise<boolean> => { try { return (await stat(file)).isFile(); } catch { return false; } };
 /** Phosphene's default address; a `phosphene` entry in media.json names another local origin. */
 export const PHOSPHENE_ORIGIN = 'http://127.0.0.1:8198';
 /** A passive probe: Phosphene's `/version` names its release. Anything else on the port is not Phosphene. */
