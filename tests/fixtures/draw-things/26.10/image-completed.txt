@@ -1,0 +1,21 @@
+Backend: local
+Models directory: /Users/fixture/private/Models
+
+[1A[KStarting... [ ] 0  %
+[1A[KProcessing... [ ] 3  %
+[1A[KProcessing... [ ] 8  %
+[1A[KSampling... 1 / 8 [ ] 3  %
+[1A[KSampling... 2 / 8 [ ] 14 %
+[1A[KSampling... 3 / 8 [ ] 25 %
+[1A[KSampling... 4 / 8 [ ] 36 %
+[1A[KSampling... 5 / 8 [ ] 46 %
+[1A[KSampling... 6 / 8 [█] 57 %
+[1A[KSampling... 7 / 8 [█] 68 %
+[1A[KSampling... 8 / 8 [█] 79 %
+[1A[KFinishing... [█] 90 %
+[1A[KFinishing... [█] 100%
+[1A[KGenerated [█] 100%
+Wrote: /Users/fixture/private/FIXTURE PRIVATE RENDER.png
+Generation timing:
+  Total generation time (including model loading): 32.04 s
+  Sampling step time (8 step(s)): avg 2.93 s, median 2.69 s

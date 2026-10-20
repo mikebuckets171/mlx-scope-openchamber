@@ -15,9 +15,9 @@ let sources = 0;
 const config = (): MediaSourceConfig => ({ id: `draw-things-${++sources}`, kind: 'draw-things', label: 'Draw Things' });
 
 test('the real logs give their phase, step counters, sampling passes and whether the render finished', async () => {
-  expect(parseDrawThingsLog(await fixture('video-completed.log'))).toEqual({ phase: 'finishing', step: null, total: null, passes: 1, generated: true, kind: 'video' });
-  expect(parseDrawThingsLog(await fixture('image-completed.log'))).toMatchObject({ generated: true, kind: 'image', passes: 1 });
-  expect(parseDrawThingsLog(await fixture('image-stopped.log'))).toEqual({ phase: 'sampling', step: 32, total: 40, passes: 1, generated: false, kind: 'unknown' });
+  expect(parseDrawThingsLog(await fixture('video-completed.txt'))).toEqual({ phase: 'finishing', step: null, total: null, passes: 1, generated: true, kind: 'video' });
+  expect(parseDrawThingsLog(await fixture('image-completed.txt'))).toMatchObject({ generated: true, kind: 'image', passes: 1 });
+  expect(parseDrawThingsLog(await fixture('image-stopped.txt'))).toEqual({ phase: 'sampling', step: 32, total: 40, passes: 1, generated: false, kind: 'unknown' });
   // A counter that starts again is a new sampling pass, so a phase-local estimate is never stitched across them.
   expect(parseDrawThingsLog('Sampling... 8 / 8\rSampling... 1 / 4\rSampling... 2 / 4\r')).toMatchObject({ step: 2, total: 4, passes: 2 });
   expect(parseDrawThingsLog('Backend: local\nModels directory: /x\n')).toBeNull();
@@ -33,9 +33,9 @@ test('lsof output yields each render with the absolute file its output goes to; 
 test('a watched render shows its live step counter dated by its log, then ends completed or unfinished, keeping nothing private', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'scope-draw-things-')), log = join(dir, 'render.log'), stopped = join(dir, 'stopped.log');
   try {
-    const full = await fixture('video-completed.log'), partial = full.slice(0, full.indexOf('Sampling... 9 / 25'));
+    const full = await fixture('video-completed.txt'), partial = full.slice(0, full.indexOf('Sampling... 9 / 25'));
     await writeFile(log, partial); await utimes(log, 1_000, 1_000);
-    await writeFile(stopped, await fixture('image-stopped.log'));
+    await writeFile(stopped, await fixture('image-stopped.txt'));
     let now = 1_100_000, listed = `p4242\nf1\nn${log}\np4343\nf1\nn${stopped}\n`;
     const calls: Argv[] = [], source = config();
     const exec = async (argv: Argv) => { calls.push(argv); return listed; };

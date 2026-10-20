@@ -1,0 +1,38 @@
+Backend: local
+Models directory: /Users/fixture/private/Models
+
+[1A[KStarting... [ ] 0  %
+[1A[KProcessing... [ ] 1  %
+[1A[KProcessing... [ ] 2  %
+[1A[KSampling... 1 / 40 [ ] 1  %
+[1A[KSampling... 2 / 40 [ ] 3  %
+[1A[KSampling... 3 / 40 [ ] 6  %
+[1A[KSampling... 4 / 40 [ ] 8  %
+[1A[KSampling... 5 / 40 [ ] 10 %
+[1A[KSampling... 6 / 40 [ ] 13 %
+[1A[KSampling... 7 / 40 [ ] 15 %
+[1A[KSampling... 8 / 40 [ ] 18 %
+[1A[KSampling... 9 / 40 [ ] 20 %
+[1A[KSampling... 10 / 40 [ ] 23 %
+[1A[KSampling... 11 / 40 [ ] 25 %
+[1A[KSampling... 12 / 40 [ ] 27 %
+[1A[KSampling... 13 / 40 [ ] 30 %
+[1A[KSampling... 14 / 40 [ ] 32 %
+[1A[KSampling... 15 / 40 [ ] 35 %
+[1A[KSampling... 16 / 40 [ ] 37 %
+[1A[KSampling... 17 / 40 [ ] 39 %
+[1A[KSampling... 18 / 40 [ ] 42 %
+[1A[KSampling... 19 / 40 [ ] 44 %
+[1A[KSampling... 20 / 40 [ ] 47 %
+[1A[KSampling... 21 / 40 [ ] 49 %
+[1A[KSampling... 22 / 40 [█] 52 %
+[1A[KSampling... 23 / 40 [█] 54 %
+[1A[KSampling... 24 / 40 [█] 56 %
+[1A[KSampling... 25 / 40 [█] 59 %
+[1A[KSampling... 26 / 40 [█] 61 %
+[1A[KSampling... 27 / 40 [█] 64 %
+[1A[KSampling... 28 / 40 [█] 66 %
+[1A[KSampling... 29 / 40 [█] 69 %
+[1A[KSampling... 30 / 40 [█] 71 %
+[1A[KSampling... 31 / 40 [█] 73 %
+[1A[KSampling... 32 / 40 [█] 76 %
