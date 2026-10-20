@@ -15,8 +15,8 @@ import type { MediaSourceConfig } from './discovery.ts';
 // settings, paths and outputs never leave it. Observe-only: Scope cannot start, stop or change a render. Renders started
 // inside the Draw Things app, or whose output goes to a terminal, are not visible.
 
-/** Reads while a render runs, and while none is seen. */
-export const DRAW_THINGS_READ_MS = { active: 15_000, idle: 30_000 } as const;
+/** Reads while a render runs, and while none is seen; each lsof costs about 56 ms of CPU on a busy Mac. */
+export const DRAW_THINGS_READ_MS = { active: 15_000, idle: 60_000 } as const;
 export const DRAW_THINGS_STALE_MS = 37_500;
 const TAIL_BYTES = 64 * 1024, TERMINAL_LIMIT = 8, RETENTION_MS = 86_400_000;
 const PHASES: Readonly<Record<string, MediaPhase>> = { Starting: 'preparing', Processing: 'preparing', Sampling: 'sampling', Finishing: 'finishing', Generated: 'finishing' };
