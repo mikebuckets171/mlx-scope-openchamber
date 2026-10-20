@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.1.1
+
+- **Draw Things in Media.** Renders from Draw Things' command-line tool (`draw-things-cli`) appear with their phase (preparing, sampling with its step count, finishing) and how long they have run, then completed or ended before finishing. No setup: Scope finds a running render with the `lsof` it may already run and reads the end of the file the render writes its progress to, as render scripts redirect it. Observe-only; prompts, settings, paths and outputs are never kept. Draw Things reports no time left, so Scope shows none. Renders inside the Draw Things app are not visible: its servers report progress only to the client that started the render.
+- Permissions are unchanged; the update needs no new approval.
+
+Before publication on macOS: type checking, the privacy scan, 1,854 Bun tests, 79 companion tests, 15 helper tests, reproducible bundles and package verification passed, as did all 628 Chromium and WebKit browser cases and the 21 presentation goldens. The adapter's tests use the tool's own output from finished renders (paths replaced). A render running on this Mac was read live through the adapter: sampling, step 16 of 25, with its start time, read correctly; the full Media view in OpenChamber was not checked. Each `lsof` look costs about 56 ms of CPU, so while a view showing Media is open Scope looks once a minute when no render runs (about 0.09 % of one core) and every 15 s while one does. The service overhead receipt from 5.1.0 still describes everything outside media; it was not re-run.
+
 ## 5.1.0
 
 - **Chat speed and Splash prompt progress work on OpenChamber 2.4 and keep working across OpenCode patches.** OpenCode 2.0.32 (bundled with OpenChamber 2.4.0) is qualified natively. Later 2.0 releases are **self-checked**: the companion confirms every hook and event shape it relies on and pauses only the feature whose check fails, naming the reason in Connections. 2.1 and later stay off until qualified. Choose **Connections → Update chat speed** once to load companion 3.4.0; later OpenCode 2.0 updates need no Scope action.

@@ -369,6 +369,12 @@ answer). Its LTX and H3 step counters, H3 window number and its own time-left es
 labelled **app estimate**. This was verified read-only against an installed Phosphene 4.19.5 at rest; the running-job
 shapes come from its 4.19.5 source and fixtures, not from a captured render.
 
+Draw Things' command-line tool 26.10 (`draw-things-cli`, Homebrew 26.0928.0 and the 26.1011.0 build) is read from the
+progress it prints (`Starting`, `Processing`, `Sampling… N / M`, `Finishing`, `Generated`, `Wrote:`), found with the
+allowlisted `lsof`. Fixtures are its own redirected output from finished renders; a running render was read live
+through the adapter. The Draw Things app's own HTTP and gRPC servers report progress only to the client that started a
+render, so app renders are not monitored.
+
 ### Media monitoring in 3.1
 
 ComfyUI basic monitoring uses existing lifecycle APIs. Detailed node-local progress is initially qualified for ComfyUI 0.38.0 with Scope’s optional helper. Other versions keep basic monitoring; unknown nodes use indeterminate progress or generic units. Cancellation is enabled only on a qualified job-scoped API.
