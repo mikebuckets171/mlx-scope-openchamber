@@ -14,10 +14,10 @@ a new compaction check: the auxiliary compaction request published no chat measu
 `metadata.keepID`, `session.context` materialized `metadata.recent`, and the resumed step completed on reported output.
 No real model, inference or cloud account was involved.
 [Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/companion-3.5.0.json).
-Browser cases, goldens and the 5.1.0 overhead fixture were not re-run for this release: the panel's rendered output is
-unchanged, and the CPU fixture measured work this release does not change. The first run of the new compaction check
-failed at the resumed step because the harness let its own demand file expire, not because of OpenCode 2.1; the check
-now renews demand while it waits.
+All 628 Chromium and WebKit browser cases passed locally. Goldens and the 5.1.0 overhead fixture were not re-run: the
+panel's rendered output is unchanged, and the CPU fixture measured work this release does not change. The first run of
+the new compaction check failed at the resumed step because the harness let its own demand file expire, not because of
+OpenCode 2.1; the check now renews demand while it waits.
 
 ## 5.1.1
 
