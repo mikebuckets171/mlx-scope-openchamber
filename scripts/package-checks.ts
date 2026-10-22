@@ -1,10 +1,9 @@
 // Pure checks behind scripts/verify-package.ts (plan §6 and §8.1), unit-tested in package-checks.test.ts.
 
-/** Approved runtime probes plus the optional, exact job-scoped local-video cancellation command. */
+/** Approved runtime probes only. */
 export const EXEC_G1 = [
   '/usr/bin/vm_stat', '/usr/sbin/sysctl', '/usr/sbin/ioreg', '/usr/bin/notifyutil', '/usr/sbin/lsof', '/usr/bin/footprint',
   '~/.lmstudio/bin/lms', '~/.cache/lm-studio/bin/lms', '/opt/homebrew/bin/macmon', '/usr/local/bin/macmon',
-  '~/.config/opencode/bin/local-video',
 ] as const;
 /** Bytes, 1 KB = 1,000 (the stricter reading of plan §6). */
 // The theme-native layout and Session widget allow 2 KB above the original 2.0 view budget; probes stay unchanged.

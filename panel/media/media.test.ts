@@ -3,7 +3,7 @@ import type { HostClient } from '@openchamber/sdk';
 import { chatKey } from '../../src/contract/chat-key.ts';
 import type { MediaJobV1, MediaSnapshotV1 } from '../../src/contract/media.ts';
 import { MediaController } from './controller.ts';
-import { mediaFinish, mediaJobView, orderedMediaJobs, jobOwnership } from './present.ts';
+import { mediaJobView, orderedMediaJobs, jobOwnership } from './present.ts';
 import { mediaMarkup, mediaGlanceMarkup } from './view.ts';
 import { mediaSetupMarkup } from './setup.ts';
 
@@ -83,48 +83,16 @@ test('indeterminate rings are still and empty; a confirmed cancellation drains t
 });
 const NOW = Date.UTC(2026, 9, 10, 21, 40, 15), CLOCK = new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
 const at = (change: Partial<MediaJobV1>): MediaJobV1 => job({ sampledAtMs: NOW, observedAtMs: NOW - 1_000, progressAtMs: NOW - 2_000, startedAtMs: NOW - 120_000, ...change });
-test('a live estimate is clock time rounded up to the minute, "any moment" inside a minute, and omitted once overdue', () => {
-  const finish = (etaAtMs: number, now = NOW) => mediaFinish(at({ etaAtMs, etaBasis: 'measured-window' }), now, false, false, CLOCK);
-  expect(finish(NOW + 310_000)).toEqual({ text: 'finishes around 21:46', basis: 'live' }); // 21:45:25 rounds up
-  expect(finish(Date.UTC(2026, 9, 10, 21, 45, 0))?.text).toBe('finishes around 21:45'); // already a whole minute
-  expect(finish(Date.UTC(2026, 9, 10, 21, 45, 0, 1))?.text).toBe('finishes around 21:46');
-  expect(finish(NOW + 60_000)?.text).toBe('finishes around 21:42');
-  expect(finish(NOW + 59_999)?.text).toBe('finishes any moment');
-  expect(finish(NOW - 60_000)?.text).toBe('finishes any moment');
-  expect(finish(NOW - 60_001)).toBeNull();
-  // Presenters are pure: the same estimate reads differently only because `now` moved.
-  expect(finish(NOW + 310_000, NOW + 300_000)?.text).toBe('finishes any moment');
-});
-test('held, measured and absent finish times', () => {
-  const held = at({ freshness: 'stale', progress: null, lastProgress: job().progress, lastProgressAtMs: NOW - 30_000, lastEtaAtMs: NOW + 200_000, etaBasis: 'measured-window', cancel: { supported: false } });
-  expect(mediaFinish(held, NOW, false, false, CLOCK)).toEqual({ text: 'last estimate · around 21:44', basis: 'held' });
-  expect(mediaFinish({ ...held, lastEtaAtMs: NOW - 600_000 }, NOW, false, false, CLOCK)?.text).toBe('last estimate · around 21:31');
-  // A lost Scope response holds the last live estimate rather than presenting it as live.
-  expect(mediaFinish(at({ etaAtMs: NOW + 200_000, etaBasis: 'measured-window' }), NOW, true, false, CLOCK)).toEqual({ text: 'last estimate · around 21:44', basis: 'held' });
-  const finished = at({ state: 'completed', phase: 'completed', freshness: 'last', progress: null, finishedAtMs: Date.UTC(2026, 9, 10, 21, 38, 40) });
-  expect(mediaFinish(finished, NOW, false, false, CLOCK)).toEqual({ text: 'finished 21:38', basis: 'measured' });
-  expect(mediaFinish(finished, NOW, true, false, CLOCK)?.text).toBe('finished 21:38');
-  for (const absent of [at({}), at({ etaAtMs: NOW + 200_000, etaBasis: 'measured-window', progress: null }), { ...held, lastEtaAtMs: undefined },
-    at({ state: 'completed', phase: 'completed', freshness: 'last', progress: null }), at({ state: 'failed', phase: 'failed', freshness: 'last', progress: null, finishedAtMs: NOW }),
-    at({ state: 'cancelled', phase: 'cancelled', freshness: 'last', progress: null, finishedAtMs: NOW }), at({ state: 'cancelling', progress: null, etaAtMs: NOW + 200_000 }),
-    at({ state: 'queued', phase: 'queued', progress: null }), at({ state: 'waiting', phase: 'waiting', progress: null })])
-    expect(mediaFinish(absent, NOW, false, false, CLOCK)).toBeNull();
-  expect(mediaFinish(at({ etaAtMs: NOW + 200_000, etaBasis: 'measured-window' }), NOW, false, true, CLOCK)).toBeNull(); // cancellation withdraws it
-  expect(mediaJobView(at({ etaAtMs: NOW + 310_000, etaBasis: 'measured-window' }), NOW, false, false, CLOCK).finish?.text).toBe('finishes around 21:46');
-});
-test('finish lines render under the job detail; the glance adds only a live estimate', () => {
-  const live = at({ etaAtMs: NOW + 310_000, etaBasis: 'measured-window' });
-  const card = mediaMarkup(model([live]), null, NOW).markup;
-  expect(card).toMatch(/<p class="media-timing">[^<]+ elapsed<\/p><p class="media-finish" data-basis="live">finishes around [^<]+<\/p><\/div>/);
+test('only the measured finish time appears, and never an estimate', () => {
+  const done = at({ state: 'completed', phase: 'completed', freshness: 'last', progress: null, finishedAtMs: Date.UTC(2026, 9, 10, 21, 38, 40) });
+  expect(mediaJobView(done, NOW, false, false, CLOCK).finish).toBe('Finished 21:38');
+  const card = mediaMarkup(model([done]), null, NOW).markup;
+  expect(card).toMatch(/<p class="media-finish">Finished [^<]+<\/p>/);
   const glance = (value: MediaJobV1) => { const out = mediaGlanceMarkup(model([value]), null, NOW, true); return typeof out === 'string' ? out : out.markup; };
-  expect(glance(live)).toMatch(/<span class="media-glance-finish">finishes around [^<]+<\/span>/);
-  const held = at({ freshness: 'stale', progress: null, lastProgress: job().progress, lastProgressAtMs: NOW - 30_000, lastEtaAtMs: NOW + 200_000, etaBasis: 'measured-window', cancel: { supported: false } });
-  expect(mediaMarkup(model([held]), null, NOW).markup).toMatch(/<p class="media-finish" data-basis="held">last estimate · around [^<]+<\/p>/);
-  expect(glance(held)).not.toContain('estimate'); expect(glance(held)).not.toContain('finishes');
-  const done = mediaMarkup(model([at({ state: 'completed', phase: 'completed', freshness: 'last', progress: null, finishedAtMs: NOW - 90_000 })]), null, NOW).markup;
-  expect(done).toMatch(/<p class="media-finish" data-basis="measured">finished [^<]+<\/p>/);
-  for (const absent of [at({}), at({ etaAtMs: NOW - 120_000, etaBasis: 'measured-window' })]) {
-    expect(mediaMarkup(model([absent]), null, NOW).markup).not.toContain('media-finish'); expect(glance(absent)).not.toContain('finish');
+  expect(glance(at({}))).not.toContain('finish');
+  for (const absent of [at({}), at({ state: 'failed', phase: 'failed', freshness: 'last', progress: null, finishedAtMs: NOW })]) {
+    expect(mediaMarkup(model([absent]), null, NOW).markup).not.toContain('media-finish');
+    expect(mediaJobView(absent, NOW, false, false, CLOCK).finish).toBeNull();
   }
 });
 test('percent-only counters appear once visually and stale glance retains job type, time, and update age', () => {
@@ -150,7 +118,7 @@ test('source, job, and helper messages are escaped; enable actions follow verifi
   expect(markup).toContain('activates next time'); expect(markup).not.toContain('data-media-setup="enable"'); expect(markup).toContain('Disable and remove helper');
 });
 test('media setup reserves an action row only when a source offers an action', () => {
-  const source = { id: 'local-video', kind: 'local-video' as const, label: 'Local video', state: 'ready' as const, message: 'Ready',
+  const source = { id: 'draw-things', kind: 'draw-things' as const, label: 'Draw Things', state: 'ready' as const, message: 'Ready',
     canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: '1.0', locations: [] };
   for (const state of ['ready', 'unsupported'] as const) {
     const markup = mediaSetupMarkup({ schemaVersion: 1, sources: [{ ...source, state }] }, false).markup;
@@ -161,7 +129,7 @@ test('media setup reserves an action row only when a source offers an action', (
   for (const change of [{ enabled: false }, { canEnable: true }, { canDisable: true }]) {
     const markup = mediaSetupMarkup({ schemaVersion: 1, sources: [{ ...source, ...change }] }, true).markup;
     expect(markup.match(/class="insight-actions"/g)).toHaveLength(2);
-    expect(markup).toMatch(/data-source="local-video" disabled/);
+    expect(markup).toMatch(/data-source="draw-things" disabled/);
   }
 });
 test('hidden frames perform no reads, and responses from before hiding cannot revive live progress', async () => {

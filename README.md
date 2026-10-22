@@ -181,7 +181,7 @@ back after installing and before opening Scope.
 
 Scope discovers supported existing connections. Native readings start immediately when available. **Connections** shows what is connected and gives one action for additional tracking: **Enable chat speed** or **Enable detailed media progress**. Installation and readiness are separate; a helper waiting for its owning application to start is labelled accordingly. Scope never restarts an application or generates test work.
 
-The column shows chat and engine readings, then **Media** while local image/video jobs are active or recently finished. **History** retains existing observations. In the compact Session section, this chat’s media job comes first, with a count of other jobs. A ring shows the measured progress of the named phase and the percentage is written beside it; an older reading says **Last reported** and stays still. A source that declares its final phase adds a finish time such as **finishes around 9:41 PM**; Phosphene's own estimate reads **finishes around 9:41 PM · app estimate**. Renders from Draw Things' command-line tool appear with their phase and step count, without setup. [Media support and setup](docs/MEDIA.md) explains supported sources and progress units.
+The column shows chat and engine readings, then **Media** while local image/video jobs are active or recently finished. **History** retains existing observations. In the compact Session section, this chat’s media job comes first, with a count of other jobs. A ring shows the measured progress of the named phase and the percentage is written beside it; an older reading says **Last reported** and stays still. A finished job shows the time its source reported, such as **Finished 9:38 PM** — Scope never estimates when a render will end. Renders from Draw Things' command-line tool appear with their phase and step count, without setup. [Media support and setup](docs/MEDIA.md) explains supported sources and progress units.
 
 Use Connections → Advanced only when automatic discovery cannot identify a custom installation. Existing provider credentials stay in their owning configuration. Enterprise deployments may require the administrator to allowlist this repository.
 
@@ -202,7 +202,6 @@ Git updates preserve existing preferences and observations. **Scope 5.1 asks for
 | `~/.cache/lm-studio/bin/lms` | The same three commands | The same, for LM Studio's older install location |
 | `/opt/homebrew/bin/macmon` | `macmon pipe -i 1000` | Optional chip power estimate, only if you installed macmon with Homebrew. Scope never installs it |
 | `/usr/local/bin/macmon` | The same | The same, for a macmon installed under `/usr/local` |
-| `~/.config/opencode/bin/local-video` | `local-video cancel <job-id>` | Only after explicit confirmation to cancel one observed job in the standard local-video queue |
 
 - **Optional host capability:** `sessions` for current-project running/waiting chats and host-reported subagents. It is disabled initially and subscribes only while Live is visible. Scope never sends a prompt through it. Per-chat measurement labels still use the existing open-chat observations.
 - **Never used:** `sudo`, `osascript`, `powermetrics` or `pmset`.

@@ -2,7 +2,7 @@ import { afterEach, expect, test } from 'bun:test';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createScopeServer, unread } from '../server.ts';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MediaSetupError } from './setup.ts';
@@ -14,28 +14,20 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map(server => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); })));
   await Promise.all(homes.splice(0).map(path => rm(path, { recursive: true, force: true })));
 });
-test('a measured finish estimate reaches the panel parser through the media route, and a held one stays historical', async () => {
-  const NOW = 1_791_500_000_000, home = await mkdtemp(join(tmpdir(), 'scope-media-route-')), directory = join(home, 'feed'); homes.push(home); await mkdir(directory);
-  let now = NOW;
-  const publish = async (at: number, value: number): Promise<void> => {
-    const path = join(directory, 'studio.json');
-    await writeFile(path, JSON.stringify({ schemaVersion: 1, observedAtMs: at, expiresAtMs: at + 30_000, jobs: [{ id: 'render-42', kind: 'video', state: 'running', phase: 'sampling',
-      progress: { value, total: 20, unit: 'steps', basis: 'phase' }, progressAtMs: at, ownership: {}, finalPhase: true }] }), { mode: 0o600 });
-    await chmod(path, 0o600);
-  };
-  const service = new MediaService({ home, now: () => now, configurations: async () => [{ id: 'feed', kind: 'feed', label: 'Feed', directory }] });
+test('the media route delivers ComfyUI lifecycle and a measured finish to the panel parser with no estimate fields', async () => {
+  const NOW = 1_791_500_000_000, home = await mkdtemp(join(tmpdir(), 'scope-media-route-')); homes.push(home);
+  let status = 'in_progress', now = NOW;
+  const service = new MediaService({ home, now: () => now, configurations: async () => [{ id: 'comfy', kind: 'comfyui', label: 'ComfyUI', origin: 'http://127.0.0.1:8188', version: '0.38.0' }], fetchImpl: async () => Response.json({ jobs: [{ id: 'render-42', status, ...(status === 'completed' || status === 'failed' ? { execution_end_time: new Date(NOW).toISOString() } : {}) }] }) });
   const server = createScopeServer('secret', { read: async () => unread(1000), media: service });
   servers.push(server); await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const read = async () => {
     const body = await (await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/v2/media`, { headers: { Authorization: 'Bearer secret' } })).text();
     return { body, job: parseMediaSnapshot(JSON.parse(body))?.jobs[0] };
   };
-  await publish(NOW, 4); now = NOW + 1_000; expect((await read()).body).not.toContain('eta');
-  await publish(NOW + 10_000, 8); now = NOW + 11_000;
   let out = await read();
-  expect(out.job).toMatchObject({ etaAtMs: NOW + 40_000, etaBasis: 'measured-window' }); expect(out.body).not.toContain('finalPhase'); expect(out.body).not.toContain('lastEtaAtMs');
-  now = NOW + 26_000; out = await read();
-  expect(out.job).toMatchObject({ freshness: 'stale', lastEtaAtMs: NOW + 40_000, etaBasis: 'measured-window' }); expect(out.job).not.toHaveProperty('etaAtMs');
+  expect(out.job).toMatchObject({ id: 'render-42', state: 'running', freshness: 'live' }); expect(out.body).not.toContain('eta');
+  status = 'completed'; now += 2_000; out = await read();
+  expect(out.job).toMatchObject({ state: 'completed', phase: 'completed', finishedAtMs: NOW, freshness: 'last' }); expect(out.body).not.toContain('finalPhase');
 });
 test('shared media snapshots encode once across views and a new collection replaces the wire body', async () => {
   let encoded = 0;

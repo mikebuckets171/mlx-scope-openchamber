@@ -33,7 +33,7 @@ describe('the Next manifest with the approved awareness grants', () => {
       'contributes.statusSection must be {"entry":"panel/index.html","title":"MLX Scope","height":72}',
       'contributes.background must be absent: 5.1 has no background entry',
       'contributes.commands must be absent: 5.1 has no slash command',
-      'service exec must be exactly the 11 G1 entries, in order',
+      'service exec must be exactly the 10 G1 entries, in order',
     ]);
   });
   test('ships no background entry, and ships the extracted tokens', () => {

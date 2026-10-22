@@ -67,8 +67,7 @@
             "~/.lmstudio/bin/lms",
             "~/.cache/lm-studio/bin/lms",
             "/opt/homebrew/bin/macmon",
-            "/usr/local/bin/macmon",
-            "~/.config/opencode/bin/local-video"
+            "/usr/local/bin/macmon"
           ]
         }
       },

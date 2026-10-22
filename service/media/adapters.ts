@@ -1,32 +1,19 @@
-import { join } from 'node:path';
 import { chatKey } from '../../src/contract/chat-key.ts';
 import { at, obj, label, oneOf, defined } from '../../src/contract/guards.ts';
-import { MEDIA_PHASES, mediaId, mediaTerminal, parseMediaJob, parseMediaProgress, withdrawMediaProgress, type MediaJobV1, type MediaPhase, type MediaSourceV1, type MediaState } from '../../src/contract/media.ts';
+import { MEDIA_PHASES, mediaId, mediaTerminal, parseMediaProgress, type MediaJobV1, type MediaPhase, type MediaSourceV1, type MediaState } from '../../src/contract/media.ts';
 import { requestJSON, type FetchImplementation } from '../http.ts';
 import type { MediaSourceConfig } from './discovery.ts';
-import { directoryExists, directoryStamp, jsonFiles, readBounded } from './files.ts';
-import { phosphene } from './phosphene.ts';
+import { readBounded } from './files.ts';
 import { drawThings } from './draw-things.ts';
 import type { Exec } from '../lib/argv.ts';
 
 export interface MediaCollection {
-  source: MediaSourceV1; jobs: MediaJobV1[]; correlations?: Map<string, string>;
-  /**
-   * Job ids whose current phase the source declares final or dominant, so that phase's end is effectively the job's end.
-   * Internal to the service; it permits a measured finish-time estimate and is never inferred. See docs/MEDIA.md.
-   * ComfyUI graphs, Qwen workflows and local-video shot sequences can each repeat or follow sampling with other
-   * substantial work, so those adapters declare nothing; nor does Phosphene, whose denoising is followed by decoding.
-   * Only a feed producer can declare it, per job and observation.
-   */
-  finalPhase?: Set<string>;
-  /** Finish times (Unix ms) the source application itself reported for its running jobs, shown as its estimate. */
-  reportedEta?: Map<string, number>;
+  source: MediaSourceV1; jobs: MediaJobV1[];
   /** How long this collection is reused, and after how long a job it holds is stale; defaults 1.8 s and 15 s. */
   ttlMs?: number;
   staleMs?: number;
 }
-export interface VideoHistory { stamp: string; until: number; jobs: MediaJobV1[]; active: Set<string> }
-export interface MediaAdapterOptions { now: () => number; fetchImpl: FetchImplementation; cancelLocalVideo?: (id: string) => Promise<boolean>; localVideoDirectory?: string; videoHistory?: Map<string, VideoHistory>; exec?: Exec }
+export interface MediaAdapterOptions { now: () => number; fetchImpl: FetchImplementation; exec?: Exec }
 const STALE_MS = 15_000;
 const RETENTION_MS = 86_400_000;
 export const timestamp = (raw: unknown): number | undefined => {
@@ -39,62 +26,7 @@ const phaseOf = (raw: unknown): MediaPhase => {
   return oneOf(MEDIA_PHASES)(name) ?? ({ denoise: 'sampling', 'vae-decode': 'decoding', encode: 'encoding-references', 'reference-encoding': 'encoding-references', generate: 'sampling', working: 'unknown' } as Record<string, MediaPhase>)[name] ?? 'unknown';
 };
 const sourceOf = (config: MediaSourceConfig): MediaSourceV1 => ({ id: config.id, kind: config.kind, label: config.label, state: 'ready', capabilities: { progress: false, cancel: false } });
-const ownershipOf = (session: unknown): MediaJobV1['ownership'] => typeof session === 'string' && session.length > 0 && session.length <= 512 ? { sessionKey: chatKey('session', session) } : {};
-const progressFrom = (raw: unknown): MediaJobV1['progress'] => {
-  const item = obj(raw);
-  if (!item) return null;
-  return parseMediaProgress({ basis: 'phase', value: item.completed_units ?? item.step ?? item.value, total: item.total_units ?? item.total,
-    unit: item.unit ?? 'units' }) ?? parseMediaProgress({ basis: 'phase', value: item.percent, total: 100, unit: 'percent' });
-};
-const freshJob = (job: MediaJobV1, now: number): MediaJobV1 => {
-  const terminal = mediaTerminal(job.state), fresh = now - job.observedAtMs <= STALE_MS;
-  if (!terminal && !fresh) return withdrawMediaProgress(job, 'stale');
-  return { ...job, freshness: terminal ? 'last' : 'live', progress: job.state === 'running' ? job.progress : null,
-    lastProgress: undefined, lastProgressAtMs: undefined,
-    cancel: { supported: !terminal && fresh && job.cancel.supported } };
-};
 const safePhase = (state: MediaState, phase: unknown): MediaPhase => mediaTerminal(state) ? state as 'completed' | 'failed' | 'cancelled' : state === 'queued' ? 'queued' : state === 'waiting' ? 'waiting' : phaseOf(phase);
-
-export const localVideo = async (config: MediaSourceConfig, options: MediaAdapterOptions): Promise<MediaCollection> => {
-  const now = options.now(), source = sourceOf(config), jobs: MediaJobV1[] = [];
-  if (!await directoryExists(config.directory!)) throw new Error('Queue unavailable');
-  source.capabilities.cancel = !!options.cancelLocalVideo && options.localVideoDirectory === config.directory;
-  const historyKey = `${config.id}\0${config.directory}`, previous = options.videoHistory?.get(historyKey);
-  const stamp = (await Promise.all(['done','failed','cancelled'].map(bucket => directoryStamp(join(config.directory!, bucket))))).join('|');
-  let useHistory = !!previous && previous.stamp === stamp && now < previous.until;
-  for (const bucket of ['running', 'pending', 'done', 'failed', 'cancelled']) {
-    if (bucket === 'done' && previous?.active.size) {
-      const active = new Set(jobs.map(job => job.id));
-      if ([...previous.active].some(id => !active.has(id))) useHistory = false;
-    }
-    if (useHistory && ['done','failed','cancelled'].includes(bucket)) continue;
-    const files = await jsonFiles(join(config.directory!, bucket), 128);
-    for (const name of files.sort().reverse().slice(0, 32)) {
-      const file = await readBounded(join(config.directory!, bucket, name), 256_000);
-      if (!file) continue;
-      let record; try { record = obj(JSON.parse(file.text)); } catch { continue; }
-      const id = mediaId(record?.id);
-      if (!record || !id || name !== `${id}.json`) continue;
-      const state: MediaState = bucket === 'pending' ? 'queued' : bucket === 'done' ? 'completed' : bucket === 'running' ? record.waiting_reason ? 'waiting' : 'running' : bucket as 'failed' | 'cancelled';
-      const progress = obj(record.progress), observed = time(progress?.observed_at, now) ?? Math.min(file.modifiedAtMs, now), finished = time(record.finished_at, now);
-      if (mediaTerminal(state) && now - (finished ?? observed) > RETENTION_MS) continue;
-      const reason = record.waiting_reason;
-      const message = state === 'waiting' ? typeof reason === 'string' && /chat|llm|handoff/i.test(reason) ? 'Waiting for chat handoff' : 'Waiting for the GPU' : state === 'failed' ? 'Generation failed. Check the source application.' : undefined;
-      const job = freshJob(defined({ id, sourceId: config.id, kind: 'video' as const,
-        // Producer names may be prompts; use a stable neutral name and short queue identifier.
-        name: `Video ${id.slice(-8)}`, state, phase: safePhase(state, progress?.phase), progress: progressFrom(progress), sampledAtMs: now, observedAtMs: observed,
-        progressAtMs: time(progress?.observed_at, now), queuedAtMs: time(record.queued_at, now), startedAtMs: time(record.started_at, now), finishedAtMs: finished,
-        freshness: 'live' as const, ownership: ownershipOf(record.session_id), cancel: { supported: source.capabilities.cancel }, message }), now);
-      source.capabilities.progress ||= !!job.progress;
-      jobs.push(job);
-    }
-  }
-  const active = new Set(jobs.filter(job => !mediaTerminal(job.state)).map(job => job.id));
-  if (useHistory) jobs.push(...previous!.jobs.filter(job => now - (job.finishedAtMs ?? job.observedAtMs) <= RETENTION_MS));
-  options.videoHistory?.set(historyKey, { stamp, until: useHistory ? previous!.until : now + 30_000,
-    jobs: jobs.filter(job => mediaTerminal(job.state)).slice(0, 96), active });
-  return { source, jobs };
-};
 
 export const privateToken = async (path: string | undefined): Promise<string | null> => {
   if (!path) return null;
@@ -161,63 +93,13 @@ export const comfyUI = async (config: MediaSourceConfig, options: MediaAdapterOp
   return { source, jobs };
 };
 
-export const qwenImage = async (config: MediaSourceConfig, options: MediaAdapterOptions): Promise<MediaCollection> => {
-  const source = sourceOf(config), body = await get(config, '/mlx-scope/v1/media', options), now = options.now(), jobs: MediaJobV1[] = [], correlations = new Map<string, string>();
-  const observed = time(body.observedAtMs, now);
-  if (body.schemaVersion !== 1 || body.producer !== 'qwen-image' || !Array.isArray(body.jobs) || observed === undefined) throw new Error('Unsupported Qwen telemetry');
-  for (const raw of body.jobs.slice(0, 32)) {
-    const item = obj(raw), id = mediaId(item?.jobId), state = oneOf(['queued', 'waiting', 'running', 'cancelling', 'completed', 'failed', 'cancelled'] as const)(item?.state);
-    if (!item || !id || !state) continue;
-    const updated = time(item.updatedAtMs, now), terminal = mediaTerminal(state);
-    if (terminal && updated !== undefined && now - updated > RETENTION_MS) continue;
-    const job = freshJob(defined({ id, sourceId: config.id, kind: 'image' as const, name: `Image ${id.slice(-8)}`, state, phase: safePhase(state, item.phase), progress: null,
-      sampledAtMs: now, observedAtMs: observed, progressAtMs: updated, queuedAtMs: time(item.createdAtMs, now), startedAtMs: time(item.startedAtMs, now), finishedAtMs: terminal ? updated : undefined,
-      freshness: 'live' as const, ownership: ownershipOf(item.sessionId), cancel: { supported: item.canCancel === true },
-      message: item.cancellationUnconfirmed === true ? 'Cancellation has not been confirmed by the source.' : state === 'waiting'
-        ? item.waitingReason === 'chat-handoff' ? 'Waiting for chat handoff' : item.waitingReason === 'memory' ? 'Waiting for memory' : 'Waiting for the GPU' : undefined }), now);
-    if (mediaId(item.promptId)) correlations.set(id, item.promptId as string);
-    source.capabilities.cancel ||= job.cancel.supported;
-    jobs.push(job);
-  }
-  return { source, jobs, correlations };
-};
-
-export const localFeed = async (config: MediaSourceConfig, options: MediaAdapterOptions): Promise<MediaCollection> => {
-  const now = options.now(), source = sourceOf(config), jobs: MediaJobV1[] = [], finalPhase = new Set<string>();
-  if (!await directoryExists(config.directory!)) throw new Error('Feed unavailable');
-  for (const name of (await jsonFiles(config.directory!, 32)).slice(0, 16)) {
-    const file = await readBounded(join(config.directory!, name), 64_000, true);
-    if (!file) continue;
-    let body; try { body = obj(JSON.parse(file.text)); } catch { continue; }
-    const observed = time(body?.observedAtMs, now), expiry = timestamp(body?.expiresAtMs);
-    if (!body || body.schemaVersion !== 1 || !Array.isArray(body.jobs) || observed === undefined || expiry === undefined || expiry <= now || expiry > observed + 60_000) continue;
-    for (const raw of body.jobs.slice(0, 32)) {
-      const item = obj(raw); if (!item) continue;
-      const stale = !mediaTerminal(item.state as MediaState) && now - observed > STALE_MS;
-      // Estimates are measured by Scope from this feed's own timestamps; a producer-supplied estimate is never accepted.
-      const job = parseMediaJob({ ...item, sourceId: config.id, name: item.kind === 'video' ? 'Video generation' : item.kind === 'image' ? 'Image generation' : 'Media generation', sampledAtMs: now,
-        ...stale && item.state === 'running' ? {lastProgress:parseMediaProgress(item.progress) ?? item.lastProgress,lastProgressAtMs:time(item.progressAtMs,observed) ?? observed} : {},
-        etaAtMs: undefined, lastEtaAtMs: undefined, etaBasis: undefined,
-        observedAtMs: observed, freshness: mediaTerminal(item.state as MediaState) ? 'last' : now - observed <= STALE_MS ? 'live' : 'stale', cancel: { supported: false } });
-      if (job) {
-        source.capabilities.progress ||= !!job.progress; jobs.push(job);
-        // The producer's explicit declaration for this observation's phase. Absent, false or non-boolean declares nothing.
-        if (job.state === 'running' && item.finalPhase === true) finalPhase.add(job.id);
-      }
-    }
-  }
-  return { source, jobs, finalPhase };
-};
-
 export const collectMedia = (config: MediaSourceConfig, options: MediaAdapterOptions): Promise<MediaCollection> =>
-  config.kind === 'phosphene' ? phosphene(config, options) : config.kind === 'draw-things' ? drawThings(config, options) : config.kind === 'comfyui' ? comfyUI(config, options) : config.kind === 'local-video' ? localVideo(config, options) : config.kind === 'qwen-image' ? qwenImage(config, options) : localFeed(config, options);
+  config.kind === 'draw-things' ? drawThings(config, options) : comfyUI(config, options);
 
 export const cancelMedia = async (config: MediaSourceConfig, id: string, options: MediaAdapterOptions): Promise<boolean> => {
-  if (config.kind === 'local-video') return config.directory === options.localVideoDirectory && await options.cancelLocalVideo?.(id) || false;
-  if (config.kind !== 'comfyui' && config.kind !== 'qwen-image') return false;
-  const route = config.kind === 'comfyui' ? `/api/jobs/${encodeURIComponent(id)}/cancel` : `/mlx-scope/v1/media/${encodeURIComponent(id)}/cancel`;
+  if (config.kind !== 'comfyui') return false;
+  const route = `/api/jobs/${encodeURIComponent(id)}/cancel`;
   const auth = await headers(config.tokenPath);
-  // Qwen's handler may acknowledge a request with202; its scoped job event remains the cancellation owner.
   let response: Response | null = null;
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 1800);
   try {
@@ -226,6 +108,6 @@ export const cancelMedia = async (config: MediaSourceConfig, id: string, options
     if (response.url && response.url !== new URL(route, config.origin).toString()) return false;
     const reader = response.body?.getReader(); let size = 0, text = '';
     if (reader) while (true) { const result = await reader.read(); if (result.done) break; size += result.value.length; if (size > 4096) { await reader.cancel(); return false; } text += new TextDecoder().decode(result.value); }
-    const body = obj(JSON.parse(text)); return config.kind === 'comfyui' ? body?.cancelled === true : body?.status === 'cancelling' || body?.state === 'cancelling' || body?.cancelled === true;
+    return obj(JSON.parse(text))?.cancelled === true;
   } finally { clearTimeout(timer); controller.abort(); }
 };

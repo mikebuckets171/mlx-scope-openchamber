@@ -224,10 +224,10 @@ test('steady polls leave navigation stable and navigation preserves awareness an
 });
 
 test('enlarged Next status prioritizes the accessible numeric reading and live media within the host height', async ({ page }) => {
-  const frame = await load(page, 'surface=status&design=next&media=eta');
+  const frame = await load(page, 'surface=status&design=next&media=active');
   await page.setViewportSize({ width: 320, height: 900 });
   await page.locator('#fixture-status-controls').getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
-  await expect(frame.locator('.media-glance-finish')).toBeVisible();
+  await expect(frame.locator('.media-glance').first()).toBeVisible();
   await frame.locator('html').evaluate(element => { (element as HTMLElement).style.fontSize = '24px'; });
   await expect(frame.getByRole('button', { name: /^Measurement details: .*tok\/s · Engine/ })).toBeVisible();
   await expect(frame.getByRole('button', { name: 'Open MLX Scope', exact: true })).toBeVisible();

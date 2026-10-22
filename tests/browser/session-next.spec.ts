@@ -49,7 +49,7 @@ for (const theme of ['dark', 'light']) for (const width of [300, 320, 430]) {
 
 test('Session keeps Open visible and focus stable at enlarged text with media and across freshness changes', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
-  const frame = await load(page, 'media=eta');
+  const frame = await load(page, 'media=active');
   await watch(page, 'engine');
   await frame.locator('html').evaluate(el => { (el as HTMLElement).style.fontSize = '24px'; });
   const open = frame.getByRole('button', { name: 'Open MLX Scope', exact: true });

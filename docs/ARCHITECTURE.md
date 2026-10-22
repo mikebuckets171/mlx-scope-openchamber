@@ -106,7 +106,9 @@ otherwise.
 
 The optional setup route reads compatibility on GET and changes managed local files only on explicit authenticated
 POST Enable/Disable. JSONC edits preserve comments and unrelated plugins; writes are atomic with rollback. It never
-restarts the host or inference. The 3.0 chat setup preserved runtime command permissions. In 3.1, the command list adds only the optional exact local-video cancellation path. Bundle ceilings cover media adapters and setup; the CPU/RSS and hidden-view budgets are unchanged.
+restarts the host or inference. The 3.0 chat setup preserved runtime command permissions; the media adapters added in
+3.1 briefly extended the command list with a local-video cancellation path, and 5.2 returned it to the ten fixed
+probes. Bundle ceilings cover media adapters and setup; the CPU/RSS and hidden-view budgets are unchanged.
 
 ## Probe tiers and cadence
 
@@ -191,9 +193,9 @@ separate probes. See the [3.0 verification receipt](https://github.com/mikebucke
 
 ## Media collection and motion
 
-Media uses its own versioned contract and `/v2/media` route on the authenticated host service. Each configured source has one collection in flight and a two-second shared cache across visible frames. Full snapshots share in-flight composition and a short cache bounded by observation freshness. There are no autonomous media polling timers. A hidden frame stops requests; disabling media stops discovery and collection. Enabled views with no detected source retry discovery after 30 seconds so a newly started supported backend becomes available. Completed video records are cached for up to 30 seconds; directory changes and active-job moves trigger an immediate refresh, while content edits to an existing terminal record are revalidated within that bound.
+Media uses its own versioned contract and `/v2/media` route on the authenticated host service. Each configured source has one collection in flight and a two-second shared cache across visible frames. Full snapshots share in-flight composition and a short cache bounded by observation freshness. There are no autonomous media polling timers. A hidden frame stops requests; disabling media stops discovery and collection. Enabled views with no detected source retry discovery after 30 seconds so a newly started supported backend becomes available.
 
-Adapters normalize ComfyUI jobs, Phosphene's render queue, Draw Things command-line renders (found with one fixed `lsof` argv and read from the tail of their output file, every 15 s while one runs and 60 s otherwise), a private local-video queue, the authenticated Qwen image bridge, or an expiring private file feed. Phosphene's collection is reused for 15 s while a job runs or waits and 30 s otherwise, and its jobs turn stale after 37.5 s; its own time-left estimate passes through with `etaBasis: "reported"` and is never measured or adjusted by the service. Responses contain only bounded job identifiers, hashed ownership, lifecycle, phase-local counters and timings. Media never enters throughput trends or baselines. Cancellation is an explicit source/job action that rechecks the supported backend mechanism and reports pending acknowledgement.
+Adapters normalize ComfyUI jobs and Draw Things command-line renders (found with one fixed `lsof` argv and read from the tail of their output file, every 15 s while one runs and 60 s otherwise). Responses contain only bounded job identifiers, hashed ownership, lifecycle, phase-local counters and timings. Media never enters throughput trends or baselines. Cancellation is an explicit source/job action that rechecks the supported backend mechanism and reports pending acknowledgement.
 
 The optional ComfyUI helper reads its qualified registry only when requested. Connections manages version-qualified installation and rollback, verifies live readiness separately, and leaves activation pending ordinary application startup. It adds no producer hooks or background collection. See [Media](MEDIA.md) for the public integration contract.
 
