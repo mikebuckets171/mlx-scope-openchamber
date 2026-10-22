@@ -11,11 +11,11 @@ const read = (file: string): string => readFileSync(join(root, file), 'utf8');
 const pkg = JSON.parse(read('package.json'));
 
 describe('the Next manifest with the approved awareness grants', () => {
-  test('parses with SDK 2.4.0 and matches the frozen set exactly', () => {
+  test('parses with SDK 2.5.0 and matches the frozen set exactly', () => {
     const parsed = parseManifestJson(read('package.json'));
     expect(parsed.ok).toBe(true);
     expect(manifestProblems(pkg)).toEqual([]);
-    expect(pkg.dependencies['@openchamber/sdk']).toBe('2.4.0');
+    expect(pkg.dependencies['@openchamber/sdk']).toBe('2.5.0');
   });
   test('any drift is named: a capability, a missing exec entry, a different floor, a command or a second SDK', () => {
     const changed = structuredClone(pkg);

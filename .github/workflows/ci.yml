@@ -46,6 +46,29 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  release-sync:
+    # Git installs follow `#release`, which only moves when a tag is published. This surfaces the drift when main
+    # carries a version that was never tagged, so the release branch and Git installs do not silently lag.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Compare main's version with the latest published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -e 'console.log(require("./package.json").version)')
+          tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          if [ "$tag" != "v$version" ]; then
+            echo "::warning::main is at $version but the newest published release is $tag. Tag v$version from main so the release branch and Git installs catch up."
+          fi
+
   browser:
     # Scope is a macOS extension, so the browser suite runs against the WebKit build users actually get.
     # The Linux runner used a different engine build and failed geometry checks that pass on macOS.
