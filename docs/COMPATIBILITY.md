@@ -7,9 +7,9 @@ turned chat speed and Splash prompt progress off until Scope caught up. Scope 5.
 
 | Mode | Versions | What it means |
 |---|---|---|
-| **Qualified** | OpenCode **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32** | Native synthetic-provider checks passed for that exact binary (see the receipts below). |
-| **Self-checked** | Any other `2.0.N` with N ≥ 25 | The companion confirms, at run time, that each hook registers, that the session header is present on primary requests, and that every event it consumes has the released shape. A feature whose check fails is withdrawn alone, and Connections names the reason (`hook-missing`, `hook-rejected`, `events-missing`, `event-shape`, `session-header`, `options`). |
-| **Unsupported** | 2.1 and later, suffixed or malformed versions | No hooks are installed; runtime monitoring continues. |
+| **Qualified** | OpenCode **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32**, and the reviewed local build **2.1.1-compaction.1** | Native synthetic-provider checks passed for that exact binary (see the receipts below). |
+| **Self-checked** | Any other `2.0.N` with N ≥ 25, any `2.1.N` with N ≥ 1, and the reviewed local builds listed in `bridge/opencode/compatibility.js` | The companion confirms, at run time, that each hook registers, that the session header is present on primary requests, and that every event it consumes has the released shape. A feature whose check fails is withdrawn alone, and Connections names the reason (`hook-missing`, `hook-rejected`, `events-missing`, `event-shape`, `session-header`, `options`). |
+| **Unsupported** | 2.1.0, 2.2 and later, any unreviewed suffix, and malformed versions | No hooks are installed; runtime monitoring continues. |
 
 A self-check proves the shapes Scope reads, not their meaning: a release that changed token accounting with the same
 shape would pass. Connections therefore says **self-checked (not yet qualified)** for those versions, and a version moves
@@ -17,9 +17,13 @@ to Qualified only after the native checks run against it. The rule lives in `bri
 ships with the companion; the qualified list lives in `bridge/opencode/qualified.js`, which stays in the service, so
 qualifying a later version changes no companion file and needs no **Update chat speed**.
 
-Scope 5.1 requires companion **3.4.0**. After installing 5.1, choose **Connections → Update chat speed** once and
-confirm 3.4.0 is loaded. A 5.1 service accepts any 3.x companion writer of the same telemetry major version, so a
-later 3.x companion keeps working; a 5.0 service with a 3.4.0 companion behaves as 5.0 did. When no Scope view has
+A locally built runtime reports a suffixed version such as `2.1.1-compaction.1`. No pattern can bound what such a build
+changed, so only reviewed identifiers are accepted: an unreviewed suffix stays unsupported, exactly as an
+unrecognised release line does.
+
+Scope 5.1 requires companion **3.5.0**. After installing 5.1, choose **Connections → Update chat speed** once and
+confirm 3.5.0 is loaded. A 5.1 service accepts any 3.x companion writer of the same telemetry major version, so a
+later 3.x companion keeps working; a 5.0 service with a 3.5.0 companion behaves as 5.0 did. When no Scope view has
 asked for chat telemetry, the companion's demand watcher backs off to five-second checks instead of one-second ones.
 
 ## Earlier policy and safe default checks
@@ -46,7 +50,7 @@ features from activity: not loaded, awaiting demand, listening, or unavailable. 
 activity; it does not prove output or transport semantics. Malformed optional metadata does not discard an otherwise
 valid legacy setup response. Installed fingerprints, loaded companion metadata and current liveness remain distinct.
 
-Scope 4 and 5.0 required companion **3.3.0** for chat delivery and rejected a different companion package version even when the wire schema matched; native engine monitoring remained independent during that gap.
+Scope 4 and 5.0 required companion **3.3.0** for chat delivery and rejected a different companion package version even when the wire schema matched; native engine monitoring remained independent during that gap. Scope 5.1.2's companion **3.5.0** adds the OpenCode 2.1 line and changes no wire field.
 
 The runtime profile and the loaded helper's protocol are checked separately. An older helper reporting `unsupported`
 on a now-qualified runtime can be updated; its telemetry is still rejected until the current helper is loaded.
@@ -92,6 +96,38 @@ reused sockets, tools, retries, replay, interruption, multiple locations and hid
 semantic proof. When authorized, native synthetic-provider receipts should record runtime identity/build fingerprint
 when available, adapter/companion hashes and passed/skipped/unqualified outcomes. Preserve wire/storage compatibility,
 privacy limits and independent fallback; measure overhead before adding continuous collection.
+
+## OpenCode 2.1.1 compatibility
+
+OpenCode 2.1 keeps the contract the companion reads. Compared tag to tag (v2.0.32 → v2.1.1), every consumed name and
+field is unchanged:
+
+- the session hooks `http.request`, `http.response` and `experimental.ws.handshake`, with their provider filter;
+- the request kinds `primary`, `compaction`, `title` and `generate`;
+- the `x-opencode-session-id` request header OpenCode adds to model calls;
+- the event envelope (`type`, `data`, `created`, `id`) and the event subscription API;
+- `session.step.started` / `.streamed` / `.ended`, the `session.text.*` and `session.reasoning.*` parts,
+  `session.execution.*`, `session.tool.*`, and `tokens.output` / `tokens.reasoning` usage accounting.
+
+What 2.1 did change is how a summary compaction stores what it keeps. Where 2.0 put the retained text on
+`session.compaction.started` and `session.compaction.ended`, 2.1 stores a `metadata.keepID` reference on the
+checkpoint and materializes the text as `metadata.recent` when history is loaded — which is what `session.context`
+returns. Legacy checkpoints written before the reference still carry the text they stored. The companion reads none of
+these fields: it treats `session.compaction.started` only as a reset signal, and a compaction request only as an
+auxiliary call that must not open a delivery window. Optional `providerState` on several events became `native`, and
+2.1 added `session.archived` and `session.unarchived`; neither is read here, and the new events fall outside every
+rule the tracker applies.
+
+The local build under test is `2.1.1-compaction.1` — official v2.1.1 plus a patch to compaction's retained tail that
+touches no API, event schema or hook. It is listed by identifier, so an unreviewed suffix is still unsupported. With
+companion 3.5.0 that binary passed the isolated native synthetic-provider checks: local HTTP delivery with advancing
+prompt progress (200 → 500 → 900 of the fixture prompt), synthetic-remote HTTP, WebSocket reuse with one cached
+connection, native tool continuation and cancellation, three-step calibration, completion, hidden shutdown with
+telemetry writes stopped, a compaction that publishes no chat measurement and resumes a measured step afterwards, and
+managed hot reload from the previously installed 3.4.0 helper (which reported this version unsupported) to 3.5.0
+with no server restart and no duplicated request. The receipt is
+[`docs/receipts/companion-3.5.0.json`](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/companion-3.5.0.json).
+No real model, inference or cloud account was involved.
 
 ## OpenCode 2.0.32 compatibility
 
@@ -157,7 +193,7 @@ OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and c
 
 ## Optional chat delivery estimates
 
-Chat estimates are qualified on **OpenCode 2.0.25, 2.0.27, 2.0.28, 2.0.29 and 2.0.32** and self-checked on later 2.0 releases, for local and cloud chats alike, retaining the same wire protocol. An
+Chat estimates are qualified on **OpenCode 2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32 and 2.1.1-compaction.1** and self-checked on later 2.0 and 2.1 releases, for local and cloud chats alike, retaining the same wire protocol. An
 isolated servers with synthetic streaming providers exercise waiting, generation, completion, calibration and
 hidden shutdown over both transports. Unsupported versions disable estimates while runtime adapters continue to
 operate. Guided setup distinguishes installed/pending from a fresh loaded companion and supports native v2 and legacy
@@ -181,6 +217,12 @@ readable delivery state and retains its original unit-only coverage; a new resul
 Managed updates preserve JSONC comments, unrelated options and plugins. The reproducible developer check is
 `node bridge/opencode/protocol-hot-reload-smoke.mjs /absolute/path/to/opencode /absolute/path/to/previous/companion`;
 it uses an isolated server and verifies that a synthetic response completes during an update without duplication or restart.
+
+`node bridge/opencode/protocol-compaction-smoke.mjs /absolute/path/to/opencode` covers the 2.1 compaction contract
+against the same isolated fixture: two measured steps, a manual compaction that publishes no chat measurement, the
+checkpoint carrying `metadata.keepID` and no stored recent text, `session.context` materializing that text as
+`metadata.recent`, and a resumed step measured again afterwards. It reads shapes and counts only; no message text is
+retained or printed.
 
 Local estimates require observable text/reasoning events, corroborating primary transport metadata and unambiguous usage.
 Tool payloads, title/compaction tasks, missing metadata and ambiguous concurrent writers produce no chat speed.

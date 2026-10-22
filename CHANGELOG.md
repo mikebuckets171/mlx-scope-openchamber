@@ -1,5 +1,25 @@
 # Changelog
 
+## 5.1.2
+
+- **Chat speed works on OpenCode 2.1.** OpenCode 2.1.1 keeps every part of the contract the companion reads, and the local build `2.1.1-compaction.1` passed the native checks against its own binary with synthetic providers. Later 2.1 releases from 2.1.1 are **self-checked** the way later 2.0 releases are: the companion confirms each hook and event shape and pauses only the feature whose check fails, naming the reason in Connections. 2.1.0, 2.2 and later stay off until qualified. A locally built runtime is accepted only by reviewed identifier, so `2.1.1-compaction.1` works and an unreviewed suffix does not. Choose **Connections → Update chat speed** once to load companion 3.5.0; later OpenCode 2.0 and 2.1 updates need no Scope action.
+- Permissions are unchanged; the update needs no new approval.
+- **Built against SDK 2.5.** The extension's SDK pin moved from 2.4.0 to 2.5.0; the OpenChamber floor stays 2.4.0, so nothing changes for users on older hosts.
+
+Before publication on macOS: type checking, the privacy scan (673 files), 1,855 Bun tests, 81 companion tests, 15 helper
+tests, reproducible bundles and package verification passed (36 packaged assets). Against an isolated
+`2.1.1-compaction.1` process with synthetic loopback providers, companion 3.5.0 passed local HTTP delivery with
+advancing prompt progress, synthetic-remote HTTP, WebSocket reuse on one connection with six tool continuations and
+cancellation, managed hot reload from the installed 3.4.0 helper with no server restart and no duplicated request, and
+a new compaction check: the auxiliary compaction request published no chat measurement, the checkpoint carried
+`metadata.keepID`, `session.context` materialized `metadata.recent`, and the resumed step completed on reported output.
+No real model, inference or cloud account was involved.
+[Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/companion-3.5.0.json).
+All 628 Chromium and WebKit browser cases passed locally. Goldens and the 5.1.0 overhead fixture were not re-run: the
+panel's rendered output is unchanged, and the CPU fixture measured work this release does not change. The first run of
+the new compaction check failed at the resumed step because the harness let its own demand file expire, not because of
+OpenCode 2.1; the check now renews demand while it waits.
+
 ## 5.1.1
 
 - **Draw Things in Media.** Renders from Draw Things' command-line tool (`draw-things-cli`) appear with their phase (preparing, sampling with its step count, finishing) and how long they have run, then completed or ended before finishing. No setup: Scope finds a running render with the `lsof` it may already run and reads the end of the file the render writes its progress to, as render scripts redirect it. Observe-only; prompts, settings, paths and outputs are never kept. Draw Things reports no time left, so Scope shows none. Renders inside the Draw Things app are not visible: its servers report progress only to the client that started the render.

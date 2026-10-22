@@ -88,11 +88,13 @@ section and the full view show the percentage. It clears when the response start
 The companion is bundled and does not activate automatically. Open **Connections → Enable chat speed** for detected
 compatibility and a deliberate setup action, or follow the [manual setup](bridge/opencode/README.md). Setup preserves
 existing plugins and JSONC comments and provides **Disable and remove**. It never restarts an active inference session.
-Chat delivery estimates are qualified on OpenCode **2.0.25, 2.0.27, 2.0.28, 2.0.29 and 2.0.32**. Later 2.0 releases are
-**self-checked**: the companion confirms each hook and event shape it relies on and pauses only the feature whose check
-fails, with the reason in Connections. A self-check cannot detect a changed meaning, such as different token accounting,
-so Connections labels those versions as not yet qualified. OpenCode 2.1 and later keep ordinary runtime monitoring until
-qualified.
+Chat delivery estimates are qualified on OpenCode **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32 and 2.1.1-compaction.1**.
+Later 2.0 releases from 2.0.25 and later 2.1 releases from 2.1.1 are **self-checked**: the companion confirms each hook and
+event shape it relies on and pauses only the feature whose check fails, with the reason in Connections. A self-check
+cannot detect a changed meaning, such as different token accounting, so Connections labels those versions as not yet
+qualified. A locally built runtime is accepted only by reviewed identifier, so `2.1.1-compaction.1` works while an
+unreviewed suffix does not. Other lines — 2.0.24 and earlier, 2.1.0, 2.2 and later — keep ordinary runtime monitoring
+until qualified.
 The existing Splash HTTP observer remains separate. New replies acquire observations after activation; an already
 running reply cannot acquire them retroactively.
 
@@ -177,7 +179,7 @@ The column shows chat and engine readings, then **Media** while local image/vide
 
 Use Connections → Advanced only when automatic discovery cannot identify a custom installation. Existing provider credentials stay in their owning configuration. Enterprise deployments may require the administrator to allowlist this repository.
 
-Git updates preserve existing preferences and observations. **Scope 5.1 asks for approval once** because it declares fewer permissions: `sessions` only, without `shells`, the `/scope` command or a background page. **Chats and subagents** under **Other work** in Live starts disabled; approving the update does not enable it. These host readings remain separate from engine measurements. The service executable permissions are unchanged. After updating, choose **Connections → Update chat speed** once to load companion 3.4.0; later OpenCode 2.0 updates need no Scope action. If extension/service versions differ after an update, reload the extension in Settings → Extensions; generation backends remain independent.
+Git updates preserve existing preferences and observations. **Scope 5.1 asks for approval once** because it declares fewer permissions: `sessions` only, without `shells`, the `/scope` command or a background page. **Chats and subagents** under **Other work** in Live starts disabled; approving the update does not enable it. These host readings remain separate from engine measurements. The service executable permissions are unchanged. After updating, choose **Connections → Update chat speed** once to load companion 3.5.0; later OpenCode 2.0 and 2.1 updates need no Scope action. If extension/service versions differ after an update, reload the extension in Settings → Extensions; generation backends remain independent.
 
 ### What Scope asks you to approve and why
 
