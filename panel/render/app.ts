@@ -16,7 +16,7 @@ import { FRAME_TITLE, NO_FRESH, NO_FRESH_DETAIL } from '../present/copy.ts';
 import { frameCard, presentHeader } from '../present/header.ts';
 import { presentLive, presentMac } from '../present/live.ts';
 import type { Callout } from '../present/parts.ts';
-import { modelOf, type ScopeInput } from '../present/scope.ts';
+import { chatOnlyView, modelOf, type ScopeInput } from '../present/scope.ts';
 import { presentServer } from '../present/server.ts';
 import { presentSessionSection } from '../present/session.ts';
 import type { Pipeline } from '../state/pipeline.ts';
@@ -88,7 +88,7 @@ export class ScopeApp {
       paused: state.userPaused, efficient: state.efficient, attribution: pipeline.liveLabel(snapshot), chatRuntime: pipeline.chatRuntime(),
       last: last ? { completion: last, label: pipeline.label(last), ...pipeline.usualFor(last, snapshot?.connection.runtime ?? null) } : null,
       samples: state.signal.points, window, turnStartAt: window?.startedAt ?? null,
-      measurementScope: this.#p.prefs.value.measurementScope ?? 'chat', sessionModel: chat?.model ?? null,
+      measurementScope: this.#p.prefs.value.measurementScope ?? 'auto', sessionModel: chat?.model ?? null,
       chatActivity: chat ? window?.endedAt === null || chat.busy === true ? 'busy' : chat.busy === false ? 'idle' : null : null, chatIsLocal: pipeline.chatIsLocal(),
       lastChat: state.lastChat, promptEtaMs: state.promptEta.ms, flags: pipeline.flagsFor(snapshot?.connection.runtime ?? null, modelOf(snapshot)),
     };
@@ -116,7 +116,7 @@ export class ScopeApp {
     const mediaGlance = this.#node('media-glance'), column = !compact && !card && state.tab === 'live';
     mediaGlance.hidden = !!card || column;
     morph(mediaGlance, card || column ? '' : mediaGlanceMarkup(this.#mediaJobs, this.#p.session()?.id ?? null, s.now, false));
-    const chatOnly = s.measurementScope !== 'engine' && s.chatIsLocal === false;
+    const chatOnly = chatOnlyView(s);
     state.serverDetailsVisible = state.tab === 'server' && !compact && !card && !chatOnly;
     renderHeader(this.#shell, presentHeader(s));
     // Rehome the same optional activity region before removing its former Live view.
@@ -131,7 +131,7 @@ export class ScopeApp {
       }
     }
     const scopeControl = this.#shell.querySelector<HTMLElement>('#measurement-choice');
-    if (scopeControl) morph(scopeControl, scopeMenuMarkup(this.#p.prefs.value.measurementScope ?? 'chat'));
+    if (scopeControl) morph(scopeControl, scopeMenuMarkup(this.#p.prefs.value.measurementScope ?? 'auto'));
     this.#shell.dataset.compact = String(compact);
     const cardHost = this.#node('frame-card');
     morph(cardHost, card ? frameCardMarkup(card) : '');
@@ -235,10 +235,10 @@ export class ScopeApp {
       ?? this.#shell.querySelector<HTMLElement>('.next-nav [data-action="show-live"]');
   }
   onRefreshNeeded: () => Promise<void> = async () => {};
-  onMeasurementScope: (scope: 'chat' | 'engine') => void = () => {};
+  onMeasurementScope: (scope: 'auto' | 'engine') => void = () => {};
   readonly #onChange = (event: Event): void => {
     const target = event.target as HTMLSelectElement;
-    if (target.dataset.action === 'measurement-scope' && (target.value === 'chat' || target.value === 'engine')) {
+    if (target.dataset.action === 'measurement-scope' && (target.value === 'auto' || target.value === 'engine')) {
       this.onMeasurementScope(target.value);
       this.render();
     }

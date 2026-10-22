@@ -12,9 +12,9 @@ for (const savedScope of [null, 'chat', 'engine'] as const) {
       sessionStorage.setItem('pref.v2', JSON.stringify({ v: 2, history: false, ...(scope ? { measurementScope: scope } : {}) }));
     }, savedScope);
     await page.goto('/v2?surface=page&state=decode&chat=local');
-    const frame = page.frameLocator('iframe'), scope = frame.locator('#measurement-choice').getByRole('combobox', { name: 'Measurement scope' });
+    const frame = page.frameLocator('iframe'), scope = frame.locator('#measurement-choice').getByRole('combobox', { name: 'What to watch' });
     await frame.locator('#monitor-menu > summary').click();
-    await expect(scope).toHaveValue(savedScope ?? 'chat');
+    await expect(scope).toHaveValue(savedScope === 'engine' ? 'engine' : 'auto');
     await expect.poll(() => latestQuery(page)).toMatchObject(savedScope === 'engine'
       ? { provider: 'saved-local', runtime: 'splash' }
       : { provider: 'omlx', chat: chatKey('session', 'fixture-chat'), chatModel: chatKey('model', 'Example-27B-4bit') });
@@ -35,7 +35,7 @@ for (const savedScope of [null, 'chat', 'engine'] as const) {
 
     // A different deliberate connection continues to change both the scope and selection.
     await frame.locator('#monitor-menu > summary').click();
-    await scope.selectOption('chat');
+    await scope.selectOption('auto');
     await openConnections(frame);
     if (!await frame.locator('#runtime-connection-details').evaluate(element => (element as HTMLDetailsElement).open)) await frame.locator('#runtime-connection-details > summary').click();
     await frame.locator('#connection-provider').selectOption('omlx');

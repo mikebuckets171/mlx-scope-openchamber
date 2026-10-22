@@ -28,7 +28,7 @@ export interface ScopeInput {
   samples: readonly SignalPoint[];           // the panel's own 90 s ring
   turnStartAt: number | null;                // this chat's turn start, when observed live
   window?: TurnWindow | null;
-  measurementScope?: 'chat' | 'engine';
+  measurementScope?: 'auto' | 'chat' | 'engine';
   sessionModel?: string | null;
   chatActivity?: 'idle' | 'busy' | null;
   chatIsLocal?: boolean | null;
@@ -60,3 +60,6 @@ export const liveSplashRate = (snapshot: SnapshotV2 | null, stage: 'decode' | 'p
 /** No observer-reason field exists on the wire, so a missing rate cannot distinguish warmup from stalled counters. */
 export const ENGINE_SPEED = 'Recent generation speed';
 export const SPLASH_WAITING = 'Waiting for update';
+/** A cloud chat's surfaces are about the chat only; the Engine scope shows the local server beside it instead. */
+export const chatOnlyView = (s: Pick<ScopeInput, 'measurementScope' | 'chatIsLocal'>): boolean =>
+  s.chatIsLocal === false && s.measurementScope !== 'engine';

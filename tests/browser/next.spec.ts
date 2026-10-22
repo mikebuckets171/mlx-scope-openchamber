@@ -127,13 +127,13 @@ test('chats and subagents are the only awareness opt-in, never read agent comman
 });
 
 const watchControl = (value: string) => ({ kind: 'select', id: 'watch', label: 'Watch', value,
-  options: [{ value: 'chat', label: 'This chat' }, { value: 'engine', label: 'Engine' }] });
+  options: [{ value: 'auto', label: 'Automatic' }, { value: 'engine', label: 'Engine' }] });
 const pauseControl = (label: string) => ({ kind: 'button', id: 'pause', label });
 
 test('Session publishes Watch and Pause to the host header, hides its own toolbar, and follows header events', async ({ page }) => {
   const frame = await load(page, 'surface=status&design=next');
   const header = page.locator('#fixture-status-controls');
-  await expect.poll(() => state(page, 'window.previewHeaderControls')).toEqual([watchControl('chat'), pauseControl('Pause')]);
+  await expect.poll(() => state(page, 'window.previewHeaderControls')).toEqual([watchControl('auto'), pauseControl('Pause')]);
   await expect(frame.locator('#scope')).toHaveAttribute('data-host-controls', 'true');
   await expect(frame.locator('.ws-toolbar')).toBeHidden();
   await expect(frame.getByRole('button', { name: 'Pause', exact: true })).toHaveCount(0);
@@ -141,7 +141,7 @@ test('Session publishes Watch and Pause to the host header, hides its own toolba
   await expect(frame.locator('.ws-phase')).toHaveText('Working');
   await header.getByRole('button', { name: 'Pause', exact: true }).click();
   await expect(frame.locator('.ws-phase')).toHaveText('Paused');
-  await expect.poll(() => state(page, 'window.previewHeaderControls')).toEqual([watchControl('chat'), pauseControl('Resume')]);
+  await expect.poll(() => state(page, 'window.previewHeaderControls')).toEqual([watchControl('auto'), pauseControl('Resume')]);
   await header.getByRole('button', { name: 'Resume', exact: true }).click();
   await expect(frame.locator('.ws-phase')).toHaveText('Working');
   await header.getByRole('combobox', { name: 'Watch', exact: true }).selectOption('engine');
@@ -163,7 +163,7 @@ test('Session keeps its own toolbar for scope, pause and details when the host r
   await frame.getByRole('button', { name: 'Pause', exact: true }).click();
   await expect(frame.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
   await frame.getByRole('button', { name: 'Resume', exact: true }).click();
-  await frame.getByRole('combobox', { name: 'Measurement scope', exact: true }).selectOption('engine');
+  await frame.getByRole('combobox', { name: 'What to watch', exact: true }).selectOption('engine');
   await expect(frame.locator('.scope-choice')).toHaveValue('engine');
   await frame.getByRole('button', { name: 'Details', exact: true }).click();
   const popover = page.frameLocator('iframe[title="Scope detail popover"]');

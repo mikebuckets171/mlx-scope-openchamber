@@ -32,7 +32,7 @@ export class Preferences {
  * change) with this frame's choices applied at once, so a click re-renders before the write lands.
  */
 export interface PrefV2 {
-  measurementScope?: 'chat' | 'engine';
+  measurementScope?: 'auto' | 'engine';
   statusExpanded?: boolean;                  // Work Status shows Turn stats instead of the glance
   tipDismissed?: boolean;                    // "Replace Turn stats" tip
   firstRunDismissed?: boolean;               // "Recording reply history locally" (stored as noticeDismissed)

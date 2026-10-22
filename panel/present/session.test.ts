@@ -65,7 +65,7 @@ test('a stored native verdict labels this chat only inside its currently selecte
 test('Session leads with current performance despite a remembered expanded preference and older reply', () => {
   const input = inputOf('decode'), view = presentSessionSection(input), markup = sessionMarkup(view).markup;
   expect(view).toMatchObject({ phase: 'Generating', measurement: { text: '26.4', unit: 'tok/s', basis: 'reported' },
-    measurementScope: 'chat' });
+    measurementScope: 'auto' });
   expect(markup).toContain('Open MLX Scope');
   expect(markup).not.toMatch(/status-toggle|ts-rows|ws-spark|ws-key-stats|class="chip|Recording reply history|Replace Turn stats/);
   expect(markup).not.toContain('Last reply');
@@ -79,7 +79,7 @@ test.each(['processing', 'queued', 'decode'] as const)('current %s without speed
   const view = presentSessionSection(input);
   expect(view.measurement).toBeNull();
   expect(view.support).toBeNull();
-  expect(view.measurementScope).toBe('chat');
+  expect(view.measurementScope).toBe('auto');
   expect(view.phase).not.toBe('Last reply');
   expect(sessionMarkup(view).markup).not.toMatch(/class="ws-label"[^>]*>This chat/);
 });
@@ -314,8 +314,8 @@ test('Whole engine keeps its completed result independent of another chat model,
 
 test('the native scope menu is accessible and empty measurement lanes are omitted', () => {
   const view = presentSessionSection(inputOf('decode')), markup = sessionMarkup(view).markup;
-  expect(markup).toContain('aria-label="Measurement scope"');
-  expect(markup).toContain('<option value="chat" selected>This chat</option>');
+  expect(markup).toContain('aria-label="What to watch"');
+  expect(markup).toContain('<option value="auto" selected>Automatic</option>');
   expect(markup.match(/class="ws-line/g)).toHaveLength(3);
   expect(markup).toContain(view.support!.text);
   expect(markup).not.toMatch(/Prefill speed|Prompt progress|Generation speed|>—</);

@@ -43,7 +43,7 @@ for (const theme of ['light', 'dark']) test(`Session shows the relevant stage an
       const reading = el.querySelector('.ws-measurement')!.getBoundingClientRect();
       return ['.ws-phase', '.scope-choice'].every(selector => el.querySelector(selector)!.getBoundingClientRect().bottom <= reading.top);
     })).toBe(true);
-    await expect(frame.getByRole('combobox', { name: 'Measurement scope' })).toBeVisible();
+    await expect(frame.getByRole('combobox', { name: 'What to watch' })).toBeVisible();
   }
 });
 
@@ -88,10 +88,10 @@ test('extreme rates fit and retain their full accessible value; keyboard focus r
   const backdrop = await page.evaluate(() => [getComputedStyle(document.documentElement).backgroundColor, getComputedStyle(document.body).backgroundColor]);
   expect(await child.evaluate(inspect, { openAll: false, backdrop })).toEqual([]);
   await frame.locator('body').evaluate(el => { el.tabIndex = -1; el.focus(); }); await page.keyboard.press(testInfo.project.name === 'webkit' ? 'Alt+Tab' : 'Tab');
-  await expect(frame.getByLabel('Measurement scope')).toBeFocused();
-  const scopeFocus = await frame.getByLabel('Measurement scope').evaluate(el => { const s = getComputedStyle(el); return { style: s.outlineStyle, offset: s.outlineOffset, width: s.outlineWidth }; });
+  await expect(frame.getByLabel('What to watch')).toBeFocused();
+  const scopeFocus = await frame.getByLabel('What to watch').evaluate(el => { const s = getComputedStyle(el); return { style: s.outlineStyle, offset: s.outlineOffset, width: s.outlineWidth }; });
   expect(scopeFocus).toMatchObject({ style: 'solid', width: '2px' });
-  expect(await frame.getByLabel('Measurement scope').evaluate(el => {
+  expect(await frame.getByLabel('What to watch').evaluate(el => {
     const r = el.getBoundingClientRect(), s = getComputedStyle(el), extent = Math.max(0, parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth));
     return r.left - extent >= 0 && r.right + extent <= innerWidth && r.top - extent >= 0 && r.bottom + extent <= innerHeight;
   })).toBe(true);

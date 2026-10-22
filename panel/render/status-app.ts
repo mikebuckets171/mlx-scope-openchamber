@@ -26,8 +26,8 @@ export const chatIsLocal = (session: SessionSnapshot | null, connection: { id: s
 };
 
 /** Scope's two header controls, drawn by OpenChamber in the Work Status section header (2.4: inline up to two). */
-export const statusControls = (scope: 'chat' | 'engine', paused: boolean): StatusControl[] => [
-  { kind: 'select', id: 'watch', label: 'Watch', value: scope, options: [{ value: 'chat', label: 'This chat' }, { value: 'engine', label: 'Engine' }] },
+export const statusControls = (scope: 'auto' | 'engine', paused: boolean): StatusControl[] => [
+  { kind: 'select', id: 'watch', label: 'Watch', value: scope, options: [{ value: 'auto', label: 'Automatic' }, { value: 'engine', label: 'Engine' }] },
   { kind: 'button', id: 'pause', label: paused ? 'Resume' : 'Pause' },
 ];
 
@@ -79,7 +79,7 @@ export class StatusApp {
       chatIsLocal: chatIsLocal(this.#session, snapshot?.connection ?? null),
       fresh: snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh, paused: state.userPaused, efficient: state.efficient,
       last: last ? { completion: last, label: pipeline.label(last) } : null, window,
-      measurementScope: pref.measurementScope ?? 'chat', sessionModel: this.#session?.model ?? null,
+      measurementScope: pref.measurementScope ?? 'auto', sessionModel: this.#session?.model ?? null,
       chatActivity: this.#session ? window?.endedAt === null || this.#session.busy === true ? 'busy' : this.#session.busy === false ? 'idle' : null : null,
       lastChat: state.lastChat, promptEtaMs: state.promptEta.ms, restingFacts: true,
       flags: pipeline.flagsFor(snapshot?.connection.runtime ?? null, modelOf(snapshot)),
@@ -109,7 +109,7 @@ export class StatusApp {
     const height = Math.min(320, Math.ceil(root.getBoundingClientRect().height));
     if (height > 0 && height !== this.#height) { this.#height = height; void this.#p.host.setHeight(height).catch(() => {}); }
   }
-  onMeasurementScope: (scope: 'chat' | 'engine') => void = () => {};
+  onMeasurementScope: (scope: 'auto' | 'engine') => void = () => {};
   onPauseChanged: () => void = () => {};
   /**
    * Pause and the scope choice in OpenChamber's own header, published only when they change (the host takes at most 20
@@ -118,7 +118,7 @@ export class StatusApp {
   #headers(): void {
     const { host, root, state, prefs } = this.#p;
     if (!host.setStatusControls || !this.#features.statusControls || this.#hostControls === false) return;
-    const controls = statusControls(prefs.value.measurementScope ?? 'chat', state.userPaused), key = JSON.stringify(controls);
+    const controls = statusControls(prefs.value.measurementScope ?? 'auto', state.userPaused), key = JSON.stringify(controls);
     if (key === this.#headerKey) return;
     this.#headerKey = key;
     void host.setStatusControls(controls).then(() => {
@@ -129,7 +129,7 @@ export class StatusApp {
     });
   }
   #control(event: { id: string; value?: string }): void {
-    if (event.id === 'watch' && (event.value === 'chat' || event.value === 'engine')) { this.#actionError = null; this.onMeasurementScope(event.value); }
+    if (event.id === 'watch' && (event.value === 'auto' || event.value === 'engine')) { this.#actionError = null; this.onMeasurementScope(event.value); }
     else if (event.id === 'pause') { this.#p.state.userPaused = !this.#p.state.userPaused; this.onPauseChanged(); }
     else return;
     this.render();
@@ -159,7 +159,7 @@ export class StatusApp {
   #onChange = (event: Event): void => {
     const target = event.target;
     if (!(target instanceof HTMLSelectElement) || target.dataset.action !== 'measurement-scope') return;
-    const scope = target.value === 'engine' ? 'engine' : 'chat';
+    const scope = target.value === 'engine' ? 'engine' : 'auto';
     this.#actionError = null;
     this.onMeasurementScope(scope);
     this.render();

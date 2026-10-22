@@ -12,8 +12,8 @@ export const measurementLabel = (reading: SessionMeasurement, _next = false): st
 export const readoutText = (reading: SessionMeasurement): string =>
   `${reading.basis === 'estimate' ? '≈ ' : ''}${reading.kind === 'speed' ? compactRate(reading.text) : reading.text}`;
 
-/** Native menus stay keyboard accessible and can open outside a short status iframe. */
-export const scopeMenuMarkup = (scope: 'chat' | 'engine'): Raw => html`<select class="scope-choice" data-action="measurement-scope" aria-label="Measurement scope"><option value="chat"${flag('selected', scope === 'chat')}>This chat</option><option value="engine"${flag('selected', scope === 'engine')}>Engine</option></select>`;
+/** Native menus stay keyboard accessible and can open outside a short status iframe. Automatic follows the chat when its numbers are known and the engine otherwise. */
+export const scopeMenuMarkup = (scope: 'auto' | 'engine'): Raw => html`<select class="scope-choice" data-action="measurement-scope" aria-label="What to watch"><option value="auto"${flag('selected', scope !== 'engine')}>Automatic</option><option value="engine"${flag('selected', scope === 'engine')}>Engine</option></select>`;
 
 export const sessionMarkup = (view: SessionSectionView, actionError: string | null = null, compact = false, next = false, options: SessionNextOptions = {}): Raw => {
   if (next && !compact) return nextSessionMarkup(view, actionError, options);
@@ -45,7 +45,7 @@ const nextSessionMarkup = (view: SessionSectionView, actionError: string | null,
   const label = measurement ? measurementLabel(measurement) : '';
   const rows = actionError ? [{ key: 'error', text: actionError, detail: actionError, severity: 'warning' as const }, ...view.exceptions].slice(0, 2)
     : view.exceptions.length ? view.exceptions
-      : !measurement && !view.resting ? [{ key: 'empty', text: 'No measurement available', detail: '', severity: 'info' as const }] : [];
+      : !measurement && !view.resting ? [{ key: 'empty', text: view.speeds.source === 'Chat delivery' ? 'Chat speed is not on for this chat' : 'No measurement available', detail: view.speeds.source === 'Chat delivery' ? 'Open Connections → Chat speed → Enable to measure this chat’s delivery.' : '', severity: 'info' as const }] : [];
   const unit = measurement?.kind === 'speed' ? 'tokens/s' : measurement?.unit;
   const readingText = measurement ? readoutText(measurement) : '';
   return html`<div class="ws ws-session ws-next" id="ws" data-presentation="session" data-mode="summary" data-resting="${String(view.resting)}" tabindex="-1">

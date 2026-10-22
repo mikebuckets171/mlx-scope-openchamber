@@ -1,14 +1,20 @@
 # MLX Scope
 
-Lightweight chat and local media monitoring for OpenChamber.
+**Read-only monitoring for local model runtimes on Apple Silicon, right beside your OpenChamber chat.**
 
-**Scope 5.1 is quieter, lighter and keeps working across OpenCode updates.** Every reading says whether it is about **This chat** or the **Engine**, and an estimate reads `≈ 24.1`. The Session section shows the phase and one reading, plus a row only when something happens: memory pressure, **Slower than usual** with what was going on at the time, or a **Prompt cache miss**. Pause and the This chat / Engine choice sit in OpenChamber's own section header. Chat speed self-checks newer OpenCode 2.0 releases instead of waiting for a Scope update, Phosphene renders appear in Media, and the service exits after ten idle minutes. Captures, Measure next reply, agent command output and `/scope` are gone; their saved data is left untouched.
+MLX Scope shows how fast your chat is being delivered and what the model engine behind it is doing — generation speed,
+prompt progress, memory, and the Mac it runs on. It never sends inference, loads or unloads a model, or starts a
+runtime; it reads the status endpoints of the tools you already have.
+
+**New here?** Install it and open a chat. Scope follows it automatically: **Watch** defaults to **Automatic**, which
+shows this chat's numbers when they are known and the engine's numbers when they are not. Nothing else needs setup —
+readings appear as soon as a supported local server answers.
 
 MLX Scope keeps honest runtime readings beside your conversation. It observes oMLX, Splash in Bionic, LM Studio,
 llama.cpp `llama-server`, Ollama, vllm-mlx, mlx-lm and standalone Splash through their supported passive APIs, directly or
-behind llama-swap, plus the Mac they run on. It never sends inference, loads or unloads a model, or starts a runtime. The Session sidebar follows your chat and presents one relevant reading. Optional, clearly labeled chat delivery
-estimates supplement native engine measurements; missing measurements leave no empty rows. Every value identifies
-its source and scope. Live estimates, native throughput and completed-reply averages remain separate. Cloud chats receive the same delivery estimate (`≈`, labelled **This chat**); it includes network and provider buffering and never borrows a local engine's reading. Local media progress stays available in all cases.
+behind llama-swap, plus the Mac they run on. Every value identifies its source and how it was measured. Live estimates,
+native throughput and completed-reply averages remain separate. Cloud chats receive the optional delivery estimate (`≈`),
+labelled **This chat**; it includes network and provider buffering and never borrows a local engine's reading.
 
 | Runtime | Readings |
 | --- | --- |
@@ -20,7 +26,7 @@ its source and scope. Live estimates, native throughput and completed-reply aver
 | **vllm-mlx** | Reported request activity, queue, output and speed; prefill and reuse where the engine exposes usable data |
 | **mlx-lm** | Server availability and the available model catalogue |
 | **llama-swap** (in front of any of the above) | The ready model's own server, read as that runtime (for example **Splash via llama-swap**); **Loading** while a model starts and **No model loaded** when none runs. Scope never asks llama-swap to load or swap a model |
-| **Splish / Splash (standalone)** | Real prompt progress with the optional OpenCode companion, plus separate recent prefill and generation speeds across all requests in the main view and Session widget; each stage's actual 2–5-second observation interval and average since engine start in the full view; loaded model and context, idle/generating/recovering state, typical and slow first-token and between-token times from Splash itself, completed/failed counters, vision chips, and GPU (Metal) memory now/peak |
+| **Splash (standalone)** | Real prompt progress with the optional OpenCode companion, plus separate recent prefill and generation speeds across all requests in the main view and Session widget; each stage's actual 2–5-second observation interval and average since engine start in the full view; loaded model and context, idle/generating/recovering state, typical and slow first-token and between-token times from Splash itself, completed/failed counters, vision chips, and GPU (Metal) memory now/peak |
 
 On macOS, every runtime also gets host readings: CPU, memory, swap, the kernel's memory pressure level, the GPU
 wired-memory limit, GPU busy and GPU memory as the graphics driver reports them, thermal pressure, and optionally a chip
@@ -39,8 +45,8 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   finished reply says **Last reply**. At most two rows appear only when something happens: a warning such as memory
   pressure, **Slower than usual**, a **Prompt cache miss**, or a note. OpenChamber already shows the selected model, so
   the sidebar does not repeat it.
-  **Watch** (This chat or Engine) and **Pause** sit in OpenChamber's section header; on a host that cannot draw them,
-  the same two controls appear inside the section. **This chat** (default) follows the open chat's provider and model: it
+  **Watch** (Automatic or Engine) and **Pause** sit in OpenChamber's section header; on a host that cannot draw them,
+  the same two controls appear inside the section. **Automatic** (default) follows the open chat's provider and model: it
   prefers a runtime reading matched to the chat, then the companion's delivery estimate (`≈`), then the **Engine**
   reading, labelled as such. A match is inferred from runtime activity, not a server-provided chat identifier. **Engine**
   watches the selected connection as a whole. Cloud chats never borrow a local engine's reading or hardware warnings.
@@ -159,13 +165,13 @@ Each reading says where it comes from:
 
 ## Install
 
-Scope 5.1 requires **OpenChamber 2.4.0 or newer** and pins SDK 2.4.0. Keep **Scope 5.0.0** on OpenChamber 2.3.x and **Scope 4.0.1** on older hosts. See [Compatibility](docs/COMPATIBILITY.md) for the exact evidence and upgrade requirements. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
+Scope 5.1 requires **OpenChamber 2.4.0 or newer** and is built against SDK 2.5.0. Keep **Scope 5.0.0** on OpenChamber 2.3.x and **Scope 4.0.1** on older hosts. See [Compatibility](docs/COMPATIBILITY.md) for the exact evidence and upgrade requirements. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
 
 1. In OpenChamber, open **Settings → Extensions** and add this repository's `release` branch by its Git URL:
    `https://github.com/mikebuckets171/mlx-scope-openchamber#release`. The `release` branch holds exactly the published
    package, so **Check for updates** brings each release in place and keeps your History, preferences and permissions.
 2. Review OpenChamber’s local-service and sessions permissions. The package contains built JavaScript and needs no build toolchain.
-3. Open **MLX Scope** from the Session sidebar. **This chat** follows the selected chat automatically.
+3. Open **MLX Scope** from the Session sidebar. It follows the selected chat automatically.
 
 Each release also attaches **mlx-scope-openchamber-<version>.zip**. **Installing a ZIP over an existing Scope replaces
 it, and OpenChamber deletes the extension's storage when it does:** your History, baselines and preferences. Prefer the

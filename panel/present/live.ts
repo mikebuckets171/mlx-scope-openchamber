@@ -7,7 +7,7 @@ import { connName, PRESSURE, RT, rtName, statusCopy, THERMAL, THERMAL_WARN, ther
 import { ago, delta, dur, int, kt, mmss, pct, size, tps } from './format.ts';
 import { attrChip, attrTip, callouts, splashRateTip, tip, value, weightedTps, type Callout, type Chip, type Tip, type Val } from './parts.ts';
 export { weightedTps } from './parts.ts';
-import { heldBySource, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING, type ScopeInput } from './scope.ts';
+import { chatOnlyView, heldBySource, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING, type ScopeInput } from './scope.ts';
 import { presentSessionSection, type SessionSectionView } from './session.ts';
 import { fromSnapshot } from './reading.ts';
 
@@ -128,7 +128,7 @@ const presentHero = (s: ScopeInput): HeroView | null => {
   // The full page takes the same at-rest facts the glance uses, so an idle engine shows its labelled record here too.
   const instrument = presentSessionSection({ ...s, reading: fromSnapshot(snapshot), chatIsLocal: s.chatIsLocal ?? null, restingFacts: true });
   const base = { instrument, speeds: instrument.speeds, attr: null, body: null, engineTrend: null, firstToken: null, context: null, reply: null };
-  if (s.measurementScope !== 'engine' && s.chatIsLocal === false) return { ...base, title: 'This chat', chatOnly: true };
+  if (chatOnlyView(s)) return { ...base, title: 'This chat', chatOnly: true };
   const kind = heroKind(s), model = modelOf(snapshot), title = model ?? connName(snapshot.connection), body = kind ? heroBody(kind, s) : null;
   // Keep the disclosure in place across lifecycle changes. Only compatible engine readings enter its chart.
   const engineTrend = snapshot.capabilities['request.decodeRate'] || snapshot.capabilities['server.rates']
@@ -224,7 +224,7 @@ export const presentMac = (s: ScopeInput): MacView | null => {
 };
 
 export const presentLive = (s: ScopeInput, extra: readonly Callout[] = []): LiveView => {
-  const chatOnly = s.measurementScope !== 'engine' && s.chatIsLocal === false;
+  const chatOnly = chatOnlyView(s);
   return { callouts: chatOnly ? [...extra] : callouts(s.snapshot, s.now, extra), hero: presentHero(s),
     tiles: chatOnly ? [] : presentTiles(s), mac: chatOnly ? null : presentMac(s) };
 };

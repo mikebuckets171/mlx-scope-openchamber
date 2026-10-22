@@ -24,7 +24,7 @@ export interface SessionMeasurement {
 }
 export interface SessionSectionView {
   phase: string; tone: 'normal' | 'warning' | 'critical';
-  measurementScope: 'chat' | 'engine'; measurement: SessionMeasurement | null;
+  measurementScope: 'auto' | 'engine'; measurement: SessionMeasurement | null;
   support: { text: string; detail: string; basis?: Basis } | null;
   eta: { text: string; detail: string } | null;
   speeds: SpeedsView;
@@ -57,7 +57,7 @@ export interface SessionSectionInput {
   efficient?: boolean;
   last?: { completion: CompletionV2; label: AttributionLabel } | null;
   window?: TurnWindow | null;                // the open chat's newest turn window
-  measurementScope?: 'chat' | 'engine';
+  measurementScope?: 'auto' | 'chat' | 'engine';
   sessionModel?: string | null;
   chatActivity?: 'idle' | 'busy' | null;
   lastChat?: ChatMeasurement | null;
@@ -72,8 +72,10 @@ const speedMeasurement = (label: string, text: string, basis: Basis, detail: str
   ({ label, text, basis, detail, live, unit: 'tok/s', kind: 'speed' });
 
 export const presentSessionSection = (input: SessionSectionInput): SessionSectionView => {
-  const snapshot = input.snapshot, measurementScope = input.measurementScope ?? 'chat';
+  const snapshot = input.snapshot, measurementScope = input.measurementScope ?? 'auto';
   const engine = measurementScope === 'engine';
+  // Automatic and an explicit This chat choice share the chat-following behaviour: attribution decides whether the
+  // engine's numbers belong to this chat, and a cloud chat never borrows local engine readings.
   const nonLocal = !engine && input.chatIsLocal === false;
   const speeds: SpeedsView = nonLocal ? { phase: input.chatActivity === 'busy' ? 'Working' : 'Ready', model: null,
     speeds: [], averageTitle: '', averageNote: '', source: 'Chat delivery' } : presentSpeeds(input);
@@ -213,7 +215,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     ...insights,
     ...shownNote ? [{ key: 'note', text: shownNote, detail: shownNote, severity: 'info' as const }] : [],
   ].slice(0, MAX_EXCEPTIONS);
-  return { measurementScope, measurement, support: shownSupport, eta, speeds, progress, held,
+  return { measurementScope: engine ? 'engine' : 'auto', measurement, support: shownSupport, eta, speeds, progress, held,
     resting: atRest && !measurement && !shownSupport && !held && !insights.length,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
     note: shownNote, alert, exceptions };
