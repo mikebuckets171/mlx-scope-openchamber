@@ -18,7 +18,7 @@ export const EXEC_G1 = [
 export const BUNDLE_CEILINGS = { 'panel/main.js': 270_000, 'service/main.js': 268_000 } as const;
 export const GUEST_BUNDLES = ['panel/main.js'] as const;
 export const STATUS_SECTION = { entry: 'panel/index.html', title: 'MLX Scope', height: 72 } as const;
-export const SDK_VERSION = '2.4.0';
+export const SDK_VERSION = '2.5.0';
 export const ENGINES_FLOOR = '>=2.4.0';
 /** The exact policy every guest page declares: packaged scripts and styles only, no network, images, fonts or forms. */
 export const PANEL_CSP = "default-src 'none'; script-src 'self' data: http: https:; style-src 'self' data: http: https: 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; form-action 'none'";

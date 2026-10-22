@@ -5,7 +5,7 @@
     "": {
       "name": "mlx-scope-openchamber",
       "dependencies": {
-        "@openchamber/sdk": "2.4.0",
+        "@openchamber/sdk": "2.5.0",
         "jsonc-parser": "3.3.1",
       },
       "devDependencies": {
@@ -29,7 +29,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@openchamber/sdk": ["@openchamber/sdk@2.4.0", "", { "dependencies": { "zod": "^4.3.6" }, "bin": { "openchamber-guest-bundle": "scripts/bundle-guest.ts" } }, "sha512-TSL0DI5o4+pOHSpJ8fMP/fU4E/LTRd3hWHIIiaBHoSjpFNYzxaC91d2SCEUq4uj+OYRk/SMe6KiUPtr5Q0rwHA=="],
+    "@openchamber/sdk": ["@openchamber/sdk@2.5.0", "", { "dependencies": { "zod": "^4.3.6" }, "bin": { "openchamber-guest-bundle": "scripts/bundle-guest.ts" } }, "sha512-5gigGSmIIonZB0ZAfOFziKVZ6NpLt5HjUtrlMDnk4igQdgn++VvOL3gPdW5M6Ht7ldHceNKVU1Rsy+zxd9nzWA=="],
 
     "@playwright/test": ["@playwright/test@1.61.0", "", { "dependencies": { "playwright": "1.61.0" }, "bin": { "playwright": "cli.js" } }, "sha512-cKA5B6lpFEMyMGjxF54QihfYpB4FkEGH+qZhtArDEG+wezQAJY8Pq6C7T1SjWz+FFzt3TbyoXBQYk/0292TdJA=="],
 

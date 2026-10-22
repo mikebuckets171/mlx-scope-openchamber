@@ -4,6 +4,7 @@
 
 - **Chat speed works on OpenCode 2.1.** OpenCode 2.1.1 keeps every part of the contract the companion reads, and the local build `2.1.1-compaction.1` passed the native checks against its own binary with synthetic providers. Later 2.1 releases from 2.1.1 are **self-checked** the way later 2.0 releases are: the companion confirms each hook and event shape and pauses only the feature whose check fails, naming the reason in Connections. 2.1.0, 2.2 and later stay off until qualified. A locally built runtime is accepted only by reviewed identifier, so `2.1.1-compaction.1` works and an unreviewed suffix does not. Choose **Connections → Update chat speed** once to load companion 3.5.0; later OpenCode 2.0 and 2.1 updates need no Scope action.
 - Permissions are unchanged; the update needs no new approval.
+- **Built against SDK 2.5.** The extension's SDK pin moved from 2.4.0 to 2.5.0; the OpenChamber floor stays 2.4.0, so nothing changes for users on older hosts.
 
 Before publication on macOS: type checking, the privacy scan (673 files), 1,855 Bun tests, 81 companion tests, 15 helper
 tests, reproducible bundles and package verification passed (36 packaged assets). Against an isolated

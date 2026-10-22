@@ -4,7 +4,7 @@ import { chmodSync, lstatSync, mkdirSync, mkdtempSync, rmSync, utimesSync } from
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { BUNDLE_CEILINGS, cspOf, execMatch, GUEST_BUNDLES, guestLeaks, manifestProblems, PANEL_CSP, serviceLeaks } from './package-checks.ts';
+import { BUNDLE_CEILINGS, cspOf, execMatch, GUEST_BUNDLES, guestLeaks, manifestProblems, PANEL_CSP, SDK_VERSION, serviceLeaks } from './package-checks.ts';
 const root = join(import.meta.dir, '..');
 // Every failed check is listed, not only the first, so one run shows the whole gap (e.g. exec entries not wired yet).
 const problems: string[] = [];
@@ -107,6 +107,6 @@ try {
   const digest = createHash('sha256').update(archiveBytes).digest('hex');
   await Bun.write(`${archive}.sha256`, `${digest}  ${basename(archive)}\n`);
   console.log(`SHA-256: ${digest}  ${basename(archive)}`);
-  console.log(`PASS: SDK 2.4.0 manifest (§6 set, two-way exec match), ${names.length} assets, ${bytes} uncompressed bytes; ${archiveBytes.byteLength} ZIP bytes; `
+  console.log(`PASS: SDK ${SDK_VERSION} manifest (§6 set, two-way exec match), ${names.length} assets, ${bytes} uncompressed bytes; ${archiveBytes.byteLength} ZIP bytes; `
     + `bundle ceilings, panel CSP and leak checks; reproducible archive and extracted bytes verified.`);
 } finally { rmSync(stage, { recursive: true, force: true }); }
