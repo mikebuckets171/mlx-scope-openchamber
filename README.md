@@ -57,9 +57,8 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   goes dark: prompt progress shows supported counts, otherwise the reply's elapsed time, and the previous completed average
   stays below a live reading, dimmed and labelled. Completed results retain their own available output, duration and
   first-token facts; chat step timing stays distinct. **Measurement details** groups deeper engine readings, request
-  details and the last reply; engine charts never mix in chat estimates. **Live**, **History** and **Connections** remain
-  directly accessible. **Server & Mac details** opens under Measurement details and returns with **Back**.
-  **Run details** opens current observations and their basis. History reply/turn **Details** opens the same inspector, with eligible reply comparisons and explicit observation gaps.
+  details, the last reply and a compact **Engine server** strip; engine charts never mix in chat estimates. **Live**, **History** and **Connections** remain
+  directly accessible. **Run details** opens current observations and their basis. History reply/turn **Details** opens the same inspector, with eligible reply comparisons and explicit observation gaps.
   History retains recent replies, trends, insights, alerts, and storage. Resizing preserves your selected destination.
   Open the rail from the Session action or the full page from **Extension pages**. Compact mode uses the same quiet
   sidebar presentation.

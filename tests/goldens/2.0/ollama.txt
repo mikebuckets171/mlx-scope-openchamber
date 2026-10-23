@@ -43,19 +43,25 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #monitor-menu
 #frame-card
 #panels
-#panel-server {aria-labelledby="server-title"}: Back
-#server-title: Server & Mac details
-[server-residency]: 2 loaded example:14b 11.2 GiB loaded GPU memory (from Ollama) 10.1 GiB · 90% example-embed:latest 0.6 GiB loaded GPU memory (from Ollama) 0.6 GiB · 100%
-h2: Loaded models
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
+#hero {aria-label="Activity and speed" data-arrive=""}: Ollama example:14b Watch | Ollama lists loaded models but does not provide request speeds
+h2.instrument-phase {data-crossfade="" data-live="false" data-tone="normal"}: Connected
+#reply-strip
+#measurement-details {open=""}: Measurement details | Run details
+#engine-readings: Engine readings
+#server-strip: Ollama 0.12.3 Ready
+[server-residency]: Loaded models example:14b 11.2 GiB loaded, GPU memory (from Ollama) 10.1 GiB · 90% · example-embed:latest 0.6 GiB loaded, GPU memory (from Ollama) 0.6 GiB · 100% · 2 loaded
 span.chip: unloads in 3 m 32 s
 span.chip: unloads in 38 s
-#server-runtime-details: Server details Ready
 #machine {aria-label="This Mac" data-stale="false"}: CPU 5% Memory allocated 24.4 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#media-glance
+#next-context-activity {data-mount=""}
+#scope-awareness {aria-label="Session activity"}: Other work
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Ollama
 live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.

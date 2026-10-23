@@ -94,8 +94,8 @@ test('a mounted panel repaints for same-mode custom themes and light/dark change
   // Selection belongs to the mounted view, not to its palette.
   await openServerDetails(frame);
   await setTheme(page, PAPER);
-  await expect(frame.locator('#panel-live')).toBeHidden();
-  await expect(frame.locator('#panel-server')).toBeVisible();
+  await expect(frame.locator('#panel-live')).toBeVisible();
+  await expect(frame.locator('#server-strip')).toBeVisible();
 });
 
 test('legacy palette updates clear old text tokens and update the instrument using current host fallbacks', async ({ page }) => {

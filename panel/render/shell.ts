@@ -6,8 +6,9 @@ import { html, raw, type Part, type Raw } from './html.ts';
 import { ICON, actionButton } from './views/parts.ts';
 
 // The rail panel's and the page's static shell: masthead with the status pill, pause and ⋯, then one column of truth —
-// This chat and its engine, then Media only while it has jobs — with History and Server & Mac details as secondary views
-// reached from the column's foot, each with Back. Polls patch the pill and the visible view only.
+// This chat and its engine (server rows inside the measurement hub), then Media only while it has
+// jobs — with History as the only secondary view, reached from the column's foot, with Back. Polls patch the pill and the
+// visible view only.
 
 
 const menuButton = (id: string, attributes: Raw, label: Part): Raw =>
@@ -31,8 +32,7 @@ export const shellMarkup = (): Raw => html`<main class="scope" id="scope" aria-l
   <div id="panels">
     <div class="column" id="panel-live" aria-label="This chat, engine and media" hidden><div class="view" id="view-live"></div><section class="column-block" id="view-media" aria-label="Media" hidden></section>
       <section id="scope-awareness" class="scope-awareness" aria-label="Session activity" hidden></section>
-      <nav class="column-foot" id="column-foot" aria-label="More from Scope">${actionButton('open-run', 'Run details')}${actionButton('open-history', 'History')}${actionButton('open-server', 'Server & Mac details', html` id="open-server"`)}</nav></div>
-    <section class="view secondary-view" id="panel-server" aria-labelledby="server-title" hidden></section>
+      <nav class="column-foot" id="column-foot" aria-label="More from Scope">${actionButton('open-history', 'History')}</nav></div>
     <section class="view secondary-view" id="panel-history" aria-labelledby="history-title" hidden>${secondaryHeading('history', 'History', 'Back', 'back-live')}<div class="view" id="view-history"></div></section>
   </div>
   <div id="media-glance"></div>

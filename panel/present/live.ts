@@ -9,6 +9,7 @@ import { attrChip, attrTip, callouts, splashRateTip, tip, value, weightedTps, ty
 export { weightedTps } from './parts.ts';
 import { chatOnlyView, heldBySource, liveSplashRate, modelOf, SERVER_WIDE, SPLASH_WAITING, type ScopeInput } from './scope.ts';
 import { presentSessionSection, type SessionSectionView } from './session.ts';
+import { presentServer, type ServerView } from './server.ts';
 import { fromSnapshot } from './reading.ts';
 
 // The Live tab (plan §5.9, the G2 mock): callouts, the hero (one speed with its basis ⓘ, the attribution chip and the
@@ -28,7 +29,7 @@ export interface HeroView { instrument: SessionSectionView; speeds: SpeedsView; 
 export interface Tile { label: string; value: string; detail: string; meter: number | null; basis?: Basis }
 export interface MacRow { key: string; label: string; value: Val; level: Level | null; meter: number | null; tip: Tip | null }
 export interface MacView { title: string; tip: Tip; stale: boolean; line: Array<{ label: string; value: string; meter: number | null }>; rows: MacRow[]; details: MacRow[] }
-export interface LiveView { callouts: Callout[]; hero: HeroView | null; tiles: Tile[]; mac: MacView | null }
+export interface LiveView { callouts: Callout[]; hero: HeroView | null; tiles: Tile[]; mac: MacView | null; server: ServerView | null }
 
 const LABELLED = new Set<HeroKind>(['decode', 'server-decode', 'prefill', 'busy', 'slots', 'ollama', 'server']);
 const ACTIVE = new Set(['decode', 'prefill', 'processing']);
@@ -225,6 +226,8 @@ export const presentMac = (s: ScopeInput): MacView | null => {
 
 export const presentLive = (s: ScopeInput, extra: readonly Callout[] = []): LiveView => {
   const chatOnly = chatOnlyView(s);
+  // The server rows nest inside the hub, so their callouts must not repeat the view's own.
   return { callouts: chatOnly ? [...extra] : callouts(s.snapshot, s.now, extra), hero: presentHero(s),
-    tiles: chatOnly ? [] : presentTiles(s), mac: chatOnly ? null : presentMac(s) };
+    tiles: chatOnly ? [] : presentTiles(s), mac: chatOnly ? null : presentMac(s),
+    server: chatOnly ? null : presentServer(s.snapshot, s.now, [], s.fresh && !s.paused) };
 };

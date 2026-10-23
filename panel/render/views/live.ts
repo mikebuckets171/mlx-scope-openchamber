@@ -5,6 +5,8 @@ import { SPLASH_SPEED_HELP } from '../../present/speeds.ts';
 import { tile, type HeroView, LiveView, MacRow, MacView, ReplyView, Tile } from '../../present/live.ts';
 import type { ChartView } from '../chart.ts';
 import { flag, html, type Part, type Raw } from '../html.ts';
+import { serverMarkup } from './server.ts';
+import type { ServerView } from '../../present/server.ts';
 import { averagesMarkup, compactRate, readoutWidth, speedsMarkup } from './speeds.ts';
 import { measurementLabel, READOUT_ID, readoutText, scopeMenuMarkup } from './session.ts';
 import { callouts, chip, disclosure, meter, pct100, tipParts, val, type Open } from './parts.ts';
@@ -31,7 +33,7 @@ const replyStrip = (reply: ReplyView | null, open: Open, currentModel: string): 
   const primary = reply.values.filter(v => v.unit === 'tok/s' || v.text === 'First token');
   return html`<div class="reply-strip"><div class="reply-head"><span class="label">Last reply</span>${chip(reply.chip)}${t.btn}${reply.when ? html`<time>${reply.when}</time>` : ''}</div>${t.pop}${reply.model && reply.model !== currentModel ? html`<p class="reply-model" translate="no">${reply.model}</p>` : ''}<div class="reply-values">${primary.map(val)}${chip(reply.usual)}</div>${details.length || reply.split.length ? disclosure('reply-details', 'Reply details', html`<div class="reply-values">${details.map(val)}</div>${reply.split.length ? html`<div class="split">${reply.split.map(val)}</div>` : ''}`, open) : ''}</div>`;
 };
-const hero = (h: HeroView | null, list: readonly Tile[], open: Open): Raw | string => {
+const hero = (h: HeroView | null, list: readonly Tile[], open: Open, server: ServerView | null): Raw | string => {
   if (!h) return '';
   const a = h.attr ? tipParts(P, h.attr.tip, open) : null, c = h.context ? tipParts(P, h.context.tip, open) : null;
   const instrument = h.instrument, reading = instrument.measurement;
@@ -80,7 +82,8 @@ const hero = (h: HeroView | null, list: readonly Tile[], open: Open): Raw | stri
     ${disclosure('engine-readings', 'Engine readings', html`<p class="instrument-model" id="model" translate="no">${h.title}</p>${h.attr ? html`<span class="title-row" id="attribution">${chip(h.attr.chip)}${a!.btn}</span>${a!.pop}` : ''}${speedsMarkup(h.speeds, false)}<div class="instrument-basis">${h.speeds.source} · All engine activity ${explanation?.btn ?? ''}</div>${explanation?.pop ?? ''}${averagesMarkup(h.speeds)}`, open, 'instrument-details')}
     ${remaining.length || h.context ? disclosure('request-details', 'Request details', html`${h.context ? html`<div class="context-headroom" id="context-headroom"><div class="context-line"><span class="title-row">Context used ${c!.btn}</span><span data-basis="${h.context.basis}"><strong>${h.context.used}</strong>${h.context.basis !== 'reported' ? html` <small class="basis">${BASIS_WORD[h.context.basis]}</small>` : ''}</span></div>${c!.pop}${meter(h.context.fraction)}</div>` : ''}${tiles(remaining)}`, open) : ''}
     ${h.reply && !h.reply.empty ? disclosure('last-reply', 'Last reply', html`${replyStrip(h.reply, open, h.title)}`, open) : ''}
-    <nav class="precision-detail-actions" aria-label="More from Scope">${actionButton('open-run', 'Run details')}${actionButton('open-server', 'Server & Mac details')}</nav></div>`, open, 'instrument-detail-container')}</div>`}
+    ${server ? serverMarkup(server, open) : ''}
+    <nav class="precision-detail-actions" aria-label="Run records">${actionButton('open-run', 'Run details')}</nav></div>`, open, 'instrument-detail-container')}</div>`}
   </section>${h.chatOnly ? html`<p class="coverage-note cloud-scope">Cloud speed is delivery observed through OpenCode, including network and provider buffering. Not engine throughput.</p>` : ''}`;
 };
 const tiles = (list: readonly Tile[], primary: string | null = null, heading = true): Raw | string => list.length ? html`<div class="metrics${primary ? ' engine-facts' : ''}" id="${primary ? primary === 'Engine' ? 'engine-facts' : 'completed-facts' : 'metrics'}" data-count="${list.length}" aria-label="${primary ?? 'Engine request'}">${primary && heading ? html`<span class="engine-facts-heading">${primary}</span>` : ''}${list.map(tile =>
@@ -96,6 +99,6 @@ export const macCard = (mac: MacView | null, open: Open): Raw | string => {
 };
 
 export const liveMarkup = (view: LiveView, open: Open): Raw => {
-  const main = html`${callouts(P, view.callouts, open)}${hero(view.hero, view.tiles, open)}${!view.hero ? tiles(view.tiles) : ''}`;
+  const main = html`${callouts(P, view.callouts, open)}${hero(view.hero, view.tiles, open, view.server)}${!view.hero ? tiles(view.tiles) : ''}`;
   return html`<div class="next-live-primary">${main}</div>${view.mac ? html`<aside class="next-live-context" aria-label="This Mac">${macCard(view.mac, open)}<div id="next-context-activity" data-mount></div></aside>` : ''}`;
 };

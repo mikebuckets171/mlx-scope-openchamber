@@ -60,11 +60,11 @@ test('visible navigation and detail actions regain keyboard focus after closing 
   await expect(connection).toBeFocused();
   await expect(connection).toHaveAttribute('aria-expanded', 'false');
   await frame.locator('#measurement-details > summary').click();
-  const server = frame.locator('.precision-detail-actions [data-action="open-server"]');
-  await server.click();
-  await expect(frame.locator('#server-title')).toBeFocused();
+  const run = frame.locator('.precision-detail-actions [data-action="open-run"]');
+  await run.click();
+  await expect(frame.getByRole('heading', { name: 'Current observation', exact: true })).toBeFocused();
   await frame.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(server).toBeFocused();
+  await expect(run).toBeFocused();
   const history = frame.locator('.next-nav [data-action="open-history"]');
   await history.click();
   await frame.getByRole('button', { name: 'Back', exact: true }).click();

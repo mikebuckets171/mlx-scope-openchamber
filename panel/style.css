@@ -118,6 +118,16 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .instrument-detail-container > summary { width: fit-content; gap: 8px; color: var(--scope-muted); font-size: var(--scope-text-detail); }
 .instrument-detail-content { display: grid; gap: 6px; padding-top: 8px; }
 .instrument-detail-content .instrument-details { min-width: 0; }
+/* Compact Engine server rows inside the Measurement details hub: one quiet line per reading. */
+.server-strip { display: grid; gap: 6px; margin-top: 4px; }
+.server-head { min-height: 32px; }
+.server-head strong { font-size: var(--scope-text-heading); font-weight: 550; }
+.server-head .server-state { color: var(--scope-muted); font-size: var(--scope-text-caption); }
+.server-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; font-size: var(--scope-text-detail); }
+.server-line .server-label { color: var(--scope-muted); }
+.server-line .server-facts { min-width: 0; overflow-wrap: anywhere; }
+.server-line .server-right { color: var(--scope-muted); font-size: var(--scope-text-caption); }
+.server-line .server-item { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
 
 /* Session and compact rail reserve height only for the reading and context they actually show. */
 .ws { position: relative; width: auto; min-width: 0; container-type: inline-size; font-size: var(--scope-text-detail); line-height: 1.5; font-variant-numeric: tabular-nums; }

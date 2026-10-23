@@ -8,10 +8,10 @@ export const openMeasurementDetails = async (frame: Surface): Promise<void> => {
   if (!await details.evaluate(node => (node as HTMLDetailsElement).open)) await details.locator(':scope > summary').click();
 };
 
-/** Diagnostics moved into Measurement details; exercise the visible standard UI route. */
+/** The Engine server strip lives inside Measurement details; exercise the visible standard UI route. */
 export const openServerDetails = async (frame: Surface): Promise<void> => {
   await openMeasurementDetails(frame);
-  await frame.getByRole('button', { name: 'Server & Mac details', exact: true }).click();
+  await expect(frame.locator('#server-strip')).toBeVisible();
 };
 
 /** Connections is a persistent navigation action, including on SDKs without header features. */

@@ -146,7 +146,7 @@ Optional chat measurements use their own validated scope, basis, timing, and fre
 | RAM / SSD cache | Reported server cache sizes, kept separate from model allocation |
 | Splish/Splash recent generation speed | 1,000 × change in native output tokens / change in native decode-command milliseconds, across a rolling observation window of up to five seconds (derived). At least three valid samples spanning two seconds are required; the actual interval is shown in the full view or tooltip. Combined server throughput across all requests, excluding draft candidates |
 | Splish/Splash recent prefill speed | 1,000 × change in native processed input tokens / change in native prefill-command milliseconds, using the same qualification rules and an independent observation interval (derived). Combined prompt-processing throughput across all requests; it is not whole-request progress or a cache-reuse percentage |
-| Splash average since engine start | Native lifetime aggregate since engine start, shown separately in Server & Mac details and copied diagnostics |
+| Splash average since engine start | Native lifetime aggregate since engine start, shown separately in the server strip and copied diagnostics |
 | Splash completed / failed | Native counters since engine start; reset on engine restart |
 | Splash Metal allocation | Current and peak Metal allocator values; not process RSS or model-only memory |
 | Splash latency | Splash's own first-token and inter-token p50/p95 with the sample count; not Scope's measurement |

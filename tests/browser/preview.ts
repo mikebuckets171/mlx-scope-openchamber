@@ -378,7 +378,7 @@ test('concurrent requests withhold per-request speed, and hostile model names re
   await expect(frame.locator('#attribution .chip')).toHaveText('Engine');
   await expect(frame.locator('#attribution .chip')).toHaveAttribute('data-reason', 'several requests at once');
   await openServerDetails(frame);
-  await expect(frame.locator('[data-key="server-residency"] .resident-row')).toHaveCount(2);
+  await expect(frame.locator('[data-key="server-residency"] .server-item')).toHaveCount(2);
   await page.evaluate(() => (window as W).setPreviewOverride({ residentModels: [{ id: '<img src=x onerror=alert(1)>', phase: 'idle', activeRequests: 0 }] }));
   await menu(frame, '#refresh');
   await expect(frame.locator('[data-key="server-residency"]')).toContainText('<img');

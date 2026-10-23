@@ -93,13 +93,9 @@ for (const { surface, width, theme, font } of SURFACES) test(`all mock states us
     if (state === 'paused') await ui.getByRole('button', { name: 'Pause monitoring', exact: true }).click();
     await clean(frame, `${state}: page hero and media`);
     const details = ui.locator('#measurement-details');
-    const server = ui.getByRole('button', { name: 'Server & Mac details', exact: true });
     if (await details.isVisible()) {
       await details.locator(':scope > summary').click();
-      await server.click();
-      await expect(ui.locator('#server-title')).toBeVisible();
       await clean(frame, `${state}: server`);
-      await ui.getByRole('button', { name: 'Back', exact: true }).click();
     }
     const history = ui.getByRole('button', { name: 'History', exact: true });
     if (await history.isVisible()) {

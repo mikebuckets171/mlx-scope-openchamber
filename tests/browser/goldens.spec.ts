@@ -23,7 +23,8 @@ const CASES: Case[] = [
   { name: 'prefill', state: 'prefill', server: true, light: true, shots: ['live-320-dark', 'live-320-light'] },
   { name: 'idle', state: 'idle', server: true, shots: ['live-320-dark'] },
   // The 5.x panel's shaded surfaces compress far less than 3.0's flat ones: within the 4 MiB image budget the page width
-  // keeps two pixel goldens (decode, needs-approval) and the server view stays dark-only; every variant keeps its text golden.
+  // keeps two pixel goldens (decode, needs-approval), and server rows inside the hub keep three pixel goldens (oMLX,
+  // Splash, Ollama — the engines whose server cards differ); every variant keeps its text golden.
   { name: 'offline', state: 'offline', page: true, light: true, shots: ['live-320-dark', 'live-320-light'] },
   { name: 'pressure', state: 'pressure', page: true, compact: true, shots: ['live-320-dark', 'compact-320-dark'] },
   { name: 'pressure-critical', state: 'pressure-critical', light: true, shots: ['live-320-dark', 'live-320-light'] },
@@ -31,10 +32,10 @@ const CASES: Case[] = [
   { name: 'splash-recovering', state: 'splash-recovering', server: true, shots: ['live-320-dark', 'server-320-dark'] },
   { name: 'runtime-changed', state: 'runtime-changed', shots: ['live-320-dark'] },
   { name: 'admin-unauthorized', state: 'admin-unauthorized', server: true, shots: ['live-320-dark'] },
-  { name: 'llama', state: 'llama', server: true, shots: ['live-320-dark', 'server-320-dark'] },
+  { name: 'llama', state: 'llama', server: true, shots: ['live-320-dark'] },
   { name: 'llama-sleeping', state: 'llama-sleeping', server: true },
   { name: 'ollama', state: 'ollama', server: true, shots: ['server-320-dark'] },
-  { name: 'bionic', state: 'bionic', server: true, light: true, shots: ['live-320-dark', 'server-320-dark'] },
+  { name: 'bionic', state: 'bionic', server: true, light: true, shots: ['live-320-dark'] },
   { name: 'detecting', state: 'detecting' },
   { name: 'thermal', state: 'thermal' },
   { name: 'needs-approval', state: 'needs-approval', page: true, shots: ['live-320-dark', 'live-1160-dark'] },
@@ -158,10 +159,9 @@ class Harness {
     await this.page.mouse.move(0, 0);
     await this.sync();
   }
-  /** Server & Mac details lives in Measurement details (5.0), as the standard UI reaches it. */
+  /** Engine server rows live inside Measurement details, as the standard UI reaches them. */
   async openServer(): Promise<void> {
     if (!await this.panel.locator('#measurement-details').evaluate(node => (node as HTMLDetailsElement).open)) await this.click('#measurement-details > summary');
-    await this.click('.precision-detail-actions [data-action="open-server"]');
   }
   async text(label: string, selector = 'main.scope'): Promise<string> {
     await this.panel.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());

@@ -92,19 +92,22 @@ test('one column of truth: no workspace tabs; History and Server are secondary v
   expect(shell.indexOf('id="view-media"')).toBeLessThan(shell.indexOf('id="column-foot"'));
   expect(shell).toMatch(/<section class="column-block" id="view-media" aria-label="Media" hidden>/);
   expect(shell).toContain('data-action="open-history">History</button>');
-  expect(shell).toContain('data-action="open-server" id="open-server">Server &amp; Mac details</button>');
+  // Server rows live inside the measurement disclosure; History is the only secondary view.
+  expect(shell).not.toContain('open-server');
+  expect(shell).not.toContain('panel-server');
   expect(shell).toContain('aria-labelledby="history-title"');
   expect(shell).toContain('data-action="back-live"');
   expect(shell).not.toMatch(/captures|Captures|back-history/);
 });
 
-test('runtime diagnostics are available in a disclosure without displacing server measurements', () => {
+test('runtime diagnostics fold into the server line without displacing its measurements', () => {
   const view = presentServer(snapshotOf('decode'), MOCK_NOW), closed = serverMarkup(view, new Set()).markup;
-  expect(closed).toContain('<details class="runtime-details" id="server-runtime-details">');
+  expect(closed).toContain('class="server-head title-row"');
   expect(closed).toContain('data-key="server-memory"');
-  expect(closed.indexOf('data-key="server-memory"')).toBeLessThan(closed.indexOf('id="server-runtime-details"'));
+  expect(closed.indexOf('class="server-head"')).toBeLessThan(closed.indexOf('data-key="server-memory"'));
   expect(closed).toContain('per-request speed');
-  expect(serverMarkup(view, new Set(['server-runtime-details'])).markup).toContain('id="server-runtime-details" open>');
+  expect(closed).toMatch(new RegExp('<div class="pop" id="pop-server-runtime" role="note" hidden>'));
+  expect(serverMarkup(view, new Set(['pop-server-runtime'])).markup).toContain('aria-expanded="true"');
 });
 
 test('full Live retains the readout structure through freshness changes and shows no empty trend', () => {
