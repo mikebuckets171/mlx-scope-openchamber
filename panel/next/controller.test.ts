@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { HostClient, HostReadyContext, HostSessions } from '../host/types.ts';
-import { NextPreferencesStore, WorkspaceAwareness } from './controller.ts';
+import { NextPreferencesStore, WorkspaceAwareness, otherWorkLine } from './controller.ts';
 import { parseReadingCard } from './popover.ts';
 
 const ready: HostReadyContext = { surface: 'panel', session: null, directory: '/fixture/project', theme: { mode: 'light', tokens: {} }, features: { deviceStorage: true } };
@@ -92,6 +92,18 @@ test('a refused workspace subscription says why and still releases the project s
   s.awareness.configure('/fixture/project', true, true); await tick(); await tick();
   expect(s.awareness.message).toContain('approval');
   s.awareness.dispose(); expect(s.calls.stops).toBe(1);
+});
+
+test('Other work shows active counts only, never titles or a false quiet state on failure', () => {
+  const { awareness } = setup();
+  const row = (id: string, activity: string, parentId: string | null = null): HostSessions['sessions'][number] =>
+    ({ id, title: 'PRIVATE title', parentId, activity, outcome: null, archivedAt: null });
+  awareness.sessions = { state: 'ready', sessions: [row('a', 'running'), row('b', 'waiting-question', 'a'), row('c', 'idle')] };
+  expect(otherWorkLine(awareness)).toBe('Other work · 1 chat, 1 subagent active');
+  awareness.sessions = { state: 'ready', sessions: [] };
+  expect(otherWorkLine(awareness)).toBe('No other chats running');
+  awareness.message = 'Activity unavailable.';
+  expect(otherWorkLine(awareness)).toBe('Activity unavailable.');
 });
 
 test('popover input retains only bounded display facts, rejecting malformed or excessive payloads', () => {

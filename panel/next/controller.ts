@@ -97,6 +97,21 @@ export class WorkspaceAwareness {
   }
 }
 
+/** What "running" means here: host-reported activity that would have appeared in the old per-chat rows. */
+const ACTIVE = ['running', 'retrying', 'waiting-permission', 'waiting-question'];
+const count = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+/**
+ * Other work is awareness, never evidence: one quiet line of counts, with no chat titles, no activity per chat and no
+ * rows. Anything the host could not answer states itself instead of counting nothing as quiet.
+ */
+export const otherWorkLine = (data: WorkspaceAwareness): string => {
+  if (data.message) return data.message;
+  const rows = (data.sessions?.sessions ?? []).filter(row => ACTIVE.includes(row.activity));
+  if (!rows.length) return 'No other chats running';
+  const subagents = rows.filter(row => !!row.parentId).length;
+  return `Other work · ${count(rows.length - subagents, 'chat', 'chats')}, ${count(subagents, 'subagent', 'subagents')} active`;
+};
+
 export class NextControls {
   readonly awareness: WorkspaceAwareness;
   readonly prefs: NextPreferencesStore;
@@ -111,7 +126,7 @@ export class NextControls {
     this.#ready = ready;
     this.prefs = new NextPreferencesStore(host, ready);
     this.awareness = new WorkspaceAwareness(host, () => this.render());
-    root.addEventListener('change', this.#change);
+    root.addEventListener('click', this.#toggle);
     this.#stop = host.onReady(next => { this.#ready = next; this.sync(); });
     void this.prefs.load().catch(this.#loadFailed).then(() => { if (this.#disposed) return; this.#loaded = true; this.sync(); this.changed(); });
     this.render();
@@ -132,22 +147,22 @@ export class NextControls {
   }
   render(): void {
     if (this.#disposed) return;
+    const toggle = this.root.querySelector('#other-work');
+    if (toggle && toggle.getAttribute('aria-pressed') !== String(this.prefs.value.workspace)) toggle.setAttribute('aria-pressed', String(this.prefs.value.workspace));
     const target = this.root.querySelector<HTMLElement>('#scope-awareness');
     if (!target) return;
-    const prefs = this.prefs.value, data = this.awareness;
-    const expanded = target.querySelector<HTMLDetailsElement>('details')?.open;
-    target.hidden = false;
-    const rows = (data.sessions?.sessions ?? []).filter(row => ['running', 'retrying', 'waiting-permission', 'waiting-question'].includes(row.activity));
-    morph(target, html`<details class="awareness-settings"${expanded ? html` open` : ''}><summary>Other work</summary><p class="coverage-note">Optional project activity. Separate from engine measurements; shown only while Scope is visible.</p><label><input type="checkbox" data-awareness="workspace"${prefs.workspace ? html` checked` : ''}> Chats and subagents</label></details>${this.#error ? html`<p role="status">${this.#error}</p>` : ''}${this.#visible && prefs.workspace ? html`<section class="awareness-card" aria-label="Project activity">${data.message ? html`<p role="status">${data.message}</p>` : ''}${prefs.workspace && data.sessions ? html`<h3>Chats and subagents</h3>${rows.length ? html`<ul>${rows.slice(0, 8).map(row => html`<li><span>${row.title}${row.parentId ? ' · Subagent' : ''}</span><span>${row.activity.replaceAll('-', ' ')}</span></li>`)}</ul>` : html`<p>No chats observed running.</p>`}${data.sessions.state !== 'ready' ? html`<p>Activity snapshot is incomplete.</p>` : ''}` : ''}</section>` : ''}`);
+    const wanted = this.#visible && this.prefs.value.workspace;
+    target.hidden = !wanted && !this.#error;
+    const line = wanted && this.awareness.sessions?.state !== 'ready' && !this.awareness.message ? 'Activity snapshot is incomplete.' : wanted ? otherWorkLine(this.awareness) : '';
+    morph(target, html`${line ? html`<p class="awareness-line">${line}</p>` : ''}${this.#error ? html`<p role="status" class="awareness-line">${this.#error}</p>` : ''}`);
   }
-  #change = (event: Event): void => {
+  /** The menu toggle beside Compact: one device preference, the same patch path as before. */
+  #toggle = (event: Event): void => {
     const target = event.target;
-    let patch: Partial<NextPreferences>;
-    if (target instanceof HTMLInputElement && target.dataset.awareness === 'workspace') patch = { workspace: target.checked };
-    else return;
+    if (!(target instanceof Element) || !target.closest('#other-work')) return;
     this.#error = '';
-    void this.prefs.set(patch).catch(() => { this.#error = 'Changed here; could not save device preferences.'; this.render(); });
+    void this.prefs.set({ workspace: !this.prefs.value.workspace }).catch(() => { this.#error = 'Changed here; could not save device preferences.'; this.render(); });
     this.sync(); this.changed();
   };
-  dispose(): void { this.#disposed = true; this.#visible = false; this.#stop(); this.awareness.dispose(); this.root.removeEventListener('change', this.#change); }
+  dispose(): void { this.#disposed = true; this.#visible = false; this.#stop(); this.awareness.dispose(); this.root.removeEventListener('click', this.#toggle); }
 }

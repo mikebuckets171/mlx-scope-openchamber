@@ -124,7 +124,8 @@ Every exec uses an absolute path from `service/lib/argv.ts`, no shell, and a val
 | `lms ps --json --port <port>` | on a generation change, then every 180 s | — |
 | `lms runtime ls --port <port>` | only while Measurement details is open, cached 10 min | — |
 | LM Studio liveness | `GET /lmstudio-greeting` (no spawn) | same |
-| `lms log stream -s server --json --port <port>`, `macmon pipe -i 1000` | streamed, bounded lines, stopped 60 s after the last read | — |
+| `lms log stream -s server --json --port <port>` | streamed, bounded lines, stopped 60 s after the last read | — |
+| `macmon pipe -i 1000` | streamed, bounded lines, only while a local request generates and a full-tier frame has Measurement details open; stopped at once when that demand ends, samples kept until they go stale | — |
 | **Spawns per minute** | **≤ 24 idle / ≤ 36 active** | **≤ 18** |
 
 The Session sidebar collects memory pressure and thermal warnings. GPU diagnostics run only for the full tier;

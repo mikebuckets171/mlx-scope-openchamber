@@ -175,6 +175,8 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .insight-note, .coverage-note { margin-top: 6px; }
 .empty { margin-top: 10px; }
 .notice { margin-top: 10px; }
+/* History's baseline is one quiet line: the usual value the alert compares the last replies against. */
+.baseline-line { max-width: 64ch; margin-top: 4px; color: var(--scope-muted); font-size: var(--scope-text-caption); line-height: 1.6; }
 :is(.instrument-detail-container, .instrument-details, .reading-details, .runtime-details, .host-details, .connection-help, .history-storage, .history-insights, .history-alerts, .grant) > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; color: var(--scope-muted); font-size: var(--scope-text-detail); }
 .disclosure-arrow { display: inline-flex; align-self: center; flex: none; margin-left: auto; }
 details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
@@ -593,24 +595,9 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 :root[data-design-mode="next"] .mac-rows { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(12rem,100%),1fr)); gap: 0 24px; margin-top: 10px; }
 :root[data-design-mode="next"] .mac-row { padding: 7px 0; }
 :root[data-design-mode="next"] .host-details { margin-top: 8px; }
-:root[data-design-mode="next"] .scope-awareness { min-width: 0; font-size: var(--scope-text-detail); }
-:root[data-design-mode="next"] .scope-awareness > details { padding: 8px 14px; border: 1px solid var(--scope-line); border-radius: 8px; background: color-mix(in srgb,var(--scope-surface) 23%,transparent); }
-:root[data-design-mode="next"] .scope-awareness summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 26px; font-weight: 500; }
-:root[data-design-mode="next"] .scope-awareness summary::after { content: ''; width: 6px; height: 6px; flex: none; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); }
-:root[data-design-mode="next"] .scope-awareness details[open] > summary::after { transform: rotate(225deg); }
-:root[data-design-mode="next"] .scope-awareness .coverage-note { margin: 8px 0; }
-:root[data-design-mode="next"] .scope-awareness label { display: flex; align-items: center; gap: 8px; min-height: 32px; }
-:root[data-design-mode="next"] .scope-awareness input { accent-color: var(--precision-accent); }
-:root[data-design-mode="next"] .scope-awareness pre { max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--scope-text-caption); }
-:root[data-design-mode="next"] .scope-awareness button { font: inherit; }
-:root[data-design-mode="next"] .awareness-card { padding: 12px 14px; border: 1px solid var(--scope-line); border-top: 0; }
-:root[data-design-mode="next"] .awareness-card h3 { margin: 12px 0 6px; font-size: var(--scope-text-detail); font-weight: 550; }
-:root[data-design-mode="next"] .awareness-card h3:first-child { margin-top: 0; }
-:root[data-design-mode="next"] .awareness-card ul { list-style: none; padding: 0; margin: 0; }
-:root[data-design-mode="next"] .awareness-card li { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--scope-line); }
-:root[data-design-mode="next"] .awareness-card li > :first-child { flex: 1 1 120px; min-width: 0; overflow-wrap: anywhere; }
-:root[data-design-mode="next"] .awareness-card li > span:last-of-type { color: var(--scope-muted); }
-:root[data-design-mode="next"] .awareness-card li > button { min-height: 28px; }
+/* Other work is one quiet count line above the column foot, not a card of its own. */
+:root[data-design-mode="next"] .scope-awareness { min-width: 0; }
+:root[data-design-mode="next"] .awareness-line { max-width: 64ch; color: var(--scope-muted); font-size: var(--scope-text-caption); line-height: 1.6; }
 :root[data-design-mode="next"] #view-media { padding: 0; border: 0; }
 :root[data-design-mode="next"] .column-foot { display: none; }
 :root[data-design-mode="next"] .precision-detail-actions { display: flex; flex-wrap: wrap; gap: 6px 16px; padding-top: 10px; }

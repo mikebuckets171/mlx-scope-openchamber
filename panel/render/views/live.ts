@@ -100,5 +100,5 @@ export const macCard = (mac: MacView | null, open: Open): Raw | string => {
 
 export const liveMarkup = (view: LiveView, open: Open): Raw => {
   const main = html`${callouts(P, view.callouts, open)}${hero(view.hero, view.tiles, open, view.server)}${!view.hero ? tiles(view.tiles) : ''}`;
-  return html`<div class="next-live-primary">${main}</div>${view.mac ? html`<aside class="next-live-context" aria-label="This Mac">${macCard(view.mac, open)}<div id="next-context-activity" data-mount></div></aside>` : ''}`;
+  return html`<div class="next-live-primary">${main}</div>${view.mac ? html`<aside class="next-live-context" aria-label="This Mac">${macCard(view.mac, open)}</aside>` : ''}`;
 };

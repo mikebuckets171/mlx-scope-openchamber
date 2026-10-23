@@ -192,11 +192,11 @@ test('each read gets its selection and tier; the host sampler gets the tier, act
     [{ provider: 'My LM Studio (Bionic)', runtime: null }, full], [{ provider: '', runtime: 'llama-server' }, full],
     [{ provider: '', runtime: 'ollama' }, { tier: 'glance', detail: false }],
     [{ provider: '', runtime: 'splash' }, { tier: 'full', detail: true }]]);
-  expect(hosts.at(-1)).toEqual({ tier: 'full', active: false, generation: 3, omlxPort: null });
+  expect(hosts.at(-1)).toEqual({ tier: 'full', active: false, generating: false, detail: true, generation: 3, omlxPort: null });
   current = reading({ state: 'ready', reason: null, params: {} }, { runtime: { ...offline().runtime, phase: 'decode' },
     meta: meta({ port: 8001, connection: { ...meta().connection, runtime: 'omlx', generation: 7 } }) });
   await snapshot(request, '/v2/snapshot?surface=status');
-  expect(hosts.at(-1)).toEqual({ tier: 'glance', active: true, generation: 7, omlxPort: 8001 });
+  expect(hosts.at(-1)).toEqual({ tier: 'glance', active: true, generating: true, detail: false, generation: 7, omlxPort: 8001 });
 });
 
 test('the lease elects page over panel over status among recent frames, and lower frames back off', async () => {

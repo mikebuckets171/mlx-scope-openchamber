@@ -4,7 +4,7 @@ import { WITHHOLD_REASONS, type AlertId, type ReasonParams, type WithholdReason 
 import { TREND_WINDOWS_MS, type TrendV2, type TrendWindowMs } from '../../src/contract/trend.ts';
 import { USAGE_RANGES, type UsageRange, type UsageV2 } from '../../src/contract/usage.ts';
 import type { LedgerAccounting } from '../history/accounting.ts';
-import { baselineFor, type Baseline, type BaselineKey, type Baselines } from '../history/baselines.ts';
+import { baselineFor, type BaselineKey, type Baselines } from '../history/baselines.ts';
 import { rowIdentity, type GapRow, type LedgerAttr, type LedgerRow, type ReplyRow, type SizeBucket, type TurnRow } from '../history/ledger-schema.ts';
 import type { RegressionFlag } from '../history/regress.ts';
 import { SIZE_LABELS } from '../history/summary.ts';
@@ -59,8 +59,8 @@ export interface TrendCard {
 }
 export interface BaselineCard {
   model: string | null; bucket: string | null; empty: string | null;
-  tiles: Array<{ label: string; value: string; detail: string }>;
-  rows: Array<{ label: string; value: string; basis: string | null }>;
+  /** One quiet line: the usual value the alert compares the last replies against. */
+  line: string | null;
   flag: { chip: string; tip: string[] } | null;
   copy: boolean; tip: string[];
 }
@@ -167,35 +167,25 @@ const presentTrend = (input: HistoryInput, rt: string): TrendCard => {
 };
 
 // ---------- usual speed ----------
-const needs = (base: Baseline | null, of: number): string => `${base?.n ?? 0} of ${of} replies`;
-const presentBaseline = (input: HistoryInput, replies: readonly ReplyRow[], rt: string): BaselineCard => {
+/** History's job is the trend and the alert: the baseline is one quiet line, the value the flag compares against. */
+const presentBaseline = (input: HistoryInput, replies: readonly ReplyRow[]): BaselineCard => {
   const tip = ['Last 14 days, up to 50 replies, excluding the current 30 minutes. Typical values need 5 replies; fast and slow cutoffs need 10.',
     'Replies mixed with other requests are left out. First-token comparisons use timings from finished replies.'];
   const newest = [...replies].reverse().find(row => row[3] !== null && row[4] !== null);
   const model = newest ? input.models[newest[3]!] ?? input.model ?? null : input.model ?? null;
-  if (!newest) return { model, bucket: null, empty: 'Needs 5 replies for this model and context size.', tiles: [], rows: [], flag: null, copy: input.baselines.size > 0, tip };
+  if (!newest) return { model, bucket: null, empty: 'Needs 5 replies for this model and context size.', line: null, flag: null, copy: input.baselines.size > 0, tip };
   const ctx: BaselineKey = { rt: newest[2], modelRef: newest[3]!, bucket: newest[4]! };
   const unc: BaselineKey | null = newest[5] === null ? null : { ...ctx, bucket: newest[5] };
-  const decode = baselineFor(input.baselines, 'decodeTps', ctx), prefill = unc && baselineFor(input.baselines, 'prefillTps', unc);
-  const ttft = unc && baselineFor(input.baselines, 'ttftMs', unc), perJ = baselineFor(input.baselines, 'tokPerJ', ctx);
+  const decode = baselineFor(input.baselines, 'decodeTps', ctx);
   const bucket = `${SIZE_LABELS[ctx.bucket as SizeBucket]} context`;
-  const rows: BaselineCard['rows'] = [];
-  if (perJ?.p50) rows.push({ label: 'Typical tokens per joule', value: `${perJ.p50.toFixed(2)} · ${perJ.n} replies`, basis: 'estimated usual value' });
-  const reportsTtft = replies.some(row => row[2] === ctx.rt && row[9] !== null && row[12] !== 'last-observed');
-  rows.push({ label: 'First token', basis: null, value: !reportsTtft ? `No baseline · ${rt} doesn’t report it`
-    : ttft?.p50 ? `Typical ${dur(ttft.p50)}${ttft.p90 ? ` · 90% within ${dur(ttft.p90)}` : ''} · ${ttft.n} replies` : `Needs 5 replies · ${needs(ttft, 5)}` });
   const flag = input.flags.find(item => [`decodeTps|${ctx.rt}|${ctx.modelRef}|${ctx.bucket}`, unc && `prefillTps|${unc.rt}|${unc.modelRef}|${unc.bucket}`,
     unc && `ttftMs|${unc.rt}|${unc.modelRef}|${unc.bucket}`].includes(item.key));
   const causes = flag ? [flag.cofactors & 1 && 'macOS memory pressure at warning or above', flag.cofactors & 2 && 'swap grew', flag.cofactors & 4 && 'high heat'].filter(Boolean) : [];
   const unit = (value: number, metric: RegressionFlag['metric']): string => metric === 'ttftMs' ? dur(value) : `${tps(value)} tok/s`;
   return {
-    model, bucket, tip, rows, copy: input.baselines.size > 0,
+    model, bucket, tip, copy: input.baselines.size > 0,
     empty: decode?.p50 ? null : `Needs 5 replies for this model and context size.${decode?.n ? ` Scope has ${decode.n} so far.` : ''}`,
-    tiles: decode?.p50 ? [
-      { label: 'Typical generation', value: `${tps(decode.p50)} tok/s`, detail: `${decode.n} replies` },
-      { label: 'Fast generation', value: decode.p90 ? `${tps(decode.p90)} tok/s` : 'Not yet', detail: decode.p90 ? `${decode.n} replies` : needs(decode, 10) },
-      ...prefill ? [{ label: 'Typical prefill', value: prefill.p50 ? `${tps(prefill.p50)} tok/s` : 'Not yet', detail: prefill.p50 ? `${prefill.n} replies` : needs(prefill, 5) }] : [],
-    ] : [],
+    line: decode?.p50 ? `Median of ${plural(decode.n, 'reply', 'replies')} · ${tps(decode.p50)} tok/s` : null,
     flag: flag ? { chip: `${flag.metric === 'ttftMs' ? 'Slower first token' : 'Slower'} · ${delta(flag.recentMedian / flag.p50)} · last 3`, tip: [
       `Middle value of the last 3 replies ${unit(flag.recentMedian, flag.metric)} against usual ${unit(flag.p50, flag.metric)} (${flag.n} replies).`,
       ...causes.length ? [`Observed during these replies, not necessarily the cause: ${causes.join('; ')}.`] : []] } : null,
@@ -270,7 +260,7 @@ export const presentHistory = (input: HistoryInput): HistoryView => {
       'Turn summaries need every step matched to this chat. Unmatched readings cover all server activity.',
       ...replies.some(row => row[12] === 'last-observed') ? ['When the server doesn’t report finished replies, rows use Scope’s last reading from the request.'] : []],
     trend: presentTrend(input, rt),
-    baseline: presentBaseline(input, replies, rt),
+    baseline: presentBaseline(input, replies),
     usage: presentUsage(input.usage, input),
     storage: presentStorage(input, replies.length, oldest),
     alertLog: input.alertLog.map(entry => ({ at: clock(entry.since, input.now), iso: iso(entry.since), text: text.alert(entry.id, entry.params), severity: entry.severity,

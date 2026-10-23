@@ -51,7 +51,6 @@ export class ScopeApp {
   readonly #state: AppParts['state'];
   readonly #connections: AppParts['connections'];
   readonly #mediaJobs: AppParts['mediaJobs'];
-  readonly #awareness: HTMLElement;
   #navigationAction: string | null = null;
 
   constructor(p: AppParts) {
@@ -60,7 +59,6 @@ export class ScopeApp {
     this.#state = p.state;
     this.#connections = p.connections;
     this.#mediaJobs = p.mediaJobs;
-    this.#awareness = this.#node('scope-awareness');
 
     const shell = p.shell;
     this.#motion = new Motion(shell);
@@ -119,9 +117,6 @@ export class ScopeApp {
     if (serverVisible && !state.serverDetailsVisible) void this.onRefreshNeeded();
     state.serverDetailsVisible = serverVisible;
     renderHeader(this.#shell, presentHeader(s));
-    // Rehome the same optional activity region before removing its former Live view.
-    // Its host subscriptions and focus stay owned by NextControls, not this renderer.
-    if (state.tab !== 'live' || compact || card || this.#connections.isOpen) this.#homeAwareness();
     const currentAction = this.#connections.isOpen ? 'connection' : state.tab === 'history' ? 'open-history' : 'show-live';
     if (currentAction !== this.#navigationAction) {
       this.#navigationAction = currentAction;
@@ -162,16 +157,9 @@ export class ScopeApp {
     morph(mediaBlock, mediaPresent ? mediaMarkup(media, sessionId, s.now) : '');
     if (active === 'live') {
       morph(this.#node('view-live'), s.snapshot || s.frame ? html`${liveMarkup(live, open)}${this.#chatSetupHint(s)}` : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
-      const mount = this.#shell.querySelector('#next-context-activity');
-      if (mount) { if (this.#awareness.parentElement !== mount) mount.append(this.#awareness); }
-      else this.#homeAwareness();
     }
     if (active === 'history') this.#view('history', this.#node('view-history'), s.snapshot);
     this.#syncMotion(s);
-  }
-  #homeAwareness(): void {
-    const foot = this.#shell.querySelector('.column-foot');
-    if (foot && this.#awareness.parentElement !== foot.parentElement) foot.before(this.#awareness);
   }
   #chatSetupHint(s: ScopeInput) {
     const status = this.#p.companion();

@@ -128,6 +128,47 @@ test('an exit while wanted restarts with backoff; five silent exits stop retryin
   stream.dispose();
 });
 
+test('a release stops the child at once, keeps the samples for the energy, and a later touch streams again', async () => {
+  const { spawn, children, clock } = harness();
+  const start = clock.now;
+  const stream = createPowerStream({ macmon: MACMON, now: () => clock.now, spawn, idleStopMs: 60_000 });
+  stream.touch();
+  for (let second = 1; second <= 3; second++) {
+    clock.now = start + second * 1_000;
+    await feed(children[0]!, line(10));
+  }
+  stream.release();
+  expect(children[0]!.signals).toEqual(['SIGTERM']);
+  // The last reading stands until it goes stale, and the covered seconds still integrate after the child is gone.
+  expect(stream.view(clock.now)).toMatchObject({ chipW: 10, sampledAt: start + 3_000 });
+  expect(stream.energy(start, start + 3_000)).toEqual({ energyJ: 30, coverage: 1 });
+  clock.now = start + 3_000 + POWER_STALE_MS + 1;
+  expect(stream.view(clock.now)).toBeUndefined();
+  expect(stream.energy(start, start + 3_000)).toEqual({ energyJ: 30, coverage: 1 });
+  // A release without a child is a no-op, and the next demand starts a fresh one.
+  stream.release();
+  stream.touch();
+  expect(children).toHaveLength(2);
+  expect(children[1]!.signals).toEqual([]);
+  stream.dispose();
+});
+
+test('a macmon that keeps exiting silently is not respawned on every new demand window', async () => {
+  const { spawn, children } = harness();
+  // The backoff is long enough that no restart lands inside a demand window; only `touch` can start macmon here.
+  const stream = createPowerStream({ macmon: MACMON, now: () => 0, spawn, idleStopMs: 5_000, restartBaseMs: 500 });
+  for (let demand = 0; demand < 6; demand++) {
+    stream.touch();
+    children.at(-1)?.exit(1);
+    await wait(2);
+    stream.release();
+  }
+  expect(children).toHaveLength(5);
+  stream.touch();
+  expect(children).toHaveLength(5);
+  stream.dispose();
+});
+
 test('an argv outside the allowlist never spawns', () => {
   const { spawn, spawned } = harness();
   const stream = createPowerStream({ macmon: '/tmp/macmon', now: () => 0, spawn, idleStopMs: 5_000 });

@@ -23,8 +23,6 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#next-context-activity {data-mount=""}
-#scope-awareness {aria-label="Session activity"}: Other work
 h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash
@@ -71,8 +69,6 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#next-context-activity {data-mount=""}
-#scope-awareness {aria-label="Session activity"}: Other work
 h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash

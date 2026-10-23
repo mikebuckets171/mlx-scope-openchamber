@@ -116,7 +116,7 @@ Readings are labelled **Engine** unless Scope can tell they belong to the open c
 - **Label replies to this chat automatically** is on (the default; History → Storage).
 
 Otherwise the reply stays **Engine** with one reason, such as "This chat uses Splash · Watch Splash". **Limits:**
-- Optional **Other work** lists host-reported project activity separately. It does not prove which chat produced an engine reading; another chat alternating requests on the same runtime still cannot be ruled out.
+- Optional **Other work** reports host-reported project activity as one count line (`Other work · N chats, M subagents active`), separately from measurements and without chat titles. It does not prove which chat produced an engine reading; another chat alternating requests on the same runtime still cannot be ruled out.
 - OpenChamber's own background model calls, such as title generation, can fall inside a labelled turn.
 - A view opened mid-turn starts labelling at the next turn.
 - Ollama and mlx-lm don't report per-request activity, so their readings are never labelled per chat.
@@ -161,6 +161,7 @@ Each reading says where it comes from:
 - the oMLX process's memory footprint;
 - optional chip power (CPU+GPU+ANE), labelled an **estimate**, with tokens per joule. It needs
   [macmon](https://github.com/vladkens/macmon), which you install yourself. It includes all apps and is not wall power.
+  It is read only while a local request is generating and Measurement details is open.
 
 ## Install
 
@@ -184,7 +185,7 @@ The column shows chat and engine readings, then **Media** while local image/vide
 
 Use Connections → Advanced only when automatic discovery cannot identify a custom installation. Existing provider credentials stay in their owning configuration. Enterprise deployments may require the administrator to allowlist this repository.
 
-Git updates preserve existing preferences and observations. **Scope 5.1 asks for approval once** because it declares fewer permissions: `sessions` only, without `shells`, the `/scope` command or a background page. **Chats and subagents** under **Other work** in Live starts disabled; approving the update does not enable it. These host readings remain separate from engine measurements. The service executable permissions are unchanged. After updating, choose **Connections → Update chat speed** once to load companion 3.5.0; later OpenCode 2.0 and 2.1 updates need no Scope action. If extension/service versions differ after an update, reload the extension in Settings → Extensions; generation backends remain independent.
+Git updates preserve existing preferences and observations. **Scope 5.1 asks for approval once** because it declares fewer permissions: `sessions` only, without `shells`, the `/scope` command or a background page. **Other work** in the **⋯** menu beside Compact starts disabled; approving the update does not enable it, and Live then shows one count line with no chat titles. These host readings remain separate from engine measurements. The service executable permissions are unchanged. After updating, choose **Connections → Update chat speed** once to load companion 3.5.0; later OpenCode 2.0 and 2.1 updates need no Scope action. If extension/service versions differ after an update, reload the extension in Settings → Extensions; generation backends remain independent.
 
 ### What Scope asks you to approve and why
 

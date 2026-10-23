@@ -2,6 +2,7 @@ import { cpus, freemem, platform as osPlatform, totalmem } from 'node:os';
 import { defined, label } from '../../src/contract/guards.ts';
 import type { HostV2, MacV2, Platform } from '../../src/contract/host.ts';
 import type { Tier } from '../core/adapter-v2.ts';
+import { LEASE_FRAMES, LEASE_TTL_MS } from '../core/lease.ts';
 import { createStreamSpawn, footprintArgv, ioregArgv, lsofListenArgv, notifyutilArgv, sysctlArgv, vmStatArgv, type Argv, type Exec, type StreamSpawn } from '../lib/argv.ts';
 import { parseFootprintReport, parseLsofPids, sameProcess, type FootprintReport } from './footprint.ts';
 import { parseIoreg } from './gpu.ts';
@@ -25,8 +26,9 @@ const SPAWNS: Record<Probe, number> = { memory: 2, gpu: 1, thermal: 1, listener:
 const TTL_CADENCES = 3;
 const BASE_CACHE_MS = 2_000, CPU_REPRIME_MS = 10_000, MACMON_RECHECK_MS = 300_000, BUDGET_WINDOW_MS = 60_000;
 
-/** What the sampler needs from the reading it rides along with. `omlxPort` enables lsof → footprint. */
-export interface HostContext { tier: Tier; active: boolean; generation: number; omlxPort: number | null }
+/** What the sampler needs from the reading it rides along with. `omlxPort` enables lsof → footprint; `detail` is the
+ * frame's own `detail=server` poll, the one signal it already sends when a view has the measurement details open. */
+export interface HostContext { tier: Tier; active: boolean; generating: boolean; detail: boolean; frame?: string; generation: number; omlxPort: number | null }
 export interface HostSamplerOptions {
   exec: Exec; now: () => number; platform?: string; home?: string;
   monotonic?: () => number;
@@ -73,6 +75,7 @@ export class HostSampler {
   /** Monotonic times of the children started in the last minute. */
   private spawns: number[] = [];
   private power: PowerStream | null = null;
+  private readonly powerReaders = new Map<string, number>();
   private macmonCheckedAt = -Infinity;
   private disposed = false;
 
@@ -88,11 +91,10 @@ export class HostSampler {
     let base: Base;
     try { base = this.basePart(); } catch { return null; }
     if (!this.darwin || this.disposed) return base;
+    this.updatePower(context);
     // Started in priority order, so under a tight budget pressure and thermal outrank GPU and footprint.
     await Promise.all([this.run('memory', context, () => this.readMemory()), this.run('thermal', context, () => this.readThermal()),
       this.run('gpu', context, () => this.readGpu()), this.readProcess(context)]);
-    // macmon streams for full-tier views only (§4.4); a glance read shows a live stream but never extends it.
-    if (context.tier === 'full') this.powerStream()?.touch();
     const now = this.options.now();
     return defined({ ...base, mac: this.fresh(this.mac, 'memory', now), gpu: this.fresh(this.gpu, 'gpu', now),
       thermal: this.fresh(this.thermal, 'thermal', now),
@@ -103,7 +105,19 @@ export class HostSampler {
   energy(from: number, to: number): { energyJ: number; coverage: number } | null { return this.power?.energy(from, to) ?? null; }
 
   /** Stops the macmon stream and pending timers. */
-  dispose(): void { this.disposed = true; this.power?.dispose(); this.power = null; }
+  dispose(): void { this.disposed = true; this.power?.dispose(); this.power = null; this.powerReaders.clear(); }
+
+  private updatePower(context: HostContext): void {
+    const now = this.monotonic(), frame = context.frame ?? '';
+    for (const [id, seen] of this.powerReaders) if (now < seen || now - seen >= LEASE_TTL_MS) this.powerReaders.delete(id);
+    if (context.tier === 'full' && context.detail && context.generating) {
+      if (!this.powerReaders.has(frame) && this.powerReaders.size >= LEASE_FRAMES) this.powerReaders.delete(this.powerReaders.keys().next().value!);
+      this.powerReaders.set(frame, now);
+      this.powerStream()?.touch();
+    } else this.powerReaders.delete(frame);
+    // A sidebar or another connection must not cancel a still-visible hub's demand.
+    if (!this.powerReaders.size) this.power?.release();
+  }
 
   private fresh<T extends { sampledAt: number }>(part: T | undefined, probe: Probe, now: number): T | undefined {
     return part && now - part.sampledAt <= ttl(probe) ? part : undefined;

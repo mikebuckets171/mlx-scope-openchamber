@@ -30,8 +30,6 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Heavy
 #mac-details: Mac details
-#next-context-activity {data-mount=""}
-#scope-awareness {aria-label="Session activity"}: Other work
 #freshness: Updated just now
 live #connection: Local oMLX
 live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.

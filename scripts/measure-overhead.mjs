@@ -177,8 +177,9 @@ async function measure({ kind, macmon }) {
       }
       throw new Error('The service did not report its CPU time.');
     };
-    // Each view polls as its frame does (panel/data/client.ts snapshotQuery): its own frame id, surface and tier.
-    const view = (surface, tier) => `/v2/snapshot?frame=${randomBytes(4).toString('hex')}&surface=${surface}&tier=${tier}`;
+    // Each view polls as its frame does (panel/data/client.ts snapshotQuery): its own frame id, surface and tier. A
+    // full-tier view asks for the detail it asks for while Measurement details is open, which is what streams macmon.
+    const view = (surface, tier) => `/v2/snapshot?frame=${randomBytes(4).toString('hex')}&surface=${surface}&tier=${tier}${tier === 'full' ? '&detail=server' : ''}`;
     const panel = view('panel', 'full'), status = view('status', 'glance');
     const poll = async (duration, interval, path = panel) => {
       const until = performance.now() + duration * 1000, latencies = [];
@@ -397,7 +398,8 @@ function summarize(kind, run) {
     check('sandboxHome.filesWritten', run.changed, 0),
     ...(lms ? [check('lms.unverifiedSpawns', Math.abs(lms.spawns - lms.fakeInvocations) + lmsSpawns.filter(record => !record.underHome).length, 0),
       check('lms.withoutServerInfoPath', lms.serverInfoPathSet ? 0 : 1, 0)] : []),
-    // One stream per demand window; power reaches the body as an estimate while full-tier views read.
+    // One stream per demand window: only while a local request generates and a full-tier view asks for the detail, and
+    // power reaches the body as an estimate for as long as its last sample stays fresh.
     ...(macmon ? [check('macmon.spawns', macmon.spawns, 2), check('macmon.missingPower', macmon.samplesWithPower > 0 ? 0 : 1, 0),
       check('macmon.missingEstimateBasis', macmon.samplesWithEstimateCapability === macmon.samplesWithPower ? 0 : 1, 0)] : []),
   ];
@@ -496,7 +498,7 @@ const receipt = {
   host: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model ?? null, logicalCores: cpus().length, memGiB: Math.round(totalmem() / 2 ** 30) },
   method: {
     psSampleMs: SAMPLE_MS, tailBucketSeconds: BUCKET_S, seconds, activePollMs,
-    phases: `settle: 15 s after the service is ready, no reads (not measured; startup heap trim) · noView: no reads · warmup: 5 s at ${activePollMs} ms (not measured) · active: ${activePollMs} ms polls, runtime generating · idle: 2 s polls, runtime idle · glance: surface=status&tier=glance at 1 s, runtime generating · paused: no reads · macmon runs: the same phases with a fake \`macmon pipe\``,
+    phases: `settle: 15 s after the service is ready, no reads (not measured; startup heap trim) · noView: no reads · warmup: 5 s at ${activePollMs} ms (not measured) · active: ${activePollMs} ms polls, runtime generating · idle: 2 s polls, runtime idle · glance: surface=status&tier=glance at 1 s, runtime generating · paused: no reads · macmon runs: the same phases with a fake \`macmon pipe\`, streamed only while a full-tier view asks for the detail and a request generates`,
     idleExit: `One more fresh service (oMLX fake) with MLX_SCOPE_IDLE_EXIT_MS=${IDLE_EXIT_MS}: spawn to the first ready full snapshot (one cold-start sample, not gated), then /health once a second and no view request. Gates: it exits on its own with code 0, not earlier than ${IDLE_EXIT_MS - IDLE_EXIT_EARLY_MS} ms and within ${IDLE_EXIT_MS + IDLE_EXIT_GRACE_MS} ms after the last view, leaving no child and writing nothing under its HOME.`,
     cpu: 'Percent of one core. Service: its own cpuUsage() at phase edges (each read costs it about 0.2 ms). Children: ps -A every 500 ms, plus children too short-lived for ps, which share the whole-run wait4 rusage (/usr/bin/time -l) evenly per spawn.',
     spawns: 'Counted in-process by a --import preload that wraps child_process; runtime requests are counted by the fake runtime.',

@@ -128,12 +128,12 @@ keeps it. Backups keep their own copies.
 
 ## Per-chat labels and optional project awareness
 
-- Scope 5.1 declares `sessions` only; 5.0's `shells` permission and agent command output are gone. **Chats and subagents** starts disabled. Enabling it subscribes to host-reported activity in the current project, and it stops when Live is hidden, paused or closed.
-- Project activity may include titles and subagent relationships. Scope holds it only in the visible view and never sends a session prompt.
+- Scope 5.1 declares `sessions` only; 5.0's `shells` permission and agent command output are gone. **Other work** in the ⋯ menu starts disabled. Enabling it subscribes to host-reported activity in the current project, and it stops when Live is hidden, paused or closed.
+- Project activity may include titles and subagent relationships. Scope holds it only in memory for the visible view and never sends a session prompt; Live shows counts only, so no chat title or per-chat activity is rendered.
 - Design and opt-in flags are stored in device-scoped preferences where supported, never mixed with saved measurement records.
 - It uses only what OpenChamber gives every extension about the **open** chat: its ID, whether it is busy, its model,
   and its turn start and finish events.
-- The existing measurement pipeline does not use the open chat’s title. The optional activity view can show host-reported titles; they are transient and excluded from measurement storage, sharing and diagnostics.
+- The existing measurement pipeline does not use the open chat’s title. Host-reported titles reach the visible view only while Other work is on; they are never rendered, never stored with measurements, and never shared or diagnosed.
 - To mark turns, a view sends the service a short hash of the open chat's ID, salted per service start. The service
   keeps it in memory only and never stores, displays or returns it.
 

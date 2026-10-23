@@ -211,7 +211,7 @@ Neither action restarts a service or changes settings.
 | "MLX Scope needs one approval" | Approve the updated permission set in Settings → Extensions |
 | Service is still the previous version | Pause and resume MLX Scope in Settings → Extensions |
 | No live LM Studio activity | Install `lms` in `~/.lmstudio/bin` or `~/.cache/lm-studio/bin`; Scope runs it from nowhere else |
-| No chip power | Install [macmon](https://github.com/vladkens/macmon) in `/opt/homebrew/bin` or `/usr/local/bin`; Scope never installs it |
+| No chip power | Install [macmon](https://github.com/vladkens/macmon) in `/opt/homebrew/bin` or `/usr/local/bin`; Scope never installs it. It runs only while a local request is generating and Measurement details is open, so a reading only appears then |
 
 Unknown readings are left out, never shown as invented zeroes. Never paste credentials,
 auth files, or raw server responses into a public issue.
@@ -234,7 +234,7 @@ These are isolated development inputs, not extension settings.
 
 Scope uses one standard design and follows the host theme and reduced-motion preference. Earlier Classic/Next choices no longer select a separate appearance. Optional activity flags use device storage when supported. A failed save is shown without changing monitoring data.
 
-**Other work** in Live contains a **Chats and subagents** switch. It begins off, even after permission reapproval, and shows only host-reported current-project activity, not measured engine throughput. Scope 5.0's **Agent commands** switch and command output are gone; a stored choice for them is kept untouched.
+**Other work** in the **⋯** menu beside Compact is a switch for optional project activity. It begins off, even after permission reapproval, and Live then shows one line — `Other work · N chats, M subagents active`, or `No other chats running` — for host-reported current-project activity, never measured engine throughput and never chat titles or per-chat activity. Scope 5.0's **Agent commands** switch and command output are gone; a stored choice for them is kept untouched.
 
 On OpenChamber 2.4+, the Session section's header provides **Watch** (This chat / Engine) and **Pause/Resume**. Selecting the reading opens its snapshot details without creating a second collector. A host without header controls keeps the same controls, plus **Details**, inside the section.
 
