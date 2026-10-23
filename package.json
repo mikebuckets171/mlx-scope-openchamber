@@ -1,6 +1,6 @@
 {
   "name": "mlx-scope-openchamber",
-  "version": "5.1.2",
+  "version": "5.2.0",
   "description": "Lightweight local model monitoring for OpenChamber.",
   "private": true,
   "license": "MIT",
@@ -67,8 +67,7 @@
             "~/.lmstudio/bin/lms",
             "~/.cache/lm-studio/bin/lms",
             "/opt/homebrew/bin/macmon",
-            "/usr/local/bin/macmon",
-            "~/.config/opencode/bin/local-video"
+            "/usr/local/bin/macmon"
           ]
         }
       },
@@ -138,11 +137,11 @@
     "bridge/comfyui/snapshot.py",
     "bridge/comfyui/README.md",
     "docs/MEDIA.md",
-    "docs/3.1/assets/media-light.png",
-    "docs/3.1/assets/connections-light.png",
-    "docs/5.0/assets/standard-instrument-dark.png",
-    "docs/5.0/assets/standard-instrument-light.png",
-    "docs/5.0/assets/standard-session-dark.png",
-    "docs/5.0/assets/standard-session-light.png"
+    "docs/assets/media-light.png",
+    "docs/assets/connections-light.png",
+    "docs/assets/standard-instrument-dark.png",
+    "docs/assets/standard-instrument-light.png",
+    "docs/assets/standard-session-dark.png",
+    "docs/assets/standard-session-light.png"
   ]
 }

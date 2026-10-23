@@ -1,5 +1,28 @@
 # Changelog
 
+## 5.2.0
+
+- **A quieter monitor.** Measurement details is the single hub for engine readings, request details, the last reply,
+  a compact server strip and Run details. Server diagnostics are read only while that hub is open. History keeps its
+  trend, alerts and a quiet usual-speed median instead of another stat dashboard.
+- **One compact presentation.** Compact and the Session sidebar share the same status widget. Compact keeps Watch
+  and Expand; Pause stays in the masthead. Watch is now **Automatic** or **Engine**; saved Chat choices become Automatic.
+  Automatic never substitutes local engine numbers for a cloud chat.
+- **Chip power only when useful.** Optional macmon runs while a local engine is generating and a visible Measurement
+  details hub asks for it. Multiple readers share the stream without cancelling each other. Freshness and energy-coverage
+  checks still apply; power is a whole-chip estimate, not wall power or a chat's electricity use.
+- **Less surrounding noise.** Other work is an opt-in menu toggle and one counts-only line, not a list of chat titles.
+  Media supports ComfyUI and Draw Things. Retired Phosphene, local-video, Qwen-image and generic-file integrations are
+  removed; Scope does not delete their files or stored history.
+- **Ready for contributors.** Onboarding is rewritten, historical plans and receipts are archived, and retired v1
+  parsing/conversion lives only in frozen test fixtures. Runtime imports of that support are rejected by a regression check.
+
+Permissions, storage limits and observer-only behavior are unchanged. Requires OpenChamber 2.4.0 or later and pins SDK
+2.5.0. Update a Git install with **Check for updates** to keep History; replacing an installation with a ZIP can delete it.
+
+Verification and its limits are recorded in the
+[5.2.0 receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/5.2.0-verification.md).
+
 ## 5.1.2
 
 - **Chat speed works on OpenCode 2.1.** OpenCode 2.1.1 keeps every part of the contract the companion reads, and the local build `2.1.1-compaction.1` passed the native checks against its own binary with synthetic providers. Later 2.1 releases from 2.1.1 are **self-checked** the way later 2.0 releases are: the companion confirms each hook and event shape and pauses only the feature whose check fails, naming the reason in Connections. 2.1.0, 2.2 and later stay off until qualified. A locally built runtime is accepted only by reviewed identifier, so `2.1.1-compaction.1` works and an unreviewed suffix does not. Choose **Connections → Update chat speed** once to load companion 3.5.0; later OpenCode 2.0 and 2.1 updates need no Scope action.
@@ -14,7 +37,7 @@ cancellation, managed hot reload from the installed 3.4.0 helper with no server 
 a new compaction check: the auxiliary compaction request published no chat measurement, the checkpoint carried
 `metadata.keepID`, `session.context` materialized `metadata.recent`, and the resumed step completed on reported output.
 No real model, inference or cloud account was involved.
-[Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/companion-3.5.0.json).
+[Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/archive/receipts/companion-3.5.0.json).
 All 628 Chromium and WebKit browser cases passed locally. Goldens and the 5.1.0 overhead fixture were not re-run: the
 panel's rendered output is unchanged, and the CPU fixture measured work this release does not change. The first run of
 the new compaction check failed at the resumed step because the harness let its own demand file expire, not because of
@@ -43,7 +66,7 @@ Before publication on macOS: type checking, the privacy scan, 1,854 Bun tests, 7
 
 Before publication, on macOS with an Apple M5 Pro, `bun run check:all` passed: type checking, the privacy scan, 1,848 Bun tests, 79 companion tests, 15 helper tests, reproducible bundles and package verification, and all 628 Chromium and WebKit browser cases. The presentation goldens were regenerated and reviewed. Release CI exposed a native-disclosure race, fixed with a same-task regression test; startup layout checks now wait for the first trend before clicking controls it moves, and the Splash label check advances a controlled clock past its observation window.
 
-With synthetic runtimes, the service overhead run passed every existing budget, plus a new check that the service exits on its own, with code 0, after its idle delay (checked at 5 s). The default run's CPU readings were below the stored same-machine 5.0 baseline. A separate back-to-back comparison with 5.0.0 showed lower active and glance CPU with half the requests while generating and unchanged helper spawn rates; oMLX idle CPU was higher (0.518% against 0.451% of one core), still below the 0.68% budget. Peak memory with the synthetic oMLX runtime read about 10 MiB higher (72–79 MiB against 58–65; LM Studio 73–76 against 72–76), within the 132 MiB budget. Renderer CPU was not measured. These runs do not show the effect on real inference, the graphics processor or the complete OpenChamber app. [Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/overhead-5.1.0.json).
+With synthetic runtimes, the service overhead run passed every existing budget, plus a new check that the service exits on its own, with code 0, after its idle delay (checked at 5 s). The default run's CPU readings were below the stored same-machine 5.0 baseline. A separate back-to-back comparison with 5.0.0 showed lower active and glance CPU with half the requests while generating and unchanged helper spawn rates; oMLX idle CPU was higher (0.518% against 0.451% of one core), still below the 0.68% budget. Peak memory with the synthetic oMLX runtime read about 10 MiB higher (72–79 MiB against 58–65; LM Studio 73–76 against 72–76), within the 132 MiB budget. Renderer CPU was not measured. These runs do not show the effect on real inference, the graphics processor or the complete OpenChamber app. [Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/archive/receipts/overhead-5.1.0.json).
 
 5.1.0 was not installed in OpenChamber before publication, so the permission prompt, the header controls, **Update chat speed** and an ordinary Splash reply have not been observed on a real host. Companion 3.4.0 passed the native checks against OpenCode 2.0.32's own binary with synthetic providers. A real Hailuo H3 render on Phosphene 4.19.5 was observed read-only through the 5.1 service outside OpenChamber: its phases, step counts and Phosphene's own estimate came through, and the finish-time drift it revealed is fixed in this release.
 
@@ -342,7 +365,7 @@ a local reply history with baselines, alerts while you watch, two more runtimes,
    into Captures and the originals are kept through 2.0.x, so a rollback to 1.6 still shows them.
 5. Optional: to replace Turn stats, hide it in the Work Status panel's **Panel sections** and drag MLX Scope into its
    place.
-6. Something wrong? `docs/2.0/ROLLBACK.md` describes fixes (2.0.x) and the legacy pin.
+6. Something wrong? `docs/archive/2.0/ROLLBACK.md` describes fixes (2.0.x) and the legacy pin.
 
 ## 1.6.1
 

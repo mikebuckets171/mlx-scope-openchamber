@@ -7,7 +7,10 @@ JavaScript. There is no separate daemon or runtime SDK to install.
 |---|---|---|---|
 | Views | `panel/` | `panel/main.js` (≤ 270 KB) | One bundle for the rail panel, the full page and the Work Status section; `ctx.surface` picks the renderer |
 | Service | `service/` | `service/main.js` (≤ 268 KB) | Node service the host starts on demand; reads runtimes and the Mac; exits after 10 idle minutes |
-| Contract | `src/contract/` | (in each bundle) | Wire contract v2 (`docs/design/2.0-contract.md`): types, allowlist parsers, reason codes |
+| Contract | `src/contract/` | (in each bundle) | Wire contract v2 (`docs/archive/design/2.0-contract.md`): types, allowlist parsers, reason codes |
+
+The 1.6 parser and v1 converter are retired from production sources. Frozen copies live only in
+`tests/fixtures/legacy/` for corpus and migration parity checks; shipping entrypoints cannot import them.
 
 ## Compatibility and presentation boundaries
 
@@ -106,7 +109,9 @@ otherwise.
 
 The optional setup route reads compatibility on GET and changes managed local files only on explicit authenticated
 POST Enable/Disable. JSONC edits preserve comments and unrelated plugins; writes are atomic with rollback. It never
-restarts the host or inference. The 3.0 chat setup preserved runtime command permissions. In 3.1, the command list adds only the optional exact local-video cancellation path. Bundle ceilings cover media adapters and setup; the CPU/RSS and hidden-view budgets are unchanged.
+restarts the host or inference. The 3.0 chat setup preserved runtime command permissions; the media adapters added in
+3.1 briefly extended the command list with a local-video cancellation path, and 5.2 returned it to the ten fixed
+probes. Bundle ceilings cover media adapters and setup; the CPU/RSS and hidden-view budgets are unchanged.
 
 ## Probe tiers and cadence
 
@@ -120,9 +125,10 @@ Every exec uses an absolute path from `service/lib/argv.ts`, no shell, and a val
 | `lsof -nP -iTCP:<port> -sTCP:LISTEN -t` (oMLX listener) | on a generation change, then every 120 s | — |
 | `footprint -p <pid>` (oMLX only) | 30 s / 10 s | — |
 | `lms ps --json --port <port>` | on a generation change, then every 180 s | — |
-| `lms runtime ls --port <port>` | only while Server & Mac details is visible, cached 10 min | — |
+| `lms runtime ls --port <port>` | only while Measurement details is open, cached 10 min | — |
 | LM Studio liveness | `GET /lmstudio-greeting` (no spawn) | same |
-| `lms log stream -s server --json --port <port>`, `macmon pipe -i 1000` | streamed, bounded lines, stopped 60 s after the last read | — |
+| `lms log stream -s server --json --port <port>` | streamed, bounded lines, stopped 60 s after the last read | — |
+| `macmon pipe -i 1000` | streamed, bounded lines, only while a local request generates and a full-tier frame has Measurement details open; stopped at once when that demand ends, samples kept until they go stale | — |
 | **Spawns per minute** | **≤ 24 idle / ≤ 36 active** | **≤ 18** |
 
 The Session sidebar collects memory pressure and thermal warnings. GPU diagnostics run only for the full tier;
@@ -184,16 +190,16 @@ bun run overhead
 This measures the bundled service **and every process it spawns**, with fake runtimes and a fake `lms`, in four phases:
 no view, active (1 s polls while the runtime generates; `--active-poll-ms` changes it), idle (2 s polls) and paused. It reports CPU time as a
 percentage of one core, sampled RSS, request and spawn counts, and snapshot latency, and checks the budgets from
-`docs/2.0/SPIKES.md` S13: no-view CPU, idle and active CPU, service RSS, the spawn budgets above, zero requests and spawns
+`docs/archive/2.0/SPIKES.md` S13: no-view CPU, idle and active CPU, service RSS, the spawn budgets above, zero requests and spawns
 with no view, and children gone within 65 s of the last read. Work Status and macmon phases and renderer CPU have
-separate probes. See the [3.0 verification receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/3.0/RELEASE.md) for the prior release’s baseline measurements and their scope.
+separate probes. See the [3.0 verification receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/archive/3.0/RELEASE.md) for the prior release’s baseline measurements and their scope.
 
 
 ## Media collection and motion
 
-Media uses its own versioned contract and `/v2/media` route on the authenticated host service. Each configured source has one collection in flight and a two-second shared cache across visible frames. Full snapshots share in-flight composition and a short cache bounded by observation freshness. There are no autonomous media polling timers. A hidden frame stops requests; disabling media stops discovery and collection. Enabled views with no detected source retry discovery after 30 seconds so a newly started supported backend becomes available. Completed video records are cached for up to 30 seconds; directory changes and active-job moves trigger an immediate refresh, while content edits to an existing terminal record are revalidated within that bound.
+Media uses its own versioned contract and `/v2/media` route on the authenticated host service. Each configured source has one collection in flight and a two-second shared cache across visible frames. Full snapshots share in-flight composition and a short cache bounded by observation freshness. There are no autonomous media polling timers. A hidden frame stops requests; disabling media stops discovery and collection. Enabled views with no detected source retry discovery after 30 seconds so a newly started supported backend becomes available.
 
-Adapters normalize ComfyUI jobs, Phosphene's render queue, Draw Things command-line renders (found with one fixed `lsof` argv and read from the tail of their output file, every 15 s while one runs and 60 s otherwise), a private local-video queue, the authenticated Qwen image bridge, or an expiring private file feed. Phosphene's collection is reused for 15 s while a job runs or waits and 30 s otherwise, and its jobs turn stale after 37.5 s; its own time-left estimate passes through with `etaBasis: "reported"` and is never measured or adjusted by the service. Responses contain only bounded job identifiers, hashed ownership, lifecycle, phase-local counters and timings. Media never enters throughput trends or baselines. Cancellation is an explicit source/job action that rechecks the supported backend mechanism and reports pending acknowledgement.
+Adapters normalize ComfyUI jobs and Draw Things command-line renders (found with one fixed `lsof` argv and read from the tail of their output file, every 15 s while one runs and 60 s otherwise). Responses contain only bounded job identifiers, hashed ownership, lifecycle, phase-local counters and timings. Media never enters throughput trends or baselines. Cancellation is an explicit source/job action that rechecks the supported backend mechanism and reports pending acknowledgement.
 
 The optional ComfyUI helper reads its qualified registry only when requested. Connections manages version-qualified installation and rollback, verifies live readiness separately, and leaves activation pending ordinary application startup. It adds no producer hooks or background collection. See [Media](MEDIA.md) for the public integration contract.
 
