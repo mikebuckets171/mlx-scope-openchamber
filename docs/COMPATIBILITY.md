@@ -406,10 +406,7 @@ through `/connect`. Project-only provider definitions remain outside Scope's dis
 
 ## Media monitoring
 
-Phosphene 4.19 is read through its own `GET /status` (observe-only; found at `127.0.0.1:8198` by its `/version`
-answer). Its LTX and H3 step counters, H3 window number and its own time-left estimate are used; the estimate is
-labelled **app estimate**. This was verified read-only against an installed Phosphene 4.19.5 at rest; the running-job
-shapes come from its 4.19.5 source and fixtures, not from a captured render.
+Scope monitors ComfyUI and Draw Things, plus loopback sources you add to the private media configuration.
 
 Draw Things' command-line tool 26.10 (`draw-things-cli`, Homebrew 26.0928.0 and the 26.1011.0 build) is read from the
 progress it prints (`Starting`, `Processing`, `Sampling… N / M`, `Finishing`, `Generated`, `Wrote:`), found with the
@@ -417,8 +414,12 @@ allowlisted `lsof`. Fixtures are its own redirected output from finished renders
 through the adapter. The Draw Things app's own HTTP and gRPC servers report progress only to the client that started a
 render, so app renders are not monitored.
 
+Retired integrations: Phosphene (qualified read-only against its 4.19.5 at rest in the 4.x era), the local-video and
+Qwen-image adapters and generic file watching were removed in 5.2. Their files and stored history are untouched;
+qualification evidence for those releases stays in `docs/archive/`.
+
 ### Media monitoring in 3.1
 
 ComfyUI basic monitoring uses existing lifecycle APIs. Detailed node-local progress is initially qualified for ComfyUI 0.38.0 with Scope’s optional helper. Other versions keep basic monitoring; unknown nodes use indeterminate progress or generic units. Cancellation is enabled only on a qualified job-scoped API.
 
-The local-video adapter recognizes the existing standard OpenCode video queue; custom queue directories are read-only unless their scoped cancellation owner is separately supported. Qwen image tracking requires the producer’s metadata/control integration. Other tools can publish the documented private [Media telemetry contract](MEDIA.md). Supporting a generator’s telemetry does not imply that Scope installs, launches or controls generation for it.
+The local-video adapter then recognized the existing standard OpenCode video queue, and Qwen image tracking required the producer’s metadata/control integration; both were retired in 5.2. Other tools can publish the documented private [Media telemetry contract](MEDIA.md). Supporting a generator’s telemetry does not imply that Scope installs, launches or controls generation for it.

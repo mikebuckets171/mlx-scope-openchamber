@@ -1,5 +1,28 @@
 # Changelog
 
+## 5.2.0
+
+- **A quieter monitor.** Measurement details is the single hub for engine readings, request details, the last reply,
+  a compact server strip and Run details. Server diagnostics are read only while that hub is open. History keeps its
+  trend, alerts and a quiet usual-speed median instead of another stat dashboard.
+- **One compact presentation.** Compact and the Session sidebar share the same status widget. Compact keeps Watch
+  and Expand; Pause stays in the masthead. Watch is now **Automatic** or **Engine**; saved Chat choices become Automatic.
+  Automatic never substitutes local engine numbers for a cloud chat.
+- **Chip power only when useful.** Optional macmon runs while a local engine is generating and a visible Measurement
+  details hub asks for it. Multiple readers share the stream without cancelling each other. Freshness and energy-coverage
+  checks still apply; power is a whole-chip estimate, not wall power or a chat's electricity use.
+- **Less surrounding noise.** Other work is an opt-in menu toggle and one counts-only line, not a list of chat titles.
+  Media supports ComfyUI and Draw Things. Retired Phosphene, local-video, Qwen-image and generic-file integrations are
+  removed; Scope does not delete their files or stored history.
+- **Ready for contributors.** Onboarding is rewritten, historical plans and receipts are archived, and retired v1
+  parsing/conversion lives only in frozen test fixtures. Runtime imports of that support are rejected by a regression check.
+
+Permissions, storage limits and observer-only behavior are unchanged. Requires OpenChamber 2.4.0 or later and pins SDK
+2.5.0. Update a Git install with **Check for updates** to keep History; replacing an installation with a ZIP can delete it.
+
+Verification and its limits are recorded in the
+[5.2.0 receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/5.2.0-verification.md).
+
 ## 5.1.2
 
 - **Chat speed works on OpenCode 2.1.** OpenCode 2.1.1 keeps every part of the contract the companion reads, and the local build `2.1.1-compaction.1` passed the native checks against its own binary with synthetic providers. Later 2.1 releases from 2.1.1 are **self-checked** the way later 2.0 releases are: the companion confirms each hook and event shape and pauses only the feature whose check fails, naming the reason in Connections. 2.1.0, 2.2 and later stay off until qualified. A locally built runtime is accepted only by reviewed identifier, so `2.1.1-compaction.1` works and an unreviewed suffix does not. Choose **Connections → Update chat speed** once to load companion 3.5.0; later OpenCode 2.0 and 2.1 updates need no Scope action.

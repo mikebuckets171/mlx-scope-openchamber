@@ -91,7 +91,11 @@ test('the status surface defaults to warning-only glance probes; full explicitly
 test('only an answering oMLX on a loopback port gets the footprint probe', () => {
   expect(hostContextOf('full', reading('omlx'))).toEqual({ tier: 'full', active: false, generating: false, detail: false, generation: 4, omlxPort: 8001 });
   expect(hostContextOf('full', reading('omlx', 'prefill')).active).toBe(true);
-  expect(hostContextOf('full', reading('omlx', 'prefill'), true).generating).toBe(false);
+  // Generating means the engine is working a request: prefill, processing (no fresh decode rate yet) and decode ask for
+  // chip power; queued waits, and an idle or failing engine never does.
+  expect(hostContextOf('full', reading('omlx', 'prefill'), true).generating).toBe(true);
+  expect(hostContextOf('full', reading('omlx', 'processing'), true).generating).toBe(true);
+  expect(hostContextOf('full', reading('omlx', 'queued'), true).generating).toBe(false);
   expect(hostContextOf('full', reading('splash')).omlxPort).toBeNull();
   expect(hostContextOf('full', reading(null)).omlxPort).toBeNull();
   expect(hostContextOf('full', reading('omlx', 'idle', null)).omlxPort).toBeNull();

@@ -240,17 +240,6 @@ On OpenChamber 2.4+, the Session section's header provides **Watch** (This chat 
 
 **History → Storage → Label replies to this chat automatically** (on by default) decides whether a reply Scope can prove belongs to the open chat is recorded as **This chat**; off, every reply is recorded as **Engine**.
 
-## Phosphene
-
-Scope finds Phosphene at `http://127.0.0.1:8198` when its `/version` answers with a Phosphene release. For another
-port, add a source to `~/.config/mlx-scope/media.json`:
-
-```json
-{ "schemaVersion": 1, "sources": [{ "id": "phosphene", "kind": "phosphene", "label": "Phosphene", "origin": "http://127.0.0.1:8199" }] }
-```
-
-The origin must be loopback. `"enabled": false` on that source stops Scope from probing or reading Phosphene.
-
 ## Draw Things
 
 Scope watches renders from Draw Things' command-line tool when `draw-things-cli` is installed (Homebrew, or unpacked

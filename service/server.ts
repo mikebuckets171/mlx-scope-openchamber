@@ -119,7 +119,7 @@ export const chatOnlyReading = (provider: string, at: number): RuntimeReading =>
  * answered on it, so lsof and footprint never read whatever else holds that port.
  */
 export const hostContextOf = (tier: HostContext['tier'], { status, runtime, meta }: RuntimeReading, detail = false, frame?: string): HostContext => ({
-  tier, active: busy(runtime), generating: (status.state === 'ready' || status.state === 'degraded') && runtime.phase === 'decode',
+  tier, active: busy(runtime), generating: busy(runtime) && runtime.phase !== 'queued' && (status.state === 'ready' || status.state === 'degraded'),
   detail, ...(frame ? { frame } : {}), generation: meta.connection.generation,
   omlxPort: meta.connection.runtime === 'omlx' && (status.state === 'ready' || status.state === 'degraded') ? meta.port ?? null : null,
 });
