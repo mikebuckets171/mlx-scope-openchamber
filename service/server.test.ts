@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from 'bun:test';
 import type http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { hostFromV1 } from '../src/contract/convert-v1.ts';
+import { hostFromV1 } from '../tests/fixtures/legacy/convert-v1.ts';
 import { classAKeys, MAX_BODY_CHARS } from '../src/contract/guards.ts';
 import { honestyViolations, parseSnapshotV2, type SnapshotV2, type StatusV2 } from '../src/contract/snapshot.ts';
 import { parseSystemSnapshot } from '../src/system.ts';

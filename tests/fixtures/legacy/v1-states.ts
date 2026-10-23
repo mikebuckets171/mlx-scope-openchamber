@@ -1,14 +1,14 @@
 // Test support only: every 1.x reading the preview host (tests/browser/host.html) can show. The 1.x service clients are
 // gone since the 2.0 adapters took over (service/adapters/*); their own fixture tests cover what the service reads.
 import { readFileSync } from 'node:fs';
-import type { SystemSnapshot } from '../../system.ts';
-import type { TelemetrySnapshot } from '../../telemetry.ts';
+import type { SystemSnapshot } from '../../../src/system.ts';
+import type { TelemetrySnapshot } from './telemetry.ts';
 
 export type V1State = { name: string; body: TelemetrySnapshot & { system?: SystemSnapshot | null }; service: boolean };
 export const EPOCH = Date.UTC(2026, 0, 15, 9, 30);
 
 // The golden host (tests/browser/host.html) runs here unchanged, so its payloads are exactly the ones the goldens render.
-const HOST = /<script>([\s\S]*?)<\/script><\/body>/.exec(readFileSync(new URL('../../../tests/browser/host.html', import.meta.url), 'utf8'))![1]!;
+const HOST = /<script>([\s\S]*?)<\/script><\/body>/.exec(readFileSync(new URL('../../browser/host.html', import.meta.url), 'utf8'))![1]!;
 type Listener = (event: unknown) => unknown;
 const hostPayloads = (query: string, provider: string | undefined, steps: number): TelemetrySnapshot[] => {
   let now = EPOCH + 10_000, listener: Listener | null = null;

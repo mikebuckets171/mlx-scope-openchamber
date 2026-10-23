@@ -137,11 +137,11 @@
     "bridge/comfyui/snapshot.py",
     "bridge/comfyui/README.md",
     "docs/MEDIA.md",
-    "docs/3.1/assets/media-light.png",
-    "docs/3.1/assets/connections-light.png",
-    "docs/5.0/assets/standard-instrument-dark.png",
-    "docs/5.0/assets/standard-instrument-light.png",
-    "docs/5.0/assets/standard-session-dark.png",
-    "docs/5.0/assets/standard-session-light.png"
+    "docs/assets/media-light.png",
+    "docs/assets/connections-light.png",
+    "docs/assets/standard-instrument-dark.png",
+    "docs/assets/standard-instrument-light.png",
+    "docs/assets/standard-session-dark.png",
+    "docs/assets/standard-session-light.png"
   ]
 }

@@ -69,19 +69,19 @@ colors use the host's semantic palette; the Session widget lets the surrounding 
 A view that is hidden (a rail tab behind another tab, a collapsed section, a closed page, a hidden window) makes no
 requests. With several views open, one visible view at a time records history and raises toasts.
 
-The Session sidebar in a dark theme, as Scope 5.0 drew it ([light theme](docs/5.0/assets/standard-session-light.png)). These are simulated preview readings. In 5.1 the controls move to OpenChamber's header and the trace leaves the section.
+The Session sidebar in a dark theme ([light theme](docs/assets/standard-session-light.png)). All screenshots below use simulated preview readings, not live measurements.
 
-<img src="docs/5.0/assets/standard-session-dark.png" alt="Compact MLX Scope Session with scope, pause and details controls, qualified generation speed, a memory-pressure warning and Open MLX Scope action" width="300">
+<img src="docs/assets/standard-session-dark.png" alt="MLX Scope Session with Watch, Pause and Details controls, a qualified generation speed and Open MLX Scope action" width="300">
 
-The full Live instrument keeps the measurement basis beside its value and deeper measurements one click away. Simulated preview data is shown below ([light theme](docs/5.0/assets/standard-instrument-light.png)).
+The full Live instrument keeps the measurement basis beside its value and deeper measurements one click away ([light theme](docs/assets/standard-instrument-light.png)).
 
-![MLX Scope standard Live instrument with a qualified speed, observed trace, compact supporting facts and Mac readings](docs/5.0/assets/standard-instrument-dark.png)
+![MLX Scope standard Live instrument with a qualified speed, observed trace, compact supporting facts and Mac readings](docs/assets/standard-instrument-dark.png)
 
-Media keeps measured phase progress separate from chat speed. These 3.1 screenshots use synthetic jobs.
+Media keeps measured phase progress separate from chat speed.
 
-![MLX Scope Media showing a phase-local sampling measurement](docs/3.1/assets/media-light.png)
+![MLX Scope Media showing a phase-local sampling measurement](docs/assets/media-light.png)
 
-[Connections and guided setup](docs/3.1/assets/connections-light.png) bring runtime, chat and media readiness together.
+[Connections and guided setup](docs/assets/connections-light.png) bring runtime, chat and media readiness together.
 
 ## Prompt progress for standalone Splash
 

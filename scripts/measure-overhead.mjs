@@ -15,7 +15,7 @@ import { FAKE_RUNTIMES, createFakeRuntime, installFakeLMStudio } from './lib/fak
 // Usage: node scripts/measure-overhead.mjs [--runtime all|omlx|lmstudio] [--macmon on|off|only] [--cold s] [--active s]
 //   [--idle s] [--glance s] [--tail s] [--service file] [--out receipt.json] [--<budget> value …].
 //   Legacy form: [seconds per phase] [service file].
-// Budgets come from docs/2.0/SPIKES.md S13; CPU is % of one core over the service and all of its descendants. The glance
+// Budgets come from docs/archive/2.0/SPIKES.md S13; CPU is % of one core over the service and all of its descendants. The glance
 // phase is the Work Status section alone (tier=glance, 1 s polls while decoding) and must stay inside the idle CPU budget.
 // `--macmon on` adds an oMLX run with a fake `macmon pipe` (scripts/lib/fake-macmon-preload.mjs); macmon itself is never run.
 const BUDGETS = {
@@ -510,7 +510,7 @@ const receipt = {
   limitations: [
     `The idle exit is checked with a ${IDLE_EXIT_MS / 1000} s delay, not the ten-minute product default, and under Node; OpenChamber's respawn on the next request is not exercised here.`,
     'Synthetic loopback runtimes; no inference was started or measured.',
-    'The fake lms is a shell stand-in: ps and runtime ls answer at once and log stream idles; real lms CPU and RSS (docs/2.0/SPIKES.md S8) are not reproduced.',
+    'The fake lms is a shell stand-in: ps and runtime ls answer at once and log stream idles; real lms CPU and RSS (docs/archive/2.0/SPIKES.md S8) are not reproduced.',
     'The fake macmon is a node process printing one fixture line per second; real macmon CPU and RSS are not reproduced.',
     'On macOS, lsof and footprint read the harness\'s own loopback listener; elsewhere no host probe runs, so host spawns and their CPU are not measured.',
     'The service runs under Node, not OpenChamber\'s Electron runtime, where RSS reads higher (S13: 89–92 MiB live).',

@@ -1,4 +1,4 @@
-/** Wire contract v2 (docs/design/2.0-contract.md). A 1.x panel gets `RETIRED_BODY` from `/snapshot`. */
+/** Wire contract v2 (docs/archive/design/2.0-contract.md). A 1.x panel gets `RETIRED_BODY` from `/snapshot`. */
 export const CONTRACT_VERSION = 2 as const;
 export type ContractVersion = typeof CONTRACT_VERSION;
 

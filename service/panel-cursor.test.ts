@@ -3,7 +3,7 @@ import type http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { SnapshotClient } from '../panel/data/client.ts';
 import { ScopeState } from '../panel/state/scope-state.ts';
-import { hostFromV1 } from '../src/contract/convert-v1.ts';
+import { hostFromV1 } from '../tests/fixtures/legacy/convert-v1.ts';
 import { parseSystemSnapshot } from '../src/system.ts';
 import { ServiceHistory } from './history/history.ts';
 import type { RuntimeReading } from './runtime-client.ts';

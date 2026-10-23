@@ -1,14 +1,15 @@
-import type { ConnectionInfo } from '../runtime.ts';
-import type { SystemSnapshot } from '../system.ts';
-import type { TelemetryPhase, TelemetrySnapshot } from '../telemetry.ts';
-import type { AlertLogEntryV2, AlertV2 } from './alerts.ts';
-import { capabilitiesOf, type Basis, type CapabilityDescriptor, type CapabilityKey } from './capabilities.ts';
-import { isConnectionId, type Json } from './guards.ts';
-import type { StatusReason, StatusState } from './reasons.ts';
-import { parseSnapshotV2, requiredCapabilities, type ConnectionV2, type LeaseV2, type Phase, type SnapshotV2 } from './snapshot.ts';
-import { gbToBytes, percentToFraction, secondsToMs } from './units.ts';
-import { parseHostV2 } from './host.ts';
-import { CONTRACT_VERSION } from './version.ts';
+// Frozen fixture conversion only; live adapters and the panel consume v2 directly.
+import type { ConnectionInfo } from '../../../src/runtime.ts';
+import type { SystemSnapshot } from '../../../src/system.ts';
+import type { TelemetryPhase, TelemetrySnapshot } from './telemetry.ts';
+import type { AlertLogEntryV2, AlertV2 } from '../../../src/contract/alerts.ts';
+import { capabilitiesOf, type Basis, type CapabilityDescriptor, type CapabilityKey } from '../../../src/contract/capabilities.ts';
+import { isConnectionId, type Json } from '../../../src/contract/guards.ts';
+import type { StatusReason, StatusState } from '../../../src/contract/reasons.ts';
+import { parseSnapshotV2, requiredCapabilities, type ConnectionV2, type LeaseV2, type Phase, type SnapshotV2 } from '../../../src/contract/snapshot.ts';
+import { gbToBytes, percentToFraction, secondsToMs } from '../../../src/contract/units.ts';
+import { parseHostV2 } from '../../../src/contract/host.ts';
+import { CONTRACT_VERSION } from '../../../src/contract/version.ts';
 
 /**
  * Stage 2a bridge: today's 1.x reading (runtime adapters plus the host sampler) as a v2 body, with nothing the 1.6
@@ -69,16 +70,6 @@ const status = (v1: V1Snapshot): { state: StatusState; reason: StatusReason | nu
   const reason = v1.reason === 'runtime_unreachable' || v1.reason === 'authentication_failed' || v1.reason === 'unsupported_contract' ? v1.reason : null;
   return { state: 'failing', reason };
 };
-/**
- * The 1.6 reason `status` stands for; `compat.reason` carries any other. States 1.6 never had read as its nearest reason:
- * a runtime nothing identifies is "unsupported", and detecting or recovering is "not answering yet".
- */
-export const v1Reason = (state: StatusState, reason: StatusReason | null): V1Snapshot['reason'] =>
-  state === 'ready' || state === 'degraded' ? null : reason === 'configuration_missing' ? 'runtime_unreachable'
-    : reason === 'runtime_unreachable' || reason === 'authentication_failed' || reason === 'unsupported_contract' ? reason
-      : reason === 'unsupported_runtime' ? 'unsupported_contract'
-        : state === 'detecting' || state === 'recovering' ? 'runtime_unreachable' : null;
-
 /** Mirrors panel/context.ts: reported prompt + output against the model limit, only where 1.6 shows it. */
 const contextUsed = (v1: V1Snapshot): number | null => {
   if (!['prefill', 'decode', 'processing'].includes(v1.phase) || (v1.activeRequests ?? 0) > 1) return null;

@@ -7,7 +7,10 @@ JavaScript. There is no separate daemon or runtime SDK to install.
 |---|---|---|---|
 | Views | `panel/` | `panel/main.js` (≤ 270 KB) | One bundle for the rail panel, the full page and the Work Status section; `ctx.surface` picks the renderer |
 | Service | `service/` | `service/main.js` (≤ 268 KB) | Node service the host starts on demand; reads runtimes and the Mac; exits after 10 idle minutes |
-| Contract | `src/contract/` | (in each bundle) | Wire contract v2 (`docs/design/2.0-contract.md`): types, allowlist parsers, reason codes |
+| Contract | `src/contract/` | (in each bundle) | Wire contract v2 (`docs/archive/design/2.0-contract.md`): types, allowlist parsers, reason codes |
+
+The 1.6 parser and v1 converter are retired from production sources. Frozen copies live only in
+`tests/fixtures/legacy/` for corpus and migration parity checks; shipping entrypoints cannot import them.
 
 ## Compatibility and presentation boundaries
 
@@ -187,9 +190,9 @@ bun run overhead
 This measures the bundled service **and every process it spawns**, with fake runtimes and a fake `lms`, in four phases:
 no view, active (1 s polls while the runtime generates; `--active-poll-ms` changes it), idle (2 s polls) and paused. It reports CPU time as a
 percentage of one core, sampled RSS, request and spawn counts, and snapshot latency, and checks the budgets from
-`docs/2.0/SPIKES.md` S13: no-view CPU, idle and active CPU, service RSS, the spawn budgets above, zero requests and spawns
+`docs/archive/2.0/SPIKES.md` S13: no-view CPU, idle and active CPU, service RSS, the spawn budgets above, zero requests and spawns
 with no view, and children gone within 65 s of the last read. Work Status and macmon phases and renderer CPU have
-separate probes. See the [3.0 verification receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/3.0/RELEASE.md) for the prior release’s baseline measurements and their scope.
+separate probes. See the [3.0 verification receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/archive/3.0/RELEASE.md) for the prior release’s baseline measurements and their scope.
 
 
 ## Media collection and motion

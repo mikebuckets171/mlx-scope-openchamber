@@ -12,7 +12,7 @@ import type { UsageQuery } from '../../src/contract/query.ts';
 import type { RequestV2, RuntimeV2, StatusV2 } from '../../src/contract/snapshot.ts';
 import { parseTrendV2 } from '../../src/contract/trend.ts';
 import type { UsageV2 } from '../../src/contract/usage.ts';
-import { hostFromV1 } from '../../src/contract/convert-v1.ts';
+import { hostFromV1 } from '../../tests/fixtures/legacy/convert-v1.ts';
 import { parseSystemSnapshot } from '../../src/system.ts';
 import type { CompletionDraft } from '../core/adapter-v2.ts';
 import { createScopeServer, unread, type Sources } from '../server.ts';

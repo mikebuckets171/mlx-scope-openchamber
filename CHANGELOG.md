@@ -14,7 +14,7 @@ cancellation, managed hot reload from the installed 3.4.0 helper with no server 
 a new compaction check: the auxiliary compaction request published no chat measurement, the checkpoint carried
 `metadata.keepID`, `session.context` materialized `metadata.recent`, and the resumed step completed on reported output.
 No real model, inference or cloud account was involved.
-[Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/companion-3.5.0.json).
+[Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/archive/receipts/companion-3.5.0.json).
 All 628 Chromium and WebKit browser cases passed locally. Goldens and the 5.1.0 overhead fixture were not re-run: the
 panel's rendered output is unchanged, and the CPU fixture measured work this release does not change. The first run of
 the new compaction check failed at the resumed step because the harness let its own demand file expire, not because of
@@ -43,7 +43,7 @@ Before publication on macOS: type checking, the privacy scan, 1,854 Bun tests, 7
 
 Before publication, on macOS with an Apple M5 Pro, `bun run check:all` passed: type checking, the privacy scan, 1,848 Bun tests, 79 companion tests, 15 helper tests, reproducible bundles and package verification, and all 628 Chromium and WebKit browser cases. The presentation goldens were regenerated and reviewed. Release CI exposed a native-disclosure race, fixed with a same-task regression test; startup layout checks now wait for the first trend before clicking controls it moves, and the Splash label check advances a controlled clock past its observation window.
 
-With synthetic runtimes, the service overhead run passed every existing budget, plus a new check that the service exits on its own, with code 0, after its idle delay (checked at 5 s). The default run's CPU readings were below the stored same-machine 5.0 baseline. A separate back-to-back comparison with 5.0.0 showed lower active and glance CPU with half the requests while generating and unchanged helper spawn rates; oMLX idle CPU was higher (0.518% against 0.451% of one core), still below the 0.68% budget. Peak memory with the synthetic oMLX runtime read about 10 MiB higher (72–79 MiB against 58–65; LM Studio 73–76 against 72–76), within the 132 MiB budget. Renderer CPU was not measured. These runs do not show the effect on real inference, the graphics processor or the complete OpenChamber app. [Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/overhead-5.1.0.json).
+With synthetic runtimes, the service overhead run passed every existing budget, plus a new check that the service exits on its own, with code 0, after its idle delay (checked at 5 s). The default run's CPU readings were below the stored same-machine 5.0 baseline. A separate back-to-back comparison with 5.0.0 showed lower active and glance CPU with half the requests while generating and unchanged helper spawn rates; oMLX idle CPU was higher (0.518% against 0.451% of one core), still below the 0.68% budget. Peak memory with the synthetic oMLX runtime read about 10 MiB higher (72–79 MiB against 58–65; LM Studio 73–76 against 72–76), within the 132 MiB budget. Renderer CPU was not measured. These runs do not show the effect on real inference, the graphics processor or the complete OpenChamber app. [Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/archive/receipts/overhead-5.1.0.json).
 
 5.1.0 was not installed in OpenChamber before publication, so the permission prompt, the header controls, **Update chat speed** and an ordinary Splash reply have not been observed on a real host. Companion 3.4.0 passed the native checks against OpenCode 2.0.32's own binary with synthetic providers. A real Hailuo H3 render on Phosphene 4.19.5 was observed read-only through the 5.1 service outside OpenChamber: its phases, step counts and Phosphene's own estimate came through, and the finish-time drift it revealed is fixed in this release.
 
@@ -342,7 +342,7 @@ a local reply history with baselines, alerts while you watch, two more runtimes,
    into Captures and the originals are kept through 2.0.x, so a rollback to 1.6 still shows them.
 5. Optional: to replace Turn stats, hide it in the Work Status panel's **Panel sections** and drag MLX Scope into its
    place.
-6. Something wrong? `docs/2.0/ROLLBACK.md` describes fixes (2.0.x) and the legacy pin.
+6. Something wrong? `docs/archive/2.0/ROLLBACK.md` describes fixes (2.0.x) and the legacy pin.
 
 ## 1.6.1
 

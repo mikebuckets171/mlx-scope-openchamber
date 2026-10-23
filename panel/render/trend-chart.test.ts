@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import fixtures from '../../docs/design/2.0-mock-fixtures.json';
+import fixtures from '../../docs/archive/design/2.0-mock-fixtures.json';
 import { parseTrendV2, type TrendBucket, type TrendV2 } from '../../src/contract/trend.ts';
 import { trendCeiling, trendGaps, trendGeometry } from './trend-chart.ts';
 

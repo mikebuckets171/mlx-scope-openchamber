@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import fixtures from '../../docs/design/2.0-mock-fixtures.json';
+import fixtures from '../../docs/archive/design/2.0-mock-fixtures.json';
 import { parseUsageV2 } from './usage.ts';
 
 type Body = Record<string, any>;

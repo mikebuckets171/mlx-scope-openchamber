@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { parse } from 'jsonc-parser/lib/esm/main.js';
-import { normalizeOmlxTelemetry } from './telemetry.ts';
+import { normalizeOmlxTelemetry } from '../tests/fixtures/legacy/telemetry.ts';
 import { contextBudget } from '../panel/context.ts';
 import { fromV1 } from '../panel/testing/readings.ts';
 import { parseMediaJob, parseMediaSnapshot, withdrawMediaProgress, type MediaJobV1 } from './contract/media.ts';

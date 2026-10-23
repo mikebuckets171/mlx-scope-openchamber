@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 test.describe.configure({ mode: 'parallel' });
 
 // Same fixture inventory as panel/testing/mock-states.ts; Node's test loader cannot import its bare JSON module.
-const MOCK_STATES = Object.keys(JSON.parse(readFileSync(new URL('../../docs/design/2.0-mock-fixtures.json', import.meta.url), 'utf8')).states);
+const MOCK_STATES = Object.keys(JSON.parse(readFileSync(new URL('../../docs/archive/design/2.0-mock-fixtures.json', import.meta.url), 'utf8')).states);
 
 test.beforeEach(async ({ page }) => { await page.addInitScript(() => sessionStorage.clear()); });
 

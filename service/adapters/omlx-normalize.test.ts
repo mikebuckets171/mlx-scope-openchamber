@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import corpus from '../../tests/fixtures/omlx-monitoring.json';
 import { gbToBytes, percentToFraction, secondsToMs } from '../../src/contract/units.ts';
-import { normalizeOmlxTelemetry } from '../../src/telemetry.ts';
+import { normalizeOmlxTelemetry } from '../../tests/fixtures/legacy/telemetry.ts';
 import { requestOf } from './omlx.ts';
 import { normalizeOmlx, type OmlxNormalized } from './omlx-normalize.ts';
 import { fixture, fixtureFiles, type Version } from './testing/omlx.ts';

@@ -119,7 +119,7 @@ is reported without claiming the write succeeded and does not stop monitoring.
 **Data from earlier versions.** Captures saved by Scope 2.0–5.0 and 1.6 saved observations are left untouched, so
 rolling back still shows them. Scope 5.1 no longer reads or creates them; **History → Storage** counts them under
 **Kept from earlier versions**. **Clear…** does not remove them; uninstalling does. See the
-[rollback runbook](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/2.0/ROLLBACK.md).
+[rollback runbook](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/archive/2.0/ROLLBACK.md).
 
 **Uninstalling** MLX Scope in Settings → Extensions deletes all of its storage: reply history, baselines, preferences and
 data kept from earlier versions. This is OpenChamber's documented behaviour for extension storage. **Installing a ZIP

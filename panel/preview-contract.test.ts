@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { readHostMessage } from '@openchamber/sdk';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { toSnapshotV2 } from '../src/contract/convert-v1.ts';
+import { toSnapshotV2 } from '../tests/fixtures/legacy/convert-v1.ts';
 import { parseSnapshotV2 } from '../src/contract/snapshot.ts';
 import { fromSnapshot } from './present/reading.ts';
 
