@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { parseSnapshotV2 } from '../../src/contract/snapshot.ts';
-import { sessionMarkup } from '../render/views/session.ts';
+import { readoutText, sessionMarkup } from '../render/views/session.ts';
 import { liveMarkup } from '../render/views/live.ts';
 import { esc } from '../render/html.ts';
 import { MOCK_NOW, MOCK_STATES, mockBody } from '../testing/mock-states.ts';
@@ -71,6 +71,20 @@ test('Session leads with current performance despite a remembered expanded prefe
   expect(markup).not.toContain('Last reply');
 });
 
+test('the compact glance renders the same status widget, with its own toolbar and action', () => {
+  const view = presentSessionSection(inputOf('decode')), markup = sessionMarkup(view, null, true, true).markup;
+  // One status-section presentation: the same widget the Work Status surface draws.
+  expect(markup).toContain('class="ws ws-session ws-next"');
+  expect(markup).toContain('id="ws-measurement"');
+  expect(markup).toContain('aria-label="What to watch"');
+  // The panel masthead already offers Pause and the ⋯ menu: the glance keeps only the Watch choice.
+  expect(markup).not.toContain('data-action="pause"');
+  expect(markup).not.toContain('data-action="reading-details"');
+  expect(markup).toContain('<button type="button" class="ws-details ws-open" data-action="expand"><span>Expand</span>');
+  // The full presentation keeps its own action.
+  expect(sessionMarkup(view).markup).toContain('data-action="open-scope"');
+});
+
 test.each(['processing', 'queued', 'decode'] as const)('current %s without speed uses current attribution instead of an older inferred reply', phase => {
   const input = inputOf('decode', { attribution: { kind: 'server-wide', reason: 'overlap' } }, body => {
     body.runtime.phase = phase; body.runtime.request.decodeTps = null;
@@ -95,7 +109,8 @@ test('an idle reply without measured speed keeps current idle state and warning 
     alert: { label: 'Memory pressure · warning', value: '', severity: 'warning' } });
   expect(markup).toContain('Memory pressure');
   expect(markup).not.toMatch(/Last reply|no turn summary|class="chip|ws-dot|ws-severity/);
-  expect(markup).not.toContain('ws-measurement');
+  // Nothing is measured: the unified widget keeps its reading row hidden instead of showing an empty lane.
+  expect(markup).toMatch(/<div class="ws-measurement" id="ws-measurement"[^>]*hidden>/);
 });
 
 test('an idle instrument does not promote the measured last reply into a current speed', () => {
@@ -223,9 +238,10 @@ test('activity changes retain Session structure while withholding absent reading
     })));
   for (const view of views) {
     const markup = sessionMarkup(view).markup;
-    expect(markup).toContain('<div class="ws-activity">');
+    expect(markup).toContain('<section class="ws-instrument" aria-label="Session activity">');
     expect(markup).not.toContain('>—<');
-    expect(markup.includes('ws-measurement'), view.phase).toBe(view.measurement !== null);
+    // An absent reading is withheld, never shown as an empty lane.
+    expect(/id="ws-measurement"[^>]*hidden/.test(markup), view.phase).toBe(view.measurement === null);
   }
   const stale = presentSessionSection(inputOf('decode', { fresh: false }));
   expect(stale.measurement).toBeNull();
@@ -316,8 +332,9 @@ test('the native scope menu is accessible and empty measurement lanes are omitte
   const view = presentSessionSection(inputOf('decode')), markup = sessionMarkup(view).markup;
   expect(markup).toContain('aria-label="What to watch"');
   expect(markup).toContain('<option value="auto" selected>Automatic</option>');
-  expect(markup.match(/class="ws-line/g)).toHaveLength(3);
-  expect(markup).toContain(view.support!.text);
+  // One status widget: the phase line, the one reading and its notice. No empty lanes, no separate support row.
+  expect(markup.match(/class="ws-line/g)).toHaveLength(1);
+  expect(markup).toContain(readoutText(view.measurement!));
   expect(markup).not.toMatch(/Prefill speed|Prompt progress|Generation speed|>—</);
   expect(sessionMarkup(presentSessionSection(inputOf('decode', { measurementScope: 'engine' }))).markup).toContain('<option value="engine" selected>Engine</option>');
 });
@@ -488,18 +505,18 @@ test('at rest the glance shows the engine’s own record instead of empty rows, 
 });
 
 
-test('every mock glance omits unmeasured lanes while retaining its truthful support or priority note', () => {
+test('every mock glance omits unmeasured lanes while retaining its truthful reading or priority note', () => {
   for (const state of MOCK_STATES) {
     const view = presentSessionSection(inputOf(state, { restingFacts: true, paused: state === 'paused' }));
     const markup = sessionMarkup(view).markup;
-    expect(markup.includes('class="ws-line ws-measurement"'), state).toBe(view.measurement !== null);
-    const support = !view.alert && !view.note ? view.support?.text ?? view.held?.text : null;
-    expect(markup.includes('class="ws-line ws-support'), state).toBe(!!support);
-    if (support) expect(markup, state).toContain(esc(support));
-    if (view.alert || view.note) expect(markup, state).toContain(esc(view.alert?.label ?? view.note!));
+    // The unified widget hides a reading it cannot show and names the one exception that matters.
+    expect(/id="ws-measurement"[^>]*hidden/.test(markup), state).toBe(view.measurement === null);
+    if (view.measurement) expect(markup, state).toContain(esc(readoutText(view.measurement)));
+    const notice = view.alert?.label ?? view.note;
+    if (notice) expect(markup, state).toContain(esc(notice));
     const error = sessionMarkup(view, 'Could not open Scope.').markup;
     expect(error, state).toContain('Could not open Scope.');
-    expect(error, state).not.toContain('class="ws-line ws-support');
+    expect(error, state).toContain('data-exception="error"');
   }
 });
 

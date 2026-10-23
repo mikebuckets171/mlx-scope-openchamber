@@ -103,8 +103,13 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="tr
 #frame-card
 #media-glance
 #compact-glance {aria-label="MLX Scope glance"}
-#ws {data-mode="summary" data-presentation="session" data-resting="false"}: Generating | tok/s 26.4 tokens per second Engine All engine requests · From server · average for this request | Engine · 612 tokens out | Expand
-#rate {aria-hidden="true" style="--reading-width:2.310"}: 26.4
+#ws {data-mode="summary" data-presentation="session" data-resting="false"}
+#ws-scroll
+#ws-toolbar: Watch | Automatic | Engine
+#ws-heading: Generating | oMLX
+#ws-measurement {data-basis="reported" data-live="true"}: tokens/s | 26.4 tokens per second | Engine All engine requests · From server · average for this request
+#rate {style="--reading-width:2.310"}: 26.4
+#ws-actions: Expand
 live #connection (hidden): Local oMLX
 live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
 live p.media-setup-message.insight-note[role=status] (hidden): 

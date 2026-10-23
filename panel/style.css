@@ -672,10 +672,22 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 :root[data-design-mode="next"] .ws-next .ws-open:hover { color: var(--precision-accent); }
 :root[data-design-mode="next"] .ws-next .ws-open:hover svg { stroke: currentColor; }
 :root[data-design-mode="next"] .ws-next .ws-open:focus-visible { outline-offset: -2px; }
-:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) { margin: 0; padding: 10px; border: 0; border-radius: 0; background: none; box-shadow: none; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) { margin: 0; padding: 8px; border: 0; border-radius: 0; background: none; box-shadow: none; }
 :root[data-design-mode="next"] .scope[data-compact="true"] .next-nav { display: none; }
 :root[data-design-mode="next"] .scope[data-compact="true"] .masthead { display: flex; gap: 8px; padding-bottom: 0; }
 :root[data-design-mode="next"] .scope[data-compact="true"] .monitor-controls { margin-left: auto; }
+:root[data-design-mode="next"] .scope[data-compact="true"] .compact-glance { margin-top: 6px; }
+/* The compact glance carries the same status widget; the panel's own padding is its frame, and the short rail
+   keeps a tighter rhythm so the phase, one reading and its exception all fit. */
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws,
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-scroll,
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-actions { padding: 0; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-toolbar { margin-bottom: 4px; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-instrument { padding-bottom: 0; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-measurement { margin-top: 4px; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-exceptions { margin-top: 4px; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .scope-choice { height: max(24px,1.5rem); }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-open { min-height: max(24px,1.5rem); }
 .reading-popover h2 { font-size: var(--scope-text-title); }
 .reading-popover p { margin-top: 10px; }
 .popover-value { font-size: 25px; font-weight: 550; }
