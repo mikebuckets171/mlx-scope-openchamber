@@ -1,8 +1,8 @@
 // Test support only: the 1.6 panel's pure functions, frozen verbatim at v1.6.1 (their v1 inputs, decimal GB and
 // seconds). They are the parity oracle for the 2a panel, which computes the same values from v2 (panel/present/*),
 // and they render the 1.6 projection the converter round trip compares.
-import type { SystemSnapshot } from '../../system.ts';
-import type { AvailableTelemetry, TelemetrySnapshot } from '../../telemetry.ts';
+import type { SystemSnapshot } from '../../../src/system.ts';
+import type { AvailableTelemetry, TelemetrySnapshot } from './telemetry.ts';
 
 /** Reported prompt + output against model context, NOT OpenCode compaction or an output allowance. */
 export function contextBudget(snapshot: TelemetrySnapshot): {used: number; limit: number; remaining: number; percent: number} | null {

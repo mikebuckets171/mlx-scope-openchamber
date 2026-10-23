@@ -1,4 +1,3 @@
-import { secondaryHeading } from './shell.ts';
 import { actionButton } from './views/parts.ts';
 import type { CompanionSetupStatus } from '../../service/companion-setup.ts';
 import type { MediaController } from '../media/controller.ts';
@@ -14,25 +13,23 @@ import { HistoryClient } from '../data/history.ts';
 import type { PrefsV2 } from '../preferences.ts';
 import { FRAME_TITLE, NO_FRESH, NO_FRESH_DETAIL } from '../present/copy.ts';
 import { frameCard, presentHeader } from '../present/header.ts';
-import { presentLive, presentMac } from '../present/live.ts';
+import { presentLive } from '../present/live.ts';
 import type { Callout } from '../present/parts.ts';
-import { modelOf, type ScopeInput } from '../present/scope.ts';
-import { presentServer } from '../present/server.ts';
+import { chatOnlyView, modelOf, type ScopeInput } from '../present/scope.ts';
 import { presentSessionSection } from '../present/session.ts';
 import type { Pipeline } from '../state/pipeline.ts';
 import type { ScopeState } from '../state/scope-state.ts';
 import { html, morph } from './html.ts';
 import { frameCardMarkup, renderHeader } from './shell.ts';
-import { liveMarkup, macCard } from './views/live.ts';
+import { liveMarkup } from './views/live.ts';
 import { historyView } from './views/history.ts';
 import { mountSafely } from './views/registry.ts';
-import { serverMarkup } from './views/server.ts';
 import { sessionMarkup, scopeMenuMarkup } from './views/session.ts';
 import type { Tab, ViewHandle } from './views/types.ts';
 
-// One column of truth at every width: This chat and its engine, then Media while it has jobs. History and Server & Mac
-// details are secondary views with Back; the active view still controls extra server reads and view visibility. Polls
-// patch views in place.
+// One column of truth at every width: This chat and its engine (server rows inside the measurement disclosure), the
+// This Mac card, then Media while it has jobs. History is the only secondary view, reached from the column's foot with
+// Back. Polls patch views in place.
 
 /** Media joins the column only in its own states: running jobs, a notice, or a job that finished in the last 15 min. */
 const RECENT_MEDIA_MS = 15 * 60_000;
@@ -54,7 +51,6 @@ export class ScopeApp {
   readonly #state: AppParts['state'];
   readonly #connections: AppParts['connections'];
   readonly #mediaJobs: AppParts['mediaJobs'];
-  readonly #awareness: HTMLElement;
   #navigationAction: string | null = null;
 
   constructor(p: AppParts) {
@@ -63,7 +59,6 @@ export class ScopeApp {
     this.#state = p.state;
     this.#connections = p.connections;
     this.#mediaJobs = p.mediaJobs;
-    this.#awareness = this.#node('scope-awareness');
 
     const shell = p.shell;
     this.#motion = new Motion(shell);
@@ -88,7 +83,7 @@ export class ScopeApp {
       paused: state.userPaused, efficient: state.efficient, attribution: pipeline.liveLabel(snapshot), chatRuntime: pipeline.chatRuntime(),
       last: last ? { completion: last, label: pipeline.label(last), ...pipeline.usualFor(last, snapshot?.connection.runtime ?? null) } : null,
       samples: state.signal.points, window, turnStartAt: window?.startedAt ?? null,
-      measurementScope: this.#p.prefs.value.measurementScope ?? 'chat', sessionModel: chat?.model ?? null,
+      measurementScope: this.#p.prefs.value.measurementScope ?? 'auto', sessionModel: chat?.model ?? null,
       chatActivity: chat ? window?.endedAt === null || chat.busy === true ? 'busy' : chat.busy === false ? 'idle' : null : null, chatIsLocal: pipeline.chatIsLocal(),
       lastChat: state.lastChat, promptEtaMs: state.promptEta.ms, flags: pipeline.flagsFor(snapshot?.connection.runtime ?? null, modelOf(snapshot)),
     };
@@ -116,12 +111,12 @@ export class ScopeApp {
     const mediaGlance = this.#node('media-glance'), column = !compact && !card && state.tab === 'live';
     mediaGlance.hidden = !!card || column;
     morph(mediaGlance, card || column ? '' : mediaGlanceMarkup(this.#mediaJobs, this.#p.session()?.id ?? null, s.now, false));
-    const chatOnly = s.measurementScope !== 'engine' && s.chatIsLocal === false;
-    state.serverDetailsVisible = state.tab === 'server' && !compact && !card && !chatOnly;
+    const chatOnly = chatOnlyView(s);
+    // Server rows live inside the measurement hub; only a reader who opened the hub pays for the extra reads.
+    const serverVisible = state.tab === 'live' && !compact && !card && !chatOnly && open.has('measurement-details');
+    if (serverVisible && !state.serverDetailsVisible) void this.onRefreshNeeded();
+    state.serverDetailsVisible = serverVisible;
     renderHeader(this.#shell, presentHeader(s));
-    // Rehome the same optional activity region before removing its former Live view.
-    // Its host subscriptions and focus stay owned by NextControls, not this renderer.
-    if (state.tab !== 'live' || compact || card || this.#connections.isOpen) this.#homeAwareness();
     const currentAction = this.#connections.isOpen ? 'connection' : state.tab === 'history' ? 'open-history' : 'show-live';
     if (currentAction !== this.#navigationAction) {
       this.#navigationAction = currentAction;
@@ -131,7 +126,7 @@ export class ScopeApp {
       }
     }
     const scopeControl = this.#shell.querySelector<HTMLElement>('#measurement-choice');
-    if (scopeControl) morph(scopeControl, scopeMenuMarkup(this.#p.prefs.value.measurementScope ?? 'chat'));
+    if (scopeControl) morph(scopeControl, scopeMenuMarkup(this.#p.prefs.value.measurementScope ?? 'auto'));
     this.#shell.dataset.compact = String(compact);
     const cardHost = this.#node('frame-card');
     morph(cardHost, card ? frameCardMarkup(card) : '');
@@ -152,12 +147,8 @@ export class ScopeApp {
     const active = state.tab, live = presentLive(s, this.#extra(s));
     this.#node('panel-live').hidden = active !== 'live';
     this.#node('panel-history').hidden = active !== 'history';
-    this.#node('panel-server').hidden = active !== 'server';
-    // A cloud chat has no local server to detail.
-    this.#node('open-server').hidden = chatOnly;
     // These stateless views are rebuilt from the snapshot; remove hidden copies of their shared disclosure ids.
     if (active !== 'live') morph(this.#node('view-live'), '');
-    if (active !== 'server') morph(this.#node('panel-server'), '');
     const mediaBlock = this.#node('view-media'), media = this.#mediaJobs, sessionId = this.#p.session()?.id ?? null;
     const mediaPresent = active === 'live' && (!!media.error || !!media.actionError || orderedMediaJobs(media.snapshot, sessionId)
       .some(job => !mediaTerminal(job.state) || job.finishedAtMs !== undefined && s.now - job.finishedAtMs < RECENT_MEDIA_MS));
@@ -166,17 +157,9 @@ export class ScopeApp {
     morph(mediaBlock, mediaPresent ? mediaMarkup(media, sessionId, s.now) : '');
     if (active === 'live') {
       morph(this.#node('view-live'), s.snapshot || s.frame ? html`${liveMarkup(live, open)}${this.#chatSetupHint(s)}` : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
-      const mount = this.#shell.querySelector('#next-context-activity');
-      if (mount) { if (this.#awareness.parentElement !== mount) mount.append(this.#awareness); }
-      else this.#homeAwareness();
     }
-    if (active === 'server') morph(this.#node('panel-server'), html`${secondaryHeading('server', 'Server & Mac details')}${serverMarkup(presentServer(s.snapshot, s.now, this.#extra(s), s.fresh && !s.paused), open)}${macCard(presentMac(s), open)}`);
     if (active === 'history') this.#view('history', this.#node('view-history'), s.snapshot);
     this.#syncMotion(s);
-  }
-  #homeAwareness(): void {
-    const foot = this.#shell.querySelector('.column-foot');
-    if (foot && this.#awareness.parentElement !== foot.parentElement) foot.before(this.#awareness);
   }
   #chatSetupHint(s: ScopeInput) {
     const status = this.#p.companion();
@@ -227,18 +210,16 @@ export class ScopeApp {
       target?.focus({ preventScroll: true });
       if (tab !== 'live') target?.parentElement?.scrollIntoView({ block: 'start' });
     }
-    // The Server tab asks the service for its extra reads (detail=server); poll now rather than at the next tick.
-    if (tab === 'server') void this.onRefreshNeeded();
   }
   #liveAction(action: string): HTMLElement | null {
     return Array.from(this.#shell.querySelectorAll<HTMLElement>(`[data-action="${action}"]`)).find(node => node.checkVisibility())
       ?? this.#shell.querySelector<HTMLElement>('.next-nav [data-action="show-live"]');
   }
   onRefreshNeeded: () => Promise<void> = async () => {};
-  onMeasurementScope: (scope: 'chat' | 'engine') => void = () => {};
+  onMeasurementScope: (scope: 'auto' | 'engine') => void = () => {};
   readonly #onChange = (event: Event): void => {
     const target = event.target as HTMLSelectElement;
-    if (target.dataset.action === 'measurement-scope' && (target.value === 'chat' || target.value === 'engine')) {
+    if (target.dataset.action === 'measurement-scope' && (target.value === 'auto' || target.value === 'engine')) {
       this.onMeasurementScope(target.value);
       this.render();
     }
@@ -286,7 +267,6 @@ export class ScopeApp {
     }
     if (action === 'open-history') { this.#historyReturn = 'open-history'; this.#views.get('history')?.handle.inspect?.(false); this.#select('history', true); return; }
     if (action === 'chat-setup') { connections.openSetup(trigger); this.#node('companion-title').focus({ preventScroll: true }); this.#node('companion-title').scrollIntoView({ block: 'nearest' }); return; }
-    if (action === 'open-server') { this.#select('server', true); return; }
     if (action === 'back-live') { this.#select('live', true); return; }
     if (action === 'connection') connections.openSetup(trigger);
     else if (action === 'switch') { const detected = state.snapshot?.status.params.detected; if (typeof detected === 'string') connections.switchRuntime(detected as never); }

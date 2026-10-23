@@ -1,6 +1,6 @@
 import { HostRequestError } from '@openchamber/sdk';
 import { describe, expect, test } from 'bun:test';
-import fixtures from '../../docs/design/2.0-mock-fixtures.json';
+import fixtures from '../../docs/archive/design/2.0-mock-fixtures.json';
 import { HistoryClient, trendQuery, usageQuery } from './history.ts';
 
 type Reply = { status: number; body: unknown } | Error;

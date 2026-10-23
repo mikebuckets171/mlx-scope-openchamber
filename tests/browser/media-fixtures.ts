@@ -19,18 +19,6 @@ const job = (state: string): MediaJobV1 => {
     ownership: state === 'other' ? {} : { sessionKey: chatKey('session', 'fixture-chat') },
     cancel: { supported: !terminal && !stale }, ...state === 'waiting' ? { message: 'Waiting for the local chat to release the GPU.' } : {} };
 };
-// Finish-time fixtures use absolute times fixed when the page loads, so a clock line is stable across polls. Only a private
-// feed can declare a final phase, so estimates come from a feed source; the service's measured window is unit-tested.
-const LOADED = Date.now();
-window.previewMediaTimes = { report: LOADED, eta: LOADED + 330_000, soon: LOADED + 20_000, held: LOADED + 270_000, started: LOADED - 133_000, finished: LOADED - 61_000 };
-const FEED_STATES = ['eta', 'eta-soon', 'eta-stale'];
-const fixtureJob = (state: string): MediaJobV1 => {
-  const times = window.previewMediaTimes;
-  if (state === 'finished') return { ...job('completed'), startedAtMs: times.started, finishedAtMs: times.finished };
-  if (state === 'eta-stale') return { ...job('last-reported'), sourceId: 'studio', lastEtaAtMs: times.held, etaBasis: 'measured-window' };
-  if (state === 'eta' || state === 'eta-soon') return { ...job('active'), sourceId: 'studio', progressAtMs: times.report, etaAtMs: state === 'eta' ? times.eta : times.soon, etaBasis: 'measured-window', cancel: { supported: false } };
-  return job(state);
-};
 window.ScopeMediaFixtures = { respond(message) {
   const path = message.payload.path;
   if (!['/v2/connections', '/v2/media', '/v2/media/cancel', '/v2/media/setup', '/v2/companion/setup'].includes(path)) return null;
@@ -54,8 +42,8 @@ window.ScopeMediaFixtures = { respond(message) {
       else window.previewMediaSetup = { schemaVersion: 1, sources: [{ id: 'comfyui', label: 'ComfyUI', state: input.action === 'disable' ? 'available' : 'pending', message: 'Installed · activates next time ComfyUI starts. Basic monitoring continues.', canEnable: true, canDisable: input.action !== 'disable', managed: input.action !== 'disable', helperVersion: '1.0.0', runtimeVersion: '0.38.0', locations: [{ id: 'fixture', label: 'ComfyUI · 0.38.0' }] }] };
     }
     if (params.get('setup') === 'all-sources') return response({ schemaVersion: 1, enabled: true, sources: [
-      { id: 'local-video', kind: 'local-video', label: 'Local video', state: 'ready', message: 'Queue monitoring is ready.', canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: null, locations: [] },
-      { id: 'qwen-image', kind: 'qwen-image', label: 'Qwen image', state: 'unsupported', message: 'This integration does not publish progress telemetry yet.', canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: null, locations: [] },
+      { id: 'comfyui', kind: 'comfyui', label: 'ComfyUI', state: 'ready', message: 'Detailed progress is active.', canEnable: false, canDisable: false, managed: false, helperVersion: '1.0.0', runtimeVersion: '0.38.0', locations: [] },
+      { id: 'draw-things', kind: 'draw-things', label: 'Draw Things', state: 'ready', message: 'Watching Draw Things command-line renders.', canEnable: false, canDisable: false, managed: false, helperVersion: null, runtimeVersion: null, locations: [] },
     ] });
     return response({ ...(window.previewMediaSetup ?? { schemaVersion: 1, sources: params.has('media') ? [{ id: 'comfyui', label: 'ComfyUI', state: 'available', message: 'Enable detailed progress to see measured work within each generation phase.', canEnable: true, canDisable: false, managed: false, helperVersion: null, runtimeVersion: '0.38.0', locations: [{ id: 'fixture', label: 'ComfyUI · 0.38.0' }] }] : [] }), enabled: window.previewMediaEnabled });
   }
@@ -66,8 +54,7 @@ window.ScopeMediaFixtures = { respond(message) {
   const state = params.get('media') ?? 'none';
   if (!window.previewMediaEnabled) return response({ schemaVersion: 1, enabled: false, sampledAtMs: Date.now(), nextPollMs: 30_000, sources: [], jobs: [] });
   const snapshot: MediaSnapshotV1 = { schemaVersion: 1, sampledAtMs: Date.now(), nextPollMs: state === 'none' ? 30_000 : 1_000,
-    sources: state === 'none' ? [] : FEED_STATES.includes(state) ? [{ id: 'studio', kind: 'feed', label: 'Studio feed', state: 'ready', capabilities: { progress: true, cancel: false } }]
-      : [{ id: 'comfyui', kind: 'comfyui', label: 'ComfyUI', state: state === 'disconnected' ? 'disconnected' : 'ready', capabilities: { progress: state !== 'basic', cancel: true } }],
-    jobs: ['none', 'empty', 'disconnected'].includes(state) ? [] : [fixtureJob(window.previewMediaCancelled ? 'cancelled' : state)] };
+    sources: state === 'none' ? [] : [{ id: 'comfyui', kind: 'comfyui', label: 'ComfyUI', state: state === 'disconnected' ? 'disconnected' : 'ready', capabilities: { progress: state !== 'basic', cancel: true } }],
+    jobs: ['none', 'empty', 'disconnected'].includes(state) ? [] : [job(window.previewMediaCancelled ? 'cancelled' : state)] };
   return response(window.previewMediaOverride ?? snapshot);
 } };

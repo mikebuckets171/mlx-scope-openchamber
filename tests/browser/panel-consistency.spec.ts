@@ -69,10 +69,9 @@ for (const theme of ['light', 'dark']) for (const [width, font] of [[320, 32], [
     await readable(frame, '.run-detail');
     await frame.locator('#panel-history > .secondary-heading').getByRole('button', { name: 'Back', exact: true }).click();
     await expect(frame.getByRole('button', { name: 'Run details', exact: true })).toBeFocused();
-    await activate(frame, 'Server & Mac details');
-    await secondaryEntry(frame, 'server');
-    await readable(frame, '#panel-server');
-    await frame.getByRole('button', { name: 'Back', exact: true }).click();
+    // Server rows open inside the hub; nothing navigates away, so the foot stays reachable.
+    await frame.locator('#measurement-details > summary').click();
+    await readable(frame, '#server-strip');
     await activate(frame, 'History');
     await secondaryEntry(frame, 'history');
     const historyList = frame.locator('#view-history > .view-host > :first-child');

@@ -92,7 +92,7 @@ const stopFollowing = host.onSession(session => {
     const window = !changed ? pipeline?.frame().windows.at(-1) : null;
     state.beginChat(window?.endedAt === null ? window.startedAt ?? window.joinedAt ?? client.now() : client.now());
   }
-  if (changed && (prefs.value.measurementScope ?? 'chat') === 'chat') resetSelection();
+  if (changed && (prefs.value.measurementScope ?? 'auto') !== 'engine') resetSelection();
   else if (session?.busy !== wasBusy && monitor?.live && state.mounted) {
     // Activity hints request an update; they do not invalidate an otherwise fresh observation.
     // Identity changes, interruption and the observation's own deadline still clear live readings.
@@ -105,7 +105,7 @@ const pipelineFor = (surface: string): Pipeline => pipeline = new Pipeline({ hos
 const monitorFor = (pipeline: Pipeline, tier: 'glance' | 'full', floorMs: number, query: () => Record<string, string> | undefined,
   update: (link: ReturnType<typeof frameReading>['link']) => void, refreshed: () => void): Monitor => new Monitor({
   state, client, frame: frameId(), visibility: () => visibility, tier, floorMs,
-  query: () => ({ ...follow.query(prefs.value.measurementScope ?? 'chat', query()), ...pipeline.query(),
+  query: () => ({ ...follow.query(prefs.value.measurementScope ?? 'auto', query()), ...pipeline.query(),
     ...state.serverDetailsVisible && tier === 'full' ? { detail: 'server' as const } : {} }),
   since: frame => pipeline.since(frame),
   received: (reading, fresh, cadenceMs) => {

@@ -87,14 +87,14 @@ describe('History presenter (plan §5.6, G2 mock)', () => {
     expect(presentHistory(input({ trend: { ...mockTrend(900_000), gaps: [], series: { decodeTps: { basis: 'derived', buckets: Array(180).fill(null) } } }, runtimeName: 'llama-server' })).trend)
       .toEqual(expect.objectContaining({ title: 'Generation speed · calculated from llama-server totals', empty: 'No generation readings in the last 15 min. The chart starts after 2 readings.' }));
   });
-  test('usual speed: p50/p90 with n, prefill, no tok/J from last-observed replies, and TTFT the server never reported', () => {
+  test('usual speed is one quiet line: the median the alert compares against', () => {
     const { baseline } = presentHistory(input());
     expect(baseline.model).toBe('Example-27B-4bit');
     expect(baseline.bucket).toBe('32–64K context');
-    expect(baseline.tiles.map(t => [t.label, t.value, t.detail])).toEqual([['Typical generation', '25.9 tok/s', '33 replies'], ['Fast generation', '27.2 tok/s', '33 replies'],
-      ['Typical prefill', '597 tok/s', '30 replies']]);
-    // oMLX replies are last-observed: their token counts are not final, so no tok/J baseline forms (plan §5.6; the mock showed one).
-    expect(baseline.rows).toEqual([{ label: 'First token', value: 'No baseline · oMLX doesn’t report it', basis: null }]);
+    expect(baseline.line).toBe('Median of 33 replies · 25.9 tok/s');
+    // The stat card and its rows are gone: History keeps the trend, the flag and the copy action.
+    expect(baseline).not.toHaveProperty('tiles');
+    expect(baseline).not.toHaveProperty('rows');
     expect(baseline.copy).toBe(true);
   });
   test('a regression flag on the card lists co-factors as observed during, never as causes', () => {

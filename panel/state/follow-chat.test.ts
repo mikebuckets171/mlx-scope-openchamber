@@ -4,7 +4,7 @@ import { FollowChat } from './follow-chat.ts';
 test('This chat follows the selected provider, without exposing raw identifiers or a pinned runtime', () => {
   const follow = new FollowChat();
   expect(follow.update({ id:'ses_private', title:'Private title', busy:true, model:'custom-local/namespace/model' })).toBe(true);
-  const query = follow.query('chat', { provider:'old', runtime:'omlx' })!;
+  const query = follow.query('auto', { provider:'old', runtime:'omlx' })!;
   expect(query.provider).toBe('custom-local');
   expect(query.chatBusy).toBe('1');
   expect(query.runtime).toBeUndefined();
@@ -13,16 +13,16 @@ test('This chat follows the selected provider, without exposing raw identifiers 
   expect(JSON.stringify(query)).not.toContain('ses_private');
   expect(JSON.stringify(query)).not.toContain('namespace/model');
   expect(follow.update({ id:'ses_private', title:'Changed title', busy:false, model:'custom-local/namespace/model' })).toBe(false);
-  expect(follow.query('chat')?.chatBusy).toBeUndefined();
+  expect(follow.query('auto')?.chatBusy).toBeUndefined();
   expect(follow.update({ id:'ses_other', title:'', busy:true, model:'custom-local/namespace/model' })).toBe(true);
 });
 test('Whole engine preserves selection; opening a full page without a chat remains usable', () => {
   const follow = new FollowChat(), selection = { provider:'pinned', runtime:'splash' };
-  expect(follow.query('chat', selection)).toEqual(selection);
+  expect(follow.query('auto', selection)).toEqual(selection);
   follow.update({ id:'s', title:'', busy:true, model:'local/model' });
   expect(follow.query('engine', selection)).toEqual(selection);
   expect(follow.update(null)).toBe(true);
-  expect(follow.query('chat', selection)).toEqual(selection);
+  expect(follow.query('auto', selection)).toEqual(selection);
 });
 
 test('a chat with incomplete identity never falls through to the pinned local engine', () => {
@@ -30,10 +30,10 @@ test('a chat with incomplete identity never falls through to the pinned local en
   for (const session of [{ id: 'cloud-chat', busy: true }, { id: '', busy: null, model: 'cloud/model' },
     { id: 'cloud-chat', busy: null, model: 'model-without-provider' }]) {
     follow.update(session);
-    expect(follow.query('chat', selection)).toEqual({ chatUnavailable: '1' });
+    expect(follow.query('auto', selection)).toEqual({ chatUnavailable: '1' });
     expect(follow.query('engine', selection)).toEqual(selection);
   }
   follow.update({ id: 'cloud-chat', busy: true, model: 'cloud/model' });
-  expect(follow.query('chat', selection)?.provider).toBe('cloud');
-  expect(follow.query('chat', selection)?.runtime).toBeUndefined();
+  expect(follow.query('auto', selection)?.provider).toBe('cloud');
+  expect(follow.query('auto', selection)?.runtime).toBeUndefined();
 });

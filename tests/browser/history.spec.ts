@@ -138,7 +138,7 @@ test.describe('History tab', () => {
       await expect(view.locator('.led-row .chip[data-attr="server"]').first()).toHaveText('Engine');
       await expect(view.locator('.led-row .chip[data-attr="server"]').first()).toHaveAttribute('data-reason', 'overlap');
       await expect(view.locator('.led-row .chip[data-attr="inferred"]').first()).toHaveText('This chat');
-      await expect(view.getByText('No baseline · oMLX doesn’t report it')).toBeVisible();
+      await expect(view.locator('.baseline-line')).toHaveText('Median of 33 replies · 25.9 tok/s');
       await expect(view.locator('.usage-bars > div')).toHaveCount(7);
       await expect(view.locator('.storage-line')).toHaveText(/412 KiB\s*of 1\.25 MiB · 41 replies · 13 days/);
       await expect(view.locator('.alog li')).toHaveCount(4);

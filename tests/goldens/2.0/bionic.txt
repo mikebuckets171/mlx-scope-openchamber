@@ -25,8 +25,6 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#next-context-activity {data-mount=""}
-#scope-awareness {aria-label="Session activity"}: Other work
 h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash via Bionic
@@ -46,33 +44,39 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #monitor-menu
 #frame-card
 #panels
-#panel-server {aria-labelledby="server-title"}: Back
-#server-title: Server & Mac details
-[server-residency]: lms ps · refreshed on load/unload example-27b-splash 17.4 GiB loaded
-h2: Loaded instances
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
+#hero {aria-label="Activity and speed" data-arrive=""}: Bionic example-27b-splash Watch | 38.6 tokens per second tokens/s Last reply · Engine Completed request average · 48 s ago | Finished 48 s ago
+h2.instrument-phase {data-crossfade="" data-live="false" data-tone="normal"}: Idle
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 38.6
+#completed-facts {aria-label="Last reply · Engine" data-count="3"}: Last reply · Engine Output 1,092 tokens Duration 29 s calculated
+#first-token: First token | 0.51 s
+#reply-strip
+#measurement-details {open=""}: Measurement details | Run details
+#engine-readings: Engine readings
+#request-details: Request details
+#last-reply: Last reply
+#server-strip: Splash via Bionic 1.1.6 Ready
+[server-residency]: Loaded instances example-27b-splash 17.4 GiB loaded · lms ps · refreshed on load/unload
 span.chip: Idle
-[server-engines]: LM Studio · checked every 10 min splash 0.0.5 mlx-llm 0.28.1 llama.cpp 1.52.0
-h2: Model software
+[server-engines]: Model software splash 0.0.5 · mlx-llm 0.28.1 · llama.cpp 1.52.0 · LM Studio · checked every 10 min
 span.chip {data-tone="accent"}: In use
 span.chip: Installed
 span.chip: Installed
-[server-catalog]: 1 loaded · 3 listed example-27b-splash Loaded 262K context example-35b-a3b-splash Available 262K context example-embed-v1.5 Available 2,048 context
-h2: Model inventory
+[server-catalog]: Model inventory example-27b-splash Loaded, 262K context · example-35b-a3b-splash Available, 262K context · example-embed-v1.5 Available, 2,048 context · 1 loaded · 3 listed
 span.chip {data-tone="accent"}: splash
 span.chip {data-tone="accent"}: splash
 span.chip: gguf
-[server-session]: Since the log stream started Generation speed Cache efficiency Completed
-h2: Overall average
+[server-session]: Overall average Generation speed · Cache efficiency · Completed · Since the log stream started
 span.val {data-basis="reported"}: 37.9 tok/s
 span.val {data-basis="reported"}: 61%
 span.val {data-basis="reported"}: 23
-#server-runtime-details: Server details Ready
 #machine {aria-label="This Mac" data-stale="false"}: CPU 7% Memory allocated 33.9 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#media-glance
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash via Bionic
 live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
@@ -105,8 +109,6 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#next-context-activity {data-mount=""}
-#scope-awareness {aria-label="Session activity"}: Other work
 h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash via Bionic

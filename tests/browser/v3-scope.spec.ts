@@ -7,7 +7,7 @@ const newest = async (page: Page) => (await queries(page)).at(-1)!;
 test('This chat follows the selected provider and sends only hashed chat and model identifiers', async ({ page }) => {
   await page.goto('/v2?state=decode&chat=local&surface=status');
   const frame = page.frameLocator('iframe');
-  await expect(frame.getByRole('combobox', { name: 'Measurement scope' })).toHaveValue('chat');
+  await expect(frame.getByRole('combobox', { name: 'What to watch' })).toHaveValue('auto');
   await expect.poll(async () => (await newest(page))?.provider).toBe('omlx');
   expect(await newest(page)).toMatchObject({ chat: chatKey('session', 'fixture-chat'), chatModel: chatKey('model', 'Example-27B-4bit'), chatBusy: '1' });
   await page.evaluate(() => (window as any).setPreviewSession({ id: 'second-private-session', title: 'Private title', busy: true, model: 'custom-provider/Another-Model' }));
@@ -45,8 +45,8 @@ test('switching chat or model clears the old speed before polling and rejects it
 
 test('scope choice persists across reload, keeps Engine independent, and follows again when changed back', async ({ page }) => {
   await page.goto('/v2?surface=status&state=decode&chat=local');
-  const frame = page.frameLocator('iframe'), scope = frame.getByRole('combobox', { name: 'Measurement scope' });
-  await expect(scope).toHaveValue('chat');
+  const frame = page.frameLocator('iframe'), scope = frame.getByRole('combobox', { name: 'What to watch' });
+  await expect(scope).toHaveValue('auto');
   await scope.selectOption('engine');
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('pref.v2') ?? '{}').measurementScope)).toBe('engine');
   await expect.poll(async () => (await newest(page))?.chat).toBeUndefined();
@@ -58,20 +58,20 @@ test('scope choice persists across reload, keeps Engine independent, and follows
   await page.evaluate(() => (window as any).setPreviewSession({ id: 'cloud-chat', title: 'Cloud', busy: false, model: 'cloud-provider/cloud-model' }));
   await expect(frame.locator('#ws')).toHaveAttribute('data-mode', 'summary');
   await expect(scope).toHaveValue('engine');
-  await scope.selectOption('chat');
+  await scope.selectOption('auto');
   await expect(frame.locator('.ws-phase')).toHaveText('Ready');
   await expect(frame.locator('.ws-measurement:visible, .ws-support:visible, .ws-warning:visible')).toHaveCount(0);
   await page.evaluate(() => (window as any).setPreviewSession({ id: 'local-again', title: 'Local', busy: true, model: 'omlx/Example-27B-4bit' }));
-  await expect(scope).toHaveValue('chat');
+  await expect(scope).toHaveValue('auto');
   await expect.poll(async () => (await newest(page))?.chat).toBe(chatKey('session', 'local-again'));
 });
 
 for (const surface of ['status', 'page']) test(`a rejected scope preference remains usable and reports that it was not saved on ${surface}`, async ({ page }) => {
   if (surface === 'status') await page.setViewportSize({ width: 290, height: 550 });
   await page.goto(`/v2?surface=${surface}&state=decode&chat=local&storage=fail`);
-  const frame = page.frameLocator('iframe'), scope = frame.getByRole('combobox', { name: 'Measurement scope' });
+  const frame = page.frameLocator('iframe'), scope = frame.getByRole('combobox', { name: 'What to watch' });
   if (surface === 'status') await page.locator('iframe').evaluate(el => { (el as HTMLElement).style.width = '260px'; });
-  await expect(scope).toHaveValue('chat');
+  await expect(scope).toHaveValue('auto');
   await scope.selectOption('engine');
   await expect(scope).toHaveValue('engine');
   await expect(frame.locator(surface === 'status' ? '.ws-action-error' : '#action-status')).toContainText(surface === 'status' ? 'Changed here; could not save.' : 'could not save the preference');

@@ -1,4 +1,4 @@
-import fixtures from '../../docs/design/2.0-mock-fixtures.json';
+import fixtures from '../../docs/archive/design/2.0-mock-fixtures.json';
 
 // Owner: ui-core. The approved G2 mock's v2 fixtures (docs/design/2.0-mock-fixtures.json) as `/v2/snapshot` bodies, for the
 // presenter tests, the 2.0 fixture host (tests/browser/v2-host.html) and the 2.0 goldens. Synthetic: no real model, path

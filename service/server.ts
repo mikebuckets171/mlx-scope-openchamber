@@ -114,11 +114,13 @@ export const chatOnlyReading = (provider: string, at: number): RuntimeReading =>
 };
 
 /**
- * What the host sampler rides along with: the frame's tier, whether the runtime is working, and the oMLX loopback port
- * only while oMLX itself answered on it, so lsof and footprint never read whatever else holds that port.
+ * What the host sampler rides along with: the frame's tier, whether the runtime is working, whether this frame has the
+ * measurement details open (the one demand signal macmon needs), and the oMLX loopback port only while oMLX itself
+ * answered on it, so lsof and footprint never read whatever else holds that port.
  */
-export const hostContextOf = (tier: HostContext['tier'], { status, runtime, meta }: RuntimeReading): HostContext => ({
-  tier, active: busy(runtime), generation: meta.connection.generation,
+export const hostContextOf = (tier: HostContext['tier'], { status, runtime, meta }: RuntimeReading, detail = false, frame?: string): HostContext => ({
+  tier, active: busy(runtime), generating: busy(runtime) && runtime.phase !== 'queued' && (status.state === 'ready' || status.state === 'degraded'),
+  detail, ...(frame ? { frame } : {}), generation: meta.connection.generation,
   omlxPort: meta.connection.runtime === 'omlx' && (status.state === 'ready' || status.state === 'degraded') ? meta.port ?? null : null,
 });
 
@@ -245,7 +247,7 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
       const selection = query.provider || query.runtime ? { provider: query.provider ?? '', runtime: query.runtime ?? null } : undefined;
       const reading = await Promise.resolve().then(() => sources.read(selection, { tier: query.tier, detail: query.detail === 'server' }))
         .catch(() => unread(serverNow));
-      const context = hostContextOf(query.tier, reading);
+      const context = hostContextOf(query.tier, reading, query.detail === 'server', query.frame);
       const nonLocal = !!query.provider && !reading.meta.connection.choices.some(choice => choice.id === query.provider);
       const host = nonLocal ? null : await Promise.resolve().then(() => sources.host?.(context) ?? null).catch(() => null);
       const chat = await Promise.resolve().then(() => sources.chat?.(query, reading) ?? null).catch(() => null);

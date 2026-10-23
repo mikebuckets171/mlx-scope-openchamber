@@ -1,5 +1,7 @@
 # Standard Scope interface — design QA
 
+> Historical 5.0 review. Paths and “current” claims below describe that release, not the present product.
+
 final result: passed
 
 The user selected direction A, approved the polished precision interface, then required that presentation for everyone. There is one standard interface and no Classic/Next picker. Their later feedback specifically rejected the oversized number and typography; the current review applies to the quieter typography shown below. This is an agent review of actual browser-rendered synthetic fixtures, supported by automated checks. It is not a human usability study, an installed-host qualification, a literal concept-font match or a release approval.

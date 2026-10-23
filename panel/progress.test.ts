@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { parseTelemetrySnapshot, normalizeOmlxTelemetry } from '../src/telemetry.ts';
+import { parseTelemetrySnapshot, normalizeOmlxTelemetry } from '../tests/fixtures/legacy/telemetry.ts';
 import { prefillReading } from './progress.ts';
 import { fromV1 } from './testing/readings.ts';
 

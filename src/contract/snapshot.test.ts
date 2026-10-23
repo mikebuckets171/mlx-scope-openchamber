@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import fixtures from '../../docs/design/2.0-mock-fixtures.json';
+import fixtures from '../../docs/archive/design/2.0-mock-fixtures.json';
 import { CAPABILITY_KEYS } from './capabilities.ts';
 import { classAKeys } from './guards.ts';
 import { HONESTY, honestyViolations, parseSnapshotV2, requiredCapabilities, type SnapshotV2 } from './snapshot.ts';

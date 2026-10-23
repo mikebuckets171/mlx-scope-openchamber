@@ -24,7 +24,7 @@ test('Media identifies ownership and phase-local progress, then confirms exact-j
   await expect(frame.locator('.media-job')).toContainText('This chat');
   await expect(frame.getByRole('progressbar', { name: 'Sampling progress · this phase only' })).toHaveAttribute('aria-valuenow', '40');
   await expect(frame.locator('.media-job')).toContainText('8 / 20 steps');
-  // The ring holds no number; the percentage is the phase line beside it. ComfyUI declares no final phase, so no estimate.
+  // The ring holds no number; the percentage is the phase line beside it. ComfyUI publishes no finish time, so nothing is estimated.
   await expect(frame.locator('.media-job .media-phase')).toContainText('Sampling · 40%');
   expect(await frame.locator('.media-job .media-ring').evaluate(node => node.textContent?.trim())).toBe('');
   await expect(frame.locator('.media-finish')).toHaveCount(0);
@@ -51,70 +51,14 @@ for (const state of ['basic', 'waiting', 'stale']) test(`${state} media never in
   if (state === 'stale') await expect(frame.getByRole('button', { name: 'Cancel job', exact: true })).toHaveCount(0);
 });
 
-// Finish-time fixtures fix their absolute times at page load; the expected clock text uses the page's own locale and time zone.
-const clock = (page: Page, key: string, roundUp: boolean): Promise<string> => page.evaluate(({ key, roundUp }) => {
-  const at = (window as any).previewMediaTimes[key] as number;
-  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(roundUp ? Math.ceil(at / 60_000) * 60_000 : at);
-}, { key, roundUp });
-const color = (locator: import('@playwright/test').Locator) => locator.evaluate(node => getComputedStyle(node).color);
-
-test('a measured finish estimate is clock time under the job detail and in the Session glance, never a countdown', async ({ page }) => {
-  // The sidebar's glance carries the short live form; the page's column carries the job detail.
-  await page.goto('/v2?surface=status&state=decode&chat=local&media=eta');
-  await expect(page.frameLocator('iframe').locator('.media-glance .media-glance-finish')).toHaveText(`finishes around ${await clock(page, 'eta', true)}`);
-  await page.goto('/v2?surface=page&state=decode&chat=local&media=eta');
-  const frame = page.frameLocator('iframe'), expected = `finishes around ${await clock(page, 'eta', true)}`;
-  await expect(frame.locator('.media-glance')).toHaveCount(0);
-  await expect(frame.locator('#view-media')).toBeVisible();
-  const finish = frame.locator('.media-job .media-finish');
-  await expect(finish).toHaveText(expected); await expect(finish).toHaveAttribute('data-basis', 'live');
-  await expect(frame.locator('.media-job .media-progress-copy > :last-child')).toHaveText(expected); // under the detail line
-  await expect(frame.locator('.media-job')).toContainText('Sampling · 40%');
-  await expect(frame.locator('.media-job')).not.toContainText(/ETA|remaining|left\b/);
-  expect(await color(finish)).toBe(await color(frame.locator('.media-job .media-phase')));
-  expect(await color(finish)).not.toBe(await color(frame.locator('.media-job .media-counters')));
-});
-
-test('a finish estimate inside a minute reads "any moment"', async ({ page }) => {
-  await page.goto('/v2?surface=page&state=decode&chat=local&media=eta-soon');
-  const frame = page.frameLocator('iframe');
-  await expect(frame.locator('#view-media')).toBeVisible();
-  await expect(frame.locator('.media-job .media-finish')).toHaveText('finishes any moment');
-});
-
-test('a stale job holds its last estimate as dimmed history and the glance does not repeat it', async ({ page }) => {
-  await page.goto('/v2?surface=status&state=decode&chat=local&media=eta-stale');
-  const glance = page.frameLocator('iframe').locator('.media-glance');
-  await expect(glance).toContainText('last reported');
-  await expect(glance).not.toContainText(/finish|estimate/);
-  await page.goto('/v2?surface=page&state=decode&chat=local&media=eta-stale');
-  const frame = page.frameLocator('iframe');
-  await expect(frame.locator('#view-media')).toBeVisible();
-  const finish = frame.locator('.media-job .media-finish');
-  await expect(finish).toHaveText(`last estimate · around ${await clock(page, 'held', true)}`); await expect(finish).toHaveAttribute('data-basis', 'held');
-  await expect(frame.locator('.media-job')).toContainText('Waiting for update');
-  expect(await color(finish)).toBe(await color(frame.locator('.media-job .media-counters')));
-  expect(await color(finish)).not.toBe(await color(frame.locator('.media-job .media-phase')));
-});
-
-test('completion shows the measured finish time', async ({ page }) => {
-  await page.goto('/v2?surface=page&state=decode&chat=local&media=finished');
+test('completion shows the measured finish time and no invented estimate', async ({ page }) => {
+  await page.goto('/v2?surface=page&state=decode&chat=local&media=completed');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#view-media')).toBeVisible();
   await frame.locator('.media-recent > summary').click();
-  const finish = frame.locator('.media-job .media-finish');
-  await expect(finish).toHaveText(`finished ${await clock(page, 'finished', false)}`); await expect(finish).toHaveAttribute('data-basis', 'measured');
+  await expect(frame.locator('.media-job .media-finish')).toHaveText(/^Finished \d/);
   await expect(frame.locator('.media-job')).toContainText('Completed');
-});
-
-test('the Session glance with an estimate stays within a narrow host at enlarged text', async ({ page }) => {
-  await page.setViewportSize({ width: 260, height: 750 });
-  await page.goto('/v2?surface=status&state=decode&chat=local&media=eta');
-  const frame = page.frameLocator('iframe');
-  await expect(frame.locator('.media-glance-finish')).toHaveText(`finishes around ${await clock(page, 'eta', true)}`);
-  await frame.locator('html').evaluate(element => { (element as HTMLElement).style.fontSize = '32px'; });
-  await expect.poll(() => frame.locator('#scope').evaluate(element => element.getBoundingClientRect().height)).toBeLessThanOrEqual(320);
-  expect(await frame.locator('#scope').evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await expect(frame.locator('.media-job')).not.toContainText(/estimate|around|ETA/);
 });
 
 test('Session media remains within host height at enlarged text and narrow width', async ({ page }) => {
@@ -275,12 +219,11 @@ test('Connections discovers local servers from a cloud chat without choosing one
   expect(await page.evaluate(() => sessionStorage.getItem('connection.selection'))).toBeNull();
 });
 
-test('Connections reports ready video and unavailable image telemetry as different capabilities', async ({ page }) => {
+test('Connections reports every detected media source with its own state and capabilities', async ({ page }) => {
   await page.goto('/v2?surface=page&state=decode&chat=cloud&setup=all-sources');
   const frame = page.frameLocator('iframe');
   await frame.getByRole('button', { name: 'Connections', exact: true }).click();
-  await expect(frame.locator('[data-key="local-video"]')).toContainText('Ready');
-  await expect(frame.locator('[data-key="qwen-image"]')).toContainText('Tracking unavailable');
+  await expect(frame.locator('[data-key="comfyui"]')).toContainText('Ready');
+  await expect(frame.locator('[data-key="draw-things"]')).toContainText('Ready');
   await expect(frame.locator('#media-setup')).not.toContainText('No supported local media tool found');
-  await expect(frame.locator('[data-key="qwen-image"]')).not.toContainText('Basic monitoring only');
 });

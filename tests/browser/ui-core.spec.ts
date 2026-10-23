@@ -41,7 +41,6 @@ test('every mock state passes the mock\'s checks on Live and Server at 320 (dark
     if (await frame.locator('#measurement-details').isVisible()) {
       await openServerDetails(frame);
       expect(await problems(page), `${state} server`).toEqual([]);
-      await frame.getByRole('button', { name: 'Back', exact: true }).click();
     }
     expect(await problems(page, true), `${state} live, every ⓘ open`).toEqual([]);
   }
@@ -83,26 +82,22 @@ test('the keyboard reaches History from navigation, Back returns focus, and moni
   await expect(frame.locator('#view-live')).toBeVisible();
 });
 
-test('secondary views return to their parent and server-only reads stop outside diagnostics', async ({ page }) => {
+test('server-only reads start when the hub opens and stop when it closes or compacts', async ({ page }) => {
   const frame = await load(page, 'surface=page&state=decode', 1160);
   expect((await host(page, w => w.previewQueries)).every((query: Record<string, string>) => query.detail === undefined)).toBe(true);
   await openServerDetails(frame);
-  await expect(frame.locator('#panel-server')).toBeVisible();
-  await expect(frame.locator('#server-title')).toBeFocused();
-  await expect(frame.locator('#panel-live')).toBeHidden();
+  await expect(frame.locator('#server-strip')).toBeVisible();
+  await expect(frame.locator('#panel-live')).toBeVisible();
   await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBe('server');
   await page.setViewportSize({ width: 320, height: 900 });
-  await expect(frame.locator('#panel-server')).toBeVisible();
   await frame.locator('#monitor-menu > summary').click();
   await frame.locator('#compact').click();
-  await expect(frame.locator('#panel-server')).toBeHidden();
+  await expect(frame.locator('#measurement-details')).toBeHidden();
   await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBeUndefined();
   await frame.getByRole('button', { name: 'Expand', exact: true }).click();
-  await expect(frame.locator('#panel-server')).toBeVisible();
+  await expect(frame.locator('#server-strip')).toBeVisible();
   await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBe('server');
-  await frame.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(frame.locator('#view-live')).toBeVisible();
-  await expect(frame.getByRole('button', { name: 'Server & Mac details', exact: true })).toBeFocused();
+  await frame.locator('#measurement-details > summary').click();
   await expect.poll(async () => (await host(page, w => w.previewQueries)).at(-1).detail).toBeUndefined();
   await frame.getByRole('button', { name: 'History', exact: true }).click();
   await expect(frame.locator('#view-history')).toBeVisible();

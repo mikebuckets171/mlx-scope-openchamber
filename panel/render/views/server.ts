@@ -1,25 +1,35 @@
-import { disclosure } from './parts.ts';
-import type { Block, ServerView } from '../../present/server.ts';
-import { flag, html, type Raw } from '../html.ts';
-import { callouts, chip, chips, meter, pct100, section, val, type Open } from './parts.ts';
+import { tip } from '../../present/parts.ts';
+import type { Block, ServerCard, ServerView } from '../../present/server.ts';
+import { html, type Raw } from '../html.ts';
+import { chips, meter, tipParts, val, type Open } from './parts.ts';
 
-// The Server tab's markup (G2 mock): one card per thing the runtime reports.
+// The compact server strip inside the Measurement details hub (G2 mock): one quiet line per thing the
+// runtime reports, with the engine's identity and detection detail folded into the ⓘ beside its name.
 
-const P = 'server';
-const block = (b: Block): Raw => {
-  switch (b.kind) {
-    case 'kv': return html`<dl class="kv">${b.rows.map(row => row.chips
-      ? html`<div class="kv-block"><dt>${row.label}</dt><dd class="chips">${row.chips.length ? chips(row.chips) : row.value}</dd></div>`
-      : html`<div><dt>${row.label}</dt><dd>${row.value}</dd></div>`)}</dl>`;
-    case 'values': return html`<div class="values-${b.cols}${b.big ? ' big-values' : ''}">${b.items.map(item =>
-      html`<div><span>${item.label}</span><strong>${val(item.value)}</strong>${item.small ? html`<small>${item.small}</small>` : ''}</div>`)}</div>`;
-    case 'meter': return meter(b.fraction, 'margin-top:10px');
-    case 'bar': return html`<div class="cache-input-bar" aria-hidden="true"><span style="width:${pct100(b.fraction)}"></span></div>`;
-    case 'list': return html`<ul class="resident-list">${b.items.map(item => html`<li class="resident-row" data-loaded="${String(item.loaded)}"><div class="resident-heading"><strong translate="no">${item.title}</strong>${item.chips.length > 1 || b.chipGroup ? html`<span class="chips">${chips(item.chips)}</span>` : chip(item.chips[0] ?? null)}</div>${item.reading.length ? html`<div class="resident-reading">${item.reading.map(text => html`<span>${text}</span>`)}</div>` : ''}${item.meter === null ? '' : meter(item.meter)}</li>`)}</ul>`;
-  }
+const facts = (card: ServerCard): Raw => html`${card.blocks.flatMap(block => block.kind === 'values'
+  ? block.items.map(item => item.label === card.title
+    ? html`${val(item.value)}${item.small ? html` <small>${item.small}</small>` : ''}`
+    : html`${item.label} ${val(item.value)}${item.small ? html` <small>${item.small}</small>` : ''}`)
+  : block.kind === 'list'
+    ? block.items.map(item => html`<span class="server-item" data-loaded="${String(item.loaded)}">${item.title}${item.chips.length ? html` ${chips(item.chips)}` : ''}${item.reading.length ? html` <small>${item.reading.join(', ')}</small>` : ''}${item.meter === null ? '' : meter(item.meter, 'margin-top:4px')}</span>`)
+    : []).map((part, index) => html`${index ? ' · ' : ''}${part}`)}`;
+const gauge = (card: ServerCard): Raw | string => {
+  const block = card.blocks.find(item => item.kind === 'meter' || item.kind === 'bar') as Extract<Block, { kind: 'meter' | 'bar' }> | undefined;
+  return block ? meter(block.fraction, 'flex:1 1 60px; min-width:60px; margin:0') : '';
 };
+
 export const serverMarkup = (view: ServerView, open: Open): Raw => {
   const runtime = view.cards.find(card => card.key === 'runtime');
-  return html`${callouts(P, view.callouts, open)}${view.cards.filter(card => card !== runtime).map(card =>
-    section(P, card.key, card.title, card.right, card.blocks.map(block), card.tip, open))}${runtime ? disclosure('server-runtime-details', html`<span>Server details</span><span>${runtime.right}</span>`, section(P, runtime.key, runtime.title, '', runtime.blocks.map(block), runtime.tip, open), open, 'runtime-details') : ''}`;
+  if (!runtime) return html``;
+  const rows = runtime.blocks.find(block => block.kind === 'kv') as Extract<Block, { kind: 'kv' }> | undefined;
+  const kv = rows?.rows ?? [];
+  const name = kv.find(row => row.label === 'Server')?.value ?? 'Local server';
+  const version = kv.find(row => row.label === 'Version')?.value;
+  const detail = kv.filter(row => row.label !== 'Server' && row.label !== 'Version')
+    .map(row => row.chips?.length ? `${row.label}: ${row.chips.map(chip => chip.text).join(', ')}` : `${row.label}: ${row.value}`);
+  const t = tipParts('server', detail.length ? tip('runtime', 'Engine server detail', detail) : null, open);
+  return html`<div class="server-strip" id="server-strip">
+    <div class="server-head title-row"><span><strong>${name}</strong>${version ? html` <span translate="no">${version}</span>` : ''}</span>${t.btn}<span class="server-state">${runtime.right}</span></div>
+    ${t.pop}
+    ${view.cards.filter(card => card.key !== 'runtime').map(card => html`<div class="server-line" data-key="server-${card.key}"><span class="server-label">${card.title}</span><span class="server-facts">${facts(card)}${card.right ? html` · <small class="server-right">${card.right}</small>` : ''}</span>${gauge(card)}</div>`)}</div>`;
 };

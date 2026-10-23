@@ -1,4 +1,4 @@
-import { v1Reason } from '../../src/contract/convert-v1.ts';
+import type { StatusReason, StatusState } from '../../src/contract/reasons.ts';
 import type { RuntimeKind } from '../../src/contract/runtime.ts';
 import type { RequestV2, SnapshotV2 } from '../../src/contract/snapshot.ts';
 
@@ -57,6 +57,13 @@ export const frameReading = (reason: PanelReason, message: string | null, at: nu
 const phase = (value: string): ReadingPhase => value === 'not-loaded' ? 'notLoaded' : value === 'loading' ? 'unknown' : value as ReadingPhase;
 const AVAILABLE = new Set(['ready', 'degraded']);
 
+/** Map service status codes onto the panel's unavailable-state vocabulary; no wire-format conversion. */
+const panelReason = (state: StatusState, reason: StatusReason | null): PanelReason | null =>
+  AVAILABLE.has(state) ? null : reason === 'configuration_missing' ? 'runtime_unreachable'
+    : reason === 'runtime_unreachable' || reason === 'authentication_failed' || reason === 'unsupported_contract' ? reason
+      : reason === 'unsupported_runtime' ? 'unsupported_contract'
+        : state === 'detecting' || state === 'recovering' ? 'runtime_unreachable' : null;
+
 const link = (body: SnapshotV2): Link => {
   const connection = body.connection, can = body.capabilities, selected = connection.id === 'auto' ? null : connection.id;
   const coverage: Coverage = can['request.decodeRate'] || can['request.prefillProgress'] ? 'requests' : can['server.catalog'] && !can['server.requests'] ? 'inventory' : 'server';
@@ -83,7 +90,7 @@ export const fromSnapshot = (body: SnapshotV2): Reading => {
   const available = AVAILABLE.has(body.status.state), runtime = body.runtime;
   const reading: Reading = {
     // The service sends codes only; the views word a body's status from the code (present/copy.ts statusCopy).
-    ...frameReading(v1Reason(body.status.state, body.status.reason) ?? 'unparseable_snapshot', null, runtime.sampledAt ?? body.serverNow),
+    ...frameReading(panelReason(body.status.state, body.status.reason) ?? 'unparseable_snapshot', null, runtime.sampledAt ?? body.serverNow),
     body, link: link(body), host: host(body),
   };
   if (!available) return reading;

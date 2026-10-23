@@ -1,6 +1,6 @@
 import { CHAT_UNAVAILABLE, connName, phaseLabel } from './copy.ts';
 import { ago } from './format.ts';
-import type { ScopeInput } from './scope.ts';
+import { chatOnlyView, type ScopeInput } from './scope.ts';
 
 /** The masthead's status pill and the frame-wide state its accent follows (1.6 data-phase rules, plus --scope-bad). */
 export interface HeaderView {
@@ -14,7 +14,7 @@ export const frameCard = (s: Pick<ScopeInput, 'frame'>): FrameCard =>
 
 export const presentHeader = (s: ScopeInput): HeaderView => {
   const card = frameCard(s), snapshot = s.snapshot, status = snapshot?.status;
-  const chatOnly = s.measurementScope !== 'engine' && s.chatIsLocal === false;
+  const chatOnly = chatOnlyView(s);
   const sampled = snapshot ? chatOnly ? snapshot.chat?.observedAtMs ?? snapshot.serverNow : snapshot.runtime.sampledAt ?? snapshot.serverNow : null;
   const updated = sampled === null ? 'No reading yet' : s.fresh && !s.paused ? `Updated ${ago(sampled, s.now)}` : `Last reading ${ago(sampled, s.now)}`;
   const base = { updated, data: { stale: false, approval: false, paused: s.paused } };

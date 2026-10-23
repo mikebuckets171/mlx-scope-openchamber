@@ -129,7 +129,7 @@ test('a confirmed cancellation drains the same ring over 120 ms; Reduce Motion d
 
 test('a completed job holds a still, full, dimmed ring beside its measured finish', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.goto('/v2?surface=page&state=decode&chat=local&media=finished');
+  await page.goto('/v2?surface=page&state=decode&chat=local&media=completed');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#view-media')).toBeVisible();
   await frame.locator('.media-recent > summary').click();

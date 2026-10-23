@@ -1,4 +1,4 @@
-import fixtures from '../../docs/design/2.0-mock-fixtures.json';
+import fixtures from '../../docs/archive/design/2.0-mock-fixtures.json';
 import type { Basis } from '../../src/contract/capabilities.ts';
 import { parseSnapshotV2, type SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { parseTrendV2, type TrendBucket, type TrendV2, type TrendWindowMs } from '../../src/contract/trend.ts';

@@ -23,8 +23,6 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#next-context-activity {data-mount=""}
-#scope-awareness {aria-label="Session activity"}: Other work
 h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: llama-server
@@ -45,23 +43,27 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #monitor-menu
 #frame-card
 #panels
-#panel-server {aria-labelledby="server-title"}: Back
-#server-title: Server & Mac details
-[callout-server] {data-severity="info"}: Notice: | llama-server is asleep | The model will load on the next request. Scope lets it sleep.
-[server-catalog]: 1 loaded · 1 listed example-8b-instruct-q4_k_m.gguf Loaded 32.8K context
-h2: Model inventory
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
+[callout-live] {data-severity="info"}: Notice: | llama-server is asleep | The model will load on the next request. Scope lets it sleep.
+#hero {aria-label="Activity and speed" data-arrive=""}: llama-server example-8b-instruct-q4_k_m.gguf Watch | Waiting for the next request
+h2.instrument-phase {data-crossfade="" data-live="false" data-tone="normal"}: Asleep
+#reply-strip
+#measurement-details {open=""}: Measurement details | Run details
+#engine-readings: Engine readings
+#server-strip: llama-server b10542 Asleep
+[server-catalog]: Model inventory example-8b-instruct-q4_k_m.gguf Loaded, 32.8K context · 1 loaded · 1 listed
 span.chip: gguf
-#server-runtime-details: Server details Asleep
 #machine {aria-label="This Mac" data-stale="false"}: CPU 22% Memory allocated 21.8 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#media-glance
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: llama-server
 live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
 live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
 live #action-status (hidden): 
-live [callout-server]: Notice: llama-server is asleepThe model will load on the next request. Scope lets it sleep.
+live [callout-live]: Notice: llama-server is asleepThe model will load on the next request. Scope lets it sleep.

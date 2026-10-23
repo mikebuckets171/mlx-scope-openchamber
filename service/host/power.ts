@@ -4,7 +4,8 @@ import type { PowerV2 } from '../../src/contract/host.ts';
 import { createStreamSpawn, MACMON_LINE_BYTES, MACMON_PATHS, macmonArgv, type StreamChild, type StreamSpawn } from '../lib/argv.ts';
 import { BoundedLines } from '../adapters/lmstudio-activity.ts';
 
-// Owner: svc-host. `macmon pipe -i 1000`, streamed with BoundedLines and a 60 s idle-stop; absent without macmon.
+// Owner: svc-host. `macmon pipe -i 1000`, streamed with BoundedLines only while a wanted read asks for it (plus a 60 s
+// idle-stop); absent without macmon.
 // Label (SPIKES S9): "Chip power (CPU+GPU+ANE, macmon estimate) · includes all apps · not wall power". Scope never installs it.
 
 export const POWER_IDLE_STOP_MS = 60_000;
@@ -36,6 +37,8 @@ export const parseMacmonLine = (line: string, sampledAt: number): Omit<PowerV2, 
 
 export interface PowerStream {
   touch(): void;
+  /** The demand ended: stop the child now and keep the samples, so the last reading and the energy integral survive. */
+  release(): void;
   /** The newest sample with coverage over the last window; undefined without macmon or samples. */
   view(now: number): PowerV2 | undefined;
   /** Joules over [from, to] when coverage ≥ 0.8 (tok/J and CompletionV2.host.energyJ). */
@@ -70,11 +73,11 @@ class MacmonStream implements PowerStream {
     this.spawn = options.spawn ?? createStreamSpawn('');
   }
 
-  /** A full-tier read wants power: start the stream if needed and push the idle-stop back. */
+  /** A wanted read (full tier, generating, a view asking for the detail): start the stream if needed, push the idle-stop back. */
   touch(): void {
     if (!this.options.macmon) return;
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    this.idleTimer = setTimeout(() => this.stop(), this.options.idleStopMs ?? POWER_IDLE_STOP_MS);
+    this.idleTimer = setTimeout(() => this.halt(true), this.options.idleStopMs ?? POWER_IDLE_STOP_MS);
     this.idleTimer.unref?.();
     if (!this.child && !this.restartTimer && this.silentExits < SILENT_EXIT_LIMIT) this.start();
   }
@@ -94,14 +97,17 @@ class MacmonStream implements PowerStream {
     return coverage >= POWER_MIN_COVERAGE ? { energyJ: joules / coverage, coverage } : null;
   }
 
-  dispose(): void { this.stop(); this.samples = []; }
+  release(): void { this.halt(false); }
 
-  private stop(): void {
+  dispose(): void { this.halt(true); this.samples = []; }
+
+  /** The idle-stop and the demand release both end the child and its timers; only the idle timeout forgets the failures. */
+  private halt(resetFailures: boolean): void {
     if (this.idleTimer) { clearTimeout(this.idleTimer); this.idleTimer = null; }
     if (this.restartTimer) { clearTimeout(this.restartTimer); this.restartTimer = null; }
     const child = this.child;
     this.child = null;
-    this.failures = 0; this.silentExits = 0;
+    if (resetFailures) { this.failures = 0; this.silentExits = 0; }
     if (child && child.exitCode === null && child.signalCode === null) { try { child.kill('SIGTERM'); } catch { /* Already exited. */ } }
   }
 

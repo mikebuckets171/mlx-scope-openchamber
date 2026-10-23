@@ -33,8 +33,7 @@ for (const width of [320, 430, 652, 1160]) for (const theme of ['light', 'dark']
     await expect(frame.locator('.column-foot')).toBeHidden();
     await frame.locator('#measurement-details > summary').click();
     await expect(frame.locator('.precision-detail-actions [data-action="open-run"]')).toBeVisible();
-    await frame.locator('.precision-detail-actions [data-action="open-server"]').click();
-    await expect(frame.locator('#panel-server')).toBeVisible();
+    await expect(frame.locator('#server-strip')).toBeVisible();
     await frame.locator('.next-nav [data-action="show-live"]').click();
     await frame.locator('.next-nav [data-action="open-history"]').click();
     await expect(frame.locator('#panel-history')).toBeVisible();

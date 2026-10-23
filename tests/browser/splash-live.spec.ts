@@ -73,9 +73,8 @@ test('a short pause starts a fresh displayed window while lifetime details remai
   await page.clock.runFor(2_500);
   await expect(frame.locator('[data-stage="generation"] .speed-value > span')).toHaveCount(0);
   await openServerDetails(frame);
-  await expect(frame.locator('#panel-server')).toContainText('Overall average');
-  await expect(frame.locator('#panel-server')).toContainText('47.2 tok/s');
-  await frame.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(frame.locator('#server-strip')).toContainText('Overall average');
+  await expect(frame.locator('#server-strip')).toContainText('47.2 tok/s');
   await page.clock.runFor(2_500);
   await expect(frame.locator('#rate')).toHaveText('43.8');
   await expect(frame.locator('[data-stage="generation"] .speed-source')).toContainText('last 4.0 s');
@@ -96,11 +95,11 @@ for (const theme of ['light', 'dark']) test(`recent engine labels and intervals 
       await page.screenshot({ path: join(evidence, `mlx-scope-splash-live-${theme}-${width}.png`) });
     }
     await openServerDetails(frame);
-    await expect(frame.locator('#panel-server')).toContainText('Recent speeds');
-    await expect(frame.locator('#panel-server')).toContainText('All server activity · last 4.0 s');
-    await expect(frame.locator('#panel-server')).toContainText('Overall average');
-    await expect(frame.locator('#panel-server')).toContainText('47.2 tok/s');
-    await frame.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(frame.locator('#server-strip')).toContainText('Recent speeds');
+    await expect(frame.locator('#server-strip')).toContainText('All server activity · last 4.0 s');
+    await expect(frame.locator('#server-strip')).toContainText('Overall average');
+    await expect(frame.locator('#server-strip')).toContainText('47.2 tok/s');
+    await frame.locator('#measurement-details > summary').click();
     if (width === 430) {
       await frame.locator('#monitor-menu > summary').click();
       await frame.locator('#compact').click();

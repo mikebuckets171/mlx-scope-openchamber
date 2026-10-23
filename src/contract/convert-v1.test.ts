@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
-import { parseTelemetrySnapshot, unavailableTelemetry, type TelemetrySnapshot } from '../telemetry.ts';
-import { __test__, hostFromV1, toSnapshotV2, type V1Snapshot } from './convert-v1.ts';
+import { parseTelemetrySnapshot, unavailableTelemetry, type TelemetrySnapshot } from '../../tests/fixtures/legacy/telemetry.ts';
+import { __test__, hostFromV1, toSnapshotV2, type V1Snapshot } from '../../tests/fixtures/legacy/convert-v1.ts';
 import { bodyChars, classAKeys, MAX_BODY_CHARS } from './guards.ts';
 import { honestyViolations, parseSnapshotV2 } from './snapshot.ts';
-import { EPOCH, hostStates, type V1State } from './testing/v1-states.ts';
+import { EPOCH, hostStates, type V1State } from '../../tests/fixtures/legacy/v1-states.ts';
 import { unitViolations } from './units.ts';
 
 const EXTRAS = { service: { version: '2.0.0', instance: '5c1e0a7b' } };

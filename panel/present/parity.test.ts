@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import * as v16 from '../../src/contract/testing/v1-panel.ts';
-import { EPOCH, hostStates } from '../../src/contract/testing/v1-states.ts';
-import type { V1Snapshot } from '../../src/contract/convert-v1.ts';
-import { parseTelemetrySnapshot } from '../../src/telemetry.ts';
+import * as v16 from '../../tests/fixtures/legacy/v1-panel.ts';
+import { EPOCH, hostStates } from '../../tests/fixtures/legacy/v1-states.ts';
+import type { V1Snapshot } from '../../tests/fixtures/legacy/convert-v1.ts';
+import { parseTelemetrySnapshot } from '../../tests/fixtures/legacy/telemetry.ts';
 import { contextBudget } from '../context.ts';
 import { prefillReading } from '../progress.ts';
 import { measurementReport } from '../report.ts';

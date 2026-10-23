@@ -1,0 +1,309 @@
+{
+  "synthetic": true,
+  "states": [
+    {
+      "state": "decode",
+      "path": "previews/decode.png",
+      "bytes": 96676,
+      "sha256": "cd60dc4d6d295fe8583c9dd5a8e2b32bb43627de57d3933bc994f98c2991a175"
+    },
+    {
+      "state": "withheld-chats",
+      "path": "previews/withheld-chats.png",
+      "bytes": 96676,
+      "sha256": "cd60dc4d6d295fe8583c9dd5a8e2b32bb43627de57d3933bc994f98c2991a175"
+    },
+    {
+      "state": "withheld-subagent",
+      "path": "previews/withheld-subagent.png",
+      "bytes": 96676,
+      "sha256": "cd60dc4d6d295fe8583c9dd5a8e2b32bb43627de57d3933bc994f98c2991a175"
+    },
+    {
+      "state": "other-provider",
+      "path": "previews/other-provider.png",
+      "bytes": 96676,
+      "sha256": "cd60dc4d6d295fe8583c9dd5a8e2b32bb43627de57d3933bc994f98c2991a175"
+    },
+    {
+      "state": "armed-refusal",
+      "path": "previews/armed-refusal.png",
+      "bytes": 137448,
+      "sha256": "39cf989e567b3f3a8891a4386811d3da0c5af69b85ddc2b6c20069fbe4dac83c"
+    },
+    {
+      "state": "first-readings",
+      "path": "previews/first-readings.png",
+      "bytes": 95297,
+      "sha256": "4a9c5200c727ec58bc58305f4c41602912597b3d703314dd7c9929ff1149098e"
+    },
+    {
+      "state": "prefill",
+      "path": "previews/prefill.png",
+      "bytes": 113059,
+      "sha256": "e2fe7dd9deee4e937b1db0bb361d936c63a85bae7e8587b292caabd6837e5f0d"
+    },
+    {
+      "state": "prefill-stall",
+      "path": "previews/prefill-stall.png",
+      "bytes": 137713,
+      "sha256": "ac7106e63d7b09f15aec4e7242d6d0edc379c6f9af57b4a572161794700fa8c6"
+    },
+    {
+      "state": "idle",
+      "path": "previews/idle.png",
+      "bytes": 137448,
+      "sha256": "39cf989e567b3f3a8891a4386811d3da0c5af69b85ddc2b6c20069fbe4dac83c"
+    },
+    {
+      "state": "paused",
+      "path": "previews/paused.png",
+      "bytes": 64424,
+      "sha256": "ed52b4db39cbb509746db995ef92c21eef9d776e2631b95f7030c5307fad7398"
+    },
+    {
+      "state": "next-armed",
+      "path": "previews/next-armed.png",
+      "bytes": 137448,
+      "sha256": "39cf989e567b3f3a8891a4386811d3da0c5af69b85ddc2b6c20069fbe4dac83c"
+    },
+    {
+      "state": "next-measuring",
+      "path": "previews/next-measuring.png",
+      "bytes": 96676,
+      "sha256": "cd60dc4d6d295fe8583c9dd5a8e2b32bb43627de57d3933bc994f98c2991a175"
+    },
+    {
+      "state": "next-result",
+      "path": "previews/next-result.png",
+      "bytes": 137448,
+      "sha256": "39cf989e567b3f3a8891a4386811d3da0c5af69b85ddc2b6c20069fbe4dac83c"
+    },
+    {
+      "state": "splash-recovering",
+      "path": "previews/splash-recovering.png",
+      "bytes": 136793,
+      "sha256": "dde59dabeccf5c46847c44d6d6acc8089034c6d800d867c23926335fe03ecad5"
+    },
+    {
+      "state": "splash-stale",
+      "path": "previews/splash-stale.png",
+      "bytes": 108506,
+      "sha256": "3e17082d2169859fb7713d82c06a821e7948a3c1bad7a874084128109e4a70ad"
+    },
+    {
+      "state": "splash-not-admitting",
+      "path": "previews/splash-not-admitting.png",
+      "bytes": 106823,
+      "sha256": "c7c3d67bdf8889d35686042b351f6466b66e8b8dd600e53990d4d9773fbf83a2"
+    },
+    {
+      "state": "offline",
+      "path": "previews/offline.png",
+      "bytes": 125339,
+      "sha256": "aace6a9e4bc98c434f9feab78993728f5fbdd9d6d27bc133b764c524c7746ba3"
+    },
+    {
+      "state": "runtime-changed",
+      "path": "previews/runtime-changed.png",
+      "bytes": 130059,
+      "sha256": "6607bed7384b263f4942cc9f19644aee833fac65145d7cfe3174f38339137f93"
+    },
+    {
+      "state": "detecting",
+      "path": "previews/detecting.png",
+      "bytes": 120737,
+      "sha256": "88a93b85f2b9a2422e9187b68bfbc2e333097d44ac2741cf6ba42a33f8da5d0b"
+    },
+    {
+      "state": "unconfigured",
+      "path": "previews/unconfigured.png",
+      "bytes": 126473,
+      "sha256": "dfa863f13b65c685c34f2ceb702a6fe5f565221e0d1adf36177e69fa54fad951"
+    },
+    {
+      "state": "contract-mismatch",
+      "path": "previews/contract-mismatch.png",
+      "bytes": 52293,
+      "sha256": "af4f28b43186f03520460b61b2d2ccf1c3a0e46e94b5e9b66f83effafc2b4d44"
+    },
+    {
+      "state": "needs-approval",
+      "path": "previews/needs-approval.png",
+      "bytes": 149564,
+      "sha256": "b856649dd60dd3529482aa88f1a23eeda470a6a49894cc4b4405c99d89a20053"
+    },
+    {
+      "state": "admin-unauthorized",
+      "path": "previews/admin-unauthorized.png",
+      "bytes": 125531,
+      "sha256": "6d4c3eb3a23fce5d780e7ca4c0d70f9225322c9c8b6c3b3c9e86627c5a5c8682"
+    },
+    {
+      "state": "pressure",
+      "path": "previews/pressure.png",
+      "bytes": 111329,
+      "sha256": "e3adaa25cc4a0a2985b183ef806d930b42b669cdf6e1860d35152ed75693ff83"
+    },
+    {
+      "state": "pressure-critical",
+      "path": "previews/pressure-critical.png",
+      "bytes": 111116,
+      "sha256": "c25c317e0765d56d84806763bbfe00c7482039297d72927e3b0b783944024f19"
+    },
+    {
+      "state": "thermal",
+      "path": "previews/thermal.png",
+      "bytes": 105569,
+      "sha256": "6abe28503f6e1fa7f0b6947deeed6f6ac091ebb32e42ed59800da404335dbc57"
+    },
+    {
+      "state": "model-unloaded",
+      "path": "previews/model-unloaded.png",
+      "bytes": 120354,
+      "sha256": "2324ef7594ccf63898d303c3ecc40f606c6d847e71f4dc258e52a6471bb11161"
+    },
+    {
+      "state": "memory-guard",
+      "path": "previews/memory-guard.png",
+      "bytes": 141113,
+      "sha256": "4d4389f8c5a10d40610947314fd86114d2ebcb3e4b3df7a3d340760b1f86e27e"
+    },
+    {
+      "state": "llama",
+      "path": "previews/llama.png",
+      "bytes": 115438,
+      "sha256": "7a90f1c7348ef19218552efcc8ecf7df7313a46c428d520475e8b1fc48dd4147"
+    },
+    {
+      "state": "llama-sleeping",
+      "path": "previews/llama-sleeping.png",
+      "bytes": 104655,
+      "sha256": "5ea93ba14272013162965dfdc675f66e7cc38241d94353569af588a32d4469cf"
+    },
+    {
+      "state": "llama-metrics",
+      "path": "previews/llama-metrics.png",
+      "bytes": 108478,
+      "sha256": "dc0d2524ac74ca634d9bf8fd20b78917721276cb216adcc4a738da3cdb3e7fc3"
+    },
+    {
+      "state": "ollama",
+      "path": "previews/ollama.png",
+      "bytes": 96227,
+      "sha256": "1411114af5e26b8509cc7b7d132bff4044198d56c52526cb2d6a22c168858ac0"
+    },
+    {
+      "state": "bionic",
+      "path": "previews/bionic.png",
+      "bytes": 143695,
+      "sha256": "b7ca54c78ebd0b5bf9ad6f5493443fd6592710cd3ed047b9a76bc0921afbee71"
+    },
+    {
+      "state": "lms-unavailable",
+      "path": "previews/lms-unavailable.png",
+      "bytes": 133783,
+      "sha256": "2599863ec95dee62923f11370596e673e5808bc17681cbed0c2fe698f9f9d1cc"
+    },
+    {
+      "state": "storage-full",
+      "path": "previews/storage-full.png",
+      "bytes": 154151,
+      "sha256": "65d4c966ccdbb57862d8fc4795efe35a4045f57b00ce55dd61768f921fa2ca45",
+      "surface": "isolated-history"
+    },
+    {
+      "state": "history-empty",
+      "path": "previews/history-empty.png",
+      "bytes": 78666,
+      "sha256": "1e67e664f24d94028b46393920307d8df5fa77f8b7f8a6d5a2dc7125f6fb6675",
+      "surface": "isolated-history"
+    },
+    {
+      "state": "recording-paused",
+      "path": "previews/recording-paused.png",
+      "bytes": 147691,
+      "sha256": "815d11e992ec72278ae8cd2a0da2f4aafa31984b432e330dc065727d94ed4f61",
+      "surface": "isolated-history"
+    },
+    {
+      "state": "clear-confirm",
+      "path": "previews/clear-confirm.png",
+      "bytes": 103208,
+      "sha256": "b80c4834d05ed53ef1b4d385d147d3f02aa45935491160f1bfa5788e9900aad3",
+      "surface": "isolated-history"
+    },
+    {
+      "state": "splash-decode",
+      "path": "previews/splash-decode.png",
+      "bytes": 145524,
+      "sha256": "1afb6d993ce69d24afaee1c98d2c5ef12e708b47f07b7185b6b52990fdc6bce8"
+    },
+    {
+      "state": "splash-measuring",
+      "path": "previews/splash-measuring.png",
+      "bytes": 112769,
+      "sha256": "5e94e518e2cd8bdc678ec01d19115220d95ed885755d1e680e93f1806eeeec8d"
+    },
+    {
+      "state": "splash-prefill",
+      "path": "previews/splash-prefill.png",
+      "bytes": 145527,
+      "sha256": "ef950b483a869830584bf2041c6f8b3df1aa748663348a2f127c3672dc28cb41"
+    },
+    {
+      "state": "splash-mixed",
+      "path": "previews/splash-mixed.png",
+      "bytes": 147840,
+      "sha256": "a0ccbf0aa2df281bf504d49ba139497e13e30c9ef631671779dc8947a74bc346"
+    },
+    {
+      "state": "splash-prefill-waiting",
+      "path": "previews/splash-prefill-waiting.png",
+      "bytes": 113691,
+      "sha256": "bc48b53749c264e5eb56dc4731141473089642af0acf190a523eb1fc3c53e525"
+    },
+    {
+      "state": "splash-long-warning",
+      "path": "previews/splash-long-warning.png",
+      "bytes": 158014,
+      "sha256": "ffb7e39eb44afcbcb0aa404d7a46e2a021ebb850c8e216239be4723358f15e2c"
+    },
+    {
+      "state": "splash-extreme",
+      "path": "previews/splash-extreme.png",
+      "bytes": 147668,
+      "sha256": "e7062e24426a0ad056c65c3c475eb00f3446ed7769b8fd49b9cf84301c8465e1"
+    },
+    {
+      "state": "splash-progress",
+      "path": "previews/splash-progress.png",
+      "bytes": 108263,
+      "sha256": "42a068d0ca677c736352b637d31d32d998b9e234477b028be480861a1958612d"
+    },
+    {
+      "state": "splash-progress-held",
+      "path": "previews/splash-progress-held.png",
+      "bytes": 127360,
+      "sha256": "70f84e7808429e7659459ffea2562f53b3e890ba1dd9312f4e9159c4a0ee565c"
+    },
+    {
+      "state": "prefill-near-complete",
+      "path": "previews/prefill-near-complete.png",
+      "bytes": 95823,
+      "sha256": "c28c9bcdd2ca7aa0ef5f5e287f564a5a09ef85a6fc02c271a698b76e73a33189"
+    }
+  ],
+  "note": "48 declared corpus states, with actual Pause interaction and isolated History view for storage states. Retired Next-reply/attribution fixture names do not restore removed features.",
+  "artifactsDirectory": "dist/review-5.2.0",
+  "extraChecks": [
+    {
+      "path": "other-work.png",
+      "sha256": "a89c882bbad0508bedee5a4fd67a6f262f2ada7970c3e73b30a3f67b0efe8899"
+    },
+    {
+      "path": "compact.png",
+      "sha256": "9bf7af0fd59dcb0d10fe76e7df4ff877d15a4207ec45c21631a0ffab03737213"
+    }
+  ]
+}

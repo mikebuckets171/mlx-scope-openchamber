@@ -13,29 +13,6 @@ export const orderedMediaJobs = (snapshot: MediaSnapshotV1 | null, sessionId: st
   return priority(a) - priority(b) || (b.queuedAtMs ?? b.observedAtMs) - (a.queuedAtMs ?? a.observedAtMs) || mediaJobKey(a).localeCompare(mediaJobKey(b));
 });
 const CLOCK = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
-const MINUTE = 60_000;
-const upToMinute = (ms: number): number => Math.ceil(ms / MINUTE) * MINUTE;
-export interface MediaFinish { text: string; basis: 'live' | 'held' | 'measured' }
-/**
- * A finish time is clock time, never a countdown. A live estimate (service-measured, source-eligible phase) rounds up to the
- * minute and reads "any moment" inside a minute; more than a minute overdue it is omitted rather than guessed. A held
- * estimate is labelled as the last one and never styled as live. Completion is the measured finish. Pure: `now` is an input.
- */
-export const mediaFinish = (job: MediaJobV1, now: number, lost: boolean, cancelling = false, clock: Intl.DateTimeFormat = CLOCK): MediaFinish | null => {
-  if (job.state === 'completed') return job.finishedAtMs === undefined ? null : { text: `finished ${clock.format(job.finishedAtMs)}`, basis: 'measured' };
-  if (job.state !== 'running' || cancelling) return null;
-  // The source application's own estimate says so; Scope's is measured from this phase's counters.
-  const by = job.etaBasis === 'reported' ? ' · app estimate' : '';
-  if (!lost && job.freshness === 'live') {
-    if (job.etaAtMs === undefined || !job.progress) return null;
-    const remaining = job.etaAtMs - now;
-    if (remaining < -MINUTE) return null;
-    return { text: `${remaining < MINUTE ? 'finishes any moment' : `finishes around ${clock.format(upToMinute(job.etaAtMs))}`}${by}`, basis: 'live' };
-  }
-  // The same rule as retained progress: a lost Scope response turns the last live estimate into a held one.
-  const held = job.lastProgress ? job.lastEtaAtMs : lost && job.progress ? job.etaAtMs : undefined;
-  return held === undefined ? null : { text: `last estimate · around ${clock.format(upToMinute(held))}${by}`, basis: 'held' };
-};
 /** A producer timestamp can be old during a long phase: only the service's freshness verdict, or a lost Scope response, invalidates it. */
 export const mediaJobView = (job: MediaJobV1, now: number, lost: boolean, cancelling = false, clock: Intl.DateTimeFormat = CLOCK) => {
   const terminal = mediaTerminal(job.state), fresh = !lost && job.freshness === 'live', stopping = cancelling || job.state === 'cancelling';
@@ -53,7 +30,7 @@ export const mediaJobView = (job: MediaJobV1, now: number, lost: boolean, cancel
     counterLabel: displayed?.unit === 'percent' ? null : counters,
     reportedAge: lastReported ? ago(job.lastProgressAtMs ?? job.progressAtMs ?? job.observedAtMs, now) : null,
     counterKey: track ? `${track.unit}/${track.total}` : 'unknown',
-    finish: mediaFinish(job, now, lost, stopping, clock),
+    finish: job.state === 'completed' && job.finishedAtMs !== undefined ? `Finished ${clock.format(job.finishedAtMs)}` : null,
     moving: fresh && !stopping && job.state === 'running',
     elapsed: start != null && end >= start ? dur(end - start) : null,
     canCancel: fresh && job.cancel.supported && !terminal && !cancelling && job.state !== 'cancelling',

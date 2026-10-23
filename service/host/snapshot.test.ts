@@ -52,7 +52,7 @@ const launch = async (read: () => RuntimeReading) => {
 test('a full-tier snapshot carries every host part with its capability and basis', async () => {
   const { get, calls, contexts } = await launch(() => reading('omlx', 'decode'));
   const body = await get('/v2/snapshot?surface=panel');
-  expect(contexts).toEqual([{ tier: 'full', active: true, generation: 4, omlxPort: 8001 }]);
+  expect(contexts).toEqual([{ tier: 'full', active: true, generating: true, detail: false, generation: 4, omlxPort: 8001 }]);
   expect(parseSnapshotV2(body)).toEqual(body);
   expect(honestyViolations(body)).toEqual([]);
   expect(classAKeys(body)).toEqual([]);
@@ -83,15 +83,25 @@ test('the status surface defaults to warning-only glance probes; full explicitly
   const full = await get('/v2/snapshot?surface=status&tier=full');
   expect(full.host!.runtimeProcess).toBeDefined();
   expect(full.host!.gpu).toBeDefined();
+  // The frame's detail demand is what the host sampler gates macmon on.
+  await get('/v2/snapshot?surface=panel&tier=full&detail=server');
+  expect(contexts.at(-1)!.detail).toBe(true);
 });
 
 test('only an answering oMLX on a loopback port gets the footprint probe', () => {
-  expect(hostContextOf('full', reading('omlx'))).toEqual({ tier: 'full', active: false, generation: 4, omlxPort: 8001 });
+  expect(hostContextOf('full', reading('omlx'))).toEqual({ tier: 'full', active: false, generating: false, detail: false, generation: 4, omlxPort: 8001 });
   expect(hostContextOf('full', reading('omlx', 'prefill')).active).toBe(true);
+  // Generating means the engine is working a request: prefill, processing (no fresh decode rate yet) and decode ask for
+  // chip power; queued waits, and an idle or failing engine never does.
+  expect(hostContextOf('full', reading('omlx', 'prefill'), true).generating).toBe(true);
+  expect(hostContextOf('full', reading('omlx', 'processing'), true).generating).toBe(true);
+  expect(hostContextOf('full', reading('omlx', 'queued'), true).generating).toBe(false);
   expect(hostContextOf('full', reading('splash')).omlxPort).toBeNull();
   expect(hostContextOf('full', reading(null)).omlxPort).toBeNull();
   expect(hostContextOf('full', reading('omlx', 'idle', null)).omlxPort).toBeNull();
-  expect(hostContextOf('glance', reading('omlx', 'idle', null))).toEqual({ tier: 'glance', active: false, generation: 4, omlxPort: null });
+  expect(hostContextOf('glance', reading('omlx', 'idle', null))).toEqual({ tier: 'glance', active: false, generating: false, detail: false, generation: 4, omlxPort: null });
+  // The frame's own detail demand rides along: only then is the chip power worth streaming.
+  expect(hostContextOf('full', reading('omlx', 'decode'), true, '00000001')).toEqual({ tier: 'full', active: true, generating: true, detail: true, frame: '00000001', generation: 4, omlxPort: 8001 });
 });
 
 test('a failing host source leaves the host out and the runtime reading intact', async () => {

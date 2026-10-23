@@ -126,7 +126,7 @@ connection, native tool continuation and cancellation, three-step calibration, c
 telemetry writes stopped, a compaction that publishes no chat measurement and resumes a measured step afterwards, and
 managed hot reload from the previously installed 3.4.0 helper (which reported this version unsupported) to 3.5.0
 with no server restart and no duplicated request. The receipt is
-[`docs/receipts/companion-3.5.0.json`](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/companion-3.5.0.json).
+[`docs/archive/receipts/companion-3.5.0.json`](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/archive/receipts/companion-3.5.0.json).
 No real model, inference or cloud account was involved.
 
 ## OpenCode 2.0.32 compatibility
@@ -137,7 +137,7 @@ native synthetic-provider checks: local HTTP delivery with advancing prompt prog
 prompt), synthetic-remote HTTP, WebSocket reuse with one cached connection, tool continuation and cancellation,
 three-step calibration, completion, hidden shutdown with telemetry writes stopped, and managed hot reload from the
 5.0 companion (3.3.0, which reported 2.0.32 unsupported) to 3.4.0 with no server restart and no duplicated request.
-The receipt is [`docs/receipts/companion-3.4.0.json`](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/companion-3.4.0.json); it also records a paired CPU
+The receipt is [`docs/archive/receipts/companion-3.4.0.json`](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/archive/receipts/companion-3.4.0.json); it also records a paired CPU
 fixture against 3.3.0 under the same load: incremental idle CPU 0.021 % vs 0.057 % of one core, visible 1.23 % vs
 1.25 %, hidden 0.14 % vs 0.14 %. No real model, inference or cloud account was involved.
 
@@ -185,9 +185,9 @@ OpenChamber server's computer.
 
 | Evidence | Status |
 |---|---|
-| Surfaces, Work Status section, `/scope` via the background entry (removed in 5.1), badge and toast from a status frame, storage cost, session events | Measured on OpenChamber 2.0.4 desktop with a spike extension (`docs/2.0/SPIKES.md` S1–S5) |
-| The exact 2.0.0 package: approval dialog, every surface, Turn stats swap, attribution on real turns, ledger, `/scope` chip | Verified in Stage 12 (`docs/receipts/2.0.0-host-qualification.json`) |
-| The git-update path from 1.6.1 to 2.0.0 | Rehearsed in Stage 12 in an isolated instance (`docs/2.0/REHEARSAL.md`); if not rehearsed, the receipt says "git-update path not rehearsed" |
+| Surfaces, Work Status section, `/scope` via the background entry (removed in 5.1), badge and toast from a status frame, storage cost, session events | Measured on OpenChamber 2.0.4 desktop with a spike extension (`docs/archive/2.0/SPIKES.md` S1–S5) |
+| The exact 2.0.0 package: approval dialog, every surface, Turn stats swap, attribution on real turns, ledger, `/scope` chip | Verified in Stage 12 (`docs/archive/receipts/2.0.0-host-qualification.json`) |
+| The git-update path from 1.6.1 to 2.0.0 | Rehearsed in Stage 12 in an isolated instance (`docs/archive/2.0/REHEARSAL.md`); if not rehearsed, the receipt says "git-update path not rehearsed" |
 
 OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and correctness fixes only).
 
@@ -303,7 +303,7 @@ When the `lms` CLI is installed (`~/.lmstudio/bin/lms` or `~/.cache/lm-studio/bi
 - `Finished streaming response`: the request ended.
 
 `lms ps --json` lists loaded instances on a generation change and every 3 minutes after, and `lms runtime ls` fills
-the Engines card in Server & Mac details, cached for 10 minutes. Every `lms` command runs only after the LM Studio greeting
+the Engines line in the server strip, cached for 10 minutes. Every `lms` command runs only after the LM Studio greeting
 answered within the last 10 seconds, with `--port` and the server-info path, so it connects to the running app instead
 of launching LM Studio or Bionic. The stream follows the LM Studio app of the local LM Studio home and applies only to
 the connection on that home's REST port. It stops within a minute of the last read. Without `lms`, the view shows
@@ -406,10 +406,7 @@ through `/connect`. Project-only provider definitions remain outside Scope's dis
 
 ## Media monitoring
 
-Phosphene 4.19 is read through its own `GET /status` (observe-only; found at `127.0.0.1:8198` by its `/version`
-answer). Its LTX and H3 step counters, H3 window number and its own time-left estimate are used; the estimate is
-labelled **app estimate**. This was verified read-only against an installed Phosphene 4.19.5 at rest; the running-job
-shapes come from its 4.19.5 source and fixtures, not from a captured render.
+Scope monitors ComfyUI and Draw Things, plus loopback sources you add to the private media configuration.
 
 Draw Things' command-line tool 26.10 (`draw-things-cli`, Homebrew 26.0928.0 and the 26.1011.0 build) is read from the
 progress it prints (`Starting`, `Processing`, `Sampling… N / M`, `Finishing`, `Generated`, `Wrote:`), found with the
@@ -417,8 +414,12 @@ allowlisted `lsof`. Fixtures are its own redirected output from finished renders
 through the adapter. The Draw Things app's own HTTP and gRPC servers report progress only to the client that started a
 render, so app renders are not monitored.
 
+Retired integrations: Phosphene (qualified read-only against its 4.19.5 at rest in the 4.x era), the local-video and
+Qwen-image adapters and generic file watching were removed in 5.2. Their files and stored history are untouched;
+qualification evidence for those releases stays in `docs/archive/`.
+
 ### Media monitoring in 3.1
 
 ComfyUI basic monitoring uses existing lifecycle APIs. Detailed node-local progress is initially qualified for ComfyUI 0.38.0 with Scope’s optional helper. Other versions keep basic monitoring; unknown nodes use indeterminate progress or generic units. Cancellation is enabled only on a qualified job-scoped API.
 
-The local-video adapter recognizes the existing standard OpenCode video queue; custom queue directories are read-only unless their scoped cancellation owner is separately supported. Qwen image tracking requires the producer’s metadata/control integration. Other tools can publish the documented private [Media telemetry contract](MEDIA.md). Supporting a generator’s telemetry does not imply that Scope installs, launches or controls generation for it.
+The local-video adapter then recognized the existing standard OpenCode video queue, and Qwen image tracking required the producer’s metadata/control integration; both were retired in 5.2. Other tools can publish the documented private [Media telemetry contract](MEDIA.md). Supporting a generator’s telemetry does not imply that Scope installs, launches or controls generation for it.

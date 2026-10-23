@@ -118,6 +118,16 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .instrument-detail-container > summary { width: fit-content; gap: 8px; color: var(--scope-muted); font-size: var(--scope-text-detail); }
 .instrument-detail-content { display: grid; gap: 6px; padding-top: 8px; }
 .instrument-detail-content .instrument-details { min-width: 0; }
+/* Compact Engine server rows inside the Measurement details hub: one quiet line per reading. */
+.server-strip { display: grid; gap: 6px; margin-top: 4px; }
+.server-head { min-height: 32px; }
+.server-head strong { font-size: var(--scope-text-heading); font-weight: 550; }
+.server-head .server-state { color: var(--scope-muted); font-size: var(--scope-text-caption); }
+.server-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; font-size: var(--scope-text-detail); }
+.server-line .server-label { color: var(--scope-muted); }
+.server-line .server-facts { min-width: 0; overflow-wrap: anywhere; }
+.server-line .server-right { color: var(--scope-muted); font-size: var(--scope-text-caption); }
+.server-line .server-item { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
 
 /* Session and compact rail reserve height only for the reading and context they actually show. */
 .ws { position: relative; width: auto; min-width: 0; container-type: inline-size; font-size: var(--scope-text-detail); line-height: 1.5; font-variant-numeric: tabular-nums; }
@@ -165,6 +175,8 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .insight-note, .coverage-note { margin-top: 6px; }
 .empty { margin-top: 10px; }
 .notice { margin-top: 10px; }
+/* History's baseline is one quiet line: the usual value the alert compares the last replies against. */
+.baseline-line { max-width: 64ch; margin-top: 4px; color: var(--scope-muted); font-size: var(--scope-text-caption); line-height: 1.6; }
 :is(.instrument-detail-container, .instrument-details, .reading-details, .runtime-details, .host-details, .connection-help, .history-storage, .history-insights, .history-alerts, .grant) > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; color: var(--scope-muted); font-size: var(--scope-text-detail); }
 .disclosure-arrow { display: inline-flex; align-self: center; flex: none; margin-left: auto; }
 details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
@@ -411,8 +423,7 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .media-percent { font-variant-numeric: tabular-nums; }
 .media-counters, .media-timing { overflow-wrap: anywhere; margin-top: 3px; font-size: var(--scope-text-caption); color: var(--scope-muted); font-variant-numeric: tabular-nums; }
 /* A finish time is clock text. Only a live estimate reads at full strength; held and measured ones are quiet. */
-.media-finish { margin-top: 3px; font-size: var(--scope-text-caption); color: var(--scope-fg); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.media-finish:is([data-basis="held"], [data-basis="measured"]) { color: var(--scope-muted); }
+.media-finish { margin-top: 3px; font-size: var(--scope-text-caption); color: var(--scope-muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .media-job-progress > .btn { flex: none; padding: 4px 0; font-size: var(--scope-text-caption); }
 .media-ring { position: relative; display: grid; place-items: center; flex: none; width: max(52px, 3.25rem); height: max(52px, 3.25rem); color: var(--scope-accent); }
 .media-ring-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: rotate(-90deg); }
@@ -584,24 +595,9 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 :root[data-design-mode="next"] .mac-rows { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(12rem,100%),1fr)); gap: 0 24px; margin-top: 10px; }
 :root[data-design-mode="next"] .mac-row { padding: 7px 0; }
 :root[data-design-mode="next"] .host-details { margin-top: 8px; }
-:root[data-design-mode="next"] .scope-awareness { min-width: 0; font-size: var(--scope-text-detail); }
-:root[data-design-mode="next"] .scope-awareness > details { padding: 8px 14px; border: 1px solid var(--scope-line); border-radius: 8px; background: color-mix(in srgb,var(--scope-surface) 23%,transparent); }
-:root[data-design-mode="next"] .scope-awareness summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 26px; font-weight: 500; }
-:root[data-design-mode="next"] .scope-awareness summary::after { content: ''; width: 6px; height: 6px; flex: none; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); }
-:root[data-design-mode="next"] .scope-awareness details[open] > summary::after { transform: rotate(225deg); }
-:root[data-design-mode="next"] .scope-awareness .coverage-note { margin: 8px 0; }
-:root[data-design-mode="next"] .scope-awareness label { display: flex; align-items: center; gap: 8px; min-height: 32px; }
-:root[data-design-mode="next"] .scope-awareness input { accent-color: var(--precision-accent); }
-:root[data-design-mode="next"] .scope-awareness pre { max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--scope-text-caption); }
-:root[data-design-mode="next"] .scope-awareness button { font: inherit; }
-:root[data-design-mode="next"] .awareness-card { padding: 12px 14px; border: 1px solid var(--scope-line); border-top: 0; }
-:root[data-design-mode="next"] .awareness-card h3 { margin: 12px 0 6px; font-size: var(--scope-text-detail); font-weight: 550; }
-:root[data-design-mode="next"] .awareness-card h3:first-child { margin-top: 0; }
-:root[data-design-mode="next"] .awareness-card ul { list-style: none; padding: 0; margin: 0; }
-:root[data-design-mode="next"] .awareness-card li { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--scope-line); }
-:root[data-design-mode="next"] .awareness-card li > :first-child { flex: 1 1 120px; min-width: 0; overflow-wrap: anywhere; }
-:root[data-design-mode="next"] .awareness-card li > span:last-of-type { color: var(--scope-muted); }
-:root[data-design-mode="next"] .awareness-card li > button { min-height: 28px; }
+/* Other work is one quiet count line above the column foot, not a card of its own. */
+:root[data-design-mode="next"] .scope-awareness { min-width: 0; }
+:root[data-design-mode="next"] .awareness-line { max-width: 64ch; color: var(--scope-muted); font-size: var(--scope-text-caption); line-height: 1.6; }
 :root[data-design-mode="next"] #view-media { padding: 0; border: 0; }
 :root[data-design-mode="next"] .column-foot { display: none; }
 :root[data-design-mode="next"] .precision-detail-actions { display: flex; flex-wrap: wrap; gap: 6px 16px; padding-top: 10px; }
@@ -663,10 +659,22 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 :root[data-design-mode="next"] .ws-next .ws-open:hover { color: var(--precision-accent); }
 :root[data-design-mode="next"] .ws-next .ws-open:hover svg { stroke: currentColor; }
 :root[data-design-mode="next"] .ws-next .ws-open:focus-visible { outline-offset: -2px; }
-:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) { margin: 0; padding: 10px; border: 0; border-radius: 0; background: none; box-shadow: none; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) { margin: 0; padding: 8px; border: 0; border-radius: 0; background: none; box-shadow: none; }
 :root[data-design-mode="next"] .scope[data-compact="true"] .next-nav { display: none; }
 :root[data-design-mode="next"] .scope[data-compact="true"] .masthead { display: flex; gap: 8px; padding-bottom: 0; }
 :root[data-design-mode="next"] .scope[data-compact="true"] .monitor-controls { margin-left: auto; }
+:root[data-design-mode="next"] .scope[data-compact="true"] .compact-glance { margin-top: 6px; }
+/* The compact glance carries the same status widget; the panel's own padding is its frame, and the short rail
+   keeps a tighter rhythm so the phase, one reading and its exception all fit. */
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws,
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-scroll,
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-actions { padding: 0; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-toolbar { margin-bottom: 4px; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-instrument { padding-bottom: 0; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-measurement { margin-top: 4px; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-exceptions { margin-top: 4px; }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .scope-choice { height: max(24px,1.5rem); }
+:root[data-design-mode="next"] .scope[data-compact="true"]:not([data-surface="status"]) .ws-open { min-height: max(24px,1.5rem); }
 .reading-popover h2 { font-size: var(--scope-text-title); }
 .reading-popover p { margin-top: 10px; }
 .popover-value { font-size: 25px; font-weight: 550; }

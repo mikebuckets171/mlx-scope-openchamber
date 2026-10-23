@@ -24,8 +24,6 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#next-context-activity {data-mount=""}
-#scope-awareness {aria-label="Session activity"}: Other work
 h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: llama-server
@@ -45,33 +43,36 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #monitor-menu
 #frame-card
 #panels
-#panel-server {aria-labelledby="server-title"}: Back
-#server-title: Server & Mac details
-[server-slots]: 2 of 4 busy Slot 0 412 decoded · 3,180 prompt 32.8K context Slot 1 1,290 decoded · 8,420 prompt 32.8K context Slot 2 Waiting 32.8K context Slot 3 Waiting 32.8K context
-h2: Slots
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
+#hero {aria-label="Activity and speed" data-arrive=""}: llama-server example-8b-instruct-q4_k_m.gguf Watch | Engine · 2 active Speed unavailable for one request: 2 slots are busy ·
+h2.instrument-phase {data-crossfade="" data-live="false" data-tone="normal"}: Working
+span.val {data-basis="derived"}: Generation 98.4 tok/s over the last 60 sCalculated from llama-server
+#engine-facts {aria-label="Engine" data-count="1"}: Engine | Active requests | 2 | Queue clear
+#reply-strip
+#measurement-details {open=""}: Measurement details | Run details
+#engine-readings: Engine readings
+#server-strip: llama-server b10542 Ready
+[server-slots]: Slots Slot 0 412 decoded · 3,180 prompt, 32.8K context · Slot 1 1,290 decoded · 8,420 prompt, 32.8K context · Slot 2 Waiting, 32.8K context · Slot 3 Waiting, 32.8K context · 2 of 4 busy
 span.chip {data-tone="accent"}: Busy
 span.chip {data-tone="accent"}: Busy
 span.chip: Idle
 span.chip: Idle
-[server-rates]: last 60 s Prefill speed Generation speed Processing · deferred
-h2: All server speeds
-span.val {data-basis="derived"}: 812 tok/s | calculated
-span.val {data-basis="derived"}: 98.4 tok/s | calculated
+[server-rates]: All server speeds Prefill speed · Generation speed · Processing · deferred · last 60 s
+span.val {data-basis="derived"}: 812 tok/scalculated
+span.val {data-basis="derived"}: 98.4 tok/scalculated
 span.val {data-basis="reported"}: 2 · 0
-[server-spec]: last 10 min Draft acceptance Accepted
-h2: Draft token reuse
-span.val {data-basis="derived"}: 70% | calculated
+[server-spec]: Draft token reuse Draft acceptance · Accepted · last 10 min
+span.val {data-basis="derived"}: 70%calculated
 span.val {data-basis="reported"}: 3,584 of 5,120
-[server-catalog]: 1 loaded · 1 listed example-8b-instruct-q4_k_m.gguf Loaded 32.8K context
-h2: Model inventory
+[server-catalog]: Model inventory example-8b-instruct-q4_k_m.gguf Loaded, 32.8K context · 1 loaded · 1 listed
 span.chip: gguf
-#server-runtime-details: Server details Ready
 #machine {aria-label="This Mac" data-stale="false"}: CPU 22% Memory allocated 21.8 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#media-glance
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: llama-server
 live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.

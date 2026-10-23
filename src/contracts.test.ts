@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { parse } from 'jsonc-parser/lib/esm/main.js';
-import { normalizeOmlxTelemetry } from './telemetry.ts';
+import { normalizeOmlxTelemetry } from '../tests/fixtures/legacy/telemetry.ts';
 import { contextBudget } from '../panel/context.ts';
 import { fromV1 } from '../panel/testing/readings.ts';
 import { parseMediaJob, parseMediaSnapshot, withdrawMediaProgress, type MediaJobV1 } from './contract/media.ts';
@@ -32,52 +32,35 @@ for (const fixture of configurations) test(`JSONC contract: ${fixture.name}`, ()
   expect(valid).toBe(fixture.valid);
 });
 
-// Media finish-time estimates (3.2): service-measured, phase-scoped, and strictly separated into live and held fields.
-const MEDIA_LIVE: MediaJobV1 = { id: 'job1', sourceId: 'feed', kind: 'video', name: 'Video', state: 'running', phase: 'sampling', progress: { value: 8, total: 20, unit: 'steps', basis: 'phase' },
-  sampledAtMs: 10_000, observedAtMs: 9_000, progressAtMs: 8_000, freshness: 'live', ownership: {}, cancel: { supported: false } };
-const MEDIA_HELD = { ...MEDIA_LIVE, freshness: 'stale' as const, progress: null, lastProgress: MEDIA_LIVE.progress, lastProgressAtMs: 8_000, lastEtaAtMs: 70_000, etaBasis: 'measured-window' as const };
-test('media contract: a live estimate needs live measured counters, its basis and a bounded time after its report', () => {
-  const live = { ...MEDIA_LIVE, etaAtMs: 70_000, etaBasis: 'measured-window' as const };
-  expect(parseMediaJob(live)).toEqual(live);
-  expect(parseMediaJob({ ...live, etaAtMs: 8_000 })?.etaAtMs).toBe(8_000); // nothing left in the phase
-  expect(parseMediaJob({ ...live, etaAtMs: 8_000 + 86_400_000 })?.etaAtMs).toBe(8_000 + 86_400_000);
-  const { progressAtMs: _, ...unreported } = live; // without a progress time, the observation is the earliest possible report
-  expect(parseMediaJob({ ...unreported, etaAtMs: 8_500 })).not.toHaveProperty('etaAtMs'); expect(parseMediaJob({ ...unreported, etaAtMs: 9_000 })?.etaAtMs).toBe(9_000);
-  for (const invalid of [{ etaBasis: undefined }, { etaBasis: 'producer' }, { etaAtMs: 7_999 }, { etaAtMs: 8_000 + 86_400_001 }, { etaAtMs: -1 }, { etaAtMs: '70000' }, { etaAtMs: Number.NaN },
-    { progress: null }, { freshness: 'stale' }, { freshness: 'unavailable' }, { state: 'waiting', phase: 'waiting' }, { state: 'queued', phase: 'queued' }, { state: 'cancelling' },
-    { state: 'completed', phase: 'completed', freshness: 'last', finishedAtMs: 9_000 }]) {
-    const parsed = parseMediaJob({ ...live, ...invalid });
-    expect(parsed, JSON.stringify(invalid)).not.toBeNull();
-    expect(parsed).not.toHaveProperty('etaAtMs'); expect(parsed).not.toHaveProperty('etaBasis'); expect(parsed).not.toHaveProperty('lastEtaAtMs');
+// Media contract: measured lifecycle and freshness only; finish-time estimate fields never survive parsing.
+const MEDIA_LIVE: MediaJobV1 = { id: 'job1', sourceId: 'comfy', kind: 'video', name: 'Video', state: 'running', phase: 'sampling', progress: { value: 8, total: 20, unit: 'steps', basis: 'phase' },
+  sampledAtMs: 10_000, observedAtMs: 9_000, progressAtMs: 8_000, freshness: 'live', ownership: {}, cancel: { supported: true } };
+const MEDIA_HELD = { ...MEDIA_LIVE, freshness: 'stale' as const, progress: null, lastProgress: MEDIA_LIVE.progress, lastProgressAtMs: 8_000, cancel: { supported: false } };
+test('media contract: live counters parse exactly and retired estimate fields are dropped', () => {
+  expect(parseMediaJob(MEDIA_LIVE)).toEqual(MEDIA_LIVE);
+  for (const stale of [{ freshness: 'stale' as const }, { freshness: 'unavailable' as const }, { state: 'waiting' as const, phase: 'waiting' as const }, { progress: null }]) {
+    const parsed = parseMediaJob({ ...MEDIA_LIVE, ...stale });
+    expect(parsed, JSON.stringify(stale)).not.toBeNull();
+    for (const key of ['etaAtMs', 'lastEtaAtMs', 'etaBasis', 'finalPhase']) expect(parsed).not.toHaveProperty(key);
   }
-});
-test('media contract: a held estimate is explicitly historical and belongs to a retained report', () => {
+  expect(parseMediaJob({ ...MEDIA_LIVE, etaAtMs: 70_000, etaBasis: 'measured-window' })).toEqual(MEDIA_LIVE);
   expect(parseMediaJob(MEDIA_HELD)).toEqual(MEDIA_HELD);
-  expect(parseMediaJob({ ...MEDIA_HELD, freshness: 'unavailable' })?.lastEtaAtMs).toBe(70_000);
-  expect(parseMediaJob({ ...MEDIA_HELD, etaAtMs: 70_000 })).not.toHaveProperty('etaAtMs'); // never live while stale
-  for (const invalid of [{ freshness: 'live' }, { lastProgress: undefined }, { lastProgressAtMs: undefined }, { lastEtaAtMs: 7_999 }, { lastEtaAtMs: 8_000 + 86_400_001 },
-    { etaBasis: undefined }, { state: 'cancelling' }, { state: 'completed', phase: 'completed', freshness: 'last' }]) {
-    const parsed = parseMediaJob({ ...MEDIA_HELD, ...invalid });
-    expect(parsed, JSON.stringify(invalid)).not.toBeNull();
-    expect(parsed).not.toHaveProperty('lastEtaAtMs'); expect(parsed).not.toHaveProperty('etaAtMs'); expect(parsed).not.toHaveProperty('etaBasis');
-  }
+  expect(parseMediaJob({ ...MEDIA_HELD, freshness: 'live' })?.progress).toBeNull(); // a held report cannot be live
 });
-test('media contract: snapshots from before estimates parse unchanged', () => {
-  const source = { id: 'feed', kind: 'feed', label: 'Feed', state: 'ready', capabilities: { progress: true, cancel: false } };
-  const { lastEtaAtMs: _a, etaBasis: _b, ...held } = MEDIA_HELD;
-  const parsed = parseMediaSnapshot(JSON.parse(JSON.stringify({ schemaVersion: 1, sampledAtMs: 10_000, nextPollMs: 2_000, sources: [source], jobs: [MEDIA_LIVE, held] })));
-  expect(parsed?.jobs).toEqual([MEDIA_LIVE, held]);
+test('media contract: snapshots parse unchanged and unknown producer fields never appear', () => {
+  const source = { id: 'comfy', kind: 'comfyui', label: 'ComfyUI', state: 'ready', capabilities: { progress: true, cancel: true } };
+  const parsed = parseMediaSnapshot(JSON.parse(JSON.stringify({ schemaVersion: 1, sampledAtMs: 10_000, nextPollMs: 2_000, sources: [source], jobs: [MEDIA_LIVE, MEDIA_HELD] })));
+  expect(parsed?.jobs).toEqual([MEDIA_LIVE, MEDIA_HELD]);
   for (const job of parsed!.jobs) for (const key of ['etaAtMs', 'lastEtaAtMs', 'etaBasis']) expect(job).not.toHaveProperty(key);
 });
-test('media contract: withdrawing progress moves a live estimate into the held field', () => {
-  const live = { ...MEDIA_LIVE, etaAtMs: 70_000, etaBasis: 'measured-window' as const };
-  const withdrawn = withdrawMediaProgress(live, 'stale');
-  expect(withdrawn).toMatchObject({ freshness: 'stale', progress: null, lastProgress: live.progress, lastProgressAtMs: 8_000, lastEtaAtMs: 70_000, etaBasis: 'measured-window', cancel: { supported: false } });
-  expect(withdrawn.etaAtMs).toBeUndefined();
-  expect(parseMediaJob(withdrawn)?.lastEtaAtMs).toBe(70_000);
-  expect(withdrawMediaProgress(withdrawn, 'unavailable')).toMatchObject({ lastEtaAtMs: 70_000, lastProgress: live.progress, freshness: 'unavailable' });
-  for (const change of [{ progress: null }, { state: 'waiting' as const, phase: 'waiting' as const }, { etaAtMs: undefined, etaBasis: undefined }]) {
-    const out = withdrawMediaProgress({ ...live, ...change }, 'stale');
-    expect(out.lastEtaAtMs).toBeUndefined(); expect(out.etaAtMs).toBeUndefined(); expect(out.etaBasis).toBeUndefined();
+test('media contract: withdrawing progress keeps only the last measured report', () => {
+  const withdrawn = withdrawMediaProgress(MEDIA_LIVE, 'stale');
+  expect(withdrawn).toMatchObject({ freshness: 'stale', progress: null, lastProgress: MEDIA_LIVE.progress, lastProgressAtMs: 8_000, cancel: { supported: false } });
+  expect(parseMediaJob(withdrawn)?.lastProgressAtMs).toBe(8_000);
+  const again = withdrawMediaProgress(withdrawn, 'unavailable');
+  expect(again).toMatchObject({ freshness: 'unavailable', progress: null, lastProgress: MEDIA_LIVE.progress, lastProgressAtMs: 8_000 });
+  for (const change of [{ progress: null }, { state: 'waiting' as const, phase: 'waiting' as const }]) {
+    const out = withdrawMediaProgress({ ...MEDIA_LIVE, ...change }, 'stale');
+    expect(out.lastProgress).toBeUndefined(); expect(out.lastProgressAtMs).toBeUndefined();
   }
 });

@@ -1,8 +1,8 @@
 // Test support only: 1.x fixture bodies as the 2a panel reads them, through the real converter, wire and v2 parser.
 import type { CompletionV2 } from '../../src/contract/completion.ts';
-import { toSnapshotV2, type V1Snapshot } from '../../src/contract/convert-v1.ts';
+import { toSnapshotV2, type V1Snapshot } from '../../tests/fixtures/legacy/convert-v1.ts';
 import { parseSnapshotV2, type SnapshotV2 } from '../../src/contract/snapshot.ts';
-import { parseTelemetrySnapshot } from '../../src/telemetry.ts';
+import { parseTelemetrySnapshot } from '../../tests/fixtures/legacy/telemetry.ts';
 import { legacyFromSnapshot as fromSnapshot, type LegacyReading as Reading } from '../compat/reading.ts';
 
 export const EXTRAS = { service: { version: '2.0.0', instance: '5c1e0a7b' } };

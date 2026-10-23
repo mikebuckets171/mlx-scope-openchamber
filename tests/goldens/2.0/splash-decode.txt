@@ -29,8 +29,6 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#next-context-activity {data-mount=""}
-#scope-awareness {aria-label="Session activity"}: Other work
 h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash
@@ -50,35 +48,42 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #monitor-menu
 #frame-card
 #panels
-#panel-server {aria-labelledby="server-title"}: Back
-#server-title: Server & Mac details
-[server-rates]: All server activity · last 4.0 s Generation speed last 4.0 s Processing · deferred
-h2: Recent speeds
-span.val {data-basis="derived"}: 43.8 tok/s | calculated
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
+#hero {aria-label="Activity and speed" data-arrive=""}: Splash example/Example-27B-Splash Watch | 43.8 tokens per second tokens/s Engine All engine requests · Calculated · last 4.0 s
+h2.instrument-phase {data-crossfade="" data-live="true" data-tone="normal"}: Generating
+#rate {aria-hidden="true" style="--reading-width:2.310"}: 43.8
+#engine-facts {aria-label="Engine" data-count="3"}: Active requests | 1 | Queue clear | Metal allocations | 12.5 GiB | engine allocations | Median first token | 0.41 s | 212 recent requests
+#engine-trend
+#signal {data-current="true" data-short="true"}: Engine trend −8s now
+#ceiling: 50 tokens/s
+div.plot[role=img] {aria-label="Recent generation speed · all server activity · calculated, last 8 s: 43.8 to 43.8 tokens per second, now 43.8"}
+#precision-trace-fill
+#reply-strip
+#measurement-details {open=""}: Measurement details | Run details
+#engine-readings: Engine readings
+#server-strip: Splash Not reported Ready
+[server-rates]: Recent speeds Generation speed last 4.0 s · Processing · deferred · All server activity · last 4.0 s
+span.val {data-basis="derived"}: 43.8 tok/scalculated
 span.val {data-basis="reported"}: 1 · 0
-[server-latency]: From Splash First token typical · slowest 5% 212 readings Between tokens typical · slowest 5% 4,096 readings
-h2: Response timing
+[server-latency]: Response timing First token typical · slowest 5% 212 readings · Between tokens typical · slowest 5% 4,096 readings · From Splash
 span.val {data-basis="reported"}: 0.41 s · 1.3 s
 span.val {data-basis="reported"}: 0.02 s · 0.04 s
-[server-memory]: Splash · from server GPU allocations Peak GPU allocations
-h2: Model memory
+[server-memory]: Model memory GPU allocations · Peak GPU allocations · Splash · from server
 span.val {data-basis="reported"}: 12.5 GiB
 span.val {data-basis="reported"}: 13.0 GiB
-[server-catalog]: 1 loaded · 1 listed example/Example-27B-Splash Loaded 262K context
-h2: Model inventory
+[server-catalog]: Model inventory example/Example-27B-Splash Loaded, 262K context · 1 loaded · 1 listed
 span.chip {data-tone="accent"}: splash
 span.chip: vision · text + image
-[server-session]: Since this model started Generation speed Completed 1 failed
-h2: Overall average
+[server-session]: Overall average Generation speed · Completed 1 failed · Since this model started
 span.val {data-basis="reported"}: 47.2 tok/s
 span.val {data-basis="reported"}: 17
-#server-runtime-details: Server details Ready
 #machine {aria-label="This Mac" data-stale="false"}: CPU 12% Memory allocated 29.4 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#media-glance
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash
 live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
@@ -115,8 +120,6 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#next-context-activity {data-mount=""}
-#scope-awareness {aria-label="Session activity"}: Other work
 h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash
@@ -154,8 +157,6 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#next-context-activity {data-mount=""}
-#scope-awareness {aria-label="Session activity"}: Other work
 h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash

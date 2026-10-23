@@ -3,7 +3,8 @@ import { chatKey } from '../../src/contract/chat-key.ts';
 import { isConnectionId } from '../../src/contract/guards.ts';
 import { splitModel } from '../attribution/sessions.ts';
 
-export type MeasurementScope = 'chat' | 'engine';
+/** Automatic follows the chat when its numbers are known and the engine otherwise; Engine pins the whole server. */
+export type MeasurementScope = 'auto' | 'engine';
 /** Keeps the open session only in frame memory. Requests carry hashed identifiers; exports never read them. */
 export class FollowChat {
   #identity = '';

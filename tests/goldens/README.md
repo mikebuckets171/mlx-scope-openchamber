@@ -4,7 +4,7 @@
 phase-relevant measurement, and the full view keeps engine readings and charts behind disclosures.
 
 ## What they are
-- **Source of every reading:** the approved mock's v2 fixtures (`docs/design/2.0-mock-fixtures.json`), served as
+- **Source of every reading:** the approved mock's v2 fixtures (`docs/archive/design/2.0-mock-fixtures.json`), served as
   `/v2/snapshot` bodies by the 2.0 fixture host (`tests/browser/v2-host.html`, states from
   `panel/testing/mock-states.ts`). The host emulates OpenChamber 2.0.4: panel, page and Work Status surfaces, `setHeight`
   clamped to 24–320 px on the status surface, badge and toast recorders, `pref.v2` in session storage, and the `since`

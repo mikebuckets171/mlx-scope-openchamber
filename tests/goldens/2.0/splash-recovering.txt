@@ -23,8 +23,6 @@ h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#next-context-activity {data-mount=""}
-#scope-awareness {aria-label="Session activity"}: Other work
 h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash
@@ -45,36 +43,37 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #monitor-menu
 #frame-card
 #panels
-#panel-server {aria-labelledby="server-title"}: Back
-#server-title: Server & Mac details
-[callout-server] {data-severity="warning"}: Warning: | Splash is recovering | since 14:03 | Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.
-[server-latency]: Splash · last reading First token typical · slowest 5% 212 readings Between tokens typical · slowest 5% 4,096 readings
-h2: Response timing
+#panel-live {aria-label="This chat, engine and media"}
+#view-live: Optional chat tracking adds labeled delivery estimates for local and cloud models. Set up chat speed
+[callout-live] {data-severity="warning"}: Warning: | Splash is recovering | since 14:03 | Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.
+#hero {aria-label="Activity and speed" data-arrive=""}: Splash example/Example-27B-Splash Watch | Scope reads its status every 30 s
+h2.instrument-phase {data-crossfade="" data-live="false" data-tone="normal"}: Recovering
+#reply-strip
+#measurement-details {open=""}: Measurement details | Run details
+#engine-readings: Engine readings
+#server-strip: Splash Not reported Recovering
+[server-latency]: Response timing First token typical · slowest 5% 212 readings · Between tokens typical · slowest 5% 4,096 readings · Splash · last reading
 span.val {data-basis="reported"}: 0.41 s · 1.3 s
 span.val {data-basis="reported"}: 0.02 s · 0.04 s
-[server-memory]: Splash · last reading GPU allocations Peak GPU allocations
-h2: Model memory
+[server-memory]: Model memory GPU allocations · Peak GPU allocations · Splash · last reading
 span.val {data-basis="reported"}: 12.5 GiB
 span.val {data-basis="reported"}: 13.0 GiB
-[server-catalog]: 1 loaded · 1 listed example/Example-27B-Splash Loaded 262K context
-h2: Model inventory
+[server-catalog]: Model inventory example/Example-27B-Splash Loaded, 262K context · 1 loaded · 1 listed
 span.chip {data-tone="accent"}: splash
 span.chip: vision · text + image
-[server-session]: Last reading · Since this model started Generation speed Completed 1 failed
-h2: Overall average
-span.val {data-basis="last-observed"}: 47.2 tok/s | last reading
-span.val {data-basis="last-observed"}: 17 | last reading
-#server-runtime-details: Server details Recovering
+[server-session]: Overall average Generation speed · Completed 1 failed · Last reading · Since this model started
+span.val {data-basis="last-observed"}: 47.2 tok/slast reading
+span.val {data-basis="last-observed"}: 17last reading
 #machine {aria-label="This Mac" data-stale="false"}: CPU 12% Memory allocated 29.4 / 48 GiB Swap 1.1 GiB
 h2.machine-title: This Mac
 [mac-pressure]: Memory pressure | Normal
 [mac-thermal]: Heat status Normal
 #mac-details: Mac details
-#media-glance
+h3: Track speed for this chat
 #freshness: Updated just now
 live #connection: Splash
 live p.insight-note[role=status] (hidden): Enable delivery-speed estimates for local and cloud chats.
 live p.media-setup-message.insight-note[role=status] (hidden): 
 live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
 live #action-status (hidden): 
-live [callout-server]: Warning: Splash is recoveringsince 14:03Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.
+live [callout-live]: Warning: Splash is recoveringsince 14:03Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.

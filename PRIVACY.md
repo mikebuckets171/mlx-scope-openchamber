@@ -119,7 +119,7 @@ is reported without claiming the write succeeded and does not stop monitoring.
 **Data from earlier versions.** Captures saved by Scope 2.0–5.0 and 1.6 saved observations are left untouched, so
 rolling back still shows them. Scope 5.1 no longer reads or creates them; **History → Storage** counts them under
 **Kept from earlier versions**. **Clear…** does not remove them; uninstalling does. See the
-[rollback runbook](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/2.0/ROLLBACK.md).
+[rollback runbook](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/archive/2.0/ROLLBACK.md).
 
 **Uninstalling** MLX Scope in Settings → Extensions deletes all of its storage: reply history, baselines, preferences and
 data kept from earlier versions. This is OpenChamber's documented behaviour for extension storage. **Installing a ZIP
@@ -128,12 +128,12 @@ keeps it. Backups keep their own copies.
 
 ## Per-chat labels and optional project awareness
 
-- Scope 5.1 declares `sessions` only; 5.0's `shells` permission and agent command output are gone. **Chats and subagents** starts disabled. Enabling it subscribes to host-reported activity in the current project, and it stops when Live is hidden, paused or closed.
-- Project activity may include titles and subagent relationships. Scope holds it only in the visible view and never sends a session prompt.
+- Scope 5.1 declares `sessions` only; 5.0's `shells` permission and agent command output are gone. **Other work** in the ⋯ menu starts disabled. Enabling it subscribes to host-reported activity in the current project, and it stops when Live is hidden, paused or closed.
+- Project activity may include titles and subagent relationships. Scope holds it only in memory for the visible view and never sends a session prompt; Live shows counts only, so no chat title or per-chat activity is rendered.
 - Design and opt-in flags are stored in device-scoped preferences where supported, never mixed with saved measurement records.
 - It uses only what OpenChamber gives every extension about the **open** chat: its ID, whether it is busy, its model,
   and its turn start and finish events.
-- The existing measurement pipeline does not use the open chat’s title. The optional activity view can show host-reported titles; they are transient and excluded from measurement storage, sharing and diagnostics.
+- The existing measurement pipeline does not use the open chat’s title. Host-reported titles reach the visible view only while Other work is on; they are never rendered, never stored with measurements, and never shared or diagnosed.
 - To mark turns, a view sends the service a short hash of the open chat's ID, salted per service start. The service
   keeps it in memory only and never stores, displays or returns it.
 
@@ -176,8 +176,6 @@ conversations to a public issue.
 ## Optional media monitoring
 
 Media adapters read existing local job APIs or bounded files only while a relevant Scope view is visible. Raw backend records may contain prompts and file paths; the service selects only job identifiers, a neutral job name, type, lifecycle/phase, measured counters and units, times, freshness and supported control capabilities. It does not forward prompts, references, previews, output files, raw errors or credentials. Ownership is correlated with hashed matching identifiers; hashes are not anonymization. Media data never enters LLM history or exported diagnostics.
-
-Phosphene's `/status` answer includes prompts, render parameters, file paths, logs and output lists. Scope reads at most 1 MB of it and keeps only job ids, states, start and run times, the mode and engine names (to tell an image from a video), the phase, step counters, the H3 window number and Phosphene's own time-left estimate. Its discovery probe reads `/version` and keeps only the release number. Scope sends Phosphene nothing but these two GET requests.
 
 For Draw Things, `lsof` lists running `draw-things-cli` processes and the file each one's output goes to. The process ids and paths stay in service memory. From the last 64 KB of that file Scope keeps only the phase, the step counter, the file's times and whether the render finished; the tool prints no prompt, and the `Models directory:` and `Wrote:` paths it prints are never kept. Scope never runs the tool.
 

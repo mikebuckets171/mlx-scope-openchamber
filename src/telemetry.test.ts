@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { normalizeOmlxTelemetry, parseTelemetrySnapshot } from './telemetry.ts';
+import { normalizeOmlxTelemetry, parseTelemetrySnapshot } from '../tests/fixtures/legacy/telemetry.ts';
 
 type RawModel = {
   id: string;

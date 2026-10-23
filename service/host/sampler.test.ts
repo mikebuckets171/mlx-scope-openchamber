@@ -9,6 +9,7 @@ import { requiredCapabilities } from '../../src/contract/snapshot.ts';
 import { fullSnapshot } from '../../src/contract/testing/full.ts';
 import { allowed, EXEC_PATHS, type Argv, type StreamChild } from '../lib/argv.ts';
 import { cpuFraction, HostSampler, PROBE_CADENCE, probeCadence, SPAWN_BUDGET_PER_MIN, spawnBudget, type HostContext } from './sampler.ts';
+import { POWER_STALE_MS } from './power.ts';
 
 const HOME = '/Users/someone', EPOCH = 1_790_690_700_000, GiB = 2 ** 30;
 const fixture = (name: string): string => readFileSync(join(import.meta.dir, '../../tests/fixtures/host/macos-27', name), 'utf8');
@@ -32,7 +33,8 @@ const rig = (options: { platform?: string; output?: Record<string, string | null
   });
   return { sampler, clock, calls, output };
 };
-const context = (overrides: Partial<HostContext> = {}): HostContext => ({ tier: 'full', active: false, generation: 1, omlxPort: 8001, ...overrides });
+const context = (overrides: Partial<HostContext> = {}): HostContext =>
+  ({ tier: 'full', active: false, generating: false, detail: false, generation: 1, omlxPort: 8001, ...overrides });
 /** Polls at `everyMs` for `forMs`, like a visible frame. */
 const poll = async (r: ReturnType<typeof rig>, everyMs: number, forMs: number, at: HostContext | ((t: number) => HostContext)) => {
   let last: HostV2 | null = null;
@@ -252,8 +254,8 @@ test('CPU share: a delta across all cores, re-primed after a long gap', () => {
   expect(cpuFraction({ idle: 80, total: 100 }, { idle: 1, total: 2 })).toBeNull();
 });
 
-test('macmon streams for full-tier reads only; its reading and energy ride along', async () => {
-  const children: Array<StreamChild & { stdout: PassThrough }> = [], spawned: Argv[] = [];
+test('macmon streams only while a full-tier view with the detail open is generating; its reading and energy ride along', async () => {
+  const children: Array<StreamChild & { stdout: PassThrough; signals: string[] }> = [], spawned: Argv[] = [];
   const clock = { t: 0 };
   const sampler = new HostSampler({ exec: async argv => OUTPUT[argv.file] ?? null, now: () => EPOCH + clock.t, monotonic: () => clock.t,
     platform: 'darwin', home: HOME, macmon: '/opt/homebrew/bin/macmon',
@@ -261,24 +263,51 @@ test('macmon streams for full-tier reads only; its reading and energy ride along
       if (!allowed(argv, HOME)) return null;
       spawned.push(argv);
       const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: null, stdin: null, exitCode: null, signalCode: null,
-        kill: () => true }) as unknown as StreamChild & { stdout: PassThrough };
+        signals: [] as string[] }) as unknown as StreamChild & { stdout: PassThrough; signals: string[] };
+      child.kill = signal => { child.signals.push(String(signal)); return true; };
       children.push(child);
       return child;
     } });
-  await sampler.sample(context({ tier: 'glance' }));
-  expect(spawned).toHaveLength(0);
+  // Nothing runs macmon without the demand: an idle engine, a generating one nobody is reading the detail of, or a glance.
+  await sampler.sample(context({ active: true }));
   await sampler.sample(context());
+  await sampler.sample(context({ active: true, detail: true }));
+  await sampler.sample(context({ tier: 'glance', active: true, detail: true }));
+  expect(spawned).toHaveLength(0);
+  const wanted = { ...context({ active: true, generating: true, detail: true }), frame: '00000001' };
+  await sampler.sample(wanted);
   expect(spawned.map(argv => [argv.file, ...argv.args])).toEqual([['/opt/homebrew/bin/macmon', 'pipe', '-i', '1000']]);
   for (let second = 1; second <= 3; second++) {
     clock.t = second * 1_000;
     children[0]!.stdout.write('{"all_power":20.5,"ane_power":0.0,"cpu_power":2.5,"gpu_power":18.0,"sys_power":31.0}\n');
     await new Promise(resolve => setTimeout(resolve, 1));
   }
-  const host = (await sampler.sample(context({ tier: 'glance' })))!;
+  const host = (await sampler.sample(wanted))!;
   expect(host.power).toEqual({ sampledAt: EPOCH + 3_000, field: 'all_power', chipW: 20.5, cpuW: 2.5, gpuW: 18, aneW: 0, sysW: 31, coverageFraction: 0.3 });
   expect(hostCapabilities(host).find(({ key }) => key === 'host.power')).toEqual({ key: 'host.power', basis: 'estimate' });
   expect(sampler.energy(EPOCH, EPOCH + 3_000)).toEqual({ energyJ: 61.5, coverage: 1 });
   expect(spawned).toHaveLength(1);
+  // A sidebar and another open hub share the stream; neither may cancel another reader's demand.
+  const second = { ...wanted, frame: '00000002' };
+  await sampler.sample(second);
+  await sampler.sample({ ...context({ tier: 'glance', active: true }), frame: '00000003' });
+  expect(children[0]!.signals).toEqual([]);
+  await sampler.sample({ ...wanted, detail: false });
+  expect(children[0]!.signals).toEqual([]);
+  // The request ends, or the hub closes: macmon stops now, and the samples stay for the reading and the energy.
+  const stopped = (await sampler.sample({ ...second, active: false, generating: false }))!;
+  expect(children[0]!.signals).toEqual(['SIGTERM']);
+  expect(stopped.power).toEqual(host.power);
+  expect(sampler.energy(EPOCH, EPOCH + 3_000)).toEqual({ energyJ: 61.5, coverage: 1 });
+  // …and the same reading ages out rather than becoming a stale number.
+  clock.t = 3_000 + POWER_STALE_MS + 1;
+  expect((await sampler.sample(context({ active: true })))!.power).toBeUndefined();
+  expect(spawned).toHaveLength(1);
+  await sampler.sample(wanted);
+  expect(spawned).toHaveLength(2);
+  clock.t += 12_000;
+  await sampler.sample({ ...context({ tier: 'glance' }), frame: '00000003' });
+  expect(children[1]!.signals).toEqual(['SIGTERM']);
   sampler.dispose();
   expect(await sampler.sample(context())).toMatchObject({ platform: 'macOS' });
 });

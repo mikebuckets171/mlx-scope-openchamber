@@ -3,7 +3,7 @@ import { percentToFraction, secondsToMs } from '../../src/contract/units.ts';
 
 // Moved from src/telemetry.ts:272-657 (the 1.6 oMLX normalizer), verbatim apart from unit renames: decimal GB becomes
 // integer bytes, seconds become ms, the cache percent a fraction. Its honesty logic is frozen (plan §10). The 1.6
-// copy stays in src/telemetry.ts until the registry serves oMLX through ./omlx.ts (svc-2b).
+// frozen 1.6 copy lives only in tests/fixtures/legacy as a parity oracle.
 //
 // Under G1 (SPIKES S6) the session totals come from `/api/status`, never `/admin/api/stats`. `runtime_cache` (the
 // request-matched prefix lookup, the session bank) is still read if a session body carries one; `/api/status` has none.

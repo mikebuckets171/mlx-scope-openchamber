@@ -1,5 +1,6 @@
-import { parseConnection, parseCatalog, runtimeValue, type Runtime, type ConnectionInfo, type CatalogModel } from './runtime.ts';
-import { parseSystemSnapshot, type SystemSnapshot } from './system.ts';
+// Frozen 1.6 fixture oracle. Never import this from shipping code.
+import { parseConnection, parseCatalog, runtimeValue, type Runtime, type ConnectionInfo, type CatalogModel } from '../../../src/runtime.ts';
+import { parseSystemSnapshot, type SystemSnapshot } from '../../../src/system.ts';
 
 export const TELEMETRY_PHASES = [
   'connecting',

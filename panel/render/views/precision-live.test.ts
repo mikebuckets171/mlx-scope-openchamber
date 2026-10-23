@@ -83,7 +83,9 @@ test('precision detail routes remain available', () => {
   const next = render(presentLive(scope()));
   expect(next).toContain('class="precision-detail-actions"');
   expect(next).toContain('data-action="open-run"');
-  expect(next).toContain('data-action="open-server"');
+  // Server rows are inside the hub: compact lines, not a second view.
+  expect(next).toContain('id="server-strip"');
+  expect(next).not.toContain('data-action="open-server"');
 });
 
 test('a paused or stale precision trace names its endpoint as the last reading', () => {

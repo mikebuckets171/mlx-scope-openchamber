@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { parseConnection } from './runtime.ts';
-import { normalizeOmlxTelemetry, parseTelemetrySnapshot } from './telemetry.ts';
+import { normalizeOmlxTelemetry, parseTelemetrySnapshot } from '../tests/fixtures/legacy/telemetry.ts';
 
 test('connection metadata and catalogs are bounded and allowlisted in connected and offline snapshots', () => {
   for (const available of [true, false]) {

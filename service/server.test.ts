@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from 'bun:test';
 import type http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { hostFromV1 } from '../src/contract/convert-v1.ts';
+import { hostFromV1 } from '../tests/fixtures/legacy/convert-v1.ts';
 import { classAKeys, MAX_BODY_CHARS } from '../src/contract/guards.ts';
 import { honestyViolations, parseSnapshotV2, type SnapshotV2, type StatusV2 } from '../src/contract/snapshot.ts';
 import { parseSystemSnapshot } from '../src/system.ts';
@@ -192,11 +192,11 @@ test('each read gets its selection and tier; the host sampler gets the tier, act
     [{ provider: 'My LM Studio (Bionic)', runtime: null }, full], [{ provider: '', runtime: 'llama-server' }, full],
     [{ provider: '', runtime: 'ollama' }, { tier: 'glance', detail: false }],
     [{ provider: '', runtime: 'splash' }, { tier: 'full', detail: true }]]);
-  expect(hosts.at(-1)).toEqual({ tier: 'full', active: false, generation: 3, omlxPort: null });
+  expect(hosts.at(-1)).toEqual({ tier: 'full', active: false, generating: false, detail: true, generation: 3, omlxPort: null });
   current = reading({ state: 'ready', reason: null, params: {} }, { runtime: { ...offline().runtime, phase: 'decode' },
     meta: meta({ port: 8001, connection: { ...meta().connection, runtime: 'omlx', generation: 7 } }) });
   await snapshot(request, '/v2/snapshot?surface=status');
-  expect(hosts.at(-1)).toEqual({ tier: 'glance', active: true, generation: 7, omlxPort: 8001 });
+  expect(hosts.at(-1)).toEqual({ tier: 'glance', active: true, generating: true, detail: false, generation: 7, omlxPort: 8001 });
 });
 
 test('the lease elects page over panel over status among recent frames, and lower frames back off', async () => {

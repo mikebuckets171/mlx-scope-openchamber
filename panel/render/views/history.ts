@@ -82,11 +82,8 @@ const inspectButton = (entry: HistoryEntry): HTMLElement => button('Details', 'i
 const baselineBody = (card: BaselineCard, tips: Tips, status: string): Child => {
   const flagTip = card.flag && tips.make('baseline-flag', 'Slower than usual', card.flag.tip);
   return [
-    card.empty ? el('p', { class: 'empty' }, card.empty)
-      : box('values-3', card.tiles.map(tile => group( span( tile.label), strong( tile.value), small( tile.detail)))),
-    card.flag && flagTip ? [el('div', { class: 'chips', style: 'margin-top:10px' }, el('span', { class: 'chip', 'data-tone': 'warn', 'data-basis': 'derived' }, card.flag.chip), flagTip.btn), flagTip.pop] : null,
-    !card.empty && card.rows.length ? el('dl', { class: 'kv' }, card.rows.map(row => group( el('dt', {}, row.label),
-      el('dd', {}, row.basis ? val(row.value, 'estimate', row.basis) : row.value)))) : null,
+    card.line ? el('p', { class: 'baseline-line' }, card.line) : card.empty ? el('p', { class: 'empty' }, card.empty) : null,
+    card.flag && flagTip ? [el('div', { class: 'chips', style: 'margin-top:8px' }, el('span', { class: 'chip', 'data-tone': 'warn', 'data-basis': 'derived' }, card.flag.chip), flagTip.btn), flagTip.pop] : null,
     card.copy ? box('actions', button('Copy baseline summary', 'copy-baselines'),
       el('span', { class: 'insight-note', style: 'margin:0' }, 'Models become “Model A, B”')) : null,
     status ? el('p', { class: 'insight-note', role: 'status' }, status) : null,

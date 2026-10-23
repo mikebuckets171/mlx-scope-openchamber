@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { open, opendir, stat } from 'node:fs/promises';
+import { open, stat } from 'node:fs/promises';
 
 /** Never follow a telemetry-file symlink or block on FIFOs; cap bytes even during concurrent writes. */
 export const readBounded = async (file: string, limit = 256_000, privateOnly = false): Promise<{ text: string; modifiedAtMs: number } | null> => {
@@ -15,18 +15,3 @@ export const readBounded = async (file: string, limit = 256_000, privateOnly = f
   } catch { return null; }
 };
 export const directoryExists = async (directory: string): Promise<boolean> => { try { return (await stat(directory)).isDirectory(); } catch { return false; } };
-/** Directory metadata changes on job moves; no file contents or path are returned to the UI. */
-export const directoryStamp = async (directory: string): Promise<string> => {
-  try { const info = await stat(directory); return info.isDirectory() ? `${info.ino}:${info.mtimeMs}:${info.ctimeMs}` : 'missing'; } catch { return 'missing'; }
-};
-/** Reading a finite directory prefix bounds work even if an external producer forgets retention. */
-export const jsonFiles = async (directory: string, limit = 128): Promise<string[]> => {
-  const names: string[] = [];
-  try {
-    const handle = await opendir(directory);
-    let inspected = 0;
-    try { for await (const entry of handle) { if (++inspected > limit) break; if (entry.isFile() && /^[A-Za-z0-9][A-Za-z0-9_.:-]*\.json$/.test(entry.name)) names.push(entry.name); } }
-    finally { try { await handle.close(); } catch { /* async iteration already closed it */ } }
-  } catch { /* unavailable source */ }
-  return names;
-};

@@ -110,7 +110,7 @@ test('the Session widget uses native rows and keeps detail in the full panel acr
   await expect(frame.locator('.ws-warning')).toHaveText('Memory pressure · warning');
   await expect(frame.locator('.chip, .ts-rows, .ws-key-stats, .ws-spark')).toHaveCount(0);
   await expect(frame.locator('.speed-row')).toHaveCount(0);
-  await expect(frame.getByRole('combobox', { name: 'Measurement scope' })).toHaveValue('chat');
+  await expect(frame.getByRole('combobox', { name: 'What to watch' })).toHaveValue('auto');
   const visibleRows = await frame.locator('#ws .ws-line').count();
   expect(visibleRows).toBeLessThanOrEqual(3);
   await expect(frame.locator('html')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
