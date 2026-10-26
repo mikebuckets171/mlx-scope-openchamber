@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Restore Splash prompt percentages behind llama-swap.** Match the companion's request model to the exact ready
+  route reported by llama-swap, even when Splash's native model name includes a quantization tag. Overlap,
+  ambiguity and freshness safeguards are unchanged. No additional HTTP requests, permissions or companion update are needed.
+
 ## 5.2.0
 
 - **A quieter monitor.** Measurement details is the single hub for engine readings, request details, the last reply,

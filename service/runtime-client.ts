@@ -224,6 +224,7 @@ export class RuntimeClient {
     const context = slot.context, described = descriptorOf(this.descriptors, runtime);
     if (!described) throw new UnknownRuntime();
     const adapterContext: AdapterContextV2 = { connection: { id: context.choice.id, port: urlPort(context.upstream?.origin ?? context.choice.config.baseURL)! }, ...this.getters(slot),
+      routedModel: context.upstream?.model,
       config: context.choice.config, fetchImpl: this.fetchImpl, exec: this.exec, now: this.now, monotonic: this.monotonic,
       timeoutMs: this.timeout, budgetMs: this.budget };
     context.adapterContext = adapterContext;

@@ -313,7 +313,8 @@ class SplashAdapter implements AdapterV2 {
       && count(scheduler?.prefilling) === 1 && count(scheduler?.decoding) === 0 && count(scheduler?.waiting_mask) === 0
       && typeof nativeModel === 'string' && nativeModel.length > 0 && nativeModel.length <= 1024
       && (startedAtMs === undefined || Number.isFinite(startedAtMs) && startedAtMs >= 0 && startedAtMs <= at)
-      ? { providerID: this.context.connection.id, endpointOrigin: origin, model: nativeModel, generationKey: reading.generationKey!, startedAtMs } : null;
+      ? { providerID: this.context.connection.id, endpointOrigin: origin, model: nativeModel, routedModel: this.context.routedModel,
+        generationKey: reading.generationKey!, startedAtMs } : null;
     const progress = await this.progress.observe(scope, at, monotonicAt);
     if (sequence !== this.readSequence) return { ...splashReading(body, at), completions: [] };
     if (progress) {

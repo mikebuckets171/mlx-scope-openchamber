@@ -291,6 +291,10 @@ seconds without a newer event it is labelled as the last reading. Progress never
 recovery, a connection or server identity change, contradictory counts, and expired records clear it. Pause and resume
 require a newer event before displaying progress again. Near-complete unfinished values stay below 100%.
 
+Behind llama-swap, its current ready `/running` entry also establishes the exact request model routed to the backend.
+Scope accepts that request name when Splash reports a different native name (for example one with a quantization tag).
+It does not strip suffixes or guess aliases; the provider, endpoint, single-request and freshness checks still apply.
+
 The existing oMLX percentage remains the current reported stage. Scope does not pretend staged oMLX counts and Splash's
 whole-prompt counts have the same denominator.
 

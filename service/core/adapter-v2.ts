@@ -53,6 +53,8 @@ export interface AdapterV2 {
 
 export interface AdapterContextV2 {
   connection: { id: string; port: number };  // loopback only; the origin never enters a reading
+  /** Exact request model routed to this backend by llama-swap's current /running entry; service-internal. */
+  routedModel?: string;
   get: RuntimeGet;
   getText: RuntimeGetText;
   config: OmlxConfig;                        // oMLX admin login, the one non-GET (P1)
