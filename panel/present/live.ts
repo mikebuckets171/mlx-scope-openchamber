@@ -11,6 +11,7 @@ import { chatOnlyView, heldBySource, liveSplashRate, modelOf, SERVER_WIDE, SPLAS
 import { presentSessionSection, type SessionSectionView } from './session.ts';
 import { presentServer, type ServerView } from './server.ts';
 import { fromSnapshot } from './reading.ts';
+import { modelDisplayName } from './model-name.ts';
 
 // The Live tab (plan §5.9, the G2 mock): callouts, the hero (one speed with its basis ⓘ, the attribution chip and the
 // last reply), the request tiles and the This Mac card with the short labels (full wording in its ⓘ).
@@ -110,7 +111,7 @@ const replyView = (s: ScopeInput): ReplyView | null => {
   if (!last) return { chip: null, tip: null, when: null, empty: 'No replies yet · replies appear while Scope is open', values: [], split: [], usual: null };
   const c = last.completion, flag = last.flag, usual = last.vsUsual;
   return {
-    chip: attrChip(last.label), model: c.model ?? undefined, when: ago(c.finishedAt, s.now), empty: null, split: [], usual: usualChip(s),
+    chip: attrChip(last.label), model: c.model ? modelDisplayName(c.model, snapshot.connection.modelNames) : undefined, when: ago(c.finishedAt, s.now), empty: null, split: [], usual: usualChip(s),
     tip: tip('reply', 'Last reply', [
       flag ? `Middle speed of the last 3 replies: ${tps(flag.recentMedian)} tok/s. Usual middle speed: ${tps(flag.p50)}, from ${flag.n} replies.`
         : usual ? `${delta(usual.ratio - 1)} against the usual speed for this model and context size, from ${usual.n} replies.` : null,
@@ -130,7 +131,8 @@ const presentHero = (s: ScopeInput): HeroView | null => {
   const instrument = presentSessionSection({ ...s, reading: fromSnapshot(snapshot), chatIsLocal: s.chatIsLocal ?? null, restingFacts: true });
   const base = { instrument, speeds: instrument.speeds, attr: null, body: null, engineTrend: null, firstToken: null, context: null, reply: null };
   if (chatOnlyView(s)) return { ...base, title: 'This chat', chatOnly: true };
-  const kind = heroKind(s), model = modelOf(snapshot), title = model ?? connName(snapshot.connection), body = kind ? heroBody(kind, s) : null;
+  const kind = heroKind(s), reported = modelOf(snapshot), model = reported ? modelDisplayName(reported, snapshot.connection.modelNames) : null;
+  const title = model ?? connName(snapshot.connection), body = kind ? heroBody(kind, s) : null;
   // Keep the disclosure in place across lifecycle changes. Only compatible engine readings enter its chart.
   const engineTrend = snapshot.capabilities['request.decodeRate'] || snapshot.capabilities['server.rates']
     ? { current: s.fresh && !s.paused, chart: liveChart(s.samples, s.now, snapshot.connection.runtime === 'splash' ? null : s.turnStartAt,

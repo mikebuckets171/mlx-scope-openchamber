@@ -156,7 +156,11 @@ export type RuntimeConnectionConfig = {
   label: string;
   runtime: Runtime | null;
   config: OmlxConfig;
+  /** The names the provider's own `models` entries give their IDs, as OpenCode's model picker shows them. */
+  modelNames?: ModelName[];
 };
+export type ModelName = { model: string; name: string };
+export const MODEL_NAMES_MAX = 32;
 export type RuntimeConnections = { connections: RuntimeConnectionConfig[]; error: string | null; issue: ConfigIssue; configStatus?: ConfigStatus; authStatus?: ConfigStatus;
   /** Every provider's declared loopback endpoint, including providers the eight-entry chooser has no room for. */
   declared?: ReadonlyMap<string, URL> };
@@ -173,6 +177,12 @@ export const parseLocalOrigin = (value: unknown): URL | null => {
 };
 
 const safeLabel = (value: string): string => value.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 120);
+/** Only a name that differs from its ID says something; IDs and names are bounded like other labels. */
+const modelNamesOf = (provider: JsonObject): ModelName[] => Object.entries(asObject(provider.models) ?? {}).flatMap(([model, raw]) => {
+  const name = nonempty(asObject(raw)?.name);
+  return name && model.length <= 256 && !/[\u0000-\u001f\u007f]/.test(model) && safeLabel(name).trim() && name !== model
+    ? [{ model, name: safeLabel(name).trim().slice(0, 80) }] : [];
+}).slice(0, MODEL_NAMES_MAX);
 const issueText = (issue: ConfigIssue): string | null => ({
   none: null,
   missing_endpoint: 'No local runtime connection found. Add your runtime as a provider in OpenChamber; saved connections are discovered automatically.',
@@ -298,8 +308,10 @@ export const resolveRuntimeConnections = async ({ env = process.env, home = env.
       : apiKey !== null ? 'none' : missingCredentialIssue;
     const model = nonempty(env.MLX_SCOPE_MODEL) ?? nonempty(merged.model);
     const preferredModel = model?.startsWith(`${id}/`) ? model.slice(id.length + 1) : source === 'environment' ? model : null;
+    const modelNames = modelNamesOf(provider);
     connections.push({ id: safeLabel(id), label: safeLabel(nonempty(provider.name) ?? (source === 'omlx' ? 'oMLX' : id)), runtime: runtime ?? (baseURL && baseURL.origin === nativeOrigin?.origin ? 'omlx' : null),
-      config: { baseURL, apiKey: keyInvalid || explicitUnresolved ? null : apiKey, preferredModel, issue, error: issueText(issue), source, configStatus, authStatus } });
+      config: { baseURL, apiKey: keyInvalid || explicitUnresolved ? null : apiKey, preferredModel, issue, error: issueText(issue), source, configStatus, authStatus },
+      ...modelNames.length ? { modelNames } : {} });
   };
 
   if (envBase) {

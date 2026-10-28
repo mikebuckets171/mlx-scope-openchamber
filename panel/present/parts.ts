@@ -6,6 +6,7 @@ import type { AttributionLabel } from '../attribution/join.ts';
 import { alertCopy, rtName, sinceText, statusCopy, whyCopy, withheldWhy, type StatusCopy } from './copy.ts';
 import { ENGINE_SPEED } from './scope.ts';
 import { dur } from './format.ts';
+import type { ModelNames } from './model-name.ts';
 
 // View-model pieces every 2.0 view shares: basis-labelled values, chips, ⓘ disclosures and callouts. Pure data; the
 // markup lives in panel/render/views/parts.ts.
@@ -62,13 +63,13 @@ const statusCallout = (snapshot: SnapshotV2, copy: StatusCopy, now: number): Cal
 export const visibleAlerts = (snapshot: SnapshotV2): AlertV2[] => snapshot.alerts
   .filter(alert => !(alert.id === 'runtime-lost' && snapshot.status.state === 'failing') && !(alert.id === 'splash-recovering' && snapshot.status.state === 'recovering'))
   .sort((a, b) => bySeverity(a, b) || b.since - a.since);
-export const alertCallout = (alert: AlertV2, now: number): Callout => {
-  const [title, detail] = alertCopy(alert.id, alert.params);
+export const alertCallout = (alert: AlertV2, now: number, names?: ModelNames): Callout => {
+  const [title, detail] = alertCopy(alert.id, alert.params, names);
   return { key: `alert-${alert.id}`, severity: alert.severity, title, detail, since: sinceText(alert.since, now), action: null };
 };
 /** The status message and every alert, most severe first; the view shows the first and puts the rest behind "N more". */
 export const callouts = (snapshot: SnapshotV2 | null, now: number, extra: readonly Callout[] = []): Callout[] => {
   const status = snapshot ? statusCopy(snapshot) : null;
-  return [...extra, ...status && snapshot ? [statusCallout(snapshot, status, now)] : [], ...snapshot ? visibleAlerts(snapshot).map(alert => alertCallout(alert, now)) : []]
+  return [...extra, ...status && snapshot ? [statusCallout(snapshot, status, now)] : [], ...snapshot ? visibleAlerts(snapshot).map(alert => alertCallout(alert, now, snapshot.connection.modelNames)) : []]
     .sort(bySeverity);
 };

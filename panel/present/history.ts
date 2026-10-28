@@ -13,6 +13,7 @@ import { alertCopy, SEVERITY_WORD, withheldWhy } from './copy.ts';
 import { ago, clock, dayFormat as md, delta as change, dur, localDay as day, pct, shortTokens, wholeText } from './format.ts';
 export { ago, clock, dur, pct } from './format.ts';
 import { BASIS_WORD } from './parts.ts';
+import { modelDisplayName, type ModelNames } from './model-name.ts';
 
 // Owner: ui-history. Pure History tab presenter: trend, replies (each with its attr chip), turn summaries, baselines,
 // oMLX usage ("Recorded by oMLX"), storage, alert log. Header "Recorded while Scope was open" with counts per basis.
@@ -37,6 +38,7 @@ export interface HistoryInput {
   // ui-history additions; all optional so the frozen shape above stays valid.
   runtimeName?: string;                      // "oMLX", "Splash via Bionic": what the trend and baselines are from
   model?: string | null;                     // the connection's current model, for an empty Usual speed card
+  modelNames?: ModelNames;                   // OpenCode's names for the connection's models; display only
   windowMs?: TrendWindowMs;
   usageRange?: UsageRange;
   trendError?: string | null;                // why the trend could not be read
@@ -126,7 +128,7 @@ const replyEntry = (row: ReplyRow, input: HistoryInput, text: HistoryText, named
   return { kind: 'reply', key: rowIdentity(row), at: clock(at, input.now), iso: iso(at), rate: decodeTps10 === null ? null : `${tps(decodeTps10 / 10)} tok/s`,
     basis, basisLabel: basis === 'reported' ? null : BASIS_WORD[basis], output: output === null ? null : `${int(output)} out`,
     detail: decodeTps10 === null ? tokens(null, prompt, cached) : tokens(output, prompt, cached),
-    ttft: ttftMs === null || basis === 'last-observed' ? null : `First token ${dur(ttftMs)}`, attr: attrChip(attr, text), model: named && modelRef !== null ? input.models[modelRef] ?? null : null };
+    ttft: ttftMs === null || basis === 'last-observed' ? null : `First token ${dur(ttftMs)}`, attr: attrChip(attr, text), model: named && modelRef !== null && input.models[modelRef] ? modelDisplayName(input.models[modelRef]!, input.modelNames) : null };
 };
 const turnEntry = (row: TurnRow, replies: readonly ReplyRow[], input: HistoryInput, text: HistoryText): HistoryEntry => {
   const [, startedS, endedS, rt, modelRef, steps, output, , wDecodeTps10, waitMs, attr] = row;
@@ -172,7 +174,8 @@ const presentBaseline = (input: HistoryInput, replies: readonly ReplyRow[]): Bas
   const tip = ['Last 14 days, up to 50 replies, excluding the current 30 minutes. Typical values need 5 replies; fast and slow cutoffs need 10.',
     'Replies mixed with other requests are left out. First-token comparisons use timings from finished replies.'];
   const newest = [...replies].reverse().find(row => row[3] !== null && row[4] !== null);
-  const model = newest ? input.models[newest[3]!] ?? input.model ?? null : input.model ?? null;
+  const reported = newest ? input.models[newest[3]!] ?? input.model ?? null : input.model ?? null;
+  const model = reported ? modelDisplayName(reported, input.modelNames) : null;
   if (!newest) return { model, bucket: null, empty: 'Needs 5 replies for this model and context size.', line: null, flag: null, copy: input.baselines.size > 0, tip };
   const ctx: BaselineKey = { rt: newest[2], modelRef: newest[3]!, bucket: newest[4]! };
   const unc: BaselineKey | null = newest[5] === null ? null : { ...ctx, bucket: newest[5] };
@@ -263,7 +266,7 @@ export const presentHistory = (input: HistoryInput): HistoryView => {
     baseline: presentBaseline(input, replies),
     usage: presentUsage(input.usage, input),
     storage: presentStorage(input, replies.length, oldest),
-    alertLog: input.alertLog.map(entry => ({ at: clock(entry.since, input.now), iso: iso(entry.since), text: text.alert(entry.id, entry.params), severity: entry.severity,
+    alertLog: input.alertLog.map(entry => ({ at: clock(entry.since, input.now), iso: iso(entry.since), text: text.alert(entry.id, typeof entry.params.model === 'string' ? { ...entry.params, model: modelDisplayName(entry.params.model, input.modelNames) } : entry.params), severity: entry.severity,
       severityWord: SEVERITY_WORD[entry.severity], duration: entry.until === null ? 'active' : dur(entry.until - entry.since) })),
     alertLogEmpty: input.alertLog.length ? null : 'No alerts while Scope was open.',
   };

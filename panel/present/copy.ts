@@ -3,6 +3,7 @@ import type { ReasonParams } from '../../src/contract/reasons.ts';
 import type { RuntimeKind } from '../../src/contract/runtime.ts';
 import type { ConnectionV2, Phase, SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { clock, dur, size } from './format.ts';
+import { modelDisplayName, type ModelNames } from './model-name.ts';
 
 // The 2.0 panel's English, from the approved G2 mock copy table (docs/design/2.0-mock.html), amended by S2: no
 // sessions grant, so no other-chat or subagent reasons, and the inferred ⓘ says what can't be ruled out.
@@ -77,10 +78,10 @@ export const whyCopy = (key: string, rt: string, live: boolean, chatRuntime: str
 type Params = ReasonParams;
 const runtimeOf = (params: Params, key: string): string | null => typeof params[key] === 'string' ? RT[params[key] as RuntimeKind] ?? null : null;
 /** Alert → [title, detail]. The title can carry a model name (class B): it is for the in-view callout only. */
-export const alertCopy = (id: string, params: Params): [string, string] => {
+export const alertCopy = (id: string, params: Params, names?: ModelNames): [string, string] => {
   switch (id) {
     case 'runtime-lost': return [`${runtimeOf(params, 'runtime') ?? 'The server'} stopped responding`, 'Scope checks again automatically'];
-    case 'model-unloaded': return [typeof params.model === 'string' ? `${params.model} was unloaded` : 'A model was unloaded', 'Reported by the server · Scope never loads models'];
+    case 'model-unloaded': return [typeof params.model === 'string' ? `${modelDisplayName(params.model, names)} was unloaded` : 'A model was unloaded', 'Reported by the server · Scope never loads models'];
     case 'pressure-warning': return ['macOS memory pressure: warning', 'Reported by macOS · it may move some app memory to disk'];
     case 'pressure-critical': return ['macOS memory pressure: critical', 'Reported by macOS · replies may slow until memory frees up'];
     case 'swap-growth': return [`Swap grew ${typeof params.deltaBytes === 'number' ? size(params.deltaBytes) : 'quickly'}${typeof params.windowMs === 'number' ? ` in ${Math.max(1, Math.round(params.windowMs / 60_000))} min` : ''}`,

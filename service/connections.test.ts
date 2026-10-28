@@ -39,6 +39,25 @@ test('discovers OpenCode 2 providers and reads local endpoints and explicit keys
   expect(JSON.stringify(result)).not.toContain('cloud-only-fixture');
 });
 
+test('carries the names OpenCode gives a provider\'s models, bounded and only where they differ from the ID', async () => {
+  const many = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`org/model-${i}`, { name: `Model ${i}` }]));
+  const result = await resolve({ providers: {
+    splash: { name: 'Splash', settings: { baseURL: 'http://127.0.0.1:18181/v1' }, models: {
+      'ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF': { name: 'Qwen3.8-Flash-Next', limit: { context: 262144 } },
+      'unsloth/Ornith-1.5-122B-GGUF': { name: ' Ornith-1.5-122B\u0007 ' },
+      'same-as-id': { name: 'same-as-id' }, unnamed: {}, blank: { name: '   ' }, numeric: { name: 7 },
+    } },
+    omlx: { settings: { baseURL: 'http://127.0.0.1:8000/v1' }, models: many },
+  } });
+  expect(result.connections.find(item => item.id === 'splash')?.modelNames).toEqual([
+    { model: 'ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF', name: 'Qwen3.8-Flash-Next' },
+    { model: 'unsloth/Ornith-1.5-122B-GGUF', name: 'Ornith-1.5-122B' },
+  ]);
+  expect(result.connections.find(item => item.id === 'omlx')?.modelNames).toHaveLength(32);
+  const plain = await resolve({ providers: { omlx: { settings: { baseURL: 'http://127.0.0.1:8000/v1' } } } });
+  expect(plain.connections[0]).not.toHaveProperty('modelNames');
+});
+
 test('identifies Splash from its exact provider name while leaving unrelated IDs automatic', async () => {
   const result = await resolve({ providers: {
     splash: { name: 'Inco AI Splash', settings: { baseURL: 'http://127.0.0.1:8000/v1' } },
