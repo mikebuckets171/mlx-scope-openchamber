@@ -278,10 +278,13 @@ async function prepareBundle(options: CompanionSetupOptions, info: Inspection, a
   files.set(OWNER, { text: JSON.stringify({ schemaVersion: 1, owner: COMPANION_ID, installedAtMs, files: Object.fromEntries(COMPANION_FILES.map(name => [name, hash(files.get(name)!.text)])) }), mode: 0o600 });
   return files;
 }
-/** Only explicit enable/disable calls write. Status performs bounded local reads, never a CLI or runtime request. */
+/**
+ * Enable, disable and the one startup update below write; status performs bounded local reads, never a CLI or runtime
+ * request.
+ */
 export function createCompanionSetup(options: CompanionSetupOptions) {
   const now = options.now ?? Date.now;
-  let work: Promise<unknown> = Promise.resolve();
+  let work: Promise<unknown> = Promise.resolve(), automatic: Promise<boolean> | null = null, updatedAutomatically = false;
   const probe = async (): Promise<CompanionProbe | null> => { try { return await options.probe?.() ?? null; } catch { return null; } };
   /** A managed installation recorded with other bytes than this bundle needs the guided update, even at the same version. */
   const outdated = async (info: Inspection): Promise<boolean> => {
@@ -306,12 +309,13 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
     const current = supported && !stale && receipt.companionVersion === companionVersion && receipt.loadedAtMs >= installedAt;
     const live = !!(current && receipt.updatedAtMs && receipt.updatedAtMs <= now() + 1_000 && receipt.expiresAtMs && receipt.expiresAtMs > now() && receipt.expiresAtMs - receipt.updatedAtMs <= 15_000);
     const state = valid && !runtimeAccepted ? 'incompatible' : qualified && !supported ? 'error' : configured ? current ? 'ready' : 'pending' : 'disabled';
-    const message = state === 'incompatible' ? 'Chat estimates need OpenCode 2.0.25 or a later 2.0 release, or OpenCode 2.1.1 or a later 2.1 release. Runtime measurements remain available.'
+    const message = state === 'incompatible' ? 'Chat estimates need OpenCode 2.0.25 or a later OpenCode 2 release. Runtime measurements remain available.'
       : state === 'error' ? 'Chat observation hooks are unavailable. Native runtime measurements remain available.'
       : state === 'ready' ? live ? 'Chat tracking is connected. Estimates follow the chat you are watching.' : 'Chat tracking is ready for your next reply.'
         : state === 'pending' ? needsUpdate ? 'Update chat speed to install the current tracking helper.'
+          : updatedAutomatically ? 'Updated automatically · waiting for OpenCode to load the new tracking helper. Your current work can continue.'
           : 'Installed · waiting for OpenCode to load the updated tracking helper. Your current work can continue.'
-          : 'Enable delivery-speed estimates for local and cloud chats. Requires OpenCode 2.0.25 or a later 2.0 release, or OpenCode 2.1.1 or a later 2.1 release.';
+          : 'Enable delivery-speed estimates for local and cloud chats. Requires OpenCode 2.0.25 or a later OpenCode 2 release.';
     return { state, message, configured, managed: info.managed, canEnable: state !== 'incompatible', canDisable: configured || info.managed,
       runtimeVersion, companionVersion: loadedCompanionVersion, protocol, live,
       compatibility: { profile: profileFor(runtimeVersion)?.id ?? null, mode: modeFor(runtimeVersion),
@@ -376,5 +380,20 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
     work = task;
     return task;
   };
-  return { status, enable: () => change(true), disable: () => change(false) };
+  /**
+   * A helper Scope installed, still configured and unedited, is brought to this bundle once per service run by the same
+   * guarded replacement as Update chat speed. A disabled, manual, foreign or edited installation, or a runtime this
+   * bundle does not accept, is left alone for the guided path. Resolves whether files were replaced.
+   */
+  const update = (): Promise<boolean> => automatic ??= (async () => {
+    try {
+      const info = await inspect(options);
+      if (!info.managed || info.entry < 0 || (await describe(info)).state === 'incompatible') return false;
+      if (!await outdated(info) && json(info.files.get('package.json')?.text ?? '{}').version === companionVersion) return false;
+      const result = await change(true);
+      updatedAutomatically = result.state === 'pending' || result.state === 'ready';
+      return updatedAutomatically;
+    } catch { return false; }
+  })();
+  return { status, enable: () => change(true), disable: () => change(false), update };
 }

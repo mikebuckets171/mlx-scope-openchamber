@@ -245,7 +245,7 @@ describe('explicit companion setup', () => {
     await writeFile(join(f.addon, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.0.0' }));
     expect(await setup.status()).toMatchObject({ state: 'pending', live: false,
       message: 'Update chat speed to install the current tracking helper.' });
-    probe = receipt(at, { runtimeVersion: '2.1.0', supported: false, protocol: 'unsupported' });
+    probe = receipt(at, { runtimeVersion: '3.0.0', supported: false, protocol: 'unsupported' });
     const before = await readFile(f.config, 'utf8');
     expect(await setup.enable()).toMatchObject({ state: 'incompatible', canEnable: false, canDisable: true });
     expect(await readFile(f.config, 'utf8')).toBe(before);
@@ -268,8 +268,8 @@ describe('explicit companion setup', () => {
     expect(await setup.status()).toMatchObject({ state: 'error', live: false, compatibility: { activity: 'unavailable' } });
     probe = receipt(at, { runtimeVersion: '2.0.33', features: featureSupport('2.0.33') });
     expect(await setup.status()).toMatchObject({ state: 'ready', compatibility: { profile: null, mode: 'self-checked' } });
-    probe = receipt(at, { runtimeVersion: '2.1.0', protocol: 'unsupported', supported: false });
-    expect(await setup.status()).toMatchObject({ state: 'incompatible', message: expect.stringContaining('2.0.25 or a later 2.0 release, or OpenCode 2.1.1'),
+    probe = receipt(at, { runtimeVersion: '3.0.0', protocol: 'unsupported', supported: false });
+    expect(await setup.status()).toMatchObject({ state: 'incompatible', message: expect.stringContaining('2.0.25 or a later OpenCode 2 release'),
       compatibility: { profile: null, mode: 'unsupported', features: { 'prompt-progress': { support: 'unqualified', available: false } } } });
     probe = receipt(at, { runtimeVersion: '2.1.1-compaction.1', features: featureSupport('2.1.1-compaction.1') });
     expect(await setup.status()).toMatchObject({ state: 'ready', runtimeVersion: '2.1.1-compaction.1',
@@ -345,5 +345,76 @@ describe('explicit companion setup', () => {
     const results = await Promise.all([f.setup.enable(), f.setup.enable(), f.setup.enable()]);
     expect(results.every(result => result.state === 'pending')).toBe(true);
     expect(parse(await readFile(f.config, 'utf8')).plugins).toHaveLength(1);
+  });
+});
+
+describe('startup update of a Scope-managed helper', () => {
+  /** An installation from an earlier bundle, loaded on a runtime the earlier helper refused. */
+  async function installedEarlier(runtimeVersion = '2.2.0') {
+    let at = 40_000; const f = await fixture('{"plugins":["other-plugin"]}', { now: () => at });
+    await writeFile(join(f.bundle, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.5.0' }));
+    await writeFile(join(f.bundle, 'compatibility.js'), '// earlier rule\n');
+    await f.setup.enable();
+    await writeFile(join(f.bundle, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: companionVersion }));
+    await writeFile(join(f.bundle, 'compatibility.js'), '// current rule\n');
+    let probe: CompanionProbe = receipt(at, { runtimeVersion, companionVersion: '3.5.0', protocol: 'unsupported', supported: false });
+    const setup = createCompanionSetup({ ...f.options, now: () => at, probe: async () => probe });
+    return { f, setup, tick: () => { at += 100; return at; }, load: (value: CompanionProbe) => { probe = value; } };
+  }
+
+  it('replaces an earlier bundle once, by the guarded rename, and says it did', async () => {
+    const { f, setup, tick, load } = await installedEarlier();
+    const config = await readFile(f.config, 'utf8');
+    tick();
+    expect(await setup.update()).toBe(true);
+    expect(await readFile(join(f.addon, 'compatibility.js'), 'utf8')).toBe('// current rule\n');
+    expect(JSON.parse(await readFile(join(f.addon, 'package.json'), 'utf8')).version).toBe(companionVersion);
+    // Only the managed entry's revision changes; the other plugin stays where it was.
+    const plugins = parse(await readFile(f.config, 'utf8')).plugins;
+    expect(plugins[0]).toBe('other-plugin');
+    expect(plugins[1].options.scopeRevision).not.toBe(parse(config).plugins[1].options.scopeRevision);
+    expect(await setup.status()).toMatchObject({ state: 'pending', message: expect.stringContaining('Updated automatically') });
+    // Once per service run: a later bundle change waits for the guided path.
+    await writeFile(join(f.bundle, 'chat.js'), '// later tracker\n');
+    expect(await setup.update()).toBe(true);
+    expect(await readFile(join(f.addon, 'chat.js'), 'utf8')).not.toBe('// later tracker\n');
+    tick(); load(receipt(tick(), { runtimeVersion: '2.2.0', features: featureSupport('2.2.0') }));
+    await writeFile(join(f.bundle, 'chat.js'), '// bundled chat.js\n');
+    expect((await setup.status()).state).toBe('ready');
+  });
+
+  it('leaves edited, disabled, manual and current installations and refused runtimes untouched', async () => {
+    const edited = await installedEarlier();
+    await writeFile(join(edited.f.addon, 'index.js'), '// user customization');
+    expect(await edited.setup.update()).toBe(false);
+    expect(await readFile(join(edited.f.addon, 'index.js'), 'utf8')).toBe('// user customization');
+    expect(await readFile(join(edited.f.addon, 'compatibility.js'), 'utf8')).toBe('// earlier rule\n');
+
+    const refused = await installedEarlier('3.0.0'), before = await readFile(refused.f.config, 'utf8');
+    expect(await refused.setup.update()).toBe(false);
+    expect(await readFile(join(refused.f.addon, 'compatibility.js'), 'utf8')).toBe('// earlier rule\n');
+    expect(await readFile(refused.f.config, 'utf8')).toBe(before);
+
+    const disabled = await installedEarlier();
+    await disabled.setup.disable();
+    expect(await disabled.setup.update()).toBe(false);
+    expect(await readdir(join(disabled.f.root, 'addons'))).toEqual([]);
+
+    const manual = await fixture(JSON.stringify({ plugins: [] }));
+    await mkdir(manual.addon, { recursive: true });
+    await writeFile(join(manual.addon, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.5.0' }));
+    await writeFile(manual.config, JSON.stringify({ plugins: [manual.addon] }));
+    expect(await manual.setup.update()).toBe(false);
+    expect(await readdir(manual.addon)).toEqual(['package.json']);
+
+    const current = await fixture('{}'); await current.setup.enable();
+    const inode = (await stat(join(current.addon, 'chat.js'))).ino, config = await readFile(current.config, 'utf8');
+    expect(await createCompanionSetup(current.options).update()).toBe(false);
+    expect((await stat(join(current.addon, 'chat.js'))).ino).toBe(inode);
+    expect(await readFile(current.config, 'utf8')).toBe(config);
+
+    const none = await fixture();
+    expect(await none.setup.update()).toBe(false);
+    expect(await readdir(none.root)).toEqual([]);
   });
 });
