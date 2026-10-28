@@ -384,7 +384,7 @@ test('observer shares one subscription, aborts hidden work, handles reconnect an
   } finally { await observer.close(); }
   const unknown = createChatObserver({ now: () => now, intervalMs: 100_000, storeFactory: memory,
     readDemand: async () => demand(now), heartbeat: async value => heartbeats.push(value) });
-  await unknown.attach(makeContext('2.1.0')); assert.equal(subscriptions, 2); assert.equal(heartbeats.at(-1).supported, false); await unknown.close();
+  await unknown.attach(makeContext('3.0.0')); assert.equal(subscriptions, 2); assert.equal(heartbeats.at(-1).supported, false); await unknown.close();
 });
 
 test('a demand file refused by the private-mode gate is reported once, unlike absent demand', async () => {

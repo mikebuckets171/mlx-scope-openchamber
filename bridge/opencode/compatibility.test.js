@@ -4,32 +4,33 @@ import { CHAT_PROTOCOL, FEATURE_IDS, REVIEWED_BUILDS, acceptsChatProtocol, accep
 import { QUALIFIED_VERSIONS, candidateProfile, modeFor, profileFor } from './qualified.js';
 import { makePlugin } from './index.js';
 
-test('the helper accepts the reviewed OpenCode lines and reviewed local builds only', () => {
-  for (const version of ['2.0.25', '2.0.26', '2.0.29', '2.0.32', '2.0.33', '2.0.100', '2.0.9999', '2.1.1', '2.1.2', '2.1.9999']) {
+test('the helper accepts every OpenCode 2 release from 2.0.25 and reviewed local builds only', () => {
+  for (const version of ['2.0.25', '2.0.26', '2.0.29', '2.0.32', '2.0.33', '2.0.100', '2.0.9999', '2.1.0', '2.1.1', '2.1.2', '2.1.9999',
+    '2.2.0', '2.2.1', '2.3.0', '2.10.25', '2.9999.9999']) {
     assert.equal(acceptsRuntime(version), true, version);
     assert.equal(acceptsChatProtocol(version, CHAT_PROTOCOL), true);
     assert.equal(acceptsChatProtocol(version, 'future-wire'), false);
     assert.equal(acceptsChatProtocol(version, undefined), false);
   }
   for (const version of REVIEWED_BUILDS) assert.equal(acceptsRuntime(version), true, version);
-  for (const version of [undefined, null, '', 2.0, '2.0.24', '2.0.0', '2.0.032', '2.0.25-custom', '2.0.32.1', ' 2.0.32', '2.1.0', '2.1.01',
-    '2.1.1-compaction', '2.1.1-compaction.2', '2.1.1-custom', '2.1.2-rc.1', '2.2.0', '2.10.25', '3.0.0', '1.19.3', '2.0.10000'])
+  for (const version of [undefined, null, '', 2.0, '2.0.24', '2.0.0', '2.0.032', '2.0.25-custom', '2.0.32.1', ' 2.0.32', '2.1.01', '2.01.1',
+    '2.1.1-compaction', '2.1.1-compaction.2', '2.1.1-custom', '2.1.2-rc.1', '2.2.0-beta.1', '2.10000.0', '3.0.0', '1.19.3', '2.0.10000'])
     assert.equal(acceptsRuntime(version), false, String(version));
 });
 
 test('native qualification is a separate service-side record of exact versions', () => {
-  assert.deepEqual(QUALIFIED_VERSIONS, ['2.0.25', '2.0.27', '2.0.28', '2.0.29', '2.0.32', '2.1.1-compaction.1']);
+  assert.deepEqual(QUALIFIED_VERSIONS, ['2.0.25', '2.0.27', '2.0.28', '2.0.29', '2.0.32', '2.1.1-compaction.1', '2.2.0']);
   for (const version of QUALIFIED_VERSIONS) {
     assert.equal(profileFor(version).id, `opencode-${version}-v1`);
     assert.equal(profileFor(version).websocketCancellation, version === '2.0.25' ? 'unit-only' : 'native');
     assert.equal(modeFor(version), 'qualified');
   }
-  for (const version of ['2.0.26', '2.0.30', '2.0.31', '2.0.33', '2.1.1', '2.1.2']) {
+  for (const version of ['2.0.26', '2.0.30', '2.0.31', '2.0.33', '2.1.0', '2.1.1', '2.1.2', '2.2.1', '2.3.0']) {
     assert.equal(profileFor(version), null);
     assert.equal(modeFor(version), 'self-checked');
     assert.equal(candidateProfile(version).candidate, true);
   }
-  for (const version of ['2.0.24', '2.1.0', '2.2.0', '2.0.32-custom', undefined]) {
+  for (const version of ['2.0.24', '3.0.0', '2.0.32-custom', undefined]) {
     assert.equal(modeFor(version), 'unsupported');
     assert.equal(candidateProfile(version), null);
   }
@@ -46,7 +47,7 @@ test('feature status carries checks, upgrades 3.3 helpers, and rejects contradic
   // A 3.3 helper's `qualified` claim means the same as `compatible`.
   const legacy = Object.fromEntries(FEATURE_IDS.map(id => [id, { support: 'qualified', available: id === 'http-delivery' }]));
   assert.deepEqual(parseFeatures(legacy, '2.0.29')['http-delivery'], { support: 'compatible', available: true });
-  assert.equal(parseFeatures(legacy, '2.1.0'), undefined);
+  assert.equal(parseFeatures(legacy, '3.0.0'), undefined);
   for (const contradiction of [
     { 'http-delivery': { support: 'unavailable', available: true } },
     { 'http-delivery': { support: 'compatible', available: true, check: { state: 'failed', reason: 'event-shape' } } },
@@ -73,8 +74,8 @@ async function fixture(reject, observerFails = false, { version = '2.0.32', hook
   return { hooks, disposed, warnings, dispose, get features() { return features; } };
 }
 
-test('an unsupported release line installs no hook and leaves every feature unqualified', async () => {
-  const f = await fixture(null, false, { version: '2.2.0' });
+test('an unsupported major release installs no hook and leaves every feature unqualified', async () => {
+  const f = await fixture(null, false, { version: '3.0.0' });
   assert.deepEqual(f.hooks, []);
   for (const id of FEATURE_IDS) assert.deepEqual(f.features[id], { support: 'unqualified', available: false });
   await f.dispose();

@@ -43,8 +43,8 @@ for (const version of ['2.0.25', '2.0.27', '2.0.28', '2.0.29', '2.0.32', '2.0.33
   await reader.read(); assert.equal(plugin.store.entries.size, 0); await reader.cancel(); await plugin.dispose();
 });
 
-test('versions outside the accepted 2.0 line never install prompt request mutation or alter a request', async () => {
-  for (const version of ['2.0.24', '2.1.0', '2.0.25-custom', undefined]) {
+test('versions outside the accepted OpenCode 2 releases never install prompt request mutation or alter a request', async () => {
+  for (const version of ['2.0.24', '3.0.0', '2.0.25-custom', undefined]) {
     const plugin = await setup(memory(), {}, version ?? 'unknown'), input = event(), original = input.request;
     assert.equal(plugin.hooks.size, 0);
     assert.equal(input.request, original);
