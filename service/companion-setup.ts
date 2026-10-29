@@ -326,7 +326,7 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
     message: error instanceof SetupError ? error.message : 'Companion setup could not finish. Existing configuration was preserved; check local file access and try again.',
     configured: false, managed: false, canEnable: false, canDisable: false, runtimeVersion: null, companionVersion: null, protocol: null, live: false });
   const status = async (): Promise<CompanionSetupStatus> => { try { return await describe(await inspect(options)); } catch (error) { return errorStatus(error); } };
-  const change = (enabled: boolean): Promise<CompanionSetupStatus> => {
+  const change = (enabled: boolean, automaticUpdate = false): Promise<CompanionSetupStatus> => {
     const task = work.catch(() => {}).then(async () => {
       let lock: Awaited<ReturnType<typeof open>> | undefined, lockPath: string | undefined;
       let created = false, configCommitted = false, info: Inspection | undefined;
@@ -334,6 +334,13 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
       try {
         info = await inspect(options);
         if (enabled && (await describe(info)).state === 'incompatible') return describe(info);
+        if (automaticUpdate) {
+          // Recheck inside the queue: a Disable ahead of this update must never be undone.
+          if (!info.managed || info.entry < 0) return describe(info);
+          const owned = object(info.marker?.files)!;
+          if (COMPANION_FILES.some(name => !info!.files.has(name) || hash(info!.files.get(name)!.text) !== owned[name])) return describe(info);
+          if (!await outdated(info) && json(info.files.get('package.json')?.text ?? '{}').version === companionVersion) return describe(info);
+        }
         const files = enabled ? await prepareBundle(options, info, now()) : null;
         await safeParents(info.root); await mkdir(info.root, { recursive: true, mode: 0o700 });
         const candidate = join(info.root, '.mlx-scope-setup.lock');
@@ -350,6 +357,7 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
           await options.beforeConfigCommit?.();
           await commitConfig(info.document, text);
           configCommitted = true;
+          if (automaticUpdate) updatedAutomatically = true;
         } else {
           await options.beforeConfigCommit?.(); await commitConfig(info.document, text); configCommitted = true;
           // Modified or unowned files survive removal. A manual legacy install is disabled, never deleted.
@@ -385,15 +393,6 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
    * guarded replacement as Update chat speed. A disabled, manual, foreign or edited installation, or a runtime this
    * bundle does not accept, is left alone for the guided path. Resolves whether files were replaced.
    */
-  const update = (): Promise<boolean> => automatic ??= (async () => {
-    try {
-      const info = await inspect(options);
-      if (!info.managed || info.entry < 0 || (await describe(info)).state === 'incompatible') return false;
-      if (!await outdated(info) && json(info.files.get('package.json')?.text ?? '{}').version === companionVersion) return false;
-      const result = await change(true);
-      updatedAutomatically = result.state === 'pending' || result.state === 'ready';
-      return updatedAutomatically;
-    } catch { return false; }
-  })();
+  const update = (): Promise<boolean> => automatic ??= change(true, true).then(() => updatedAutomatically);
   return { status, enable: () => change(true), disable: () => change(false), update };
 }

@@ -76,7 +76,9 @@ summaries are accepted only from the runtime's own lifecycle lines, so generated
   titles, paths, keys and prompt text never reach these paths.
 - Sharing requires a user action. Draft sharing appends and cannot send.
 - Only one visible view writes history storage. The service writes a private, expiring chat-demand file while watched;
-  explicit companion setup can install owned plugin files and update the plugin configuration.
+  explicit companion setup can install owned plugin files and update the plugin configuration. At service startup,
+  a Scope update can replace its configured, unchanged owned helper and update only that entry's revision; disabled,
+  edited or unowned installations are left alone. Status reads never perform that update.
 
 Automated checks cover these contracts: unit and fixture tests, privacy canaries across every share path, a
 committed-file scrub, the package checks, and browser tests. They are not an independent security audit or a guarantee

@@ -417,4 +417,29 @@ describe('startup update of a Scope-managed helper', () => {
     expect(await none.setup.update()).toBe(false);
     expect(await readdir(none.root)).toEqual([]);
   });
+
+  it('never re-enables a helper disabled ahead of the automatic update', async () => {
+    const { f, setup } = await installedEarlier();
+    const disabling = setup.disable(), updating = setup.update();
+    await disabling;
+    expect(await updating).toBe(false);
+    expect(parse(await readFile(f.config, 'utf8')).plugins).toEqual(['other-plugin']);
+    expect(await readdir(join(f.root, 'addons'))).toEqual([]);
+  });
+
+  it('rolls back a config conflict and does not retry a failed automatic update', async () => {
+    const { f } = await installedEarlier();
+    let attempts = 0;
+    const newer = '{"plugins":["user-change"]}';
+    const setup = createCompanionSetup({ ...f.options, beforeConfigCommit: async () => {
+      attempts++;
+      await writeFile(f.config, newer);
+    } });
+    expect(await setup.update()).toBe(false);
+    expect(attempts).toBe(1);
+    expect(await readFile(f.config, 'utf8')).toBe(newer);
+    expect(await readFile(join(f.addon, 'compatibility.js'), 'utf8')).toBe('// earlier rule\n');
+    expect(await setup.update()).toBe(false);
+    expect(attempts).toBe(1);
+  });
 });
