@@ -178,7 +178,7 @@ class HistoryViewHandle implements ViewHandle {
     if (state !== 'stopped') this.#paused = state === 'paused';
     this.#refresh();
     // Polls come up to twice a second; the view only needs the connection, alert log, pause state and the minute (clock labels).
-    const s = snapshot, stamp = JSON.stringify([connection(s), s?.connection.engine, s?.connection.host, !!s?.capabilities['server.usage'],
+    const s = snapshot, stamp = JSON.stringify([connection(s), s?.connection.engine, s?.connection.host, s?.connection.modelNames, !!s?.capabilities['server.usage'],
       s?.runtime.request?.model ?? s?.runtime.residency[0]?.model, s?.alertLog, this.#paused, Math.floor(this.#context.now() / 60_000)]);
     if (stamp !== this.#stamp) { this.#stamp = stamp; this.#render(); }
     else if (this.#inspection === 'current' && this.#context.visible()) this.#renderInspection();
@@ -296,7 +296,7 @@ class HistoryViewHandle implements ViewHandle {
       now: this.#context.now(), trend: this.#trend, rows: this.#rows, models: this.#models, baselines: this.#baselines, flags: this.#regressions.current,
       usage: s?.capabilities['server.usage'] ? this.#usage : null, storage: this.#deps.ledger.accounting(), paused: this.#paused, retentionDays: this.#retention,
       alertLog: s?.alertLog ?? [], runtimeName: runtime ? connectionName(runtime, { engine: s!.connection.engine ?? null, host: s!.connection.host ?? null }) : undefined,
-      model: s?.runtime.request?.model ?? s?.runtime.residency[0]?.model ?? null, modelNames: s?.connection.modelNames, windowMs: this.#windowMs, usageRange: this.#usageRange, trendError: this.#trendError,
+      model: s?.runtime.request?.model ?? s?.runtime.residency[0]?.model ?? null, modelNames: s?.connection.modelNames, modelProvider: s?.connection.id, windowMs: this.#windowMs, usageRange: this.#usageRange, trendError: this.#trendError,
       confirmClear: this.#confirm, listLimit: this.#listLimit, recording: this.#deps.ledger.state === 'backoff' ? 'backoff' : 'recording',
       ...this.#deps.text ? { text: this.#deps.text } : {},
     });
@@ -371,7 +371,7 @@ class HistoryViewHandle implements ViewHandle {
     const row = this.#rows.find(row => row[0] !== 'g' && rowIdentity(row) === key);
     const refs = row?.[0] === 'r' ? comparableRuns(row, this.#rows) : null;
     const reference = refs?.find(row => row[17] === this.#reference);
-    renderRun(this.#detailRoot, current ? presentCurrentRun(current) : row && row[0] !== 'g' ? presentRecordedRun(row, this.#models, this.#context.now(), this.#snapshot?.connection.modelNames)
+    renderRun(this.#detailRoot, current ? presentCurrentRun(current) : row && row[0] !== 'g' ? presentRecordedRun(row, this.#models, this.#context.now(), this.#snapshot?.connection.modelNames, this.#snapshot?.connection.id)
       : { title: 'Run details', identity: '', facts: [], notes: ['This observation is unavailable. It may have expired or been cleared.'] },
       refs?.map((row, index) => ({ key: row[17], label: `${index + 1}. ${clock(row[1] * 1000, this.#context.now())}${row[11] === null ? '' : ` · ${row[11] / 10} tok/s`}` })) ?? null,
       this.#reference, row?.[0] === 'r' && reference ? compareRuns(row, reference) : [], focus);

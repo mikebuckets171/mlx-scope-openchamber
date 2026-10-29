@@ -49,6 +49,22 @@ test('parallel views coalesce inventory reads and do no autonomous work', async 
   expect(requests).toBe(2);
 });
 
+test('display names follow refreshed configuration without changing runtime identity or forcing a fresh collection', async () => {
+  let now = 0, reads = 0, name = 'Friendly model';
+  const client = new RuntimeClient({ monotonicNow: () => now, descriptors,
+    readConfig: async () => configuration({ ...connection('studio', 'lmstudio'), modelNames: [{ model: 'org/model', name }] }),
+    fetchImpl: async () => { reads++; return json({ models: [] }); } });
+  try {
+    const before = await client.read();
+    expect(before.meta.connection.modelNames).toEqual([{ model: 'org/model', name: 'Friendly model' }]);
+    name = 'Renamed model'; now = 5000;
+    const after = await client.read();
+    expect(after.meta.connection.modelNames).toEqual([{ model: 'org/model', name: 'Renamed model' }]);
+    expect(after.meta.connection.generation).toBe(before.meta.connection.generation);
+    expect(reads).toBe(2);
+  } finally { client.dispose(); }
+});
+
 test('rapid selection changes cannot evict active reads and exceed the collection bound', async () => {
   let requests = 0, release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -486,4 +502,3 @@ test('a reading from a glance frame is refreshed for the Server tab once the flo
   now += 1_000; await client.read(undefined, { tier: 'glance', detail: false });
   expect(requests).toBe(2);
 });
-

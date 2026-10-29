@@ -63,13 +63,13 @@ const statusCallout = (snapshot: SnapshotV2, copy: StatusCopy, now: number): Cal
 export const visibleAlerts = (snapshot: SnapshotV2): AlertV2[] => snapshot.alerts
   .filter(alert => !(alert.id === 'runtime-lost' && snapshot.status.state === 'failing') && !(alert.id === 'splash-recovering' && snapshot.status.state === 'recovering'))
   .sort((a, b) => bySeverity(a, b) || b.since - a.since);
-export const alertCallout = (alert: AlertV2, now: number, names?: ModelNames): Callout => {
-  const [title, detail] = alertCopy(alert.id, alert.params, names);
+export const alertCallout = (alert: AlertV2, now: number, names?: ModelNames, provider?: string): Callout => {
+  const [title, detail] = alertCopy(alert.id, alert.params, names, provider);
   return { key: `alert-${alert.id}`, severity: alert.severity, title, detail, since: sinceText(alert.since, now), action: null };
 };
 /** The status message and every alert, most severe first; the view shows the first and puts the rest behind "N more". */
 export const callouts = (snapshot: SnapshotV2 | null, now: number, extra: readonly Callout[] = []): Callout[] => {
   const status = snapshot ? statusCopy(snapshot) : null;
-  return [...extra, ...status && snapshot ? [statusCallout(snapshot, status, now)] : [], ...snapshot ? visibleAlerts(snapshot).map(alert => alertCallout(alert, now, snapshot.connection.modelNames)) : []]
+  return [...extra, ...status && snapshot ? [statusCallout(snapshot, status, now)] : [], ...snapshot ? visibleAlerts(snapshot).map(alert => alertCallout(alert, now, snapshot.connection.modelNames, snapshot.connection.id)) : []]
     .sort(bySeverity);
 };

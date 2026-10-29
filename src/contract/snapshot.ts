@@ -302,7 +302,7 @@ const connection = (value: unknown): ConnectionV2 | null => {
   });
 };
 const modelName = (value: unknown): { model: string; name: string } | null => {
-  const item = obj(value), model = modelLabel(item?.model), name = label(item?.name, 80);
+  const item = obj(value), model = modelLabel(item?.model), name = modelLabel(item?.name, 80);
   return model && name ? { model, name } : null;
 };
 const status = (value: unknown): StatusV2 | null => {

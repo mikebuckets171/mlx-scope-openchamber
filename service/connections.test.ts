@@ -46,12 +46,14 @@ test('carries the names OpenCode gives a provider\'s models, bounded and only wh
       'ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF': { name: 'Qwen3.8-Flash-Next', limit: { context: 262144 } },
       'unsloth/Ornith-1.5-122B-GGUF': { name: ' Ornith-1.5-122B\u0007 ' },
       'same-as-id': { name: 'same-as-id' }, unnamed: {}, blank: { name: '   ' }, numeric: { name: 7 },
+      '/fixture/models/local.gguf': { name: '/fixture/names/Local model' },
     } },
     omlx: { settings: { baseURL: 'http://127.0.0.1:8000/v1' }, models: many },
   } });
   expect(result.connections.find(item => item.id === 'splash')?.modelNames).toEqual([
     { model: 'ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF', name: 'Qwen3.8-Flash-Next' },
     { model: 'unsloth/Ornith-1.5-122B-GGUF', name: 'Ornith-1.5-122B' },
+    { model: 'local.gguf', name: 'Local model' },
   ]);
   expect(result.connections.find(item => item.id === 'omlx')?.modelNames).toHaveLength(32);
   const plain = await resolve({ providers: { omlx: { settings: { baseURL: 'http://127.0.0.1:8000/v1' } } } });

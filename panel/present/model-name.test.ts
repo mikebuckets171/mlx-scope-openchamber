@@ -16,10 +16,11 @@ const MODEL = 'ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF', NAME = 'Qwen3.8-Fla
 const NAMES = [{ model: MODEL, name: NAME }, { model: 'unsloth/Ornith-1.5-122B-GGUF', name: 'Ornith-1.5-122B' }];
 
 test('OpenCode names match the reported ID, its quantization variant and the provider-prefixed form only', () => {
-  for (const model of [MODEL, `${MODEL}:IQ3_XXS`, `splash/${MODEL}`, `splash/${MODEL}:IQ3_XXS`]) expect(modelDisplayName(model, NAMES)).toBe(NAME);
+  for (const model of [MODEL, `${MODEL}:IQ3_XXS`, `splash/${MODEL}`, `splash/${MODEL}:IQ3_XXS`]) expect(modelDisplayName(model, NAMES, 'splash')).toBe(NAME);
   expect(modelDisplayName('unsloth/Ornith-1.5-122B-GGUF:UD-Q3_K_XL', NAMES)).toBe('Ornith-1.5-122B');
-  for (const model of ['SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF', 'other/Qwen3.8-Flash-Next-GSQ-RCO-GGUF', 'Qwen3.8-Flash-Next', MODEL.toLowerCase()])
-    expect(modelDisplayName(model, NAMES)).toBe(model);
+  for (const model of ['SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF', 'other/Qwen3.8-Flash-Next-GSQ-RCO-GGUF', `other/${MODEL}`, 'Qwen3.8-Flash-Next', MODEL.toLowerCase()])
+    expect(modelDisplayName(model, NAMES, 'splash')).toBe(model);
+  expect(modelDisplayName(`splash/${MODEL}`, NAMES)).toBe(`splash/${MODEL}`);
   expect(modelDisplayName(MODEL, undefined)).toBe(MODEL);
   expect(modelDisplayName(MODEL, [])).toBe(MODEL);
 });

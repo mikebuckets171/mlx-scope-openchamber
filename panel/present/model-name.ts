@@ -7,11 +7,11 @@ const variant = (id: string): string => id.replace(/:[^/:]+$/, '');
 
 /**
  * The name the provider's OpenCode entry gives a model, as its model picker shows it. A runtime may report the ID with a
- * `:variant` suffix (a GGUF quantization) or OpenCode's `provider/` prefix; anything still unmatched shows as reported.
+ * `:variant` suffix (a GGUF quantization) or the known connection's `provider/` prefix; unmatched IDs stay as reported.
  */
-export const modelDisplayName = (model: string, names: ModelNames | undefined): string => {
+export const modelDisplayName = (model: string, names: ModelNames | undefined, provider?: string): string => {
   if (!names?.length) return model;
   const named = (id: string): string | undefined => names.find(entry => entry.model === id)?.name;
-  const rest = model.includes('/') ? model.slice(model.indexOf('/') + 1) : null;
+  const rest = provider && model.startsWith(`${provider}/`) ? model.slice(provider.length + 1) : null;
   return named(model) ?? named(variant(model)) ?? (rest === null ? undefined : named(rest) ?? named(variant(rest))) ?? model;
 };
