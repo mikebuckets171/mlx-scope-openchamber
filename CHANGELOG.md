@@ -24,13 +24,17 @@
 While llama-swap 268's new **Pause** is on, Scope shows its backend as idle: llama-swap reports that state only through
 endpoints Scope does not call.
 
-Before publication on macOS, type checking, the privacy scan, the Bun, companion and helper tests, reproducible bundles
-and package verification passed. Against the OpenCode 2.2.0 binary bundled with OpenChamber 2.5.3, with synthetic
+Before publication on macOS, type checking, the privacy scan (679 files), 1,842 Bun tests, 81 companion tests, 15 helper
+tests, reproducible bundles and package verification passed, as did all 624 Chromium/WebKit browser cases and the
+21 presentation goldens. Playwright was updated to stable 1.64.1; 33 PNG goldens were reviewed and regenerated only for
+native control rendering changes, with no layout, dimension or text-golden changes. Against the OpenCode 2.2.0 binary
+bundled with OpenChamber 2.5.3, with synthetic
 loopback providers, companion 3.6.0 passed local HTTP with advancing prompt progress, synthetic-remote HTTP, WebSocket
 reuse on one connection with six tool continuations and cancellation, a compaction that published no chat measurement
 followed by a measured resumed step, and managed hot reload from the installed 3.5.0 helper with no server restart and
 no duplicated request. No real model, inference or cloud account was involved.
 [Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/companion-3.6.0.json).
+Full verification and limits: [5.3.0 verification](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/5.3.0-verification.md).
 
 ## 5.2.0
 
