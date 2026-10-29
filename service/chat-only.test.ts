@@ -161,7 +161,7 @@ test('remote freshness, cancellation, missing writers and unqualified companions
   await f.write([{ ...f.remote, measurement: cancelled }]);
   expect((await request(query())).chat).toEqual(cancelled);
   // Unsupported companion generations disable estimates without breaking the surrounding snapshot.
-  for (const overrides of [{ companionVersion: '2.1.6' }, { protocol: 'opencode-future' }, { runtimeVersion: '2.1.0' }]) {
+  for (const overrides of [{ companionVersion: '2.1.6' }, { protocol: 'opencode-future' }, { runtimeVersion: '3.0.0' }]) {
     await f.write([{ ...f.remote, measurement: measurement(f.clock.now) }], overrides);
     expect((await request(query())).chat).toBeUndefined();
   }

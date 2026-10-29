@@ -33,7 +33,7 @@ test('wrong endpoint, stale or future observations and unknown protocols have no
   const f=await fixture(), telemetry=new ChatTelemetry(f.home,()=>at);
   for (const body of [
     {...f.body,entries:[{...target,endpointKey:'e'.repeat(64),measurement}]},
-    {...f.body,updatedAtMs:at+1}, {...f.body,expiresAtMs:at}, {...f.body,protocol:'future'}, {...f.body,runtimeVersion:'2.1.0'}, {...f.body,companionVersion:'2.1.6'}, {...f.body,companionVersion:'4.0.0'}, {...f.body,companionVersion:'3.4'},
+    {...f.body,updatedAtMs:at+1}, {...f.body,expiresAtMs:at}, {...f.body,protocol:'future'}, {...f.body,runtimeVersion:'3.0.0'}, {...f.body,companionVersion:'2.1.6'}, {...f.body,companionVersion:'4.0.0'}, {...f.body,companionVersion:'3.4'},
     {...f.body,entries:[{...target,measurement:{...measurement,expiresAtMs:at}}]},
   ]) { await f.write(body); expect(await telemetry.observe('11111111',target)).toBeNull(); }
   await telemetry.dispose();
@@ -44,7 +44,7 @@ for (const runtimeVersion of ['2.0.27', '2.0.28', '2.0.29', '2.0.32', '2.0.33'])
   expect(await telemetry.observe('11111111', target)).toEqual(measurement);
   await f.write({ ...f.body, runtimeVersion, companionVersion: '3.3.0' });
   expect(await telemetry.observe('11111111', target)).toEqual(measurement);
-  for (const extra of [{ companionVersion: '2.9.9' }, { companionVersion: '4.0.0' }, { protocol: 'unsupported' }, { runtimeVersion: '2.1.0' },
+  for (const extra of [{ companionVersion: '2.9.9' }, { companionVersion: '4.0.0' }, { protocol: 'unsupported' }, { runtimeVersion: '3.0.0' },
     { runtimeVersion: '2.0.27-custom' }, { runtimeVersion: '2.0.28-custom' }, { runtimeVersion: '2.0.29-custom' },
     { runtimeVersion: '2.0.24' }, { runtimeVersion: '2.0.029' }]) {
     await f.write({ ...f.body, runtimeVersion, ...extra });
@@ -61,7 +61,7 @@ test('legacy heartbeats still parse and optional feature metadata is allowlisted
   const features = featureSupport('2.0.25'); features['http-delivery'].available = true;
   await f.write({ ...heartbeat, features: { ...features, privateContent: 'not retained' } }, 'heartbeat.json');
   expect((await telemetry.probe())?.features).toEqual(features);
-  await f.write({ ...heartbeat, runtimeVersion: '2.1.0', features }, 'heartbeat.json');
+  await f.write({ ...heartbeat, runtimeVersion: '3.0.0', features }, 'heartbeat.json');
   expect((await telemetry.probe())?.features).toBeUndefined();
   await telemetry.dispose();
 });

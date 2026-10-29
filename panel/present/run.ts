@@ -6,6 +6,7 @@ import { RT } from './copy.ts';
 import { clock, delta, dur, int, kt, pct, tps } from './format.ts';
 import { attrChip, HISTORY_TEXT } from './history.ts';
 import { presentLive } from './live.ts';
+import { modelDisplayName, type ModelNames } from './model-name.ts';
 import type { ScopeInput } from './scope.ts';
 
 export interface RunFact { label: string; value: string; basis: Basis; scope?: string }
@@ -21,7 +22,7 @@ const fact = (facts: RunFact[], label: string, value: number | null | undefined,
 const rate = (n: number): string => `${tps(n / 10)} tok/s`;
 
 /** A stored row is a bounded observation, never a reconstructed phase timeline. */
-export const presentRecordedRun = (row: ReplyRow | TurnRow, models: readonly string[], now: number): RunDetail => {
+export const presentRecordedRun = (row: ReplyRow | TurnRow, models: readonly string[], now: number, names?: ModelNames, provider?: string): RunDetail => {
   const reply = row[0] === 'r', rt = reply ? row[2] : row[3], ref = reply ? row[3] : row[4];
   const facts: RunFact[] = [], notes = ['Stage boundaries and complete observation coverage were not stored.'];
   const basis = reply ? row[12] : 'derived', bits = reply ? row[15] : row[11];
@@ -48,7 +49,7 @@ export const presentRecordedRun = (row: ReplyRow | TurnRow, models: readonly str
   if (observed.length) notes.push(`Also observed: ${observed.join(', ')}. These conditions do not establish the cause of a slow run.`);
   if (bits & (COFACTOR.overlapped | COFACTOR.aggregate)) notes.push('Requests overlapped or were aggregated; per-reply comparisons are unavailable.');
   return { title: reply ? 'Recorded reply' : 'Recorded turn', facts, notes,
-    identity: [RT[rt], ref === null ? null : models[ref], clock((reply ? row[1] : row[2]) * 1000, now), attrChip(reply ? row[13] : row[10], HISTORY_TEXT).text].filter(Boolean).join(' · ') };
+    identity: [RT[rt], ref === null || !models[ref] ? null : modelDisplayName(models[ref]!, names, provider), clock((reply ? row[1] : row[2]) * 1000, now), attrChip(reply ? row[13] : row[10], HISTORY_TEXT).text].filter(Boolean).join(' · ') };
 };
 
 /** Per-metric groups and matching bases prevent mixing native, estimated and last-observed meanings. */

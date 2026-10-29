@@ -7,28 +7,27 @@ export const FEATURE_IDS = ['http-delivery', 'websocket-delivery', 'prompt-progr
 export const CHECK_REASONS = ['hook-missing', 'hook-rejected', 'events-missing', 'event-shape', 'session-header', 'options'];
 const CHECK_STATES = ['waiting', 'passed', 'failed'];
 
-/** First patch of each accepted line whose released contract this helper reads: 2.0.25, and 2.1.1. */
-const LINES = new Map([['0', 25], ['1', 1]]);
+/** OpenCode 2.0.25 introduced the public plugin and event contract this helper reads. */
+const FIRST_PATCH = 25;
 /**
  * Locally built runtimes report a suffixed version, which no rule can bound. Only reviewed identifiers are listed,
- * never a pattern: an unreviewed build stays unsupported, exactly as an unrecognised release line does.
+ * never a pattern: an unreviewed build stays unsupported, exactly as a different major release does.
  */
 export const REVIEWED_BUILDS = ['2.1.1-compaction.1'];
 /**
- * OpenCode 2.0.25 introduced the public plugin and event contract this helper reads; the 2.1 line keeps it. Compared
- * tag to tag (v2.0.32 → v2.1.1), every consumed name and field is unchanged: the session hook names and request kinds,
- * the `x-opencode-session-id` request header, the event envelope, and the session events and usage figures read here.
- * 2.1 changed how a compaction stores what it keeps — `metadata.keepID` plus the `metadata.recent` that
- * `session.context` materializes, where 2.0 stored the recent text on the event — and renamed optional `providerState`
- * to `native`. Neither field is read here; `session.compaction.started` is used only as a reset signal. Two new events
- * (`session.archived`, `session.unarchived`) are outside every rule this helper applies.
+ * Every OpenCode 2 release from 2.0.25 is accepted: minor releases have kept the contract (v2.0.32 → v2.1.1 → v2.2.0
+ * compared tag to tag), and the checks below withdraw only the feature whose hook or event shape a release changes, so
+ * a new minor needs no new helper. 2.1 changed how a compaction stores what it keeps (`metadata.keepID`, and the
+ * `metadata.recent` that `session.context` materializes) and renamed optional `providerState` to `native`; 2.2 dropped
+ * the unused `Session.Event.Source` schema. None of those is read here; `session.compaction.started` is only a reset
+ * signal. A new major is a different contract and stays unsupported until reviewed.
  * Which versions were natively qualified is the service's record (qualified.js), so qualifying one never changes these bytes.
  */
 export const acceptsRuntime = runtimeVersion => {
   if (typeof runtimeVersion !== 'string') return false;
   if (REVIEWED_BUILDS.includes(runtimeVersion)) return true;
-  const match = /^2\.(\d+)\.(0|[1-9]\d{0,3})$/.exec(runtimeVersion);
-  return !!match && Number(match[2]) >= (LINES.get(match[1]) ?? Infinity);
+  const match = /^2\.(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,3})$/.exec(runtimeVersion);
+  return !!match && (match[1] !== '0' || Number(match[2]) >= FIRST_PATCH);
 };
 export const acceptsChatProtocol = (runtimeVersion, protocol) => acceptsRuntime(runtimeVersion) && protocol === CHAT_PROTOCOL;
 export const featureSupport = runtimeVersion => Object.fromEntries(FEATURE_IDS.map(id =>

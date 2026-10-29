@@ -151,7 +151,7 @@ export class RuntimeClient {
     const detection: ConnectionV2['detection'] = explicit ? { basis: 'explicit', confidence: 'high' }
       : choice?.runtime ? { basis: 'hint', confidence: 'medium' } : { basis: 'probe', confidence: 'low' };
     const connection: ConnectionV2 = { id: choice?.id ?? 'auto', label: choice?.label ?? 'Automatic', runtime: explicit ?? choice?.runtime ?? null,
-      generation: 0, choices, detection };
+      generation: 0, choices, detection, ...choice?.modelNames ? { modelNames: choice.modelNames } : {} };
     const port = urlPort(choice?.config.baseURL ?? null);
     if (!choice) {
       const issue: ConfigIssue = selection?.provider ? 'removed' : readFailed ? 'read_failed' : issueOf(configuration.issue);
@@ -224,6 +224,7 @@ export class RuntimeClient {
     const context = slot.context, described = descriptorOf(this.descriptors, runtime);
     if (!described) throw new UnknownRuntime();
     const adapterContext: AdapterContextV2 = { connection: { id: context.choice.id, port: urlPort(context.upstream?.origin ?? context.choice.config.baseURL)! }, ...this.getters(slot),
+      routedModel: context.upstream?.model,
       config: context.choice.config, fetchImpl: this.fetchImpl, exec: this.exec, now: this.now, monotonic: this.monotonic,
       timeoutMs: this.timeout, budgetMs: this.budget };
     context.adapterContext = adapterContext;

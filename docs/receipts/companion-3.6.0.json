@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "kind": "companion-qualification",
+  "helperVersion": "3.6.0",
+  "recordedOn": "2026-10-28",
+  "companionFiles": {
+    "index.js": "1327955c28d04ed7a78d970c2f0b97b64afb381b0a5b677100ab1f51e2039087",
+    "chat.js": "635edb41fa09c63757366e42461b514fcf2028b066345334c0bb542991c9aea9",
+    "demand.js": "3d1d7937153c230328d02ab4acd08a26a0a1539e61c44a7af2b582f2f3ef5371",
+    "chat-store.js": "2fbf445a26303acb161f1a9e784eb4dfd1a0de2a4ad6f6bb288bd539eefee6b1",
+    "store.js": "3dd1e68ec4f8263c58f71619c0312fc3143f3cc3bf01685e3b150909bf58b053",
+    "stream.js": "2b0bfbda6a170c369560306522942383039d93ef7de665113d796a11041d6f55",
+    "compatibility.js": "1906f63d722813485c10aa75e1107a6a8aebaf1cd54ccf2f7eb2d81f8678fd51",
+    "package.json": "0fbaab3df4e9aac563d44394843e720dd00b5b3e83cab3664e84c71380b1c79f"
+  },
+  "environment": {
+    "node": "v22.23.3",
+    "platform": "darwin",
+    "release": "27.2.0",
+    "cpu": "Apple M5 Pro",
+    "logicalCPUs": 18
+  },
+  "runtime": {
+    "opencode": "2.2.0",
+    "source": "the binary bundled with OpenChamber 2.5.3 (Contents/Resources/opencode-cli/opencode), which makes 2.2.0 its minimum OpenCode"
+  },
+  "qualification": {
+    "basis": "Isolated native OpenCode 2.2.0 process with synthetic loopback providers (bridge/opencode/protocol-smoke.mjs, protocol-ws-smoke.mjs, protocol-hot-reload-smoke.mjs, protocol-compaction-smoke.mjs). Temp HOME, temp config, loopback fixture. No real model, no inference, no cloud account, no live configuration.",
+    "httpLocal": {
+      "result": "pass",
+      "destination": "local",
+      "runtimeVersion": "2.2.0",
+      "fixtureRequests": 4,
+      "steps": [
+        { "basis": "estimated-characters", "liveTps": 22.686025408348456, "completedTps": 17.4433092449539, "promptProgress": [200, 500, 900] },
+        { "basis": "estimated-characters", "liveTps": 22.686025408348456, "completedTps": 17.49562609347663, "promptProgress": [200, 500, 900] },
+        { "basis": "estimated-characters", "liveTps": 22.644927536231883, "completedTps": 17.491254372813593, "promptProgress": [200, 500, 900] },
+        { "basis": "calibrated-characters", "calibrationSteps": 3, "liveTps": 22.61420171867933, "completedTps": 17.491254372813593, "promptProgress": [200, 500, 900] }
+      ],
+      "hiddenWritesStopped": true
+    },
+    "httpSyntheticRemote": {
+      "result": "pass",
+      "destination": "synthetic-remote-routed-to-loopback",
+      "runtimeVersion": "2.2.0",
+      "fixtureRequests": 4,
+      "steps": [
+        { "basis": "estimated-characters", "liveTps": 22.655188038060714, "completedTps": 22.537025112685125 },
+        { "basis": "estimated-characters", "liveTps": 22.644927536231883, "completedTps": 22.573363431151243 },
+        { "basis": "estimated-characters", "liveTps": 22.686025408348456, "completedTps": 22.59522272433828 },
+        { "basis": "calibrated-characters", "calibrationSteps": 3, "liveTps": 22.655188038060714, "completedTps": 22.580645161290324 }
+      ],
+      "hiddenWritesStopped": true
+    },
+    "webSocket": {
+      "result": "pass",
+      "destination": "synthetic-remote-routed-to-loopback",
+      "runtimeVersion": "2.2.0",
+      "companionVersion": "3.6.0",
+      "fixtureRequests": 7,
+      "connections": 1,
+      "continuations": 6,
+      "steps": [
+        { "phases": ["waiting", "generating", "complete"], "basis": "estimated-characters", "liveTps": 22.675736961451246, "completedTps": 17.01507049100632 },
+        { "phases": ["waiting", "generating", "complete"], "basis": "estimated-characters", "liveTps": 22.675736961451246, "completedTps": 17.060687301974166 },
+        { "phases": ["waiting", "generating", "complete"], "basis": "estimated-characters", "liveTps": 22.593764121102577, "completedTps": 17.04407109812515 },
+        { "phases": ["waiting", "generating", "complete"], "basis": "calibrated-characters", "calibrationSteps": 3, "liveTps": 22.644927536231883, "completedTps": 17.06900755913192 },
+        { "phases": ["tool", "waiting", "generating", "complete"], "basis": "calibrated-characters", "calibrationSteps": 4, "liveTps": 22.624434389140273, "completedTps": 17.05237515225335 }
+      ],
+      "cancellation": "pass",
+      "hiddenWritesStopped": true
+    },
+    "hotReloadLocal": {
+      "hotReload": "pass",
+      "serverRestarted": false,
+      "existingSyntheticStreamCompleted": true,
+      "duplicateRequests": 0,
+      "previousCompanion": "3.5.0",
+      "previousCompanionSupported": false,
+      "loadedCompanion": "3.6.0",
+      "result": "pass",
+      "destination": "local",
+      "runtimeVersion": "2.2.0",
+      "fixtureRequests": 5,
+      "completedStreams": 5,
+      "hotReloadVerified": true,
+      "steps": [
+        { "basis": "estimated-characters", "liveTps": 22.634676324128566, "completedTps": 22.607385079125848 },
+        { "basis": "estimated-characters", "liveTps": 22.655188038060714, "completedTps": 22.603126765869277 },
+        { "basis": "estimated-characters", "liveTps": 22.634676324128566, "completedTps": 22.59461495010356 },
+        { "basis": "calibrated-characters", "calibrationSteps": 3, "liveTps": 22.655188038060714, "completedTps": 22.603126765869277 }
+      ],
+      "hiddenWritesStopped": true
+    },
+    "compactionAndResume": {
+      "result": "pass",
+      "command": "node bridge/opencode/protocol-compaction-smoke.mjs /absolute/path/to/opencode",
+      "runtimeVersion": "2.2.0",
+      "fixtureRequests": 4,
+      "compactionRequests": 1,
+      "measurementsDuringCompaction": 0,
+      "checkpointKeepReference": true,
+      "contextRecentMaterialized": true,
+      "resumed": { "basis": "reported-output", "tokensPerSecond": 113.02627860977677 }
+    },
+    "schemaReview": "Compared tag to tag, v2.1.1 to v2.2.0: packages/schema/src/session-event.ts only drops the unused Session.Event.Source schema and reorders an annotation; packages/plugin/src/promise/session.ts adds an omitted 'instructions' member and changes a type import. The session hook names, request kinds, the x-opencode-session-id header, the event envelope and the step/text/reasoning/tool/execution/usage fields the companion reads are unchanged. The bundled binary contains http.request, http.response, experimental.ws.handshake and the session events read here."
+  },
+  "acceptanceRule": {
+    "releaseLines": ["2.0.N with N >= 25", "2.M.N for every M >= 1"],
+    "reviewedBuilds": ["2.1.1-compaction.1"],
+    "note": "3.6.0 accepts every OpenCode 2 release from 2.0.25, so a new minor release needs no new helper; the running contract checks withdraw only a feature whose hook or event shape changes. A new major and any unreviewed suffixed build stay unsupported.",
+    "unsupportedExamples": ["2.0.24", "3.0.0", "2.2.0-beta.1", "2.1.1-custom"]
+  },
+  "limitations": [
+    "Synthetic providers only: real token accounting, provider buffering, reasoning visibility and real workloads are not covered.",
+    "Later OpenCode 2 releases are accepted and self-checked but not qualified by this receipt; a self-check cannot detect changed meaning.",
+    "No live-host verification is included here; the 5.3.0 verification notes record the installed extension separately.",
+    "The CPU fixture from companion-3.4.0.json was not re-run; 3.6.0 changes the accepted-version rule and the version string, not the event, storage or polling work it measured."
+  ]
+}

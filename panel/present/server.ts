@@ -6,6 +6,7 @@ import { clock, dur, int, kt, pct, size, tps } from './format.ts';
 import { callouts, tip, type Callout, type Chip, type Tip, type Val } from './parts.ts';
 import { heldBySource, liveSplashRate } from './scope.ts';
 import { SPLASH_SPEED_HELP } from './speeds.ts';
+import { modelDisplayName } from './model-name.ts';
 
 // The Server tab (plan §5.9, G2 mock): the runtime card with its detection basis, then only the cards the runtime can
 // fill: slots, throughput, speculative decoding, native latency, memory and ceiling, cache, residency or lms instances,
@@ -76,11 +77,11 @@ const residencyCard = (s: SnapshotV2, now: number): ServerCard | null => {
   if (!list.length) return null;
   const source = list[0]!.source, many = list.length > 1;
   const items = list.map(m => m.source === 'ollama-ps' ? {
-    title: m.model, loaded: true, chips: m.unloadsAt != null ? [{ text: `unloads in ${dur(Math.max(0, m.unloadsAt - now))}` }] : [],
+    title: modelDisplayName(m.model, s.connection.modelNames, s.connection.id), loaded: true, chips: m.unloadsAt != null ? [{ text: `unloads in ${dur(Math.max(0, m.unloadsAt - now))}` }] : [],
     reading: [...m.bytes != null ? [`${size(m.bytes)} loaded`] : [], ...m.gpuResidentBytes != null ? [`GPU memory (from Ollama) ${size(m.gpuResidentBytes)}${m.bytes ? ` · ${pct(m.gpuResidentBytes / m.bytes)}` : ''}`] : []],
     meter: m.gpuResidentBytes != null && m.bytes ? Math.min(1, m.gpuResidentBytes / m.bytes) : null,
   } : {
-    title: m.model, loaded: true, chips: [{ text: PHASE[m.phase], ...m.phase !== 'idle' ? { tone: 'accent' as const } : {} }],
+    title: modelDisplayName(m.model, s.connection.modelNames, s.connection.id), loaded: true, chips: [{ text: PHASE[m.phase], ...m.phase !== 'idle' ? { tone: 'accent' as const } : {} }],
     reading: (source === 'lms-ps' || many) && m.bytes != null ? [`${size(m.bytes)} ${source === 'lms-ps' ? 'loaded' : 'allocated'}`] : [], meter: null,
   });
   const title = source === 'lms-ps' ? 'Loaded instances' : 'Loaded models';
@@ -143,7 +144,7 @@ const enginesCard = (s: SnapshotV2): ServerCard | null => {
 const catalogCard = (s: SnapshotV2): ServerCard | null => {
   const catalog = s.runtime.catalog;
   if (!catalog.length) return null;
-  return card('catalog', 'Model inventory', `${catalog.filter(model => model.loaded).length} loaded · ${catalog.length} listed`, null, [{ kind: 'list', chipGroup: true, items: catalog.map(model => ({ title: model.name, loaded: model.loaded === true, meter: null,
+  return card('catalog', 'Model inventory', `${catalog.filter(model => model.loaded).length} loaded · ${catalog.length} listed`, null, [{ kind: 'list', chipGroup: true, items: catalog.map(model => ({ title: modelDisplayName(model.name, s.connection.modelNames, s.connection.id), loaded: model.loaded === true, meter: null,
       chips: [...model.format ? [{ text: model.format, ...model.format === 'splash' ? { tone: 'accent' as const } : {} }] : [],
         ...model.vision ? [{ text: `vision${model.inputModalities?.length ? ` · ${model.inputModalities.join(' + ')}` : ''}` }] : []],
       reading: [model.loaded ? 'Loaded' : model.loaded === false ? 'Available' : 'Listed', ...model.contextWindowTokens ? [`${kt(model.contextWindowTokens)} context`] : []] })) }]);

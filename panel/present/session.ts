@@ -170,7 +170,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
         : snapshot.status.reason === 'metrics_required' ? 'Open MLX Scope for setup' : statusGlanceNote(snapshot);
   } else if (!measurement && speeds.speeds.some(speed => speed.detail.startsWith('Turn off Energy'))) note = 'Energy saving is on';
   const top = !nonLocal && fresh && snapshot ? visibleAlerts(snapshot)[0] : null;
-  const text = top ? alertCopy(top.id, top.params)[0] : '';
+  const text = top ? alertCopy(top.id, top.params, snapshot!.connection.modelNames, snapshot!.connection.id)[0] : '';
   const alert = top ? { label: text.startsWith('macOS memory pressure:') ? `Memory pressure · ${top.severity}` : text,
     value: '', severity: top.severity, more: 0 } : null;
   // Keep the one priority warning; repeated setup explanations remain in the full panel.

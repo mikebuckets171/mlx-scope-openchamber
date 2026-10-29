@@ -32,8 +32,8 @@ export const swapState = (reply: RuntimeReply, preferredModel: string | null): S
   const running = body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>).running : undefined;
   if (!Array.isArray(running) || running.length > MAX_RUNNING) return null;
   const rows = running.map(item => item && typeof item === 'object' && !Array.isArray(item) ? item as Record<string, unknown> : null);
-  if (rows.some(row => !row || typeof row.model !== 'string' || typeof row.state !== 'string')) return null;
-  const ready = rows.filter(row => row!.state === 'ready').map(row => ({ model: String(row!.model).slice(0, 200), origin: loopbackOrigin(row!.proxy) }));
+  if (rows.some(row => !row || typeof row.model !== 'string' || !row.model.length || row.model.length > 1024 || typeof row.state !== 'string')) return null;
+  const ready = rows.filter(row => row!.state === 'ready').map(row => ({ model: String(row!.model), origin: loopbackOrigin(row!.proxy) }));
   if (ready.length) {
     const chosen = ready.length === 1 ? ready[0]! : ready.find(item => item.model === preferredModel) ?? null;
     return chosen?.origin ? { kind: 'ready', backend: { model: chosen.model, origin: chosen.origin } } : { kind: 'unsupported' };

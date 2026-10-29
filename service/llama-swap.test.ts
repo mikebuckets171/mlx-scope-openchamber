@@ -2,7 +2,8 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RuntimeConnectionConfig, RuntimeConnections } from './config.ts';
-import type { RuntimeReply } from './core/adapter-v2.ts';
+import type { AdapterContextV2, RuntimeReply } from './core/adapter-v2.ts';
+import { splashDescriptor } from './adapters/splash.ts';
 import { swapState } from './core/llama-swap.ts';
 import { RuntimeClient } from './runtime-client.ts';
 
@@ -24,6 +25,10 @@ test('llama-swap is recognized only by its /running list, and only a ready loopb
   const two = reply({ running: [row('a', 'ready', 'http://127.0.0.1:8000'), row('b', 'ready', 'http://127.0.0.1:8001')] });
   expect(swapState(two, null)).toEqual({ kind: 'unsupported' });
   expect(swapState(two, 'b')).toEqual({ kind: 'ready', backend: { model: 'b', origin: new URL('http://127.0.0.1:8001') } });
+  const longModel = 'example-'.repeat(30);
+  expect(swapState(reply({ running: [row(longModel, 'ready')] }), null))
+    .toEqual({ kind: 'ready', backend: { model: longModel, origin: new URL('http://127.0.0.1:8000') } });
+  for (const model of ['', 'x'.repeat(1025)]) expect(swapState(reply({ running: [row(model, 'ready')] }), null)).toBeNull();
 });
 
 const SPLASH = JSON.parse(readFileSync(join(import.meta.dir, '../tests/fixtures/splash/1.2.0/status.ready-idle.json'), 'utf8'));
@@ -47,12 +52,16 @@ function swapHost() {
 
 test('a Splash provider behind llama-swap is read from the ready model server, as Splash via llama-swap, without starting anything', async () => {
   let now = 1_790_690_700_000;
-  const host = swapHost(), client = new RuntimeClient({ now: () => now, readConfig: async () => configuration(), fetchImpl: host.fetchImpl });
+  const contexts: AdapterContextV2[] = [];
+  const host = swapHost(), client = new RuntimeClient({ now: () => now, readConfig: async () => configuration(), fetchImpl: host.fetchImpl,
+    descriptors: [{ ...splashDescriptor, create: context => { contexts.push(context); return splashDescriptor.create(context); } }] });
   try {
     const first = await client.read({ provider: 'splash' });
     expect(first.status.state).toBe('ready');
     expect(first.meta.connection).toMatchObject({ id: 'splash', runtime: 'splash', engine: 'splash', host: 'llama-swap' });
     expect(first.capabilities['server.requests']).toBeDefined();
+    expect(contexts.at(-1)?.routedModel).toBe('qwen-a');
+    expect(contexts.at(-1)?.config.baseURL?.origin).toBe('http://127.0.0.1:8080');
     // Never an upstream passthrough, a load, or any write; the provider's key never reaches the model server.
     expect(host.calls.every(call => call.method === 'GET' && !call.path.startsWith('/upstream'))).toBe(true);
     expect(host.calls.filter(call => call.origin === 'http://127.0.0.1:8000').every(call => !call.key)).toBe(true);
@@ -64,6 +73,7 @@ test('a Splash provider behind llama-swap is read from the ready model server, a
     const swapped = await client.read({ provider: 'splash' });
     expect(swapped.status.state).toBe('ready');
     expect(swapped.meta.connection.generation).toBeGreaterThan(generation);
+    expect(contexts.at(-1)?.routedModel).toBe('qwen-b');
     expect(host.calls.some(call => call.origin === 'http://127.0.0.1:8001' && call.path === '/status')).toBe(true);
 
     // Starting: say so. Nothing running: no model loaded. Scope never asks llama-swap to load one.

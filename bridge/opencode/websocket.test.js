@@ -107,7 +107,7 @@ test('auxiliary and unqualified hooks do not start observations or read demand a
     } finally { await h.close(); }
   }
   const h = await harness();
-  try { const ctx = await h.context('/fixture/unsupported', '2.1.0');
+  try { const ctx = await h.context('/fixture/unsupported', '3.0.0');
     assert.equal(ctx.hooks.size, 0); h.watch([h.identity()]); const reads = h.reads; await h.observer.tick();
     assert.equal(h.reads, reads, 'unqualified observation does no periodic demand IO');
     assert.equal(ctx.events.stats().subscriptions, 0);

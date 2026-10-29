@@ -62,3 +62,5 @@ process.once('SIGTERM', stop);
 process.once('SIGINT', stop);
 process.once('exit', () => { client.dispose(); host.dispose(); });
 server.listen(port, '127.0.0.1');
+// An updated Scope brings the helper it installed up to date without waiting for Update chat speed.
+void companionSetup.update();

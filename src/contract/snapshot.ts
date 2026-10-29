@@ -66,7 +66,10 @@ export interface ConnectionV2 {
   generation: number;                        // +1 on connection change, re-detection, or an LM Studio model state change
   choices: Array<{ id: string; label: string; runtime: RuntimeKind | null }>;   // ≤ 8
   detection: { basis: typeof DETECTION_BASES[number]; confidence: typeof CONFIDENCES[number]; probe?: typeof PROBES[number] };
+  /** 5.3: the names the provider's OpenCode `models` entries give their IDs (≤ 32). Display only; IDs stay the identity. */
+  modelNames?: Array<{ model: string; name: string }>;
 }
+export const MODEL_NAMES_MAX = 32;
 
 export interface RuntimeV2 {
   sampledAt?: number;                        // 2a amendment: when the runtime reading was taken; absent = serverNow
@@ -288,13 +291,19 @@ const connection = (value: unknown): ConnectionV2 | null => {
   const item = obj(value), id = connectionId(item?.id), name = label(item?.label), generation = count(item?.generation), detection = obj(item?.detection);
   const detectionBasis = oneOf(DETECTION_BASES)(detection?.basis), confidence = oneOf(CONFIDENCES)(detection?.confidence);
   if (!item || !id || !name || generation === null || !detectionBasis || !confidence) return null;
+  const modelNames = list(item.modelNames, MODEL_NAMES_MAX, modelName);
   return defined({
     id, label: name, runtime: runtimeKind(item.runtime),
     version: typeof item.version === 'string' && /^[A-Za-z0-9._+-]{1,40}$/.test(item.version) ? item.version : undefined,
     engine: item.engine === 'splash' ? 'splash' as const : undefined, host: item.host === 'bionic' || item.host === 'llama-swap' ? item.host as 'bionic' | 'llama-swap' : undefined,
     generation, choices: list(item.choices, LIMITS.choices, choice),
     detection: defined({ basis: detectionBasis, confidence, probe: opt(oneOf(PROBES)(detection?.probe)) }),
+    modelNames: modelNames.length ? modelNames : undefined,
   });
+};
+const modelName = (value: unknown): { model: string; name: string } | null => {
+  const item = obj(value), model = modelLabel(item?.model), name = modelLabel(item?.name, 80);
+  return model && name ? { model, name } : null;
 };
 const status = (value: unknown): StatusV2 | null => {
   const item = obj(value), state = statusState(item?.state), reason = statusReason(item?.reason);

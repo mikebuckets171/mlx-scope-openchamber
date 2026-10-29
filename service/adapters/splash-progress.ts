@@ -30,6 +30,7 @@ interface ProgressEntry {
 }
 export interface ProgressScope {
   providerID: string; endpointOrigin: string; model: string; generationKey: string; startedAtMs?: number;
+  routedModel?: string;
 }
 export interface ProgressReading {
   processed: number; total: number; observedAt: number; stale: boolean;
@@ -158,8 +159,10 @@ export class SplashPromptProgress {
     const sequence = ++this.sequence, entries = await readProgressCache(at, this.options);
     if (sequence !== this.sequence) return undefined;
     const endpoint = progressKey('endpoint', scope.endpointOrigin), model = progressKey('model', scope.model);
+    // /running binds this exact request alias to the backend; stripping native tags would guess between models.
+    const routed = scope.routedModel ? progressKey('model', scope.routedModel) : null;
     const matching = entries?.filter(entry => entry.providerID === scope.providerID && entry.endpointKey === endpoint
-      && (entry.modelKey === model || entry.responseModelKey === model));
+      && (entry.modelKey === model || entry.responseModelKey === model || entry.modelKey === routed));
     if (!matching || matching.length !== 1) { this.reset(at); return undefined; }
     const current = matching[0]!;
     if (current.kind !== 'primary') { this.reset(at); return undefined; }

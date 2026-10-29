@@ -135,6 +135,19 @@ describe('independent progress continuity', () => {
     for (const patch of [{ providerID: 'foreign' }, { endpointOrigin: 'http://127.0.0.1:8001' }, { model: 'different-model' }])
       expect(await new SplashPromptProgress({ home }).observe(scope(patch), AT, 0)).toBeUndefined();
   }));
+  test('a ready llama-swap route matches the request alias without stripping native quantization tags', () => withCache(async ({ home, write }) => {
+    const routedModel = 'publisher/Example-GGUF', model = `${routedModel}:IQ3_XXS`;
+    await write(document([entry(AT, { modelKey: progressKey('model', routedModel), responseModelKey: progressKey('model', 'response-alias') })]));
+    expect(await new SplashPromptProgress({ home }).observe(scope({ model }), AT, 0)).toBeUndefined();
+    expect(await new SplashPromptProgress({ home }).observe(scope({ model, routedModel }), AT, 0))
+      .toMatchObject({ processed: 850, total: 1000 });
+    for (const patch of [{ routedModel: `${routedModel}:Q4_K_M` }, { providerID: 'foreign' }, { endpointOrigin: 'http://127.0.0.1:8001' }])
+      expect(await new SplashPromptProgress({ home }).observe(scope({ model, routedModel, ...patch }), AT, 0)).toBeUndefined();
+    await write(document([entry(AT, { modelKey: progressKey('model', 'other-request'), responseModelKey: progressKey('model', routedModel) })]));
+    expect(await new SplashPromptProgress({ home }).observe(scope({ model, routedModel }), AT, 0)).toBeUndefined();
+    await write(document([entry(AT, { modelKey: progressKey('model', routedModel) }), entry(AT, { requestID: randomUUID(), modelKey: progressKey('model', model) })]));
+    expect(await new SplashPromptProgress({ home }).observe(scope({ model, routedModel }), AT, 0)).toBeUndefined();
+  }));
   test('concurrent primary and background kinds stay ambiguous, regardless of which writer is read first', () => withCache(async ({ home, write }) => {
     await write(document()); const other = randomUUID();
     await write(document([entry(AT, { requestID: randomUUID(), kind: 'title' })], AT, other), other);
@@ -181,9 +194,9 @@ describe('Splash adapter progress corroboration', () => {
     body.requests.submitted += 1; body.http.requests.active = 1; body.scheduler.prefilling = 1;
     return body;
   };
-  const harness = (body: Json, home: string) => {
+  const harness = (body: Json, home: string, routedModel?: string) => {
     const clock = { at: AT, mono: 0 }, gets: string[] = [], execs: string[][] = [];
-    const context: AdapterContextV2 = { connection: { id: PROVIDER, port: 8000 },
+    const context: AdapterContextV2 = { connection: { id: PROVIDER, port: 8000 }, routedModel,
       get: async path => { gets.push(path); return { status: 200, body, routeMissing: false }; }, getText: async () => { throw Error('no text read'); },
       config: { baseURL: new URL('http://127.0.0.1:8000/'), apiKey: null, preferredModel: null, error: null, issue: 'none', source: 'opencode', configStatus: 'present', authStatus: 'missing' },
       fetchImpl: async () => { throw Error('no fetch'); }, exec: async argv => { execs.push([argv.file, ...argv.args]); return null; },
@@ -191,6 +204,26 @@ describe('Splash adapter progress corroboration', () => {
     return { adapter: createSplashAdapter(context, new SplashPromptProgress({ home })), clock, gets, execs };
   };
   const READ = { deadline: AT + 5000, tier: 'glance' as const, detail: false };
+  test('routed Splash progress reaches the percentage presenter, but overlap still withdraws it', () => withCache(async ({ home, write }) => {
+    const routedModel = 'publisher/Example-GGUF', body = await nativeBody();
+    body.instance.model = `${routedModel}:IQ3_XXS`;
+    await write(document([entry(AT, { modelKey: progressKey('model', routedModel) })]));
+    const { adapter, clock } = harness(body, home, routedModel);
+    const reading = await adapter.read(READ);
+    expect(reading.runtime.request?.prefillFraction).toBe(.85);
+    const snapshot = parseSnapshotV2({ ...mockBody('splash-prefill'), status: reading.status, capabilities: reading.capabilities, runtime: reading.runtime })!;
+    const { fromSnapshot } = await import('../../panel/present/reading.ts');
+    const { presentSessionSection } = await import('../../panel/present/session.ts');
+    const { sessionMarkup } = await import('../../panel/render/views/session.ts');
+    const view = presentSessionSection({ snapshot, reading: fromSnapshot(snapshot), now: AT, chatIsLocal: true, measurementScope: 'engine', attribution: { kind: 'server-wide', reason: 'not-observed' } });
+    expect(view.measurement).toMatchObject({ kind: 'progress', text: '85%' });
+    expect(sessionMarkup(view).markup).toContain('id="prefill-percent"');
+    expect(sessionMarkup(view).markup).toContain('85%');
+    expect(await harness(body, home).adapter.read(READ)).toMatchObject({ runtime: { request: null } });
+    body.requests.submitted += 1; body.http.requests.active = 2; body.scheduler.decoding = 1;
+    clock.at += 1000; clock.mono += 1000;
+    expect((await adapter.read(READ)).runtime.request).toBeNull();
+  }));
   test('real progress, unfinished >99% and timestamp survive normalization without private identities or fake chat attribution', () => withCache(async ({ home, write }) => {
     await write(document([entry(AT, { processed: 999 })])); const body = await nativeBody(), { adapter, gets, execs } = harness(body, home);
     expect(splashReading({ ...body, prompt_progress: { total: 1000, processed: 999 } }, AT).runtime.request).toBeNull();

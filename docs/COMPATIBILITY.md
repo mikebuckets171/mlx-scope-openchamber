@@ -1,30 +1,54 @@
 # Compatibility
 
-## Scope 5.1: qualified and self-checked OpenCode versions
+## Scope 5.3: every OpenCode 2 release
 
-OpenChamber ships a new OpenCode patch every few days, and Scope 4–5.0 accepted only exact versions, so each update
-turned chat speed and Splash prompt progress off until Scope caught up. Scope 5.1 splits the decision in two:
+OpenChamber ships a new OpenCode release every few days. Scope 4–5.0 accepted only exact versions and 5.1–5.2 only
+named release lines, so each new minor release (2.1, 2.2) turned chat speed and Splash prompt progress off until Scope
+caught up. From 5.3, companion **3.6.0** accepts every OpenCode 2 release from 2.0.25:
 
 | Mode | Versions | What it means |
 |---|---|---|
-| **Qualified** | OpenCode **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32**, and the reviewed local build **2.1.1-compaction.1** | Native synthetic-provider checks passed for that exact binary (see the receipts below). |
-| **Self-checked** | Any other `2.0.N` with N ≥ 25, any `2.1.N` with N ≥ 1, and the reviewed local builds listed in `bridge/opencode/compatibility.js` | The companion confirms, at run time, that each hook registers, that the session header is present on primary requests, and that every event it consumes has the released shape. A feature whose check fails is withdrawn alone, and Connections names the reason (`hook-missing`, `hook-rejected`, `events-missing`, `event-shape`, `session-header`, `options`). |
-| **Unsupported** | 2.1.0, 2.2 and later, any unreviewed suffix, and malformed versions | No hooks are installed; runtime monitoring continues. |
+| **Qualified** | OpenCode **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32, 2.2.0**, and the reviewed local build **2.1.1-compaction.1** | Native synthetic-provider checks passed for that exact binary (see the receipts below). |
+| **Self-checked** | Any other `2.0.N` with N ≥ 25 and any `2.M.N` with M ≥ 1 | The companion confirms, at run time, that each hook registers, that the session header is present on primary requests, and that every event it consumes has the released shape. A feature whose check fails is withdrawn alone, and Connections names the reason (`hook-missing`, `hook-rejected`, `events-missing`, `event-shape`, `session-header`, `options`). |
+| **Unsupported** | 2.0.24 and earlier, OpenCode 3 and later, any unreviewed suffix, and malformed versions | No hooks are installed; runtime monitoring continues. |
 
 A self-check proves the shapes Scope reads, not their meaning: a release that changed token accounting with the same
 shape would pass. Connections therefore says **self-checked (not yet qualified)** for those versions, and a version moves
 to Qualified only after the native checks run against it. The rule lives in `bridge/opencode/compatibility.js`, which
 ships with the companion; the qualified list lives in `bridge/opencode/qualified.js`, which stays in the service, so
-qualifying a later version changes no companion file and needs no **Update chat speed**.
+qualifying a later version changes no companion file. A new major release is a different contract and stays
+unsupported until reviewed.
 
 A locally built runtime reports a suffixed version such as `2.1.1-compaction.1`. No pattern can bound what such a build
-changed, so only reviewed identifiers are accepted: an unreviewed suffix stays unsupported, exactly as an
-unrecognised release line does.
+changed, so only reviewed identifiers are accepted: an unreviewed suffix stays unsupported, exactly as a different
+major release does.
 
-Scope 5.1 requires companion **3.5.0**. After installing 5.1, choose **Connections → Update chat speed** once and
-confirm 3.5.0 is loaded. A 5.1 service accepts any 3.x companion writer of the same telemetry major version, so a
-later 3.x companion keeps working; a 5.0 service with a 3.5.0 companion behaves as 5.0 did. When no Scope view has
-asked for chat telemetry, the companion's demand watcher backs off to five-second checks instead of one-second ones.
+**Helper updates install themselves.** When a Scope update ships a new companion, the service brings the helper it
+installed up to date once when it starts, by the same guarded file replacement **Connections → Update chat speed**
+performs: changed files are renamed over their targets so OpenCode reloads them without a restart, and only the managed
+entry's `scopeRevision` changes in OpenCode's configuration. It acts only on a Scope-managed, configured, unedited
+installation and a runtime the new bundle accepts; a disabled, manual, edited or foreign installation, an
+`OPENCODE_CONFIG_CONTENT` configuration or a plugin list overridden by a later file is left for the guided path, and
+**Update chat speed** remains available for those. Connections says **Updated automatically** until OpenCode loads it.
+
+A 5.3 service accepts any 3.x companion writer of the same telemetry major version, and a 5.2 service with a 3.6.0
+companion behaves as 5.2 did. When no Scope view has asked for chat telemetry, the companion's demand watcher backs off
+to five-second checks instead of one-second ones.
+
+## OpenCode 2.2.0 compatibility
+
+OpenChamber 2.5.3 bundles OpenCode 2.2.0 and makes it its minimum. Compared tag to tag (v2.1.1 → v2.2.0), the public
+session-event schema only drops the unused `Session.Event.Source` schema and reorders an annotation, and the plugin's
+session API adds an omitted `instructions` member; every hook name, request kind, the `x-opencode-session-id` header,
+the event envelope and the step, text, reasoning, tool, execution and usage fields the companion reads are unchanged.
+With companion 3.6.0 the bundled binary passed the isolated native synthetic-provider checks: local HTTP delivery with
+advancing prompt progress (200 → 500 → 900 of the fixture prompt), synthetic-remote HTTP, WebSocket reuse on one
+connection with six tool continuations and cancellation, three-step calibration, completion, hidden shutdown with
+telemetry writes stopped, a compaction that publishes no chat measurement and resumes a measured step afterwards, and
+managed hot reload from the installed 3.5.0 helper (which reported 2.2.0 unsupported) to 3.6.0 with no server restart
+and no duplicated request. The receipt is
+[`docs/receipts/companion-3.6.0.json`](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/companion-3.6.0.json).
+No real model, inference or cloud account was involved.
 
 ## Earlier policy and safe default checks
 
@@ -50,7 +74,7 @@ features from activity: not loaded, awaiting demand, listening, or unavailable. 
 activity; it does not prove output or transport semantics. Malformed optional metadata does not discard an otherwise
 valid legacy setup response. Installed fingerprints, loaded companion metadata and current liveness remain distinct.
 
-Scope 4 and 5.0 required companion **3.3.0** for chat delivery and rejected a different companion package version even when the wire schema matched; native engine monitoring remained independent during that gap. Scope 5.1.2's companion **3.5.0** adds the OpenCode 2.1 line and changes no wire field.
+Scope 4 and 5.0 required companion **3.3.0** for chat delivery and rejected a different companion package version even when the wire schema matched; native engine monitoring remained independent during that gap. Scope 5.1.2's companion **3.5.0** added the OpenCode 2.1 line and 5.3's **3.6.0** accepts every OpenCode 2 release; neither changes a wire field.
 
 The runtime profile and the loaded helper's protocol are checked separately. An older helper reporting `unsupported`
 on a now-qualified runtime can be updated; its telemetry is still rejected until the current helper is loaded.
@@ -193,7 +217,7 @@ OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and c
 
 ## Optional chat delivery estimates
 
-Chat estimates are qualified on **OpenCode 2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32 and 2.1.1-compaction.1** and self-checked on later 2.0 and 2.1 releases, for local and cloud chats alike, retaining the same wire protocol. An
+Chat estimates are qualified on **OpenCode 2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32, 2.1.1-compaction.1 and 2.2.0** and self-checked on every other OpenCode 2 release from 2.0.25, for local and cloud chats alike, retaining the same wire protocol. An
 isolated servers with synthetic streaming providers exercise waiting, generation, completion, calibration and
 hidden shutdown over both transports. Unsupported versions disable estimates while runtime adapters continue to
 operate. Guided setup distinguishes installed/pending from a fresh loaded companion and supports native v2 and legacy
