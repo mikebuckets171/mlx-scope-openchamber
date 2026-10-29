@@ -93,13 +93,13 @@ section and the full view show the percentage. It clears when the response start
 The companion is bundled and does not activate automatically. Open **Connections → Enable chat speed** for detected
 compatibility and a deliberate setup action, or follow the [manual setup](bridge/opencode/README.md). Setup preserves
 existing plugins and JSONC comments and provides **Disable and remove**. It never restarts an active inference session.
-Chat delivery estimates are qualified on OpenCode **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32 and 2.1.1-compaction.1**.
-Later 2.0 releases from 2.0.25 and later 2.1 releases from 2.1.1 are **self-checked**: the companion confirms each hook and
-event shape it relies on and pauses only the feature whose check fails, with the reason in Connections. A self-check
-cannot detect a changed meaning, such as different token accounting, so Connections labels those versions as not yet
-qualified. A locally built runtime is accepted only by reviewed identifier, so `2.1.1-compaction.1` works while an
-unreviewed suffix does not. Other lines — 2.0.24 and earlier, 2.1.0, 2.2 and later — keep ordinary runtime monitoring
-until qualified.
+Once enabled, a Scope update brings the helper up to date by itself (see [Compatibility](docs/COMPATIBILITY.md)).
+Chat delivery estimates are qualified on OpenCode **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32, 2.2.0 and 2.1.1-compaction.1**.
+Every other OpenCode 2 release from 2.0.25 is **self-checked**: the companion confirms each hook and event shape it
+relies on and pauses only the feature whose check fails, with the reason in Connections. A self-check cannot detect a
+changed meaning, such as different token accounting, so Connections labels those versions as not yet qualified. A
+locally built runtime is accepted only by reviewed identifier, so `2.1.1-compaction.1` works while an unreviewed suffix
+does not. OpenCode 2.0.24 and earlier, and OpenCode 3, keep ordinary runtime monitoring until reviewed.
 The existing Splash HTTP observer remains separate. New replies acquire observations after activation; an already
 running reply cannot acquire them retroactively.
 

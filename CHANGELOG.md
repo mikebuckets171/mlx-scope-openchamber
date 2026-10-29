@@ -1,10 +1,36 @@
 # Changelog
 
-## Unreleased
+## 5.3.0
 
-- **Restore Splash prompt percentages behind llama-swap.** Match the companion's request model to the exact ready
-  route reported by llama-swap, even when Splash's native model name includes a quantization tag. Overlap,
-  ambiguity and freshness safeguards are unchanged. No additional HTTP requests, permissions or companion update are needed.
+- **Chat speed works on OpenChamber 2.5.3 and keeps working across OpenCode updates.** OpenChamber 2.5.3 bundles
+  OpenCode 2.2.0 and runs nothing older, which turned chat speed and Splash prompt progress off. Companion **3.6.0**
+  accepts every OpenCode 2 release from 2.0.25 instead of named release lines, so a new minor release (2.3, 2.4…) needs
+  no Scope update: the companion's running checks still pause only a feature whose hook or event shape changes and name
+  the reason in Connections. OpenCode 2.2.0 is qualified natively. OpenCode 3 stays off until reviewed.
+- **No more Update chat speed after a Scope update.** When Scope installed the helper and its files are unedited, the
+  service brings it up to date once when it starts, by the same file replacement the button performs: OpenCode reloads
+  it without a restart, and only the helper's own `scopeRevision` changes in OpenCode's configuration. A disabled,
+  manual or edited installation is left alone, and the button stays for those. Connections says **Updated
+  automatically** until OpenCode loads it.
+- **Models by their OpenCode names.** Live, History, Run details, the server cards and alerts show the name each
+  provider's OpenCode `models` entry gives a model, as OpenCode's model picker does: `Qwen3.8-Flash-Next` instead of
+  `ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF`. New or renamed models need nothing in Scope. Runtime IDs stay the
+  identity for attribution, baselines and stored history.
+- **Splash prompt percentages behind llama-swap.** Match the companion's request model to the exact ready route
+  reported by llama-swap, even when Splash's native model name includes a quantization tag. Overlap, ambiguity and
+  freshness safeguards are unchanged. No additional HTTP requests are needed.
+- Permissions are unchanged; the update needs no new approval. Requires OpenChamber 2.4.0 or later and pins SDK 2.5.0.
+
+While llama-swap 268's new **Pause** is on, Scope shows its backend as idle: llama-swap reports that state only through
+endpoints Scope does not call.
+
+Before publication on macOS, type checking, the privacy scan, the Bun, companion and helper tests, reproducible bundles
+and package verification passed. Against the OpenCode 2.2.0 binary bundled with OpenChamber 2.5.3, with synthetic
+loopback providers, companion 3.6.0 passed local HTTP with advancing prompt progress, synthetic-remote HTTP, WebSocket
+reuse on one connection with six tool continuations and cancellation, a compaction that published no chat measurement
+followed by a measured resumed step, and managed hot reload from the installed 3.5.0 helper with no server restart and
+no duplicated request. No real model, inference or cloud account was involved.
+[Receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/companion-3.6.0.json).
 
 ## 5.2.0
 

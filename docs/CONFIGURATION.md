@@ -75,8 +75,8 @@ package-manager command. Other plugins, provider settings, JSONC comments, and
 the existing companion's options are preserved.
 
 Chat estimates are qualified for **OpenCode 2.0.25, 2.0.27, 2.0.28, 2.0.29,
-2.0.32 and 2.1.1-compaction.1**; later 2.0 releases from 2.0.25 and later 2.1
-releases from 2.1.1 are self-checked. The companion observes the
+2.0.32, 2.1.1-compaction.1 and 2.2.0**; every other OpenCode 2 release from
+2.0.25 is self-checked. The companion observes the
 selected chat's public events, counts text and observable reasoning in memory, and
 saves only short-lived measurement metadata. Live estimates use a delivery
 window; a finished step uses reported output tokens and is labeled as an

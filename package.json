@@ -1,6 +1,6 @@
 {
   "name": "mlx-scope-openchamber",
-  "version": "5.2.0",
+  "version": "5.3.0",
   "description": "Lightweight local model monitoring for OpenChamber.",
   "private": true,
   "license": "MIT",

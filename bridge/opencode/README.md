@@ -1,13 +1,13 @@
 # Optional OpenCode companion
 
-The 3.5 companion observes demand-gated HTTP and WebSocket chat delivery on **OpenCode 2.0.25 and later 2.0 releases, and OpenCode 2.1.1 and later 2.1 releases**, for local and cloud
+The 3.6 companion observes demand-gated HTTP and WebSocket chat delivery on **every OpenCode 2 release from 2.0.25**, for local and cloud
 chats alike, and retains the existing Splash prompt-progress observer. A reviewed local build such as `2.1.1-compaction.1` is accepted by its exact
-identifier; other OpenCode versions (2.0.24 and earlier, 2.1.0, 2.2 and later, any unreviewed suffix) disable chat
+identifier; other OpenCode versions (2.0.24 and earlier, OpenCode 3 and later, any unreviewed suffix) disable chat
 estimates while native runtime monitoring remains available. The plugin ID remains `mlx-scope-prompt-progress` to
 update existing installations in place.
 
-`compatibility.js` holds the rule the helper runs under: OpenCode 2.0 patch releases from 2.0.25 and 2.1 patch releases from 2.1.1 keep the
-public plugin and event contract it reads. Every accepted version runs the same contract checks while it works, and each feature reports what they showed:
+`compatibility.js` holds the rule the helper runs under: OpenCode 2 releases from 2.0.25 keep the public plugin and event contract it
+reads, so a new minor release needs no new helper. Every accepted version runs the same contract checks while it works, and each feature reports what they showed:
 
 | Check | Passes when | Withdraws the feature when |
 |---|---|---|
@@ -18,7 +18,7 @@ A withdrawn feature stays off until the helper loads again; other features and n
 codes only (`hook-missing`, `hook-rejected`, `events-missing`, `event-shape`, `session-header`, `options`), never paths or contents.
 
 Which versions were **qualified** natively is Scope's own record in `qualified.js`, which is not copied into OpenCode: currently
-2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32 and 2.1.1-compaction.1. Another accepted version is shown as **self-checked, not yet qualified**: its contract
+2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32, 2.1.1-compaction.1 and 2.2.0. Another accepted version is shown as **self-checked, not yet qualified**: its contract
 checks run, but meanings such as token accounting are unverified. Qualifying a version changes only `qualified.js`, so the helper
 never needs reinstalling for it. HTTP delivery, experimental WebSocket delivery and Splash prompt observation install independently;
 a missing optional hook leaves other monitoring available. Companion package version, qualification and the legacy telemetry
@@ -27,8 +27,8 @@ From the repository, `bun run qualify:compatibility` runs isolated fixtures, pri
 and reproducible package verification. Native checks remain not run; it never launches native OpenCode, sends a prompt
 or changes live configuration. `--candidate` labels a proposed version without broadening runtime support.
 See the repository's `docs/COMPATIBILITY.md`. The native protocol commands below are
-separate, explicitly invoked operations. Native WebSocket cancellation passes on 2.0.27, 2.0.28, 2.0.29, 2.0.32 and
-2.1.1-compaction.1; 2.0.25 retains unit-only coverage.
+separate, explicitly invoked operations. Native WebSocket cancellation passes on 2.0.27, 2.0.28, 2.0.29, 2.0.32,
+2.1.1-compaction.1 and 2.2.0; 2.0.25 retains unit-only coverage.
 
 **Delivery scope:** local and cloud chat delivery. A cloud reading is delivery observed through OpenCode, including network
 and provider buffering; it is never engine throughput, and a cloud chat never borrows a local engine measurement.
@@ -109,7 +109,7 @@ The observer uses the supported `ctx.event.subscribe({ signal })` API. OpenCode 
 
 The `http.request` hook reads primary POST request metadata. The qualified `experimental.ws.handshake` hook reads primary session/model/destination metadata on every model call, including cached WebSocket reuse. It does not read or change headers, socket frames, requests, responses, or the socket. This covers OpenCode 2.0.25's default OpenAI WebSocket transport. Local targets require a literal loopback origin; remote targets require an observed non-loopback origin. Each step needs its own corroborated destination. A primary dispatch refreshes demand before authorizing observation, so the first reply does not depend on the periodic poll's timing. The dispatch also seeds the observation of its own call: a `session.step.started` lost while a subscription restarts (demand arriving as a reply begins) cannot hide that reply, and a step announcement that does arrive upgrades it to a full step. A dispatch-seeded observation binds to the first reply published after the dispatch, ignores everything published before it, proves no later step, and without its step announcement reports no completed-step average and trains no calibration. The separate existing Splash HTTP observer still only adds `return_progress` for its explicitly configured provider.
 
-Native qualification covers **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32 and 2.1.1-compaction.1**; other 2.0 releases from 2.0.25 and other 2.1 releases from 2.1.1 run self-checked. The released schema uses `session.step.started`, `session.step.streamed`, `session.step.ended`, `session.text.*`, `session.reasoning.*`, `session.tool.*`, and `session.execution.*`, with the envelope's numeric `created` timestamp and ordinal text/reasoning parts. These are different from old `session.next.*` events; old payloads are not interpreted as current telemetry. Public primary sources inspected for this implementation:
+Native qualification covers **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32, 2.1.1-compaction.1 and 2.2.0**; every other OpenCode 2 release from 2.0.25 runs self-checked. The released schema uses `session.step.started`, `session.step.streamed`, `session.step.ended`, `session.text.*`, `session.reasoning.*`, `session.tool.*`, and `session.execution.*`, with the envelope's numeric `created` timestamp and ordinal text/reasoning parts. These are different from old `session.next.*` events; old payloads are not interpreted as current telemetry. Public primary sources inspected for this implementation:
 
 - [OpenCode plugin event API](https://opencode.ai/v2/docs/build/plugins/#events)
 - [2.0.25 public session-event schema](https://github.com/anomalyco/opencode/blob/v2.0.25/packages/schema/src/session-event.ts)
@@ -127,6 +127,15 @@ consumed fields and boundaries. Isolated native checks verify local and remote-c
 advancement and clearing, WebSocket reuse and tools, calibration, completion, interruption and hidden shutdown.
 Native reload checks also verify updating an unsupported older helper and same-version revisions during a fixture reply.
 This does not qualify untested versions or establish real-model performance or every provider's behavior.
+
+**OpenCode 2.2.0 (OpenChamber 2.5.3).** Compared tag to tag, v2.1.1 → v2.2.0 drops only the unused
+`Session.Event.Source` schema and reorders an annotation in the session-event schema, and adds an omitted
+`instructions` member to the plugin's session API; every name and field read above is unchanged. Isolated native checks
+against the bundled binary cover the same scenarios as 2.1.1-compaction.1 below, with managed reload from the installed
+3.5.0 helper, which reported 2.2.0 unsupported. Sources:
+
+- [2.2.0 public session-event schema](https://github.com/anomalyco/opencode/blob/v2.2.0/packages/schema/src/session-event.ts)
+- [2.2.0 session hooks and request kinds](https://github.com/anomalyco/opencode/blob/v2.2.0/packages/plugin/src/promise/session.ts)
 
 **OpenCode 2.1.1 and the reviewed local build 2.1.1-compaction.1.** Compared tag to tag, v2.0.32 → v2.1.1 keeps every
 consumed name and field: the session hook names and their provider filter, the request kinds, the
@@ -207,7 +216,7 @@ type ChatTelemetryFile = {
   writerID: string;
   companionVersion: string; // readers accept any 3.x helper
   protocol: 'opencode-2.0.25';
-  runtimeVersion: string; // 2.0.25 or a later 2.0 release, or 2.1.1 or a later 2.1 release, or a reviewed local build
+  runtimeVersion: string; // 2.0.25 or a later OpenCode 2 release, or a reviewed local build
   updatedAtMs: number;
   expiresAtMs: number; // update + 15000
   entries: Array<{ // <= 16
