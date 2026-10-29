@@ -5,7 +5,7 @@ export const WINDOW_MS = 5_000;
 export const MIN_WINDOW_MS = 2_000;
 export const MAX_CHATS = 16;
 export const PROTOCOL = CHAT_PROTOCOL;
-export const COMPANION_VERSION = '3.5.0';
+export const COMPANION_VERSION = '3.6.0';
 const MAX_PARTS = 64, MAX_CHARACTERS = 10_000_000, MAX_DELTA = 65_536;
 // These released events do not alter the model call or contain observable output.
 const PENDING_METADATA = new Set(['session.renamed', 'session.metadata.updated', 'session.permissions', 'session.viewed', 'session.usage.updated']);

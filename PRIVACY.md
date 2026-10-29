@@ -11,7 +11,10 @@ referenced credential files and environment variables. It never reads OpenChambe
 raw API responses stay service-side. The views receive allowlisted measurements, bounded model labels, and connection
 choices. They do not receive prompts, completions, credentials, LLM request identifiers or process IDs. Media views additionally receive bounded backend job IDs and hashed ownership matching identifiers. Absolute model
 paths are reduced to names before display. Monitoring does not rewrite configuration. The optional companion setup
-changes OpenCode configuration only after an explicit Enable or Disable action, preserving other plugins and comments.
+changes OpenCode configuration only after an explicit Enable or Disable action, preserving other plugins and comments,
+and, once enabled, when an updated Scope brings its own unedited helper up to date (only the managed entry's
+`scopeRevision` changes). The names a provider's OpenCode `models` entries give their IDs (at most 32, 80 characters
+each) reach the views as display labels; they are never stored.
 
 **Bionic and LM Studio server log.** For LM Studio, the service follows LM Studio's server log with
 `lms log stream -s server --json --port <port>` while a Scope view is open. It parses only request lifecycle lines
@@ -60,7 +63,8 @@ A startup heartbeat proves the plugin was loaded, not that it is currently activ
 current reading. Only allowlisted measurement fields reach the view; matching hashes do not.
 
 Guided setup installs bundled companion files into `~/.config/opencode/addons/mlx-scope-prompt-progress` and edits
-OpenCode's plugin entry. It never restarts OpenCode or an active inference session. Disable removes the managed entry
+OpenCode's plugin entry. After a Scope update, the service repeats that update once for a helper it installed, unless
+its files were edited or setup was disabled. It never restarts OpenCode or an active inference session. Disable removes the managed entry
 and unchanged owned files; altered files are preserved. Manual installations stay under your control.
 
 Chat delivery estimates are transient: they are not added to engine charts, reply baselines or history.
