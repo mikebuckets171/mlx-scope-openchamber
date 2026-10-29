@@ -78,6 +78,8 @@ test('hidden surfaces stop both media reads and helper activation checks', async
   const frame = page.frameLocator('iframe');
   await frame.getByRole('button', { name: 'Connections', exact: true }).click();
   await frame.getByRole('button', { name: 'Enable detailed media progress', exact: true }).click();
+  // A click need not finish the SDK request. Start from an installed helper, not an in-flight POST counted as polling.
+  await expect(frame.locator('#media-setup')).toContainText('activates next time');
   await frame.locator('#scope').evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
   const before = await auxiliary(page, '/v2/media'), setups = await auxiliary(page, '/v2/media/setup');
   await page.clock.fastForward(31_000);
