@@ -21,7 +21,7 @@ test('synthetic success identifies the reference profile without claiming native
   expect(result.additionalGates).toEqual({ browser: 'not-run', resources: 'not-run', nativeProtocols: 'not-run' });
 });
 
-for (const [candidate, support] of [['2.0.33', 'self-checked'], ['2.1.0', 'unsupported']] as const) test(`an unqualified ${support} candidate gains no qualification even when every reference fixture passes`, () => {
+for (const [candidate, support] of [['2.0.33', 'self-checked'], ['3.0.0', 'unsupported']] as const) test(`an unqualified ${support} candidate gains no qualification even when every reference fixture passes`, () => {
   const result = qualificationReport(checks(), hashes, '', { ...context, candidate });
   expect(result.result).toBe('synthetic-pass');
   expect(result.candidate).toEqual({ runtime: 'OpenCode', version: candidate, profile: null, support });

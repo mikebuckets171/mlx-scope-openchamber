@@ -47,7 +47,7 @@ describe('companion setup surface', () => {
     expect(markup).not.toContain('Managed reload');
     expect(markup).toContain('Ready for the next observed step');
     const unsupported = { ...compatibility, features: featureSupport('2.0.32') };
-    expect(parseCompanionSetup({ ...valid, runtimeVersion: '2.1.0', compatibility: unsupported })?.compatibility).toBeUndefined();
+    expect(parseCompanionSetup({ ...valid, runtimeVersion: '3.0.0', compatibility: unsupported })?.compatibility).toBeUndefined();
   });
   it('labels a self-checked version as not yet qualified and ignores an unknown mode', () => {
     const features = featureSupport('2.0.33'); features['http-delivery'] = { support: 'compatible', available: true, check: { state: 'waiting' } };
