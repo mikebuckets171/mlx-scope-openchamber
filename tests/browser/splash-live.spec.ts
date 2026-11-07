@@ -142,3 +142,48 @@ test('the Session pane shows live derived tok/s and follows theme changes', asyn
   await expect(frame.locator('.ws-reading')).toBeHidden();
   await expect(frame.locator('#ws')).not.toContainText('tok/s');
 });
+
+// A turn's last generation speed stays on screen, dimmed with its age, through the gaps between readings, on every
+// surface that draws the Session reading. Runtime snapshots only, never inference.
+for (const surface of ['status', 'page', 'compact'] as const) test(`a Splash turn holds its last speed, dimmed with its age, on ${surface}`, async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.clock.install();
+  if (surface === 'compact') await page.addInitScript(() => { if (window.parent === window) sessionStorage.setItem('view.compact', 'true'); });
+  await page.goto(`/v2?surface=${surface === 'status' ? 'status' : 'page'}&state=splash-decode&chat=local&poll=1000`);
+  const frame = page.frameLocator('iframe');
+  const reading = frame.locator(surface === 'page' ? '.instrument-primary' : '.ws-measurement');
+  const show = (state: string) => page.evaluate(value => (window as any).setPreviewState(value), state);
+  await expect(frame.locator('#rate')).toHaveText('43.8');
+  await expect(reading).toHaveAttribute('data-live', 'true');
+  // Decoding resumed but the rate is not yet rebuilt: the last speed stays, dimmed, with its age.
+  await show('splash-measuring');
+  await page.clock.runFor(3_000);
+  await expect(reading).toHaveAttribute('data-live', 'false');
+  await expect(frame.locator('#rate')).toHaveText('43.8');
+  await expect(reading).toContainText(/tokens\/s · \d+ s ago/);
+  // A prompt read with reported progress: the live % wins, then the held speed returns.
+  await show('splash-progress');
+  await page.clock.runFor(1_000);
+  await expect(frame.locator('#prefill-percent')).toHaveText('64%');
+  await show('splash-measuring');
+  await page.clock.runFor(1_000);
+  await expect(frame.locator('#rate')).toHaveText('43.8');
+  await expect(reading).toHaveAttribute('data-live', 'false');
+  await expect(reading).toContainText(/tokens\/s · \d+ s ago/);
+  // A new rate is live again and carries no age.
+  await show('splash-decode');
+  await page.clock.runFor(1_000);
+  await expect(reading).toHaveAttribute('data-live', 'true');
+  await expect(reading).not.toContainText('ago');
+  expect(await frame.locator('html').evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  // The turn ends: nothing is held into the next one.
+  await page.evaluate(() => {
+    const w = window as any;
+    w.setPreviewSession({ id: 'fixture-chat', busy: false, model: 'omlx/Example-27B-4bit' });
+    w.sendPreviewLifecycle('completed');
+    w.setPreviewState('splash-measuring');
+  });
+  await page.clock.runFor(1_000);
+  if (surface === 'page') await expect(frame.locator('.instrument-primary')).toHaveCount(0);
+  else await expect(reading).toBeHidden();
+});

@@ -83,7 +83,9 @@ export class StatusApp {
       chatActivity: this.#session ? window?.endedAt === null || this.#session.busy === true ? 'busy' : this.#session.busy === false ? 'idle' : null : null,
       lastChat: state.lastChat, promptEtaMs: state.promptEta.ms, restingFacts: true,
       flags: pipeline.flagsFor(snapshot?.connection.runtime ?? null, modelOf(snapshot)),
+      kept: state.kept, chatKey: this.#session?.id ?? null,
     });
+    state.kept = view.kept;
     const actionError = this.#actionError;
     this.#p.mediaJobs.sync(this.#p.visible() && !state.userPaused && state.frame?.reason !== 'needs_approval');
     const readingWasFocused = this.#p.root.querySelector('.ws-measurement') === document.activeElement;
@@ -94,7 +96,7 @@ export class StatusApp {
     const reading = this.#p.root.querySelector<HTMLElement>('.ws-measurement');
     if (reading && !reading.hidden && this.#features.popovers) {
       reading.tabIndex = 0; reading.setAttribute('role', 'button'); reading.dataset.action = 'reading-details';
-      reading.setAttribute('aria-label', view.measurement ? `Measurement details: ${view.measurement.text}${view.measurement.unit ? ` ${view.measurement.unit}` : ''} · ${measurementLabel(view.measurement, true)}` : 'Measurement details');
+      reading.setAttribute('aria-label', view.measurement ? `Measurement details: ${view.measurement.text}${view.measurement.unit ? ` ${view.measurement.unit}` : ''}${view.measurement.age ? ` · ${view.measurement.age.text}` : ''} · ${measurementLabel(view.measurement, true)}` : 'Measurement details');
     }
     if (readingWasFocused && reading?.hidden) this.#p.root.querySelector<HTMLElement>('[data-action="open-scope"]')?.focus({ preventScroll: true });
     const fresh = snapshot !== null && !state.stale && !state.frame && !state.awaitingFresh && !state.userPaused;

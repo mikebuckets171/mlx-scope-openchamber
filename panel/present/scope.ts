@@ -6,6 +6,7 @@ import type { TurnWindow } from '../attribution/sessions.ts';
 import type { RegressionFlag, VsUsual } from '../history/regress.ts';
 import type { SignalPoint } from '../signal.ts';
 import type { PanelReason } from './reading.ts';
+import type { SessionKept } from './session.ts';
 
 /** Why the newest poll has no body: a frame-side state (host error, version skew, approval pending). */
 export interface FrameIssue { reason: PanelReason; message: string | null }
@@ -35,6 +36,8 @@ export interface ScopeInput {
   lastChat?: ChatMeasurement | null;
   promptEtaMs?: number | null; // recent observed prompt progress; never persisted
   flags?: readonly RegressionFlag[]; // "slower than usual" for the monitored runtime and model
+  kept?: SessionKept | null;   // the Session reading's frame memory for the open turn; never persisted
+  chatKey?: string | null;     // the open chat's identity, only compared
 }
 export const SERVER_WIDE: AttributionLabel = { kind: 'server-wide', reason: 'not-observed' };
 

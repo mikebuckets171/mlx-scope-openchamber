@@ -103,10 +103,17 @@ test('chat estimate, reasoning, tool waiting, short completion, and cancellation
   await expect(frame.locator('.ws-measurement')).toHaveAttribute('data-basis', 'estimate');
   await expect(frame.locator('#rate')).toHaveText('≈ 17.8');
   await expect(frame.locator('.measurement-accessible')).toHaveText('about 17.8 tokens per second');
-  for (const [state, label] of [['tool', 'Using tools'], ['waiting', 'Waiting'], ['complete', 'Complete'], ['cancelled', 'Stopped']]) {
-    await phase(state!);
-    await expect(frame.locator('.ws-phase')).toHaveText(label!);
-    await expect(frame.locator('.ws-measurement')).toBeHidden();
+  // Tools and waiting between steps keep the reply's last estimate, dimmed with its age; a reply that ended without a
+  // reported rate, or was stopped, shows none.
+  for (const [state, label, held] of [['tool', 'Using tools', true], ['waiting', 'Waiting', true], ['complete', 'Complete', false], ['cancelled', 'Stopped', false]] as const) {
+    await phase(state);
+    await expect(frame.locator('.ws-phase')).toHaveText(label);
+    if (held) {
+      await expect(frame.locator('#rate')).toHaveText('≈ 17.8');
+      await expect(frame.locator('.ws-measurement')).toHaveAttribute('data-live', 'false');
+      await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('This chat');
+      await expect(frame.locator('.measurement-accessible')).toHaveText(/^about 17\.8 tokens per second, measured \d+ seconds? ago$/);
+    } else await expect(frame.locator('.ws-measurement')).toBeHidden();
   }
   await phase('complete', 15.3);
   await expect(frame.locator('.ws-measurement .ws-label')).toHaveText('Last reply');

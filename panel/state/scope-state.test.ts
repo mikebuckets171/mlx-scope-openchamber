@@ -124,3 +124,11 @@ test('expired or future completions cannot establish a retained chat result', ()
     expect(state.lastChat).toBeNull();
   }
 });
+
+test('a connection change drops the Session reading’s held speed with the other observations', () => {
+  const state = new ScopeState(0);
+  state.kept = { turn: 't', source: 'engine', at: 1_000, support: null,
+    measurement: { label: 'Engine', text: '43.8', unit: 'tok/s', basis: 'derived', detail: '', live: true, kind: 'speed' } };
+  state.clearObservations();
+  expect(state.kept).toBeNull();
+});

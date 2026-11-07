@@ -42,7 +42,10 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
 
 - **Session sidebar.** The phase, one reading and **Open MLX Scope**. Prompt progress appears while the prompt is read,
   with a time-left estimate; speed appears while generating or reasoning. Tool use and waiting are explicit, and a
-  finished reply says **Last reply**. At most two rows appear only when something happens: a warning such as memory
+  finished reply says **Last reply**. Within a reply the number doesn't blink out: between readings (a tool run, the
+  next request, the seconds before a new rate) the reply's last speed stays, dimmed, with its age
+  (`≈ 43.2 tokens/s · 3 s ago`), and before its first speed the reply's elapsed time shows. Once a reply has shown
+  **This chat**, an **Engine** rate doesn't replace it until the next reply. At most two rows appear only when something happens: a warning such as memory
   pressure, **Slower than usual**, a **Prompt cache miss**, or a note. OpenChamber already shows the selected model, so
   the sidebar does not repeat it.
   **Watch** (Automatic or Engine) and **Pause** sit in OpenChamber's section header; on a host that cannot draw them,
@@ -54,8 +57,9 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
 - **Rail panel and full page.** One column at every width: This chat leads with the same activity, reading and scope
   menu as the sidebar, with available supporting facts in a separate **Engine** group and a visible **Engine trend** when
   compatible samples exist; **Media** joins the column only while jobs are running or recently finished. The reading never
-  goes dark: prompt progress shows supported counts, otherwise the reply's elapsed time, and the previous completed average
-  stays below a live reading, dimmed and labelled. Completed results retain their own available output, duration and
+  goes dark: prompt progress shows supported counts, otherwise the reply's elapsed time; between readings the reply's
+  last speed stays, dimmed with its age, as in the sidebar; and the previous completed average stays below a live
+  reading, dimmed and labelled. Completed results retain their own available output, duration and
   first-token facts; chat step timing stays distinct. **Measurement details** groups deeper engine readings, request
   details, the last reply and a compact **Engine server** strip; engine charts never mix in chat estimates. **Live**, **History** and **Connections** remain
   directly accessible. **Run details** opens current observations and their basis. History reply/turn **Details** opens the same inspector, with eligible reply comparisons and explicit observation gaps.
