@@ -20,6 +20,12 @@
   [5.2.0 overhead receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/overhead-5.2.0.json)
   stands.
 
+Before publication on macOS, type checking, the privacy scan, 1,850 Bun tests, 81 companion tests, 15 helper tests,
+reproducible bundles and package verification passed, as did all 630 Chromium/WebKit browser cases and the 21
+presentation goldens, unchanged. The six new browser cases fail against the 5.3.0 bundle where its number went blank.
+The service bundle differs from 5.3.0 only in its version string. No real reply was sampled before publication.
+Full verification and limits: [5.4.0 verification](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/5.4.0-verification.md).
+
 ## 5.3.0
 
 - **Chat speed works on OpenChamber 2.5.3 and keeps working across OpenCode updates.** OpenChamber 2.5.3 bundles
