@@ -86,6 +86,7 @@ export class ScopeApp {
       measurementScope: this.#p.prefs.value.measurementScope ?? 'auto', sessionModel: chat?.model ?? null,
       chatActivity: chat ? window?.endedAt === null || chat.busy === true ? 'busy' : chat.busy === false ? 'idle' : null : null, chatIsLocal: pipeline.chatIsLocal(),
       lastChat: state.lastChat, promptEtaMs: state.promptEta.ms, flags: pipeline.flagsFor(snapshot?.connection.runtime ?? null, modelOf(snapshot)),
+      kept: state.kept, chatKey: chat?.id ?? null,
     };
   }
   /** Frame-side callouts: a poll without a body, or no fresh reading before the deadline. */
@@ -137,14 +138,18 @@ export class ScopeApp {
     glance.hidden = !compact;
     if (this.#connections.isOpen) { glance.hidden = true; mediaGlance.hidden = true; this.#motion.reset(); return; }
     if (compact) {
-      morph(glance, sessionMarkup(presentSessionSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution,
+      const view = presentSessionSection({ now: s.now, reading: state.latest, snapshot: s.snapshot, attribution: s.attribution,
         chatIsLocal: s.chatIsLocal ?? null, fresh: s.fresh, paused: s.paused, window: s.window,
         efficient: state.efficient, measurementScope: s.measurementScope, sessionModel: s.sessionModel, chatActivity: s.chatActivity, lastChat: s.lastChat, promptEtaMs: s.promptEtaMs, restingFacts: true,
-        last: s.last && { completion: s.last.completion, label: s.last.label } }), null, true, true));
+        last: s.last && { completion: s.last.completion, label: s.last.label }, kept: s.kept, chatKey: s.chatKey });
+      state.kept = view.kept;
+      morph(glance, sessionMarkup(view, null, true, true));
       this.#syncMotion(s); return;
     }
     if (blocked) { this.#syncMotion(s); return; }
     const active = state.tab, live = presentLive(s, this.#extra(s));
+    // The Live view's Session instrument shares the glance's frame memory.
+    if (live.hero) state.kept = live.hero.instrument.kept;
     this.#node('panel-live').hidden = active !== 'live';
     this.#node('panel-history').hidden = active !== 'history';
     // These stateless views are rebuilt from the snapshot; remove hidden copies of their shared disclosure ids.

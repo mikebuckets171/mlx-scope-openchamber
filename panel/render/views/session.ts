@@ -50,8 +50,8 @@ const nextSessionMarkup = (view: SessionSectionView, actionError: string | null,
       <section class="ws-instrument" aria-label="Session activity">
         <div class="ws-line ws-heading" id="ws-heading"><span class="ws-phase" data-tone="${view.tone}" data-live="${String(!!measurement?.live)}" data-crossfade><span class="ws-phase-dot" aria-hidden="true"></span>${view.phase}</span><span class="ws-runtime">${view.speeds.source}</span></div>
         <div class="ws-measurement" id="ws-measurement" data-live="${String(!!measurement?.live)}" data-basis="${measurement?.basis ?? 'unavailable'}" title="${measurement?.detail ?? ''}"${flag('hidden', !measurement)}>
-          <span class="ws-reading" aria-hidden="true"><strong id="${measurement ? READOUT_ID[measurement.kind] : 'rate'}" style="--reading-width:${readoutWidth(readingText)}">${readingText}</strong>${unit ? html`<span>${unit}</span>` : ''}</span>
-          <span class="sr-only measurement-accessible">${measurement?.basis === 'estimate' ? 'about ' : ''}${measurement?.text ?? ''}${measurement?.kind === 'speed' ? ' tokens per second' : unit ? ` ${unit}` : ''}</span>
+          <span class="ws-reading" aria-hidden="true"><strong id="${measurement ? READOUT_ID[measurement.kind] : 'rate'}" style="--reading-width:${readoutWidth(readingText)}">${readingText}</strong>${unit ? html`<span>${unit}${measurement?.age ? ` · ${measurement.age.text}` : ''}</span>` : ''}</span>
+          <span class="sr-only measurement-accessible">${measurement?.basis === 'estimate' ? 'about ' : ''}${measurement?.text ?? ''}${measurement?.kind === 'speed' ? ' tokens per second' : unit ? ` ${unit}` : ''}${measurement?.age ? `, measured ${measurement.age.spoken}` : ''}</span>
           <span class="ws-label" data-crossfade>${label}${view.eta ? html`<span class="prompt-eta">${view.eta.text}</span>` : ''}</span><span class="sr-only basis">${measurement?.detail ?? ''}</span>
         </div>
         <div class="ws-exceptions" id="ws-notice"${actionError ? html` role="status"` : ''}${flag('hidden', !rows.length)}>${rows.map(row =>

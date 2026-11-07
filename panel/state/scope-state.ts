@@ -3,6 +3,7 @@ import type { ChatMeasurement } from '../../src/contract/chat.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { frameReading, linkIdentity, type HostReading, type Reading } from '../present/reading.ts';
 import type { FrameIssue } from '../present/scope.ts';
+import type { SessionKept } from '../present/session.ts';
 import type { Tab } from '../render/views/types.ts';
 import { SignalHistory } from '../signal.ts';
 import { PromptEta } from '../prompt-eta.ts';
@@ -17,6 +18,7 @@ export class ScopeState {
   lastHost: HostReading | null = null;       // the newest host reading, kept while readings stop
   snapshot: SnapshotV2 | null = null;        // the newest v2 body, retained through a missed poll
   lastChat: ChatMeasurement | null = null;   // one completed result in frame memory; never a live observation
+  kept: SessionKept | null = null;           // the open turn's last generation speed and source; never persisted
   frame: FrameIssue | null = null;           // why the newest poll had no body
   stale = false;                             // the no-fresh-reading deadline passed since the last body
   signal = new SignalHistory();
@@ -82,7 +84,7 @@ export class ScopeState {
     return true;
   }
   clearObservations(): void {
-    this.lastHost = null; this.#monitored = null; this.#completions = null; this.snapshot = null; this.lastChat = null;
+    this.lastHost = null; this.#monitored = null; this.#completions = null; this.snapshot = null; this.lastChat = null; this.kept = null;
     this.signal = new SignalHistory();
     this.promptEta.reset();
     this.#chatBoundaryAt = 0;

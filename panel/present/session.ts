@@ -21,6 +21,19 @@ export interface SessionMeasurement {
   label: string; text: string; unit: string | null; basis: Basis;
   detail: string; live: boolean; kind: 'speed' | 'progress' | 'elapsed';
   result?: { label: string; outputTokens?: number; durationMs?: number; ttftMs?: number; timing: 'request' | 'step' };
+  /** Set only on a held reading: this turn's last generation speed, shown dimmed until a new reading replaces it. */
+  age?: { text: string; spoken: string };
+}
+/**
+ * What a frame remembers between renders: the open turn's last live generation speed, the support line shown with it,
+ * and which source the turn follows. Frame memory only: never written to History, exported or shown as live.
+ */
+export interface SessionKept {
+  turn: string;                              // the chat, turn, chat model and connection it belongs to
+  source: 'chat' | 'engine';                 // "This chat" or "Engine": set by the turn's first generation speed
+  measurement: SessionMeasurement;           // the last live generation speed shown in this turn
+  support: { text: string; detail: string; basis?: Basis } | null;
+  at: number;                                // when that speed was sampled, on the service clock
 }
 export interface SessionSectionView {
   phase: string; tone: 'normal' | 'warning' | 'critical';
@@ -37,12 +50,21 @@ export interface SessionSectionView {
   alert: { label: string; value: string; severity: Severity; more: number } | null;
   /** The compact section's only extra rows: something happening now, most important first, at most two. */
   exceptions: SessionException[];
+  /** This frame's memory for the next render (`SessionSectionInput.kept`); null outside an open turn. */
+  kept: SessionKept | null;
 }
 export interface SessionException { key: string; text: string; detail: string; severity: 'info' | 'warning' | 'critical' }
 export const MAX_EXCEPTIONS = 2;
 const positive = (value: number | null | undefined): value is number => value != null && Number.isFinite(value) && value > 0;
 /** Phases where fresh engine records can support a resting glance. */
 const RESTING = new Set(['Idle', 'Ready', 'No model loaded', 'Connected', 'Paused']);
+/** A held reading's age: whole seconds under a minute ("3 s ago"; `ago` would say "just now"), then minutes or hours. */
+const heldAge = (at: number, now: number): { text: string; spoken: string } => {
+  const ms = Math.max(0, now - at);
+  if (ms < 60_000) { const s = Math.min(59, Math.max(1, Math.round(ms / 1_000))); return { text: `${s} s ago`, spoken: `${s} second${s === 1 ? '' : 's'} ago` }; }
+  const text = ago(at, now), [count, unit] = text.split(' ');
+  return { text, spoken: `${count} ${unit === 'h' ? 'hour' : 'minute'}${count === '1' ? '' : 's'} ago` };
+};
 /** Whole seconds, rounded down: an elapsed time never runs ahead of the clock. */
 const elapsedText = (ms: number): string => (ms < 60_000 ? `${Math.floor(ms / 1_000)} s` : dur(Math.floor(ms / 1_000) * 1_000)).replace(/ /g, '\u00a0');
 /** What the Session section and the compact glance read. Absent optional fields mean "not known". */
@@ -66,6 +88,10 @@ export interface SessionSectionInput {
   restingFacts?: boolean;
   /** "Slower than usual" flags for the monitored runtime and model. */
   flags?: readonly RegressionFlag[];
+  /** The previous render's memory (`SessionSectionView.kept`). */
+  kept?: SessionKept | null;
+  /** The open chat's identity in this frame: only compared, never shown or stored. */
+  chatKey?: string | null;
 }
 
 const speedMeasurement = (label: string, text: string, basis: Basis, detail: string, live = true): SessionMeasurement =>
@@ -92,6 +118,15 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   const matched = !engine && input.attribution.kind !== 'server-wide' && snapshot?.connection.runtime !== 'splash';
   const source = matched ? 'This chat' : 'Engine';
   const sourceDetail = 'Runtime match to this chat; other requests with this model remain possible.';
+  // Frame memory: once a turn has shown a generation speed, the last one stays, dimmed with its age, through the gaps
+  // between readings (tools, the next request, a prompt read without %, the seconds before a new rate). Only inside the
+  // turn: another chat, turn, chat model or connection starts over. "This chat" gets the turn first: once it has shown,
+  // an Engine generation speed is not shown again until the next turn.
+  const turnWindow = input.window ?? null;
+  const turnOpen = turnWindow ? turnWindow.endedAt === null : input.chatActivity === 'busy';
+  const turnKey = snapshot ? JSON.stringify([input.chatKey ?? null, turnWindow?.tag ?? null,
+    turnWindow ? turnWindow.startedAt ?? turnWindow.joinedAt ?? null : null, input.sessionModel ?? null, snapshot.connection.id]) : null;
+  const kept = input.kept && fresh && turnOpen && input.kept.turn === turnKey ? input.kept : null;
   let phase = speeds.phase === 'Status stale' ? 'Waiting for update' : speeds.phase === 'Not admitting' ? 'Not accepting requests'
     : snapshot?.status.reason === 'admin_unauthorized' ? 'Limited access' : speeds.phase;
   let measurement: SessionMeasurement | null = null, progress: SessionSectionView['progress'] = null, age: string | null = null;
@@ -118,7 +153,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     measurement = speedMeasurement(source, activeSpeed.value!, activeSpeed.basis, `${sourceDetail} ${activeSpeed.detail}`);
   } else if (chat?.freshness === 'live' && ['generating', 'reasoning'].includes(chat.phase) && positive(chat.tokensPerSecond)) {
     measurement = speedMeasurement('This chat', tps(chat.tokensPerSecond), 'estimate', `Estimated delivery over ${dur(chat.observation.endedAtMs - chat.observation.startedAtMs)}${chat.basis === 'calibrated-characters' ? ' · calibrated from reported output' : ' · four characters per token'}. Includes observable reasoning${nonLocal ? ', network delivery and provider buffering' : ''}.`);
-  } else if (usable && !chatStopped && activeSpeed?.value !== null && activeSpeed) {
+  } else if (usable && !chatStopped && activeSpeed?.value !== null && activeSpeed && (kept?.source !== 'chat' || activeSpeed.key !== 'generation')) {
     measurement = speedMeasurement('Engine', activeSpeed.value!, activeSpeed.basis, `All engine requests · ${activeSpeed.detail}`);
   }
   if (chat) {
@@ -145,17 +180,25 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
         ...last.completion.startedAt !== null ? { durationMs: last.completion.finishedAt - last.completion.startedAt } : {} } };
     age = ago(last.completion.finishedAt, input.now);
   }
+  // A live reading always wins; the held speed only fills the gap, and it outranks the elapsed time below.
+  if (!measurement && kept && !cancelled) {
+    const shown = heldAge(kept.at, input.now);
+    measurement = { ...kept.measurement, live: false, age: shown,
+      detail: `Measured ${shown.spoken} in this reply and held until a new reading replaces it. Not a live reading. ${kept.measurement.detail}` };
+  }
   // Never dark: while the prompt is read, or the reply waits for its first output, and nothing better is measured, the
   // hero holds this reply's elapsed time. It comes from the engine's own request clock when it reports one, else from
   // the chat's observed turn start; a turn joined mid-way has no known start, so nothing is shown. Never a simulated %.
+  // Before a turn's first speed it also covers the first seconds of output and any tool run, when nothing is held yet.
   const awaitingOutput = readingPrompt || !engine && chat?.phase === 'waiting' && input.chatActivity === 'busy';
-  if (!measurement && !cancelled && awaitingOutput && fresh) {
+  if (!measurement && !cancelled && (awaitingOutput || !engine && turnOpen && !kept) && fresh) {
     const request = snapshot.runtime.request, engineClock = readingPrompt && request?.elapsedMs != null ? snapshot.capabilities['request.elapsed'] : undefined;
     const turn = !engine && input.window?.endedAt === null && input.window.startedAt !== null && input.window.startedAt <= input.now ? input.window.startedAt : null;
     if (engineClock && request!.elapsedMs! >= 0) measurement = { label: `${source} · elapsed`, text: elapsedText(request!.elapsedMs!), unit: null,
       basis: engineClock.basis, live: true, kind: 'elapsed', detail: 'Time since the engine started this request. Prompt progress is not reported.' };
     else if (turn !== null) measurement = { label: `This chat · elapsed`, text: elapsedText(input.now - turn), unit: null, basis: 'observed', live: true,
-      kind: 'elapsed', detail: readingPrompt ? 'Time since this reply started. The engine does not report prompt progress.' : 'Time since this reply started, waiting for its first output.' };
+      kind: 'elapsed', detail: readingPrompt ? 'Time since this reply started. The engine does not report prompt progress.'
+        : awaitingOutput ? 'Time since this reply started, waiting for its first output.' : 'Time since this reply started, until its first speed is measured.' };
   }
   if (cancelled && !engine) { measurement = null; phase = 'Stopped'; }
   else if (!engine && input.chatActivity === 'busy' && usable && !chat && snapshot.runtime.phase === 'idle') phase = 'Waiting';
@@ -168,7 +211,7 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
     note = snapshot.status.reason === 'status_stale' ? 'Checking again automatically'
       : snapshot.status.reason === 'admin_unauthorized' ? 'Check access in MLX Scope'
         : snapshot.status.reason === 'metrics_required' ? 'Open MLX Scope for setup' : statusGlanceNote(snapshot);
-  } else if (!measurement && speeds.speeds.some(speed => speed.detail.startsWith('Turn off Energy'))) note = 'Energy saving is on';
+  } else if ((!measurement || measurement.age) && speeds.speeds.some(speed => speed.detail.startsWith('Turn off Energy'))) note = 'Energy saving is on';
   const top = !nonLocal && fresh && snapshot ? visibleAlerts(snapshot)[0] : null;
   const text = top ? alertCopy(top.id, top.params, snapshot!.connection.modelNames, snapshot!.connection.id)[0] : '';
   const alert = top ? { label: text.startsWith('macOS memory pressure:') ? `Memory pressure · ${top.severity}` : text,
@@ -179,11 +222,18 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   // Facts about a request matched to this chat need no scope; anything else is the engine's.
   const prefix = matched && measurement?.label.startsWith('This chat') && measurement.basis !== 'estimate' ? '' : 'Engine · ';
   const output = measurement?.live && runtimePhaseAgrees && usable && ['decode', 'processing'].includes(snapshot.runtime.phase);
-  const support = alert || !fresh || cancelled ? null : age && measurement ? { text: `Finished ${age}`, detail: measurement.detail }
+  const liveSupport = alert || !fresh || cancelled ? null : age && measurement ? { text: `Finished ${age}`, detail: measurement.detail }
     : reading?.counts && measurement?.live ? { text: `${prefix}${kt(reading.counts.done)} / ${kt(reading.counts.total)} tokens`, detail: progress!.detail }
     : output && request?.ttftMs != null && snapshot!.capabilities['request.ttft'] ? { text: `${prefix}First token ${dur(request.ttftMs)}`, detail: 'Time to first token for this engine request.', basis: snapshot!.capabilities['request.ttft']!.basis }
     : output && request?.outputTokens != null ? { text: `${prefix}${kt(request.outputTokens)} tokens out`, detail: 'Output so far for this engine request.', basis: snapshot!.capabilities['request.tokens']?.basis }
     : usable && !chatStopped && snapshot.runtime.server.active! > 1 ? { text: `Engine · ${snapshot.runtime.server.active} active`, detail: 'Concurrent requests reported by this engine.' } : null;
+  // A held reading keeps the support line it was shown with, so the two never change apart.
+  const support = measurement?.age ? (alert || !fresh || cancelled ? null : kept?.support ?? null) : liveSupport;
+  // Only a live generation speed is kept or claims the turn; a prompt-reading rate is a live reading of its own.
+  const generation = measurement?.kind === 'speed' && measurement.live && (measurement.basis === 'estimate' || activeSpeed?.key === 'generation') ? measurement : null;
+  const nextKept: SessionKept | null = !turnOpen || !fresh || cancelled || turnKey === null ? null
+    : generation ? { turn: turnKey, source: generation.label === 'Engine' ? 'engine' : 'chat', measurement: generation, support,
+      at: generation.basis === 'estimate' && chat ? chat.observedAtMs : snapshot!.runtime.sampledAt ?? snapshot!.serverNow } : kept;
   // Held below a live reading: the previous completed average of this local chat's model. A cloud chat never borrows
   // a local engine's reply, and a value is never held across a model change or cancellation.
   const held = !nonLocal && fresh && !alert && !cancelled && measurement?.live && last && lastMatches && positive(last.completion.decodeTps)
@@ -218,5 +268,5 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   return { measurementScope: engine ? 'engine' : 'auto', measurement, support: shownSupport, eta, speeds, progress, held,
     resting: atRest && !measurement && !shownSupport && !held && !insights.length,
     phase, tone: alert?.severity === 'critical' ? 'critical' : input.fresh === false || alert || frame ? 'warning' : 'normal',
-    note: shownNote, alert, exceptions };
+    note: shownNote, alert, exceptions, kept: nextKept };
 };

@@ -8,7 +8,7 @@ import { frameReading, fromSnapshot } from './reading.ts';
 import { presentSessionSection } from './session.ts';
 import { presentLive } from './live.ts';
 import { SERVER_WIDE } from './scope.ts';
-import type { SessionSectionInput } from './session.ts';
+import type { SessionKept, SessionSectionInput } from './session.ts';
 import type { ChatMeasurement } from '../../src/contract/chat.ts';
 
 const inputOf = (state: string, extra: Partial<SessionSectionInput> = {}, patch: (body: Record<string, any>) => void = () => {}): SessionSectionInput => {
@@ -451,10 +451,13 @@ test('never dark: a cloud reply waiting for its first output shows elapsed time,
   expect(presentSessionSection(input)).toMatchObject({ phase: 'Waiting', held: null,
     measurement: { kind: 'elapsed', text: '4\u00a0s', label: 'This chat · elapsed' } });
   input.snapshot!.chat = chatSample() as never;
-  expect(presentSessionSection(input).measurement).toMatchObject({ kind: 'speed', label: 'This chat' });
-  // After tools or between steps the phase itself is the truth.
+  const estimate = presentSessionSection(input);
+  expect(estimate.measurement).toMatchObject({ kind: 'speed', label: 'This chat' });
+  // During a tool run the frame holds the turn's estimate; with no speed shown yet, the elapsed time stays.
   input.snapshot!.chat = chatSample({ phase: 'tool', tokensPerSecond: undefined }) as never;
-  expect(presentSessionSection(input).measurement).toBeNull();
+  expect(presentSessionSection(input)).toMatchObject({ phase: 'Using tools', measurement: { kind: 'elapsed', label: 'This chat · elapsed' } });
+  expect(presentSessionSection({ ...input, now: MOCK_NOW + 3_000, kept: estimate.kept })).toMatchObject({ phase: 'Using tools',
+    measurement: { kind: 'speed', label: 'This chat', text: '19.2', basis: 'estimate', live: false, age: { text: '3 s ago' } } });
 });
 
 test('the previous completed average is held, dimmed and labelled, below a live local reading only', () => {
@@ -587,4 +590,141 @@ test('prompt counts for a request matched to this chat carry no Engine prefix; u
   expect(matched.support?.text).toBe("5,824 / 9,100 tokens");
   expect(engine.measurement?.label).toBe('Engine');
   expect(engine.support?.text).toMatch(/^Engine · /);
+});
+
+// The held reading: frames of one turn in a local Splash chat, each fed the previous frame's memory as the sidebar,
+// the compact glance and the Live view do.
+const TURN = { tag: 't', startedAt: MOCK_NOW - 20_000, endedAt: null, outcome: null } as const;
+const frameAt = (state: string, seconds: number, extra: Partial<SessionSectionInput> = {}, patch: (body: Record<string, any>) => void = () => {}): SessionSectionInput => {
+  const now = MOCK_NOW + seconds * 1_000, body = structuredClone(mockBody(state, { now })); patch(body);
+  const snapshot = parseSnapshotV2(body)!;
+  return { now, reading: fromSnapshot(snapshot), snapshot, attribution: SERVER_WIDE, chatIsLocal: true, fresh: true, last: null,
+    window: TURN, chatActivity: 'busy', chatKey: 'chat-a', sessionModel: 'splash/Example-27B', ...extra };
+};
+const chatAt = (seconds: number, patch: Record<string, unknown> = {}) => (body: Record<string, any>) => {
+  const now = MOCK_NOW + seconds * 1_000;
+  body.chat = chatSample({ observedAtMs: now, expiresAtMs: now + 5_000, observation: { startedAtMs: now - 3_000, endedAtMs: now }, ...patch });
+};
+const toolRun = (body: Record<string, any>) => { body.runtime.phase = 'idle'; body.runtime.server.active = 0; delete body.runtime.server.rates; };
+const play = (frames: SessionSectionInput[]) => {
+  let kept: SessionKept | null = null;
+  return frames.map(frame => { const view = presentSessionSection({ ...frame, kept }); kept = view.kept; return view; });
+};
+const shown = (view: ReturnType<typeof presentSessionSection>) =>
+  [view.measurement?.kind ?? null, view.measurement?.text ?? null, view.measurement?.live ?? null, view.measurement?.age?.text ?? null];
+
+test('a turn’s last speed stays, dimmed with its age, through the dead zone, a tool run and a prompt read without %', () => {
+  const views = play([
+    frameAt('splash-decode', 0),
+    frameAt('splash-measuring', 3),
+    frameAt('splash-measuring', 6, {}, toolRun),
+    frameAt('splash-progress', 8),
+    frameAt('splash-prefill-waiting', 9),
+    frameAt('splash-measuring', 12),
+    frameAt('splash-decode', 14),
+  ]);
+  expect(views.map(shown)).toEqual([['speed', '43.8', true, null], ['speed', '43.8', false, '3 s ago'], ['speed', '43.8', false, '6 s ago'],
+    ['progress', '64%', true, null], ['speed', '43.8', false, '9 s ago'], ['speed', '43.8', false, '12 s ago'], ['speed', '43.8', true, null]]);
+  expect(views.map(view => view.measurement?.label)).toEqual(Array(7).fill('Engine'));
+  expect(views[1]!.measurement!.detail).toMatch(/^Measured 3 seconds ago in this reply and held until a new reading replaces it\. Not a live reading\./);
+  // The previous completed average is never shown under a held reading.
+  expect(views[1]!.held).toBeNull();
+});
+
+test('before a turn’s first speed the elapsed time covers the first seconds of output; a % or prompt rate never claims the turn', () => {
+  const views = play([frameAt('splash-progress', 0), frameAt('splash-measuring', 2), frameAt('splash-decode', 4), frameAt('splash-measuring', 6)]);
+  expect(views[0]).toMatchObject({ measurement: { kind: 'progress', text: '64%' }, kept: null });
+  expect(views[1]).toMatchObject({ kept: null, measurement: { kind: 'elapsed', label: 'This chat · elapsed', text: '22 s', live: true,
+    detail: 'Time since this reply started, until its first speed is measured.' } });
+  expect(views[2]!.kept).toMatchObject({ source: 'engine', measurement: { text: '43.8', live: true } });
+  expect(shown(views[3]!)).toEqual(['speed', '43.8', false, '2 s ago']);
+  // A turn joined mid-way has no known start: nothing is invented.
+  expect(presentSessionSection(frameAt('splash-measuring', 2, { window: { ...TURN, startedAt: null, joinedAt: MOCK_NOW } })).measurement).toBeNull();
+  // A prompt-reading rate is a live reading of its own: it shows, but it is never held as the generation speed.
+  const prompt = play([frameAt('splash-prefill', 0), frameAt('splash-measuring', 2)]);
+  expect(prompt[0]).toMatchObject({ measurement: { kind: 'speed', label: 'Engine', live: true }, kept: null });
+  expect(prompt[1]!.measurement).toMatchObject({ kind: 'elapsed' });
+  // Once the turn has a speed, a live prompt rate still shows during the prompt read, and the speed returns after it.
+  const read = play([frameAt('splash-decode', 0), frameAt('splash-prefill', 2), frameAt('splash-measuring', 4)]);
+  expect(read.map(shown)).toEqual([['speed', '43.8', true, null], ['speed', '612', true, null], ['speed', '43.8', false, '4 s ago']]);
+});
+
+test('This chat gets the turn first: Engine never replaces it, and an Engine turn switches to This chat once', () => {
+  const first = play([
+    frameAt('splash-decode', 0, {}, chatAt(0)),
+    frameAt('splash-decode', 2, {}, chatAt(2, { tokensPerSecond: undefined })),
+    frameAt('splash-decode', 4),
+  ]);
+  expect(first.map(view => [view.measurement?.label, view.measurement?.text, view.measurement?.live])).toEqual([
+    ['This chat', '19.2', true], ['This chat', '19.2', false], ['This chat', '19.2', false]]);
+  expect(readoutText(first[1]!.measurement!)).toBe('≈ 19.2');
+  expect(first[2]!.measurement?.age?.text).toBe('4 s ago');
+  const switched = play([frameAt('splash-decode', 0), frameAt('splash-decode', 2, {}, chatAt(2)), frameAt('splash-decode', 4, {}, chatAt(4, { tokensPerSecond: undefined }))]);
+  expect(switched.map(view => [view.measurement?.label, view.measurement?.live])).toEqual([['Engine', true], ['This chat', true], ['This chat', false]]);
+  expect(switched.map(view => view.kept?.source)).toEqual(['engine', 'chat', 'chat']);
+  // The next turn starts over.
+  expect(presentSessionSection({ ...frameAt('splash-decode', 6, { window: { ...TURN, startedAt: MOCK_NOW + 5_000 } }), kept: switched[2]!.kept }).measurement)
+    .toMatchObject({ label: 'Engine', live: true });
+});
+
+test('the hold ends with the turn, a stop, or a chat, chat model or connection change, and is never kept while paused or stale', () => {
+  const kept = presentSessionSection(frameAt('splash-decode', 0)).kept;
+  expect(presentSessionSection({ ...frameAt('splash-measuring', 2), kept }).measurement?.age?.text).toBe('2 s ago');
+  const cases: Array<[string, Partial<SessionSectionInput>, ((body: Record<string, any>) => void)?]> = [
+    ['turn end', { window: { ...TURN, endedAt: MOCK_NOW + 1_000, outcome: 'completed' }, chatActivity: 'idle' }],
+    ['stop', { window: { ...TURN, endedAt: MOCK_NOW + 1_000, outcome: 'failure' } }],
+    ['cancelled reply', {}, chatAt(2, { phase: 'cancelled', tokensPerSecond: undefined })],
+    ['another chat', { chatKey: 'chat-b' }],
+    ['another chat model', { sessionModel: 'splash/Other-9B' }],
+    ['another connection', {}, body => { body.connection.id = 'other-splash'; }],
+    ['no turn', { window: null, chatActivity: 'idle' }],
+    ['paused', { paused: true }],
+    ['stale', { fresh: false }],
+  ];
+  for (const [name, extra, patch] of cases) {
+    const view = presentSessionSection({ ...frameAt('splash-measuring', 2, extra, patch), kept });
+    expect(view.measurement?.age, name).toBeUndefined();
+    expect(view.kept, name).toBeNull();
+  }
+  // Without a turn window, the hold follows the chat's busy state.
+  const busy = presentSessionSection(frameAt('splash-decode', 0, { window: null })).kept;
+  expect(presentSessionSection({ ...frameAt('splash-measuring', 2, { window: null }), kept: busy }).measurement).toMatchObject({ live: false, age: { text: '2 s ago' } });
+});
+
+test('a held reading’s age reads in whole seconds under a minute, then minutes and hours', () => {
+  const kept = presentSessionSection(frameAt('splash-decode', 0)).kept;
+  const age = (seconds: number) => presentSessionSection({ ...frameAt('splash-measuring', seconds), kept }).measurement?.age;
+  expect(age(0.4)).toEqual({ text: '1 s ago', spoken: '1 second ago' });
+  expect(age(3)).toEqual({ text: '3 s ago', spoken: '3 seconds ago' });
+  expect(age(59.4)).toEqual({ text: '59 s ago', spoken: '59 seconds ago' });
+  expect(age(60)).toEqual({ text: '1 min ago', spoken: '1 minute ago' });
+  expect(age(120)).toEqual({ text: '2 min ago', spoken: '2 minutes ago' });
+  expect(age(7_200)).toEqual({ text: '2 h ago', spoken: '2 hours ago' });
+});
+
+test('a held reading renders dimmed with its age in the sidebar and the Live view, and keeps the energy-saving note', () => {
+  const views = play([frameAt('splash-decode', 0), frameAt('splash-measuring', 3)]);
+  const markup = sessionMarkup(views[1]!).markup;
+  expect(markup).toContain('id="ws-measurement" data-live="false"');
+  expect(markup).toContain('<span>tokens/s · 3 s ago</span>');
+  expect(markup).toContain('43.8 tokens per second, measured 3 seconds ago');
+  expect(/id="ws-measurement"[^>]*hidden/.test(markup)).toBe(false);
+  expect(markup).not.toContain('No measurement available');
+  const live = presentLive({ ...frameAt('splash-measuring', 3), kept: views[0]!.kept, version: '5.4.0-test', frame: null, chatRuntime: null,
+    samples: [], turnStartAt: null } as never);
+  expect(live.hero?.instrument.measurement).toMatchObject({ text: '43.8', live: false, age: { text: '3 s ago' } });
+  const page = liveMarkup(live, new Set()).markup;
+  expect(page).toContain('class="instrument-primary" data-live="false"');
+  expect(page).toContain('tokens/s · 3 s ago</span>');
+  expect(page).toContain('measured 3 seconds ago');
+  const saving = presentSessionSection({ ...frameAt('splash-measuring', 3, { efficient: true }), kept: views[0]!.kept });
+  expect(saving).toMatchObject({ note: 'Energy saving is on', measurement: { text: '43.8', live: false, age: { text: '3 s ago' } } });
+  expect(sessionMarkup(saving).markup).toContain('Energy saving is on');
+});
+
+test('a held reading keeps the support line it was shown with', () => {
+  const omlx = (seconds: number, patch: (body: Record<string, any>) => void = () => {}) => frameAt('decode', seconds, { sessionModel: 'omlx/Example-27B-4bit' }, patch);
+  const views = play([omlx(0), omlx(4, body => { body.runtime.phase = 'idle'; body.runtime.request = null; })]);
+  expect(views[0]!.support?.text).toMatch(/^Engine · .+ tokens out$/);
+  expect(views[1]).toMatchObject({ measurement: { label: 'Engine', text: '26.4', live: false, age: { text: '4 s ago' } }, support: views[0]!.support });
 });

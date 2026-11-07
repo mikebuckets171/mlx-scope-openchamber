@@ -64,21 +64,29 @@ for (const theme of ['light', 'dark']) for (const fontSize of [16, 24, 32]) test
   for (const [phase, label] of [['reasoning', 'Reasoning'], ['tool', 'Using tools'], ['waiting', 'Waiting'], ['complete', 'Complete'], ['cancelled', 'Stopped']] as const) {
     await setPhase(page, phase, phase === 'reasoning' ? 18.1 : phase === 'complete' ? 19.2 : undefined);
     await expect(frame.locator('.ws-phase')).toHaveText(label);
-    await expect(frame.locator('.ws-measurement:visible')).toHaveCount(phase === 'reasoning' || phase === 'complete' ? 1 : 0);
+    // Tools and waiting between steps hold the reply's last speed in the reading row; only a stopped reply has none.
+    const held = phase === 'tool' || phase === 'waiting';
+    await expect(frame.locator('.ws-measurement:visible')).toHaveCount(phase === 'cancelled' ? 0 : 1);
     const layout = await fitsGlance(frame);
     expect(layout.actions.height, phase).toBe(populated.actions.height);
     if (phase === 'reasoning') {
       expect(layout.measurement).toEqual(populated.measurement);
       expect(layout.actions).toEqual(populated.actions);
       expect(layout.section).toEqual(populated.section);
-    } else if (phase === 'complete') {
-      // The finished reply keeps its reading row where the live one was. Its value carries no "≈", so where the live
-      // estimate's unit wrapped below it the row may be that one line shorter; it never collapses.
+    } else if (phase === 'complete' || held) {
+      // The finished reply and a held speed keep the reading row where the live one was. A finished value carries no
+      // "≈" and a held one adds its age, so the unit may wrap differently; the row never collapses.
       expect(layout.measurement!.y).toBeCloseTo(populated.measurement!.y, 5);
       expect(layout.measurement!.height).toBeGreaterThanOrEqual(populated.measurement!.height - populated.unitLine);
-      // The quiet Session keeps one reading: the finished reply's average, with no support row beneath it.
-      await expect(frame.locator('.ws-label')).toHaveText('Last reply');
-      await expect(frame.locator('.ws-support')).toHaveCount(0);
+      if (held) {
+        await expect(frame.locator('.ws-measurement')).toHaveAttribute('data-live', 'false');
+        await expect(frame.locator('#rate')).toHaveText('≈ 18.1');
+        await expect(frame.locator('.ws-reading')).toContainText(/tokens\/s · \d+ s ago/);
+      } else {
+        // The quiet Session keeps one reading: the finished reply's average, with no support row beneath it.
+        await expect(frame.locator('.ws-label')).toHaveText('Last reply');
+        await expect(frame.locator('.ws-support')).toHaveCount(0);
+      }
     } else {
       expect(layout.measurement).toBeNull();
       // A real unavailable-reading notice can replace the collapsed value, and both states may reach the
@@ -168,14 +176,19 @@ for (const width of [320, 1160]) for (const fontSize of [16, 32]) test(`full Liv
   for (const [phase, label] of [['reasoning', 'Reasoning'], ['tool', 'Using tools'], ['waiting', 'Waiting'], ['complete', 'Complete'], ['cancelled', 'Stopped']] as const) {
     await setPhase(page, phase, phase === 'reasoning' ? 18.1 : phase === 'complete' ? 19.2 : undefined);
     await expect(frame.locator('.instrument-phase')).toHaveText(label);
-    await expect(frame.locator('.instrument-primary')).toHaveCount(phase === 'reasoning' || phase === 'complete' ? 1 : 0);
+    // Tools and waiting between steps hold the reply's last speed, dimmed with its age; only a stopped reply has none.
+    await expect(frame.locator('.instrument-primary')).toHaveCount(phase === 'cancelled' ? 0 : 1);
+    if (phase === 'tool' || phase === 'waiting') {
+      await expect(frame.locator('.instrument-primary')).toHaveAttribute('data-live', 'false');
+      await expect(frame.locator('.instrument-primary .precision-unit')).toContainText(/ · \d+ s ago/);
+    }
     const current = await readout(), controls = await position(frame, '#measurement-details > summary');
     for (const part of current.parts) {
       if (part.quiet) expect(part.height, phase).toBe(0);
       else expect(part.content, phase).toBe(true);
     }
     if (phase === 'reasoning') expect(current).toEqual(populated);
-    if (!['reasoning', 'complete'].includes(phase)) expect(current.parts[0]!.quiet, phase).toBe(true);
+    if (phase === 'cancelled') expect(current.parts[0]!.quiet, phase).toBe(true);
     expect(controls.height, phase).toBe(details.height);
     expect(controls.y, phase).toBeCloseTo(details.y + current.occupied - populated.occupied, 4);
     await expect(frame.locator('#engine-trend')).toBeVisible();
