@@ -1,5 +1,31 @@
 # Changelog
 
+## 5.4.0
+
+- **The speed no longer blinks out mid-reply.** After every prompt read and tool call, Scope needs 2–3 s of fresh
+  counters before Splash's generation rate is back, and the chat estimate (`≈`) needs 2 s of output too, so the Session
+  reading went blank several times per reply. Within a reply, the last generation speed now stays on screen, dimmed,
+  with its age: `≈ 43.2 tokens/s · 3 s ago`. It covers tool runs, the start of the next request, a prompt read without
+  reported progress and the seconds before a new rate. A live reading always replaces it, and while a prompt is read a
+  live percentage or prompt-reading rate still shows. Before a reply's first speed, its elapsed time fills the gap
+  instead. The held speed ends with the reply, a stop, or a change of chat, chat model or connection. It is never
+  stored, exported or shown as live.
+- **One source per reply.** Once a reply has shown **This chat**, an **Engine** generation rate doesn't replace it until
+  the next reply; a reply that started on Engine switches to This chat once, when that reading appears. The number no
+  longer jumps between the chat's estimate and the engine's server-wide rate.
+- The sidebar, the compact glance, Work Status and the Live view share the rule. Ages read in whole seconds under a
+  minute, and screen readers hear "measured 3 seconds ago".
+- Display only: measurement rules, polling, the service's reads, the HTTP contract, storage and permissions are
+  unchanged, and the update needs no new approval. Overhead is unchanged by construction; the
+  [5.2.0 overhead receipt](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/overhead-5.2.0.json)
+  stands.
+
+Before publication on macOS, type checking, the privacy scan, 1,850 Bun tests, 81 companion tests, 15 helper tests,
+reproducible bundles and package verification passed, as did all 630 Chromium/WebKit browser cases and the 21
+presentation goldens, unchanged. The six new browser cases fail against the 5.3.0 bundle where its number went blank.
+The service bundle differs from 5.3.0 only in its version string. No real reply was sampled before publication.
+Full verification and limits: [5.4.0 verification](https://github.com/mikebuckets171/mlx-scope-openchamber/blob/main/docs/receipts/5.4.0-verification.md).
+
 ## 5.3.0
 
 - **Chat speed works on OpenChamber 2.5.3 and keeps working across OpenCode updates.** OpenChamber 2.5.3 bundles
