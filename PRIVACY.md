@@ -97,6 +97,15 @@ OpenChamber's data folder and is verified in Stage 12.
 A turn record adds the step count, total output, first-step time to first token, a token-weighted decode speed and time
 spent waiting.
 
+**Splash side records.** For a wait of at least one second, History may keep its type and duration plus the top three app
+names and reported memory footprints from the local `top` sample. The sample is read only during a reported Splash
+memory wait, or when the full details view is open and reported host headroom is exhausted. App names are local data:
+Clear deletes them with the wait, retention stops showing
+expired rows and evicts their chunks when eligible, and no share path exports them. Trial side records keep the observed
+Splash model reference, expert and total-memory caps, context window, whether a boundary was started manually, and
+ten-minute deltas of single- and multi-request decode batches. These readings stay in local History; they do not change
+Splash. User-entered trial baseline notes are device-local preferences.
+
 **Never stored:** chat, session or project IDs; chat titles; project names or folders; prompt or response text; request
 IDs; file paths; credentials. The per-chat tag the service uses to mark turns is not stored either.
 
@@ -117,8 +126,12 @@ most every 5 minutes, at 50 pending replies, or when the view is hidden. Nothing
 - A usage bar shows the space used. History is capped at 1,280 KiB; when it is full, the oldest replies are removed first.
 - The first recording shows "Recording reply history locally · Open Scope to manage".
 
-**Other saved data.** View preferences and the selected provider ID and runtime (never a URL or key). A storage failure
-is reported without claiming the write succeeded and does not stop monitoring.
+**Other saved data.** View preferences, user-entered trial baseline notes, and the selected provider ID and runtime
+(never a URL or key). A storage failure is reported without claiming the write succeeded and does not stop monitoring.
+
+**Live Engine room titles.** OpenChamber session titles can appear beside active lanes in the Engine room while that
+view is open. They are not written to History or preferences and are not included in any share path. No session ID is
+stored with the trial or wait records.
 
 **Data from earlier versions.** Captures saved by Scope 2.0–5.0 and 1.6 saved observations are left untouched, so
 rolling back still shows them. Scope 5.1 no longer reads or creates them; **History → Storage** counts them under
@@ -144,7 +157,7 @@ keeps it. Backups keep their own copies.
 ## Sharing
 
 **Copy stats**, **Add to chat draft** and **Copy baseline summary** are explicit actions. One sanitizer builds every
-shared text: it excludes model names, paths, request identifiers, credentials and conversation content. Draft sharing
+shared text: it excludes model names, app names, session titles and IDs, paths, request identifiers, credentials and conversation content. Draft sharing
 appends text, preserves existing text, and never sends a message. If you later send that draft, its provider receives
 the report under that provider's policies.
 

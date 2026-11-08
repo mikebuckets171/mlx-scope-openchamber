@@ -2,7 +2,7 @@
 // same interfaces the shell passes (docs/2.0/INTERFACES.md §4.3–4.4). Nothing here talks to a runtime or the host.
 import type { HostClient } from '@openchamber/sdk';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
-import type { LedgerRow } from '../../panel/history/ledger-schema.ts';
+import { DEFAULT_TRIAL_NOTES, trialChangeRow, type LedgerRow, type SideRow, type TrialBaselineNotes } from '../../panel/history/ledger-schema.ts';
 import type { LedgerState } from '../../panel/history/ledger.ts';
 import { historyView } from '../../panel/render/views/history.ts';
 import type { ViewHandle } from '../../panel/render/views/types.ts';
@@ -13,11 +13,13 @@ const params = new URLSearchParams(location.search);
 document.querySelector('.brand')!.insertAdjacentHTML('afterbegin', ICON.mark.markup);
 const state = params.get('state') ?? 'decode', page = params.get('surface') === 'page';
 const empty = state === 'history-empty';
+const trialDemo = params.has('trial');
 
 // A controllable service clock and recorders the tests read back.
 const harness = {
   now: MOCK_NOW, copied: '', composed: '', retention: [] as number[], paused: [] as boolean[], cleared: 0, trendReads: [] as number[], usageReads: [] as string[],
   autoLabel: [] as boolean[], ledgerState: (params.has('stopped') ? 'stopped' : state === 'recording-paused' ? 'paused' : 'idle') as LedgerState,
+  trialNotes: { ...DEFAULT_TRIAL_NOTES },
   handle: null as ViewHandle | null, snapshot: null as SnapshotV2 | null,
   push(snapshot: SnapshotV2): void { this.snapshot = snapshot; this.handle!.update(snapshot); },
   /** One decode poll `ms` after the mock's now, with `tokens` output so far: a poll arriving while a view is open. */
@@ -34,6 +36,7 @@ const harness = {
 const base = mockSnapshot(state);
 if (empty) base.alertLog = [];
 let rows: LedgerRow[] = empty ? [] : mockLedgerRows();
+const side: SideRow[] = [];
 const storage = new Map<string, unknown>();
 const host = {
   storage: { get: async (key: string) => storage.get(key) as never, set: async (key: string, value: unknown) => { storage.set(key, value); },
@@ -48,7 +51,7 @@ const root = document.getElementById(page ? 'history-column' : 'panel-history')!
 harness.handle = historyView({
   ledger: {
     get state() { return harness.ledgerState; },
-    read: async () => rows, models: async () => MOCK_MODELS,
+    read: async () => rows, readSide: async () => side, models: async () => MOCK_MODELS,
     // ?kept=1: capture and observation keys an earlier version left behind, counted but never shown or written.
     accounting: () => ({ ...empty ? { ...mockAccounting(), ledgerBytes: 2048, oldestS: null } : mockAccounting(state === 'storage-full'),
       ...params.has('kept') ? { keptItems: 3, keptBytes: 18_432 } : {} }),
@@ -63,6 +66,14 @@ harness.handle = historyView({
   retentionDays: () => 30, paused: () => state === 'recording-paused', copy: text => host.writeClipboard(text), version: '2.0.0',
   autoLabel: () => params.get('autoLabel') !== 'off',
   setAutoLabel: async value => { if (params.get('autoLabel') === 'fail') throw new Error('refused'); harness.autoLabel.push(value); },
+  trialNotes: () => harness.trialNotes,
+  setTrialNotes: async value => { harness.trialNotes = { ...value }; },
+  trialCanStart: () => trialDemo && harness.ledgerState !== 'paused',
+  startTrial: async () => {
+    if (!trialDemo || harness.ledgerState === 'paused') return false;
+    side.push(trialChangeRow(harness.now, 22_500_000_000, 38_000_000_000, 393_216, 0, true));
+    return true;
+  },
 })(root, context);
 harness.push(base);
 document.body.dataset.ready = 'true';

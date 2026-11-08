@@ -53,7 +53,11 @@ export type DraftRow = ['d', finishedS: number, reply: string, drafted: number, 
  * Rows stored beside the reply ledger in the same chunks, with no schema change: a 5.4 or older reader drops them as
  * unknown and keeps every other row. Readers of replies, turns and gaps never see them (`Ledger.read`).
  */
-export type SideRow = WaitRow | DraftRow;
+/** `c`: a locally observed Splash configuration boundary; names stay in the model dictionary. */
+export type TrialChangeRow = ['c', atS: number, expertCapBytes: N, limitBytes: N, contextWindowTokens: N, modelRef: N, manual: boolean];
+/** `k`: decode batches observed in one interval, one request or several requests. */
+export type BatchRow = ['k', atS: number, single: number, multi: number];
+export type SideRow = WaitRow | DraftRow | TrialChangeRow | BatchRow;
 export type StoredRow = LedgerRow | SideRow;
 export const isLedgerRow = (row: StoredRow): row is LedgerRow => row[0] === 'r' || row[0] === 't' || row[0] === 'g';
 export interface LedgerMeta {
@@ -61,6 +65,17 @@ export interface LedgerMeta {
   /** Set by Clear: completions that finished before it are never recorded again, whichever frame leads later. */
   clearedAt?: number;
 }
+
+/** Optional comparison figures entered from Michael's measured notes; they stay in local device preferences. */
+export interface TrialBaselineNotes {
+  waitMedianMs: number | null;
+  waitP90Ms: number | null;
+  multiChatFraction: number | null;
+  soloDecodeTps: number | null;
+}
+export const DEFAULT_TRIAL_NOTES: Readonly<TrialBaselineNotes> = Object.freeze({
+  waitMedianMs: 18_900, waitP90Ms: 43_600, multiChatFraction: 0.01, soloDecodeTps: null,
+});
 
 export const sizeBucket = (tokens: number | null | undefined): SizeBucket | null =>
   tokens == null ? null : tokens < 8_192 ? 0 : tokens < 32_768 ? 1 : tokens < 65_536 ? 2 : tokens < 131_072 ? 3 : 4;
@@ -120,19 +135,27 @@ const waitApps = (value: unknown): WaitApps | null => Array.isArray(value) && va
   && app.length === 2 && typeof app[0] === 'string' && APP_NAME.test(app[0]) && count(app[1]) !== null) ? value as WaitApps : null;
 const WAIT: Field[] = [[seconds, false], [count, false], [waitKind, false], [runtimeKind, false], [count, true], [waitApps, false]];
 const DRAFT: Field[] = [[seconds, false], [id, false], [count, false], [count, false]];
+const TRIAL_CHANGE: Field[] = [[seconds, false], [count, true], [count, true], [count, true], [count, true], [bool, false]];
+const BATCH: Field[] = [[seconds, false], [count, false], [count, false]];
 /** A stored side row, validated like the others; a draft must have proposed something and kept no more than that. */
 export const parseSideRow = (value: unknown): SideRow | null => {
   if (!Array.isArray(value)) return null;
   if (value[0] === 'w') return tuple(value, WAIT) as WaitRow | null;
-  if (value[0] !== 'd') return null;
-  const row = tuple(value, DRAFT) as DraftRow | null;
-  return row && row[3] > 0 && row[4] <= row[3] ? row : null;
+  if (value[0] === 'c') return tuple(value, TRIAL_CHANGE) as TrialChangeRow | null;
+  if (value[0] === 'k') return tuple(value, BATCH) as BatchRow | null;
+  if (value[0] === 'd') {
+    const row = tuple(value, DRAFT) as DraftRow | null;
+    return row && row[3] > 0 && row[4] <= row[3] ? row : null;
+  }
+  return null;
 };
 export const parseStoredRow = (value: unknown): StoredRow | null => parseRow(value) ?? parseSideRow(value);
 /** The time a row sorts and expires by: a reply's finish, a turn's end, a gap's end, a wait's start, a draft's reply. */
-export const rowTimeS = (row: StoredRow): number => row[0] === 'r' || row[0] === 'w' || row[0] === 'd' ? row[1] : row[2];
+export const rowTimeS = (row: StoredRow): number => row[0] === 'r' || row[0] === 'w' || row[0] === 'd' || row[0] === 'c' || row[0] === 'k' ? row[1] : row[2];
 export const rowIdentity = (row: StoredRow): string => row[0] === 'r' ? row[17] : row[0] === 't' ? `t.${row[3]}.${row[1]}`
-  : row[0] === 'w' ? `w.${row[3]}.${row[1]}` : row[0] === 'd' ? `d.${row[2]}` : `g.${row[1]}.${row[2]}`;
+  : row[0] === 'w' ? `w.${row[3]}.${row[1]}` : row[0] === 'd' ? `d.${row[2]}`
+  : row[0] === 'c' ? `c.${row[1]}.${row[6] ? 'm' : 'a'}.${row[2] ?? 'x'}.${row[3] ?? 'x'}.${row[4] ?? 'x'}.${row[5] ?? 'x'}`
+  : row[0] === 'k' ? `k.${row[1]}` : `g.${row[1]}.${row[2]}`;
 
 /** Where the ledger stopped reading one connection's completion ring: `[instance, seq, finishedS]`. */
 export type LedgerCursor = [instance: string, seq: number, atS: number];
@@ -183,22 +206,34 @@ export interface PrefV2 {
   noticeDismissed: boolean;                  // "Recording reply history locally · Open Scope to manage"
   statusExpanded: boolean;                   // Work Status shows the Turn stats rows instead of the glance
   measurementScope: 'auto' | 'engine';
+  trialNotes: TrialBaselineNotes;
 }
 export const RETENTION_LIMITS = { min: 1, default: 30, max: 90 } as const;
 export const DEFAULT_PREF: Readonly<PrefV2> = Object.freeze({ v: LEDGER_SCHEMA, history: true, retentionDays: RETENTION_LIMITS.default,
-  toasts: 'critical', autoLabel: true, tipDismissed: false, noticeDismissed: false, statusExpanded: false, measurementScope: 'auto' });
+  toasts: 'critical', autoLabel: true, tipDismissed: false, noticeDismissed: false, statusExpanded: false, measurementScope: 'auto',
+  trialNotes: DEFAULT_TRIAL_NOTES });
 export const retentionDays = (value: unknown): number | null => {
   const n = finite(value);
   return n === null ? null : Math.min(RETENTION_LIMITS.max, Math.max(RETENTION_LIMITS.min, Math.round(n)));
 };
 /** Field by field: a damaged or older value keeps every field it still has right. */
 export const parsePref = (value: unknown): PrefV2 => {
-  const item = obj(value) ?? {}, toasts = oneOf(TOASTS)(item.toasts);
+  const item = obj(value) ?? {}, toasts = oneOf(TOASTS)(item.toasts), notes = obj(item.trialNotes);
+  const note = (key: keyof TrialBaselineNotes, fallback: number | null, max = Number.MAX_SAFE_INTEGER): number | null => {
+    if (!notes || notes[key] === undefined) return fallback;
+    if (notes[key] === null) return null;
+    const n = finite(notes[key]);
+    return n !== null && n >= 0 && n <= max ? n : fallback;
+  };
   return { v: LEDGER_SCHEMA, history: bool(item.history) ?? DEFAULT_PREF.history, retentionDays: retentionDays(item.retentionDays) ?? DEFAULT_PREF.retentionDays,
     toasts: toasts ?? DEFAULT_PREF.toasts, autoLabel: bool(item.autoLabel) ?? DEFAULT_PREF.autoLabel,
     tipDismissed: bool(item.tipDismissed) ?? false, noticeDismissed: bool(item.noticeDismissed) ?? false,
     // A previously saved "This chat" choice already behaves as Automatic, so it maps to the new default.
-    statusExpanded: bool(item.statusExpanded) ?? false, measurementScope: item.measurementScope === 'engine' ? 'engine' : 'auto' };
+    statusExpanded: bool(item.statusExpanded) ?? false, measurementScope: item.measurementScope === 'engine' ? 'engine' : 'auto',
+    trialNotes: { waitMedianMs: note('waitMedianMs', DEFAULT_TRIAL_NOTES.waitMedianMs, 86_400_000),
+      waitP90Ms: note('waitP90Ms', DEFAULT_TRIAL_NOTES.waitP90Ms, 86_400_000),
+      multiChatFraction: note('multiChatFraction', DEFAULT_TRIAL_NOTES.multiChatFraction, 1),
+      soloDecodeTps: note('soloDecodeTps', DEFAULT_TRIAL_NOTES.soloDecodeTps, 100_000) } };
 };
 
 const x10 = (value: number | undefined): N => value == null ? null : Math.min(Number.MAX_SAFE_INTEGER, Math.round(value * 10));
@@ -225,6 +260,9 @@ export const draftRow = (completion: CompletionV2, instance: string): DraftRow |
     ? ['d', toSeconds(completion.finishedAt), `${instance}.${completion.seq}`, completion.draftedTokens, completion.acceptedTokens] : null;
 export const waitRow = (startedAt: number, waitMs: number, kind: WaitKind, rt: RuntimeKind, modelRef: number | null, apps: WaitApps = []): WaitRow =>
   ['w', toSeconds(startedAt), Math.max(0, Math.round(waitMs)), kind, rt, modelRef, apps.slice(0, WAIT_APPS_MAX).map(([name, bytes]) => [name, bytes])];
+export const trialChangeRow = (atMs: number, expertCapBytes: number | null, limitBytes: number | null, contextWindowTokens: number | null,
+  modelRef: number | null, manual: boolean): TrialChangeRow => ['c', toSeconds(atMs), expertCapBytes, limitBytes, contextWindowTokens, modelRef, manual];
+export const batchRow = (atMs: number, single: number, multi: number): BatchRow => ['k', toSeconds(atMs), Math.max(0, Math.round(single)), Math.max(0, Math.round(multi))];
 export interface TurnInput {
   startedAt: number; endedAt: number; rt: RuntimeKind; modelRef: number | null; steps: number; outputTokens: number;
   firstTtftMs: number | null; decodeTps: number | null; waitMs: number | null; attr: LedgerAttr; cofactors: CofactorBits;

@@ -8,7 +8,8 @@ import { expect, test, type Page } from '@playwright/test';
 test.use({ timezoneId: 'UTC', locale: 'en-US' });
 
 type Harness = { now: number; copied: string; composed: string; retention: number[]; paused: boolean[]; cleared: number; trendReads: number[];
-  usageReads: string[]; autoLabel: boolean[]; ledgerState: string; push(snapshot: unknown): void; snapshot: unknown };
+  usageReads: string[]; autoLabel: boolean[]; ledgerState: string; trialNotes: { waitMedianMs: number | null; waitP90Ms: number | null;
+    multiChatFraction: number | null; soloDecodeTps: number | null }; push(snapshot: unknown): void; snapshot: unknown };
 const harness = <T>(page: Page, read: (h: Harness) => T): Promise<T> => page.evaluate(read as never, undefined) as Promise<T>;
 const read = (page: Page, key: keyof Harness) => page.evaluate(k => (window as unknown as { harness: Record<string, unknown> }).harness[k], key);
 const open = async (page: Page, query: string, width = 320) => {
@@ -128,7 +129,7 @@ test.describe('History tab', () => {
       await expect(view.locator('.history-insights')).toHaveJSProperty('open', false);
       await expect(view.locator('.history-storage')).toHaveJSProperty('open', false);
       await reveal(page, '.history-insights', '.history-alerts', '.history-storage');
-      await expect(view.locator('section h2')).toHaveText(['Trend', 'Recent replies', 'Usual speed', 'Recorded by oMLX', 'Alert log', 'Reply history']);
+      await expect(view.locator('section h2')).toHaveText(['Trial verdict', 'Trend', 'Recent replies', 'Usual speed', 'Recorded by oMLX', 'Alert log', 'Reply history']);
       await expect(view.locator('.chart-top')).toHaveText(/Generation speed · from oMLX\s*30 tok\/s/);
       await expect(view.locator('.plot')).toHaveAttribute('aria-label', /6 turns, 21\.5 to 27\.6 tokens per second; not observed from 13:24 to 13:46\./);
       await expect(view.locator('.gap-band')).toHaveText('Not observed · Scope wasn’t open');
@@ -164,6 +165,22 @@ test.describe('History tab', () => {
     await clean(page);
     await shot(page, 'history-empty-dark-320');
   });
+  for (const theme of ['dark', 'light']) for (const [surface, width] of [['panel', 320], ['page', 1160]] as const) {
+    test(`trial card fits ${surface} at ${width}px in ${theme} and saves notes locally`, async ({ page }) => {
+      await open(page, `surface=${surface}&tab=history&state=history-empty&trial=1&theme=${theme}`, width);
+      const card = page.locator('.trial-section');
+      await expect(card.getByRole('heading', { name: 'Trial verdict' })).toBeVisible();
+      await card.getByRole('button', { name: 'Start a trial here' }).click();
+      await expect(card.getByText('Trial started from the latest ready Splash reading.')).toBeVisible();
+      await expect(card.locator('.trial-verdict')).toHaveText('Not enough data');
+      await clean(page);
+      await card.locator('.trial-notes > summary').click();
+      await card.locator('[data-note="waitMedianMs"]').fill('19.1');
+      await card.getByRole('button', { name: 'Save baseline notes' }).click();
+      await expect(card.getByText('Baseline notes saved on this Mac.')).toBeVisible();
+      expect(await read(page, 'trialNotes')).toMatchObject({ waitMedianMs: 19_100, waitP90Ms: 43_600, multiChatFraction: 0.01 });
+    });
+  }
   test('storage full: one warning callout says what happens and what to do', async ({ page }) => {
     await open(page, 'tab=history&state=storage-full');
     const storage = page.locator('.storage');
@@ -276,7 +293,7 @@ test.describe('History tab', () => {
     await open(page, 'surface=page&state=decode&theme=dark', 1160);
     const column = page.locator('#history-column');
     await expect(column.locator('.col-title')).toHaveCount(0);
-    await expect(column.locator(':scope > .view-host > section h2')).toHaveText(['Trend', 'Recent replies']);
+    await expect(column.locator(':scope > .view-host > section h2')).toHaveText(['Trial verdict', 'Trend', 'Recent replies']);
     await expect(column.locator('.history-insights')).toHaveJSProperty('open', false);
     await expect(column.locator('.history-insights h2')).toHaveText(['Usual speed', 'Recorded by oMLX']);
     await expect(column.locator('.recent-replies .section-heading')).toContainText('Recorded while Scope was open');

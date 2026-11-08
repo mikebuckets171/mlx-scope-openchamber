@@ -61,9 +61,13 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   last speed stays, dimmed with its age, as in the sidebar; and the previous completed average stays below a live
   reading, dimmed and labelled. Completed results retain their own available output, duration and
   first-token facts; chat step timing stays distinct. **Measurement details** groups deeper engine readings, request
-  details, the last reply and a compact **Engine server** strip; engine charts never mix in chat estimates. **Live**, **History** and **Connections** remain
-  directly accessible. **Run details** opens current observations and their basis. History reply/turn **Details** opens the same inspector, with eligible reply comparisons and explicit observation gaps.
-  History retains recent replies, trends, insights, alerts, and storage. Resizing preserves your selected destination.
+  details, the last reply and a compact **Engine server** strip; engine charts never mix in chat estimates. **Live**,
+  **Engine room**, **History** and **Connections** remain directly accessible. Engine room shows Splash's reported memory
+  budget, room for another chat, memory-holding apps, and live request lanes; lane titles are shown only while open and
+  are never saved or shared. **Run details** opens current observations and their basis. History reply/turn **Details**
+  opens the same inspector, with eligible reply comparisons and explicit observation gaps. History retains recent replies,
+  trends, insights, alerts, storage and an advisory **Trial verdict** for detected or manually started Splash changes.
+  Resizing preserves your selected destination.
   Open the rail from the Session action or the full page from **Extension pages**. Compact mode uses the same quiet
   sidebar presentation.
 
@@ -134,6 +138,11 @@ storage on this computer: times, token counts, speeds, the model name and the la
 content. See [Privacy](PRIVACY.md) for exactly what is stored.
 - **History → Storage** has a usage bar, **Keep N days** (30 by default, 90 at most), **Pause recording** and
   **Clear…**, which asks for confirmation.
+- During a reported Splash memory wait—or with full details open when Splash reports no room for growth—the three largest
+  app footprints can appear with that wait in local History. The **Trial verdict** card
+  watches for a Splash model, context or memory-plan change, compares observed waits, overlapping decode batches and
+  long solo replies with an earlier History stretch or local baseline notes, and reports **Keep**, **Revert** or **Not
+  enough data**. It is advisory: Scope never changes Splash settings. No observed overlap is not a pass.
 - The first recording shows "Recording reply history locally · Open Scope to manage".
 - History feeds "vs usual" baselines, always shown with their sample count and only from 5 similar replies, and a
   "Slower than usual" flag when the middle of the last 3 replies is 15 % slower (25 % for first-token time). The
@@ -169,7 +178,7 @@ Each reading says where it comes from:
 
 ## Install
 
-Scope 5.1 requires **OpenChamber 2.4.0 or newer** and is built against SDK 2.5.0. Keep **Scope 5.0.0** on OpenChamber 2.3.x and **Scope 4.0.1** on older hosts. See [Compatibility](docs/COMPATIBILITY.md) for the exact evidence and upgrade requirements. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
+Scope 5.5.0 requires **OpenChamber 2.4.0 or newer** and is built against SDK 2.5.0. Keep **Scope 5.0.0** on OpenChamber 2.3.x and **Scope 4.0.1** on older hosts. See [Compatibility](docs/COMPATIBILITY.md) for the exact evidence and upgrade requirements. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
 
 1. In OpenChamber, open **Settings → Extensions** and add this repository's `release` branch by its Git URL:
    `https://github.com/mikebuckets171/mlx-scope-openchamber#release`. The `release` branch holds exactly the published
@@ -189,7 +198,7 @@ The column shows chat and engine readings, then **Media** while local image/vide
 
 Use Connections → Advanced only when automatic discovery cannot identify a custom installation. Existing provider credentials stay in their owning configuration. Enterprise deployments may require the administrator to allowlist this repository.
 
-Git updates preserve existing preferences and observations. **Scope 5.1 asks for approval once** because it declares fewer permissions: `sessions` only, without `shells`, the `/scope` command or a background page. **Other work** in the **⋯** menu beside Compact starts disabled; approving the update does not enable it, and Live then shows one count line with no chat titles. These host readings remain separate from engine measurements. The service executable permissions are unchanged. After updating, choose **Connections → Update chat speed** once to load companion 3.5.0; later OpenCode 2.0 and 2.1 updates need no Scope action. If extension/service versions differ after an update, reload the extension in Settings → Extensions; generation backends remain independent.
+Git updates preserve existing preferences and observations. Scope 5.5.0 adds `/usr/bin/top` to the service's approved executable list so it can name memory-holding apps during Splash memory waits; review and approve the updated service permissions in OpenChamber. The extension's `sessions` capability remains limited to live activity; it does not enable **Other work** or persist chat titles. After updating, choose **Connections → Update chat speed** once to load companion 3.5.0; later OpenCode 2.0 and 2.1 updates need no Scope action. If extension/service versions differ after an update, reload the extension in Settings → Extensions; generation backends remain independent.
 
 ### What Scope asks you to approve and why
 
@@ -202,6 +211,7 @@ Git updates preserve existing preferences and observations. **Scope 5.1 asks for
 | `/usr/bin/notifyutil` | `notifyutil -g com.apple.system.thermalpressurelevel` | macOS thermal pressure level |
 | `/usr/sbin/lsof` | `lsof -nP -iTCP:<port> -sTCP:LISTEN -t` | Finds the process listening on the oMLX port. oMLX only |
 | `/usr/bin/footprint` | `footprint -p <pid>` | That oMLX process's memory footprint, where oMLX's model memory lives. The process ID never leaves the service |
+| `/usr/bin/top` | `top -l 1 -o mem -n 30 -stats pid,command,mem` | Samples the largest app footprints during a reported Splash memory wait, or when the full details view is open and reported host headroom is exhausted. Names and process IDs stay local; no `footprint --all` or `sudo` is used |
 | `~/.lmstudio/bin/lms` | `lms log stream -s server --json --port <port>`, `lms ps --json --port <port>`, `lms runtime ls --port <port>` | Live request activity, loaded instances and engine versions for Bionic and LM Studio. It runs only after LM Studio has answered, and never starts LM Studio or Bionic |
 | `~/.cache/lm-studio/bin/lms` | The same three commands | The same, for LM Studio's older install location |
 | `/opt/homebrew/bin/macmon` | `macmon pipe -i 1000` | Optional chip power estimate, only if you installed macmon with Homebrew. Scope never installs it |

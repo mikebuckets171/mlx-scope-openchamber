@@ -177,7 +177,7 @@ footer { display: flex; justify-content: flex-end; margin-top: 24px; color: var(
 .notice { margin-top: 10px; }
 /* History's baseline is one quiet line: the usual value the alert compares the last replies against. */
 .baseline-line { max-width: 64ch; margin-top: 4px; color: var(--scope-muted); font-size: var(--scope-text-caption); line-height: 1.6; }
-:is(.instrument-detail-container, .instrument-details, .reading-details, .runtime-details, .host-details, .connection-help, .history-storage, .history-insights, .history-alerts, .grant) > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; color: var(--scope-muted); font-size: var(--scope-text-detail); }
+:is(.instrument-detail-container, .instrument-details, .reading-details, .runtime-details, .host-details, .connection-help, .history-storage, .history-insights, .history-alerts, .trial-notes, .grant) > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; color: var(--scope-muted); font-size: var(--scope-text-detail); }
 .disclosure-arrow { display: inline-flex; align-self: center; flex: none; margin-left: auto; }
 details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 :is(.history-storage, .history-insights, .history-alerts) > :not(summary) { margin-top: 10px; }
@@ -354,6 +354,29 @@ details[open] > summary > .disclosure-arrow { transform: rotate(90deg); }
 .storage[data-full="true"] .meter i { background: var(--scope-warn); }
 .storage-controls label { display: inline-flex; align-items: center; gap: 6px; }
 .storage-option { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: var(--scope-muted); font-size: var(--scope-text-caption); }
+.trial-section { border-bottom: 1px solid var(--scope-line); }
+.trial-summary, .trial-config { max-width: 70ch; margin-top: 8px; font-size: var(--scope-text-detail); line-height: 1.55; overflow-wrap: anywhere; }
+.trial-summary { color: var(--scope-muted); }
+.trial-config { color: var(--scope-fg); }
+.trial-verdict[data-verdict="keep"] { color: var(--scope-good); }
+.trial-verdict[data-verdict="revert"] { color: var(--scope-bad); }
+.trial-verdict[data-verdict="not-enough-data"] { color: var(--scope-warn); }
+.trial-baseline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 8px; margin-top: 10px; color: var(--scope-muted); font-size: var(--scope-text-caption); }
+.trial-baseline select { max-width: 100%; }
+.trial-gates { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 8px; margin-top: 12px; }
+.trial-gates > li { min-width: 0; padding: 9px 10px; border: 1px solid var(--scope-line); border-radius: var(--scope-radius); }
+.trial-gate-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.trial-gate-heading strong { font-size: var(--scope-text-detail); font-weight: 550; }
+.trial-current { text-align: right; font-size: var(--scope-text-caption); overflow-wrap: anywhere; }
+.trial-gates > li[data-state="pass"] .trial-current { color: var(--scope-good); }
+.trial-gates > li[data-state="fail"] .trial-current { color: var(--scope-bad); }
+.trial-gates > li[data-state="unknown"] .trial-current { color: var(--scope-warn); }
+.trial-gates p, .trial-gates small { display: block; margin-top: 5px; color: var(--scope-muted); font-size: var(--scope-text-caption); line-height: 1.45; overflow-wrap: anywhere; }
+.trial-notes { margin-top: 12px; }
+.trial-note-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 8px; margin-top: 8px; }
+.trial-note-grid label { display: grid; gap: 4px; color: var(--scope-muted); font-size: var(--scope-text-caption); }
+.trial-input { display: flex; align-items: center; gap: 5px; }
+.trial-input input { width: 100%; min-width: 0; height: 30px; padding: 4px 7px; border: 1px solid var(--scope-line-strong); border-radius: 5px; color: var(--scope-fg); background: var(--scope-bg); font-size: var(--scope-text-detail); }
 .alog > li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; padding: 7px 0; font-size: var(--scope-text-caption); }
 .alog time, .alog small { color: var(--scope-muted); font-size: max(10.5px, .65625rem); }
 .alog .sev { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--scope-blue); }

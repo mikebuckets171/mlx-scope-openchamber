@@ -14,7 +14,7 @@ availability and are not guaranteed.
 
 | Line | Hosts | Fixes |
 |---|---|---|
-| 5.1.x | OpenChamber 2.4.0 and newer | Security and correctness fixes ship on the current line |
+| 5.5.x | OpenChamber 2.4.0 and newer | Security and correctness fixes ship on the current line |
 | 5.0.x | OpenChamber 2.3.3 – 2.3.x | Security fixes only |
 | `legacy/1.6.x` | OpenChamber 1.24.x–2.0.3 | Security and correctness fixes only |
 | Anything older | — | None. Update, or pin the legacy line |
@@ -38,9 +38,9 @@ releases you trust.
   echoed.
 
 **Commands**
-- The manifest declares exactly 11 executable paths, each by absolute path: `/usr/bin/vm_stat`, `/usr/sbin/sysctl`,
-  `/usr/sbin/ioreg`, `/usr/bin/notifyutil`, `/usr/sbin/lsof`, `/usr/bin/footprint`, `~/.lmstudio/bin/lms`,
-  `~/.cache/lm-studio/bin/lms`, `/opt/homebrew/bin/macmon` `/usr/local/bin/macmon`, and `~/.config/opencode/bin/local-video`. The README lists what each one
+- The manifest declares exactly 11 executable paths: `/usr/bin/vm_stat`, `/usr/sbin/sysctl`, `/usr/sbin/ioreg`,
+  `/usr/bin/notifyutil`, `/usr/sbin/lsof`, `/usr/bin/footprint`, `/usr/bin/top`, `~/.lmstudio/bin/lms`,
+  `~/.cache/lm-studio/bin/lms`, `/opt/homebrew/bin/macmon`, and `/usr/local/bin/macmon`. The README lists what each one
   runs and why.
 - Each binary has an argument allowlist in code, and a test enforces it. Ports and process IDs are validated before they
   reach an argument list. Commands run without a shell and with a small fixed environment: `LANG=C` and `LC_ALL=C`, and
@@ -49,7 +49,7 @@ releases you trust.
   names is declared.
 - **Never run:** `sudo`, `osascript`, `powermetrics` or `pmset`. `lms` never runs `load`, `unload`, `server start`, or a
   log stream that carries model input or output (`--source model`, `--stats`).
-- 3.1 adds `local-video cancel <validated-job-id>` only for an explicitly confirmed job in the standard queue. A permission-list change returns the extension to host approval. Scope requests no capabilities.
+- The extension declares the OpenChamber `sessions` capability for live session activity; it does not declare shell access or a broad project-reading capability.
 
 **Passive runtime reads and scoped controls**
 - Runtime URLs are restricted to explicit HTTP loopback origins. `localhost` is canonicalized without DNS; remote

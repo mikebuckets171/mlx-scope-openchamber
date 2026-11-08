@@ -1,5 +1,25 @@
 # Changelog
 
+## 5.5.0
+
+- **Why the reply is waiting.** Splash's own memory and concurrency admission waits appear in the Session widget and as
+  engine-wide History rows. The Engine room shows Splash's reported memory budget, whether another chat can start,
+  memory-holding apps and live request lanes. DFlash2 draft acceptance is shown live and recorded for eligible solo
+  replies.
+- **Memory thief.** While Splash is short of memory or a memory wait is open, Scope identifies the apps holding the most
+  memory. A wait keeps the top three app names and footprints in local History; app names are not exported.
+- **Advisory Splash trial verdicts.** A changed model, context window or memory plan starts a trial automatically; a
+  manual start covers Splash updates and flags Scope cannot observe. The History card compares wait median/p90,
+  multi-chat decode-batch share and solo replies past 160K with an earlier Scope stretch or local baseline notes. It
+  reports **Keep**, **Revert** or **Not enough data**; it never changes Splash. No observed overlap is not a pass.
+- Existing reply/turn rows and `LEDGER_SCHEMA` stay unchanged. Trial baselines, trial boundaries and app names remain in
+  local extension storage; chat titles appear only in the open Engine room and are not saved or shared.
+- `/usr/bin/top` is added to the service's approved executable list for the bounded app-memory sample. Review the
+  updated local-service permission in OpenChamber when updating.
+
+Local verification and its limits: [5.5.0 verification](docs/receipts/5.5.0-verification.md). Publication still requires
+the maintainer's approval.
+
 ## 5.4.0
 
 - **The speed no longer blinks out mid-reply.** After every prompt read and tool call, Scope needs 2–3 s of fresh

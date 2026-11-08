@@ -8,7 +8,8 @@ import { BASELINE_WINDOW_MS, BASELINE_WRITE_EVERY_MS as BASELINE_WRITE_MS, basel
 import {
   assertHistoryVersion, HistoryVersionError, CHUNK_KEY, CHUNK_MAX_CHARS, CHUNK_TARGET_CHARS, chunkKey, draftRow, isLedgerRow, KEYS, LEDGER_SCHEMA, MAX_CURSORS, MAX_MODELS, parseChunk, parseCursors, parseMeta,
   parseModels, parsePref, rand4, replyRow, retentionDays, rowIdentity, rowTimeS, toSeconds, verdictAttr,
-  type ChunkV2, type LedgerAttr, type LedgerCursor, type LedgerMeta, type LedgerRow, type ReplyRow, type SideRow, type StoredRow, type TurnRow, type WaitRow,
+  type BatchRow, type ChunkV2, type LedgerAttr, type LedgerCursor, type LedgerMeta, type LedgerRow, type ReplyRow, type SideRow, type StoredRow,
+  type TrialChangeRow, type TurnRow, type WaitRow,
 } from './ledger-schema.ts';
 import { PrefStore } from './prefs.ts';
 
@@ -178,6 +179,19 @@ export class Ledger {
   }
   /** 5.5: a wait the engine reported (leader only, like turns); a later reading of the same wait replaces the earlier one. */
   appendWait(row: WaitRow): void {
+    if (this.#stateValue === 'stopped' || this.#paused || row[1] * 1000 < this.#clearedAt) return;
+    const identity = rowIdentity(row);
+    const index = this.#pending.findIndex(entry => rowIdentity(entry.row) === identity);
+    if (index >= 0) { this.#pending[index]!.row = row; return; }
+    const stored = this.#open?.rows.findIndex(item => rowIdentity(item) === identity) ?? -1;
+    if (stored >= 0) { this.#open!.rows[stored] = row; this.#relabeled = true; return; }
+    this.#push(row, null, null);
+  }
+  /** 5.5: an observed Splash setting boundary (or an explicit manual start). */
+  appendTrialChange(row: TrialChangeRow): void { this.#appendSide(row); }
+  /** 5.5: a bounded decode-batch counter delta, sampled while Splash is ready. */
+  appendBatch(row: BatchRow): void { this.#appendSide(row); }
+  #appendSide(row: SideRow): void {
     if (this.#stateValue === 'stopped' || this.#paused || row[1] * 1000 < this.#clearedAt) return;
     const identity = rowIdentity(row);
     const index = this.#pending.findIndex(entry => rowIdentity(entry.row) === identity);
@@ -395,8 +409,8 @@ export class Ledger {
     this.#modelList = []; this.#modelIndex.clear(); this.#modelsDirty = false;
     // Rows recorded after the clear keep their model: re-number them against the fresh dictionary.
     for (const { row } of this.#pending) {
-      if (row[0] === 'g' || row[0] === 'd') continue;
-      const index = row[0] === 'r' ? 3 : row[0] === 'w' ? 5 : 4, ref = row[index] as number | null;
+      if (row[0] === 'g' || row[0] === 'd' || row[0] === 'k') continue;
+      const index = row[0] === 'r' ? 3 : row[0] === 'w' || row[0] === 'c' ? 5 : 4, ref = row[index] as number | null;
       (row as unknown[])[index] = ref === null ? null : this.modelRef(names[ref] ?? null);
       if (row[0] === 'r') this.#mutable.set(row[17], row);
     }

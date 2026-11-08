@@ -4,8 +4,9 @@ import type { TrendV2, TrendWindowMs } from '../../../src/contract/trend.ts';
 import type { UsageRange, UsageV2 } from '../../../src/contract/usage.ts';
 import { HistoryClient, type HistoryResult } from '../../data/history.ts';
 import { buildBaselines, type Baselines } from '../../history/baselines.ts';
-import { KEYS, rowIdentity, type DraftRow, type LedgerRow, type ReplyRow, type SideRow } from '../../history/ledger-schema.ts';
+import { DEFAULT_TRIAL_NOTES, KEYS, rowIdentity, type DraftRow, type LedgerRow, type ReplyRow, type SideRow, type TrialBaselineNotes } from '../../history/ledger-schema.ts';
 import { Ledger, RETENTION_DAYS } from '../../history/ledger.ts';
+import { trialConfigOf } from '../../history/trials.ts';
 import { RegressionTracker, type RegressionFlag } from '../../history/regress.ts';
 import { baselineSummary } from '../../history/summary.ts';
 import { HISTORY_LIST_LIMIT, HISTORY_LIST_STEP, presentHistory, type BaselineCard, type HistoryEntry, type HistoryText, type HistoryView, type TrendCard } from '../../present/history.ts';
@@ -39,6 +40,10 @@ export interface HistoryDeps {
   /** pref.v2 `autoLabel`: whether replies are matched to the open chat automatically (default on). */
   autoLabel?(): boolean;
   setAutoLabel?(value: boolean): Promise<void>;
+  trialNotes?(): TrialBaselineNotes;
+  setTrialNotes?(value: TrialBaselineNotes): Promise<void>;
+  trialCanStart?(): boolean;
+  startTrial?(): Promise<boolean>;
 }
 // Each storage read makes the host re-read the whole namespace file (S5): the ledger is read on mount, after a new
 // reply (at most every 5 s) and otherwise only as often as another frame can flush (5 min).
@@ -112,12 +117,42 @@ const storageSection = (view: NonNullable<HistoryView['storage']>, tips: Tips, p
         autoLabel === null ? null : el('label', { class: 'storage-option' }, el('input', { type: 'checkbox', 'data-action': 'auto-label', 'data-focus': 'auto-label', checked: autoLabel }),
           'Label replies to this chat automatically'),
         view.kept ? el('p', { class: 'insight-note' }, view.kept) : null],
-    status ? el('p', { class: 'insight-note', role: 'status' }, status) : null);
+      status ? el('p', { class: 'insight-note', role: 'status' }, status) : null);
+};
+
+const trialSection = (card: HistoryView['trial'], status: string, canSaveNotes: boolean): HTMLElement => {
+  const inputs = card.notes;
+  const noteInput = (key: string, label: string, value: number | null, step: string, suffix: string): HTMLElement =>
+    el('label', {}, label, el('span', { class: 'trial-input' }, el('input', { type: 'number', min: '0', step, 'data-note': key, value: value === null ? '' : String(value) }), suffix));
+  const gates = card.gates.length ? el('ul', { class: 'trial-gates' }, card.gates.map(item => el('li', { 'data-state': item.state },
+    box('trial-gate-heading', strong(item.label), el('span', { class: 'trial-current' }, item.current)),
+    el('p', {}, `Baseline · ${item.baseline}`), el('small', {}, item.detail)))) : null;
+  const baselinePicker = card.baselines.length ? el('label', { class: 'trial-baseline' }, 'Compare with ', el('select', { class: 'btn', 'data-action': 'trial-baseline', 'data-focus': 'trial-baseline', 'aria-label': 'Trial baseline stretch' },
+    card.baselines.map(option => el('option', { value: option.key, selected: Number(option.key) === card.baselineIndex }, option.label)))) : null;
+  const notes = el('details', { class: 'trial-notes' }, el('summary', {}, 'Baseline notes · stored on this Mac'),
+    el('p', { class: 'coverage-note' }, 'Used only when the selected Scope History stretch lacks that measurement. Blank a value to remove that fallback.'),
+    el('div', { class: 'trial-note-grid' }, noteInput('waitMedianMs', 'Wait median', inputs.waitMedianMs === null ? null : inputs.waitMedianMs / 1_000, '0.1', 's'),
+      noteInput('waitP90Ms', 'Wait p90', inputs.waitP90Ms === null ? null : inputs.waitP90Ms / 1_000, '0.1', 's'),
+      noteInput('multiChatPercent', 'Two-chat threshold', inputs.multiChatFraction === null ? null : inputs.multiChatFraction * 100, '0.1', '%'),
+      noteInput('soloDecodeTps', 'Solo long-reply baseline', inputs.soloDecodeTps, '0.1', 'tok/s')),
+    box('actions', button('Save baseline notes', 'trial-notes-save', { disabled: !canSaveNotes })));
+  return el('section', { class: 'insight-section trial-section' },
+    box('section-heading', box('title-row', el('h2', {}, 'Trial verdict')),
+      el('span', { class: 'chip trial-verdict', 'data-verdict': card.verdict }, card.verdictText)),
+    el('p', { class: 'trial-summary' }, card.summary),
+    card.config ? el('p', { class: 'trial-config' }, el('strong', {}, 'Splash setup · '), card.config) : null,
+    card.started ? el('p', { class: 'coverage-note' }, `Since ${card.started}${card.baselineIndex !== null ? ` · comparing with ${card.baselineLabel}` : ''}`) : null,
+    baselinePicker, gates,
+    card.note ? el('p', { class: 'coverage-note' }, card.note) : null,
+    box('actions', button(card.startLabel, 'trial-start', { disabled: !card.canStart })),
+    status ? el('p', { class: 'insight-note', role: 'status' }, status) : null,
+    notes);
 };
 
 // ---------- the view ----------
 class HistoryViewHandle implements ViewHandle {
   #snapshot: SnapshotV2 | null = null;
+  #trialStamp = '';
   #rows: LedgerRow[] = [];
   #side: SideRow[] = [];
   #models: readonly string[] = [];
@@ -134,6 +169,8 @@ class HistoryViewHandle implements ViewHandle {
   #autoLabel: boolean | null = null;
   #listLimit = HISTORY_LIST_LIMIT;
   #status = { baseline: '', storage: '' };
+  #trialStatus = '';
+  #trialBaselineIndex: number | null = null;
   readonly #tips: Tips;
   readonly #prefix: string;
   readonly #undelegate: () => void;
@@ -173,13 +210,16 @@ class HistoryViewHandle implements ViewHandle {
     // Another connection has another trend and usage: drop what was read for the previous one.
     if (connection(snapshot) !== connection(this.#snapshot)) { this.#trend = null; this.#usage = null; this.#trendAt = this.#usageAt = -Infinity; }
     this.#snapshot = snapshot;
+    const trialConfig = trialConfigOf(snapshot), trialStamp = JSON.stringify([snapshot?.status.state, this.#deps.trialCanStart?.() ?? false,
+      trialConfig?.model, trialConfig?.expertCapBytes, trialConfig?.limitBytes, trialConfig?.contextWindowTokens]);
+    if (trialStamp !== this.#trialStamp) { this.#trialStamp = trialStamp; this.#readAt = -Infinity; }
     // A running ledger holds the stored pause (it re-reads pref.v2 at start and on each flush); a stopped one keeps
     // what this view shows (the stored pref, or the user's own toggle).
     const state = this.#deps.ledger.state;
     if (state !== 'stopped') this.#paused = state === 'paused';
     this.#refresh();
     // Polls come up to twice a second; the view only needs the connection, alert log, pause state and the minute (clock labels).
-    const s = snapshot, stamp = JSON.stringify([connection(s), s?.connection.engine, s?.connection.host, s?.connection.modelNames, !!s?.capabilities['server.usage'],
+    const s = snapshot, stamp = JSON.stringify([connection(s), trialStamp, s?.connection.engine, s?.connection.host, s?.connection.modelNames, !!s?.capabilities['server.usage'],
       s?.runtime.request?.model ?? s?.runtime.residency[0]?.model, s?.alertLog, this.#paused, Math.floor(this.#context.now() / 60_000)]);
     if (stamp !== this.#stamp) { this.#stamp = stamp; this.#render(); }
     else if (this.#inspection === 'current' && this.#context.visible()) this.#renderInspection();
@@ -253,6 +293,36 @@ class HistoryViewHandle implements ViewHandle {
     if (action === 'run-close') { this.#closeInspection(); return; }
     if (action === 'run-reference') { this.#reference = (target as HTMLSelectElement).value; this.#renderInspection(); return; }
     if (action === 'tip') { this.#tips.toggle(arg); this.#focus = null; }
+    else if (action === 'trial-baseline') {
+      const value = (target as HTMLSelectElement).value, index = Number(value);
+      this.#trialBaselineIndex = value === '' || !Number.isInteger(index) ? null : index;
+    } else if (action === 'trial-start') {
+      const started = await (this.#deps.startTrial?.() ?? Promise.resolve(false)).catch(() => false);
+      this.#trialStatus = started ? 'Trial started from the latest ready Splash reading.' : 'Could not start a trial. Check that Splash is ready and History is recording.';
+      this.#readAt = -Infinity;
+    } else if (action === 'trial-notes-save') {
+      const read = (key: string, scale = 1): number | null => {
+        const raw = this.#root.querySelector<HTMLInputElement>(`[data-note="${key}"]`)?.value.trim() ?? '';
+        if (!raw) return null;
+        const value = Number(raw) * scale;
+        return Number.isFinite(value) && value >= 0 ? value : Number.NaN;
+      };
+      const waitMedianMs = read('waitMedianMs', 1_000), waitP90Ms = read('waitP90Ms', 1_000),
+        multiChatFraction = read('multiChatPercent', 0.01), soloDecodeTps = read('soloDecodeTps');
+      if (waitMedianMs !== null && waitMedianMs > 86_400_000 || waitP90Ms !== null && waitP90Ms > 86_400_000
+        || soloDecodeTps !== null && soloDecodeTps > 100_000 || [waitMedianMs, waitP90Ms, multiChatFraction, soloDecodeTps].some(value => value !== null && !Number.isFinite(value))) {
+        this.#trialStatus = 'Enter non-negative values within the displayed units.';
+      } else if (multiChatFraction !== null && multiChatFraction > 1) {
+        this.#trialStatus = 'The two-chat threshold must be from 0% to 100%.';
+      } else if (!this.#deps.setTrialNotes) {
+        this.#trialStatus = 'Baseline notes cannot be saved on this host.';
+      } else {
+        try {
+          await this.#deps.setTrialNotes({ waitMedianMs, waitP90Ms, multiChatFraction, soloDecodeTps });
+          this.#trialStatus = 'Baseline notes saved on this Mac.';
+        } catch { this.#trialStatus = 'Could not save the baseline notes on this host.'; }
+      }
+    }
     else if (action === 'window') { this.#windowMs = Number(arg) as TrendWindowMs; this.#trend = this.#trend?.windowMs === this.#windowMs ? this.#trend : null; this.#trendAt = -Infinity; }
     else if (action === 'range') { this.#usageRange = arg as UsageRange; this.#usageAt = -Infinity; }
     else if (action === 'more') { this.#listLimit += HISTORY_LIST_STEP; this.#focus = 'more'; }
@@ -299,6 +369,8 @@ class HistoryViewHandle implements ViewHandle {
       alertLog: s?.alertLog ?? [], runtimeName: runtime ? connectionName(runtime, { engine: s!.connection.engine ?? null, host: s!.connection.host ?? null }) : undefined,
       model: s?.runtime.request?.model ?? s?.runtime.residency[0]?.model ?? null, modelNames: s?.connection.modelNames, modelProvider: s?.connection.id, windowMs: this.#windowMs, usageRange: this.#usageRange, trendError: this.#trendError,
       confirmClear: this.#confirm, listLimit: this.#listLimit, recording: this.#deps.ledger.state === 'backoff' ? 'backoff' : 'recording', side: this.#side,
+      trialNotes: this.#deps.trialNotes?.() ?? DEFAULT_TRIAL_NOTES, trialPaused: this.#paused, trialCanStart: this.#deps.trialCanStart?.() ?? false,
+      trialBaselineIndex: this.#trialBaselineIndex,
       ...this.#deps.text ? { text: this.#deps.text } : {},
     });
   }
@@ -306,6 +378,7 @@ class HistoryViewHandle implements ViewHandle {
     if (this.#disposed || !this.#context.visible()) return;
     const view = this.#view(), page = this.#context.surface === 'page';
     const tips = this.#tips, tip = (name: string, title: string, paras: readonly string[]) => tips.make(name, title, paras);
+    const trial = trialSection(view.trial, this.#trialStatus, !!this.#deps.setTrialNotes);
     const trend = section('Trend', seg('Trend window', 'window', view.trend.windows.map(w => ({ label: w.label, arg: String(w.windowMs), pressed: w.pressed }))),
       trendFigure(view.trend, page), tip('trend', 'Trend', view.trend.tip), page ? 'insight-section history-trend' : 'insight-section');
     const replies = section('Recent replies', view.header, view.repliesEmpty ? el('p', { class: 'empty' }, view.repliesEmpty) : [
@@ -350,7 +423,7 @@ class HistoryViewHandle implements ViewHandle {
       open: this.#root.querySelector<HTMLDetailsElement>('.history-alerts')?.open || alertsAttention },
       el('summary', {}, span( 'Alert log'), el('span', { class: 'history-storage-state' }, alertsAttention ? 'Needs attention' : `${view.alertLog.length} recorded`), disclosureArrow()), alertLog);
     const next = group( this.#deps.ledger.issue ? el('p', { class: 'empty', role: 'status' }, this.#deps.ledger.issue) : null,
-      trend, replies, insights, alerts, storageDetails);
+      trial, trend, replies, insights, alerts, storageDetails);
     morph(this.#listRoot, next);
     const select = this.#root.querySelector<HTMLSelectElement>('select[data-action="retention"]');
     if (select) select.value = String(this.#retention);

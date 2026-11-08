@@ -5,7 +5,7 @@ JavaScript. There is no separate daemon or runtime SDK to install.
 
 | Part | Source | Bundle | What it is |
 |---|---|---|---|
-| Views | `panel/` | `panel/main.js` (≤ 270 KB) | One bundle for the rail panel, the full page and the Work Status section; `ctx.surface` picks the renderer |
+| Views | `panel/` | `panel/main.js` (≤ 295 KB) | One bundle for the rail panel, the full page and the Work Status section; `ctx.surface` picks the renderer |
 | Service | `service/` | `service/main.js` (≤ 268 KB) | Node service the host starts on demand; reads runtimes and the Mac; exits after 10 idle minutes |
 | Contract | `src/contract/` | (in each bundle) | Wire contract v2 (`docs/archive/design/2.0-contract.md`): types, allowlist parsers, reason codes |
 

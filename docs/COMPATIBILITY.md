@@ -189,8 +189,8 @@ Real-model performance qualification remains a separate check.
 
 ## Host
 
-MLX Scope 5.1 requires **OpenChamber 2.4.0 or newer** (`engines.openchamber` `>=2.4.0`) and pins
-[SDK 2.4.0](https://github.com/openchamber/openchamber/blob/v2.4.0/packages/sdk/API.md), retaining manifest API 1. Scope 5.0.0 remains the release for OpenChamber 2.3.3–2.3.x and Scope 4.0.1 for 2.0.4–2.3.2.
+MLX Scope 5.5.0 requires **OpenChamber 2.4.0 or newer** (`engines.openchamber` `>=2.4.0`) and pins
+[SDK 2.5.0](https://github.com/openchamber/openchamber/blob/v2.5.0/packages/sdk/API.md), retaining manifest API 1. Scope 5.0.0 remains the release for OpenChamber 2.3.3–2.3.x and Scope 4.0.1 for 2.0.4–2.3.2.
 It uses the panel, the full page, a Work Status section (`statusSection`, OpenChamber 2.0.1+) whose Watch and Pause
 controls are drawn in the host's section header (`setStatusControls`, SDK 2.4), the session-menu action, badges,
 toasts, host-managed storage and a local service. The `/scope` command and its background entry were removed in 5.1.

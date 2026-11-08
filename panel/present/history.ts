@@ -5,8 +5,10 @@ import { TREND_WINDOWS_MS, type TrendV2, type TrendWindowMs } from '../../src/co
 import { USAGE_RANGES, type UsageRange, type UsageV2 } from '../../src/contract/usage.ts';
 import type { LedgerAccounting } from '../history/accounting.ts';
 import { baselineFor, type BaselineKey, type Baselines } from '../history/baselines.ts';
-import { rowIdentity, type GapRow, type LedgerAttr, type LedgerRow, type ReplyRow, type SideRow, type SizeBucket, type TurnRow, type WaitRow } from '../history/ledger-schema.ts';
+import { DEFAULT_TRIAL_NOTES, rowIdentity, type GapRow, type LedgerAttr, type LedgerRow, type ReplyRow, type SideRow, type SizeBucket,
+  type TrialBaselineNotes, type TurnRow, type WaitRow } from '../history/ledger-schema.ts';
 import type { RegressionFlag } from '../history/regress.ts';
+import { presentTrial, type TrialCard } from './trials.ts';
 import { SIZE_LABELS } from '../history/summary.ts';
 import { trendGaps, trendGeometry, type TrendGeometry } from '../render/trend-chart.ts';
 import { alertCopy, SEVERITY_WORD, withheldWhy } from './copy.ts';
@@ -49,6 +51,10 @@ export interface HistoryInput {
   ceiling?: number;                          // the page shares one y-scale between Live and the trend
   text?: HistoryText;
   side?: readonly SideRow[];                 // 5.5: engine waits and draft counts stored beside the replies
+  trialNotes?: TrialBaselineNotes;
+  trialPaused?: boolean;
+  trialCanStart?: boolean;
+  trialBaselineIndex?: number | null;
 }
 export interface AttrChip { attr: 'inferred' | 'armed' | 'server'; text: string; reason: string | null }
 export type HistoryEntry =
@@ -88,6 +94,7 @@ export interface HistoryView {
   repliesTip: string[];
   trend: TrendCard;
   baseline: BaselineCard;
+  trial: TrialCard;
   alertLogEmpty: string | null;
 }
 
@@ -285,6 +292,9 @@ export const presentHistory = (input: HistoryInput): HistoryView => {
       ...replies.some(row => row[12] === 'last-observed') ? ['When the server doesn’t report finished replies, rows use Scope’s last reading from the request.'] : []],
     trend: presentTrend(input, rt),
     baseline: presentBaseline(input, replies),
+    trial: presentTrial({ now: input.now, rows: replies, side: input.side ?? [], models: input.models, notes: input.trialNotes ?? DEFAULT_TRIAL_NOTES,
+      paused: input.trialPaused ?? input.paused, canStart: input.trialCanStart ?? false, baselineIndex: input.trialBaselineIndex,
+      modelNames: input.modelNames, modelProvider: input.modelProvider }),
     usage: presentUsage(input.usage, input),
     storage: presentStorage(input, replies.length, oldest),
     alertLog: input.alertLog.map(entry => ({ at: clock(entry.since, input.now), iso: iso(entry.since), text: text.alert(entry.id, typeof entry.params.model === 'string' ? { ...entry.params, model: modelDisplayName(entry.params.model, input.modelNames, input.modelProvider) } : entry.params), severity: entry.severity,

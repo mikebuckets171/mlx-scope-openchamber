@@ -1,5 +1,6 @@
 import type { HostClient } from './host/types.ts';
 import { PrefStore, type PrefPatch } from './history/prefs.ts';
+import type { TrialBaselineNotes } from './history/ledger-schema.ts';
 
 export type PreferenceKey = 'compact' | 'efficient';
 type Storage = { get(key: string): Promise<unknown>; set(key: string, value: boolean): Promise<void> };
@@ -40,6 +41,7 @@ export interface PrefV2 {
   autoLabel?: boolean;                       // attribution.auto (default on)
   retentionDays?: number;                    // ledger retention, 1–90 days (default 30)
   history?: boolean;                         // false: recording paused
+  trialNotes?: TrialBaselineNotes;            // comparison figures from this Mac's measured notes
 }
 export class PrefsV2 {
   readonly #store: PrefStore;
@@ -48,7 +50,7 @@ export class PrefsV2 {
   get value(): PrefV2 {
     const v = { ...this.#store.value, ...this.#overlay };
     return { statusExpanded: v.statusExpanded, tipDismissed: v.tipDismissed, firstRunDismissed: v.noticeDismissed, toasts: v.toasts,
-      autoLabel: v.autoLabel, retentionDays: v.retentionDays, history: v.history, measurementScope: v.measurementScope };
+      autoLabel: v.autoLabel, retentionDays: v.retentionDays, history: v.history, measurementScope: v.measurementScope, trialNotes: v.trialNotes };
   }
   async load(): Promise<PrefV2> { await this.#store.load(); return this.value; }
   set(patch: PrefV2): Promise<void> {

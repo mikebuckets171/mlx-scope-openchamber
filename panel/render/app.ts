@@ -201,7 +201,9 @@ export class ScopeApp {
         current: () => this.input(), inspectInitially: this.#inspecting,
         inspectionChanged: open => { this.#node('history-title').textContent = open ? 'Run details' : 'History'; },
         version: this.#p.version, selection: () => connections.query() ?? {}, replies: rows => pipeline.storedReplies(rows), cleared: () => pipeline.historyCleared(),
-        autoLabel: () => prefs.value.autoLabel ?? true, setAutoLabel: value => prefs.set({ autoLabel: value }) })) };
+        autoLabel: () => prefs.value.autoLabel ?? true, setAutoLabel: value => prefs.set({ autoLabel: value }),
+        trialNotes: () => prefs.value.trialNotes!, setTrialNotes: value => prefs.set({ trialNotes: value }),
+        trialCanStart: () => pipeline.canStartTrial && prefs.value.history !== false, startTrial: () => pipeline.startTrial() })) };
       this.#views.set(tab, entry);
     }
     if (container && entry.host.parentElement !== container) container.append(entry.host);
