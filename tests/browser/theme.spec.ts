@@ -158,7 +158,7 @@ test('the mounted Session summary and warning value follow custom host themes', 
 });
 
 for (const [name, palette] of [['violet', VIOLET], ['paper', PAPER]] as const) {
-  test(`custom ${name} theme keeps all views readable and inside the 320, 430 and 1160 px surfaces`, async ({ page }) => {
+  test(`custom ${name} theme keeps all views readable and inside the 320, 430 and 1160 px surfaces`, { tag: name === 'violet' ? '@smoke' : [] }, async ({ page }) => {
     for (const width of [320, 430, 1160]) {
       const frame = await load(page, `state=decode${width >= 900 ? '&surface=page' : ''}`, width);
       await setTheme(page, palette);

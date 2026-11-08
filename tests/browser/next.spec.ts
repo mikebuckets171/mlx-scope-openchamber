@@ -134,7 +134,7 @@ const watchControl = (value: string) => ({ kind: 'select', id: 'watch', label: '
   options: [{ value: 'auto', label: 'Automatic' }, { value: 'engine', label: 'Engine' }] });
 const pauseControl = (label: string) => ({ kind: 'button', id: 'pause', label });
 
-test('Session publishes Watch and Pause to the host header, hides its own toolbar, and follows header events', async ({ page }) => {
+test('Session publishes Watch and Pause to the host header, hides its own toolbar, and follows header events', { tag: '@smoke' }, async ({ page }) => {
   const frame = await load(page, 'surface=status&design=next');
   const header = page.locator('#fixture-status-controls');
   await expect.poll(() => state(page, 'window.previewHeaderControls')).toEqual([watchControl('auto'), pauseControl('Pause')]);

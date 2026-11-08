@@ -123,7 +123,7 @@ const clean = async (page: Page) => {
 
 test.describe('History tab', () => {
   for (const theme of ['dark', 'light']) for (const width of [320, 430]) {
-    test(`the mock's History at ${width} px, ${theme}: trend, replies, usual speed, oMLX usage, storage, alert log`, async ({ page }) => {
+    test(`the mock's History at ${width} px, ${theme}: trend, replies, usual speed, oMLX usage, storage, alert log`, { tag: theme === 'dark' && width === 320 ? '@smoke' : [] }, async ({ page }) => {
       const errors = await open(page, `tab=history&state=decode&theme=${theme}`, width);
       const view = page.locator('#panel-history');
       await expect(view.locator('.history-insights')).toHaveJSProperty('open', false);
@@ -166,7 +166,7 @@ test.describe('History tab', () => {
     await shot(page, 'history-empty-dark-320');
   });
   for (const theme of ['dark', 'light']) for (const [surface, width] of [['panel', 320], ['page', 1160]] as const) {
-    test(`trial card fits ${surface} at ${width}px in ${theme} and saves notes locally`, async ({ page }) => {
+    test(`trial card fits ${surface} at ${width}px in ${theme} and saves notes locally`, { tag: theme === 'light' && surface === 'page' ? '@smoke' : [] }, async ({ page }) => {
       await open(page, `surface=${surface}&tab=history&state=history-empty&trial=1&theme=${theme}`, width);
       const card = page.locator('.trial-section');
       await expect(card.getByRole('heading', { name: 'Trial verdict' })).toBeVisible();

@@ -125,7 +125,7 @@ test('oMLX progress takes precedence while reading and stale input clears the me
   await expect(frame.locator('#ws')).not.toContainText('Status stale');
 });
 
-test('Splash progress uses reported counts, labels held observations, and never invents missing percentages', async ({ page }) => {
+test('Splash progress uses reported counts, labels held observations, and never invents missing percentages', { tag: '@smoke' }, async ({ page }) => {
   for (const theme of ['light', 'dark']) {
     await page.goto(`/v2?surface=status&state=splash-progress&theme=${theme}`);
     const frame = page.frameLocator('iframe');

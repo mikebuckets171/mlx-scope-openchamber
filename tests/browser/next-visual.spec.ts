@@ -3,7 +3,7 @@ import { inspect } from './ui-checks.ts';
 
 // Real render checks over both engines. No pixel baselines from a synthetic design image.
 for (const width of [320, 430, 652, 1160]) for (const theme of ['light', 'dark']) {
-  test(`Next readable at ${width}px in ${theme}`, async ({ page }) => {
+  test(`Next readable at ${width}px in ${theme}`, { tag: width === 320 && theme === 'light' || width === 1160 && theme === 'dark' ? '@smoke' : [] }, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`/?sdk=next&surface=page&design=next&state=decode&chat=1&theme=${theme}`);
     const frame = page.frames().find(f => f !== page.mainFrame())!;

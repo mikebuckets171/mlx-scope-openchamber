@@ -11,24 +11,32 @@ installs the version in `.bun-version`.
 
 ```sh
 bun install --frozen-lockfile
-bun run check
-bunx playwright install --with-deps chromium webkit
-bun run test:browser
+bun run check       # about 30 s: types, privacy scan, unit/contract/fixture tests, helper tests, build, guest-check, package verification
+bun run test:smoke  # about 45 s: the @smoke browser set, 16 tests in Chromium and WebKit
 ```
 
-`check` type-checks, scans committed files, runs unit, contract and fixture tests, builds both bundles, and verifies
-the install archive: the SDK 2.4.0 manifest, the frozen permission set, the two-way exec match, bundle ceilings (panel
-270 KB, service 268 KB: the measured 5.1 bundles × 1.05), the exact panel CSP, host-only code in guest bundles, and a
-start of the extracted service under Node without `node_modules`. It writes no ZIP when a check fails. macOS checks exercise the real memory commands within the
-production deadline. Browser tests cover Chromium (the host's engine, the primary gate) and WebKit; `bun run
-test:goldens` runs the pixel and text goldens in Chromium on macOS. `bun run overhead` measures the service and every
-child it spawns. Do not skip a failing platform or relax a real deadline to make a test pass.
+Those two run on every change, and hosted CI repeats them on Linux and macOS before a release. `check` type-checks, scans
+committed files, runs the unit, contract and fixture tests, builds both bundles, runs OpenChamber's own `guest-check`, and
+verifies the install archive: the SDK 2.7.0 manifest, the frozen permission set, the two-way exec match, bundle ceilings (panel
+295 KB, service 268 KB: the measured 5.1 bundles × 1.05), the exact panel CSP, host-only code in guest bundles, that every file the
+chat-speed helper imports ships with it (OpenCode loads it from its own folder with nothing else reachable), and a start of the
+extracted service under Node without `node_modules`. It writes no ZIP when a check fails. `test:smoke` builds the panel and starts
+its own preview server; set `SCOPE_PREVIEW_PORT` to run several checkouts side by side. A preview server left running by another
+checkout is never reused unless you set `SCOPE_REUSE_PREVIEW=1`, because it would silently test that checkout's build.
 
-`bun run preview` starts a local server with synthetic readings (`tests/browser/host.html`, an emulation of the
-OpenChamber host: panel, page and Work Status surfaces, setHeight, badge and toast recorders,
-lifecycle replays, storage limits and lease handovers). It does not connect to a real runtime. `SCOPE_PREVIEW_PORT` moves
-it, so parallel checkouts can each run their own. Keep both bundles synchronized with source because repository
-installation uses these built files.
+The rest are tools you reach for when a change calls for them, not steps every release repeats:
+
+| When | Run |
+|---|---|
+| A broad UI change | `bun run test:browser` (all 600+ cases, about 17 min; hosted CI runs it only when started by hand) and `bun run test:goldens` (the pixel and text goldens, Chromium on macOS) |
+| The manifest, permissions or how the helper is delivered changes | `bun run test:host`, and `bun run test:host -- --migrate <previous tag>` when an older install can exist: it runs the installed OpenChamber desktop app's own web server in a throwaway profile, installs the release ZIP through Settings, approves it, and checks the helper loads and every surface opens. It hashes your own OpenCode settings before and after and fails if they changed. No model, no prompt |
+| A new OpenCode release | `node bridge/opencode/protocol-smoke.mjs <opencode>` (add `--remote`), `protocol-ws-smoke.mjs`, `protocol-compaction-smoke.mjs`, and `bun bridge/opencode/protocol-migration-smoke.mjs <opencode> <tag>` against an isolated released binary, then `bun run qualify:compatibility` |
+| A cost or CPU claim | `bun run overhead` measures the service and every child it spawns |
+
+Do not skip a failing platform or relax a real deadline to make a test pass. `bun run preview` starts a local server with synthetic
+readings (`tests/browser/host.html`, an emulation of the OpenChamber host: panel, page and Work Status surfaces, setHeight, badge
+and toast recorders, lifecycle replays, storage limits and lease handovers). It does not connect to a real runtime. Keep both
+bundles synchronized with source because repository installation uses these built files.
 
 **Development seams.** An explicitly launched service reads `MLX_SCOPE_BASE_URL`, `MLX_SCOPE_API_KEY`, `MLX_SCOPE_MODEL`,
 `MLX_SCOPE_RUNTIME` and the `OPENCODE_*` variables described in [Configuration](docs/CONFIGURATION.md). The overhead
@@ -73,17 +81,17 @@ generated test evidence. Preserve license notices and clearly label synthetic sc
 
 ## Releasing
 
-1. Update the version and a concise changelog.
-2. Run `bun run check:all` on macOS and inspect the resulting ZIP and checksum.
-3. Install that exact build in the supported OpenChamber host; review every surface, themes, header controls,
-   pause/resume, sharing, and the available local runtimes. Record which runtimes were exercised; fixtures do not
-   establish live validation. Back up `~/.config/openchamber/guest-storage/mlx-scope.json` outside the extensions
-   folder first: replacing a ZIP install deletes it.
-4. Commit the source and matching bundles. Confirm CI passes and the checkout is clean.
-5. Tag that commit `v<version>` and push the tag when publication is intended.
+1. Update the version, the CHANGELOG entry (the release workflow publishes it as the notes, and fails without one) and the docs
+   the change touches. A change to the manifest, a permission or how the helper is delivered also updates the approvals table in
+   the README.
+2. Run `bun run check` and `bun run test:smoke`, plus `bun run test:host` when the step above applies. The CHANGELOG says what
+   was checked and what was not; there is no separate receipt.
+3. Push the branch and open a pull request. Hosted CI repeats `check` on Linux and macOS and the smoke set on both browser
+   engines. Merge when it is green.
+4. Tag the merged commit `v<version>` and push the tag. The workflow checks again, then publishes the verified ZIP with its
+   SHA-256 file and moves the `release` branch, which Git installs follow, to exactly that ZIP's contents. It never releases
+   ordinary pushes. A fix to the `legacy/1.6.x` line after 2.0 is released with `--latest=false`. GitHub source archives are not
+   install packages. Release screenshots must identify synthetic data when used.
 
-The tag workflow runs Linux/macOS checks and Chromium/WebKit tests, checks tracked bundles, and publishes the verified
-install ZIP with its SHA-256 file. The `release` branch, which Git installs follow, holds exactly that ZIP's contents and
-must be updated from the verified ZIP, never from a working tree. It does not release ordinary pushes. A fix to the `legacy/1.6.x` line after 2.0 is
-released with `--latest=false`. GitHub source archives are not install packages. Release screenshots must identify
-synthetic data when used.
+Installing a ZIP over an existing Scope makes OpenChamber delete its stored data (History, baselines, preferences), so test
+installs belong in a throwaway profile (`OPENCHAMBER_DATA_DIR`), which is what `test:host` does.

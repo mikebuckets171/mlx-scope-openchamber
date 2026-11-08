@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 for (const surface of ['page', 'status']) {
-  test(`hidden ${surface} ignores injected host session and ready replays without DOM work`, async ({ page }) => {
+  test(`hidden ${surface} ignores injected host session and ready replays without DOM work`, { tag: '@smoke' }, async ({ page }) => {
     await page.goto(`/v2?surface=${surface}&state=idle&chat=local&frame=hidden`);
     const frame = page.frameLocator('iframe');
     await expect(frame.locator('#scope')).toBeAttached();
