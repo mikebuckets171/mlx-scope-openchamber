@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parse } from 'jsonc-parser/lib/esm/main.js';
+import { parse, type ParseError } from 'jsonc-parser/lib/esm/main.js';
 import { COMPANION_ID, createCompanionSetup, type CompanionProbe, type CompanionSetupOptions } from './companion-setup.ts';
 import { version as companionVersion } from '../bridge/opencode/package.json';
 
@@ -82,13 +82,16 @@ describe('retiring the helper Scope 5 installed', () => {
   });
 
   it('keeps compact plugin lists valid whichever position the entry held', async () => {
-    for (const lists of [(e: string) => `["first"/* keep A */,${e}]`, (e: string) => `[${e}/* keep B */, "last"]`, (e: string) => `[/* keep C */${e}]`, (e: string) => `["a",${e},"b"]`]) {
+    for (const lists of [(e: string) => `["first"/* keep A */,${e}]`, (e: string) => `[${e}/* keep B */, "last"]`, (e: string) => `[/* keep C */${e}]`, (e: string) => `["a",${e},"b"]`,
+      (e: string) => `[${e},]`, (e: string) => `["a" /* x, y] */ , ${e} // z, ]\n, "b"]`, (e: string) => `[{"package":"p","options":{"list":[1,2]}}\r\n, ${e}\r\n]`]) {
       const f = await fixture(); await f.installLegacy();
       const before = lists(f.entry()), text = `{"plugins":${before},"setting":true}`;
       await writeFile(f.config, text);
       expect(await f.setup.retire()).toBe('removed');
-      const after = await readFile(f.config, 'utf8');
-      expect(parse(after).plugins).toEqual(parse(before).filter((value: unknown) => typeof value === 'string'));
+      const after = await readFile(f.config, 'utf8'), errors: ParseError[] = [];
+      // parse() tolerates stray commas unless its errors are read; OpenCode's own reader may not.
+      expect(parse(after, errors).plugins).toEqual(parse(before).filter((value: { package?: string }) => value?.package !== f.addon));
+      expect(errors).toEqual([]);
       expect(parse(after).setting).toBe(true);
       for (const comment of before.match(/\/\*.*?\*\//g) ?? []) expect(after).toContain(comment);
     }
@@ -137,13 +140,27 @@ describe('retiring the helper Scope 5 installed', () => {
   it('never follows a marker that names a path outside its own folder', async () => {
     const f = await fixture(); await f.installLegacy();
     const outside = join(f.home, 'outside.txt'); await writeFile(outside, 'keep');
-    await writeFile(join(f.addon, '.mlx-scope-owner.json'), JSON.stringify({ schemaVersion: 1, owner: COMPANION_ID, installedAtMs: 1, files: { '../../../../outside.txt': sha('keep') } }));
     const text = `{"plugins":[${f.entry()}]}`; await writeFile(f.config, text);
-    expect(await f.setup.retire()).toBe('manual'); expect(await readFile(outside, 'utf8')).toBe('keep'); expect(await readFile(f.config, 'utf8')).toBe(text);
+    // The marker still lists every real file, so only the added name can refuse it. Each is absent from the folder, and a
+    // digest of the placeholder for a missing file must not stand in for its contents.
+    const path = join(f.addon, '.mlx-scope-owner.json'), marker = JSON.parse(await readFile(path, 'utf8'));
+    for (const name of ['../../../../outside.txt', '..', '.', 'not-there.js']) for (const digest of [sha('keep'), sha('\0')]) {
+      await writeFile(path, JSON.stringify({ ...marker, files: { ...marker.files, [name]: digest } }));
+      expect(await f.setup.retire()).toBe('manual'); expect(await readFile(outside, 'utf8')).toBe('keep'); expect(await readFile(f.config, 'utf8')).toBe(text);
+      expect(await readdir(f.addon)).toHaveLength(LEGACY.length + 1);
+    }
+  });
+
+  it('keeps a file edited after the last check: its entry goes, that file stays', async () => {
+    const f = await fixture(); await f.installLegacy(); await writeFile(f.config, `{"plugins":[${f.entry()}]}`);
+    const edit = async () => { await writeFile(join(f.addon, 'index.js'), '// the owner changed this\n', { mode: 0o600 }); };
+    expect(await createCompanionSetup({ ...f.options, beforeConfigCommit: edit }).retire()).toBe('removed');
+    expect(parse(await readFile(f.config, 'utf8')).plugins).toEqual([]);
+    expect(await readdir(f.addon)).toEqual(['index.js']); expect(await readFile(join(f.addon, 'index.js'), 'utf8')).toBe('// the owner changed this\n');
   });
 
   it('does not act where OpenChamber does not configure OpenCode', async () => {
-    const environments = [(root: string) => ({ OPENCODE_CONFIG: join(root, 'own.json') }), () => ({ OPENCODE_HOST: 'http://127.0.0.1:4096' }), () => ({ OPENCODE_SKIP_START: 'true' })];
+    const environments = [(root: string) => ({ OPENCODE_CONFIG: join(root, 'own.json') }), () => ({ OPENCODE_HOST: 'http://127.0.0.1:4096' }), () => ({ OPENCODE_PORT: '4096' }), () => ({ OPENCODE_SKIP_START: 'true' })];
     for (const environment of environments) {
       const f = await fixture(); await f.installLegacy(); const text = `{"plugins":[${f.entry()}]}`; await writeFile(f.config, text);
       const setup = createCompanionSetup({ ...f.options, env: environment(f.root) });

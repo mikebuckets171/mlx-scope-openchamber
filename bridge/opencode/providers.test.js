@@ -56,6 +56,17 @@ test('the first lookup waits only briefly for a slow provider list; the answer a
   release(); await settle(); assert.ok(await lookup('splash'));
 });
 
+test('every request that arrives during the first read waits for it, and none waits again, even for a list that never answers', async () => {
+  let release; const gate = new Promise(resolve => { release = resolve; });
+  const lookup = createSplashLookup({ list: () => gate.then(() => [SPLASH]), firstWaitMs: 5_000 });
+  const both = Promise.all([lookup('splash'), lookup('splash')]); release();
+  for (const found of await both) assert.ok(found);
+  const time = clock(), hung = createSplashLookup({ list: () => new Promise(() => {}), now: time.now, firstWaitMs: 100 });
+  assert.equal(await hung('splash'), null);
+  time.advance(5_000);
+  assert.equal(await Promise.race([hung('splash'), new Promise(resolve => setTimeout(resolve, 50, 'still waiting'))]), null);
+});
+
 test('a provider list that is missing, malformed or throws never makes a lookup throw', async () => {
   for (const list of [async () => null, async () => ({}), async () => [null, 5, 'x', {}, { id: 7 }], async () => { throw new Error('boom'); }, () => { throw new Error('sync boom'); }]) {
     const lookup = createSplashLookup({ list }); assert.equal(await lookup('splash'), null);
@@ -84,6 +95,8 @@ test('with no options, a request to the Splash provider OpenCode lists gets prog
   assert.deepEqual(await input.request.clone().json(), { ...original, return_progress: true });
   const cloud = request('https://api.openai.com/v1/chat/completions', 'openai'), before = cloud.request;
   await plugin.hooks.get('http.request')(cloud); assert.equal(cloud.request, before);
+  cloud.response = new Response('x', { headers: { 'content-type': 'text/event-stream' } });
+  const untouched = cloud.response; plugin.hooks.get('http.response')(cloud); assert.equal(cloud.response, untouched); assert.equal(plugin.store.entries.size, 0);
   input.response = new Response(new ReadableStream({ start(controller) { controller.enqueue(encode(progress())); } }), { headers: { 'content-type': 'text/event-stream' } });
   plugin.hooks.get('http.response')(input);
   const reader = input.response.body.getReader(); await reader.read();
@@ -91,8 +104,6 @@ test('with no options, a request to the Splash provider OpenCode lists gets prog
   assert.equal(saved.providerID, 'splash'); assert.equal(saved.endpointKey, key('endpoint', 'http://127.0.0.1:18181')); assert.equal(saved.sessionKey, key('session', 'ses_private'));
   assert.ok(!JSON.stringify(saved).match(/PRIVATE|sk-never-read|ses_private/));
   await reader.cancel(); await plugin.dispose();
-  const unlisted = request('https://api.openai.com/v1/chat/completions', 'openai'); input.response = new Response('x');
-  plugin.hooks.get('http.response')({ ...unlisted, response: new Response('x') }); assert.equal(plugin.store.entries.size, 0);
 });
 
 test('a Splash provider that is not on loopback, or a provider list that fails, leaves requests exactly as they were', async () => {

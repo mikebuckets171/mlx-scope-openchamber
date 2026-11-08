@@ -197,7 +197,7 @@ const RETRY_MS = 30_000;
 /**
  * From 6.0 the chat-speed helper is delivered by the extension itself, so nothing here installs, updates or disables it.
  * What remains is the helper Scope 5 wrote into OpenCode's own settings: `retire` removes that one entry and its files,
- * once, when they are exactly as Scope left them and no reply is running. Both copies carry the same plugin id and
+ * once, when they are exactly as Scope left them and no reply is being measured. Both copies carry the same plugin id and
  * OpenCode loads only the first, so until then the older helper keeps working as it did, and removing it lets the
  * one that came with the extension load in its place without a restart.
  */
@@ -205,11 +205,15 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
   const now = options.now ?? Date.now, env = options.env ?? process.env;
   let work: Promise<unknown> = Promise.resolve(), attemptedAt = -Infinity, outcome: Retirement = 'none';
   const probe = async (): Promise<CompanionProbe | null> => { try { return await options.probe?.() ?? null; } catch { return null; } };
-  /** OpenChamber hands an extension's plugin only to the OpenCode it starts with its own configuration file. */
-  const foreign = (): boolean => !!env.OPENCODE_CONFIG?.trim() || !!env.OPENCODE_HOST?.trim() || /^(?:1|true)$/i.test(env.OPENCODE_SKIP_START?.trim() ?? '');
+  /**
+   * OpenChamber hands an extension's plugin only to the OpenCode it starts with its own configuration file. It does not
+   * give an installed service its environment (only PATH, HOME, temp and locale are copied), so these are seen only by an
+   * explicitly launched service: under OpenChamber the removal cannot tell how OpenCode was started.
+   */
+  const foreign = (): boolean => ['OPENCODE_CONFIG', 'OPENCODE_HOST', 'OPENCODE_PORT'].some(name => env[name]?.trim()) || /^(?:1|true)$/i.test(env.OPENCODE_SKIP_START?.trim() ?? '');
   const edited = (info: Inspection): boolean => {
     const owned = object(info.marker?.files) ?? {}, names = Object.keys(owned);
-    return names.length === 0 || names.some(name => !LEGACY_FILE.test(name) || hash(info.files.get(name)?.text ?? '\0') !== owned[name])
+    return names.length === 0 || names.some(name => { const file = info.files.get(name); return !LEGACY_FILE.test(name) || !file || hash(file.text) !== owned[name]; })
       || [...info.files.keys()].some(name => name !== OWNER && !names.includes(name));
   };
   const legacyOf = (info: Inspection | null): Legacy => !info || !info.managed || info.entry < 0 ? 'none' : edited(info) ? 'edited' : foreign() ? 'blocked' : 'present';
@@ -229,7 +233,7 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
       : state === 'ready' ? live ? 'Chat tracking is connected. Estimates follow the chat you are watching.' : 'Chat tracking is ready for your next reply.'
       : legacy === 'edited' ? 'An older chat-speed helper from MLX Scope 5 is still set up in OpenCode and its files were edited, so MLX Scope left it alone. Remove its entry from OpenCode’s plugins to use the helper that comes with this release.'
       : legacy === 'blocked' ? 'An older chat-speed helper from MLX Scope 5 is set up in an OpenCode that OpenChamber does not configure, so MLX Scope left it alone. It keeps working. Remove its entry once this extension’s plugin is added there.'
-      : legacy === 'present' ? 'An older chat-speed helper from MLX Scope 5 is still loaded. MLX Scope switches to the one that comes with this release when no reply is running; your current work can continue.'
+      : legacy === 'present' ? 'An older chat-speed helper from MLX Scope 5 is still loaded. MLX Scope switches to the one that comes with this release when no reply is being measured; your current work can continue.'
       : outcome === 'removed' ? 'Switched to the chat-speed helper that comes with this release · waiting for OpenCode to load it. Your current work can continue.'
       : 'Chat tracking starts when OpenChamber loads this extension’s helper into OpenCode. Your current work can continue.';
     return { state, message, configured: !!current, managed: legacy !== 'none', canEnable: false, canDisable: false,
@@ -256,11 +260,14 @@ export function createCompanionSetup(options: CompanionSetupOptions) {
         lock = await setupLock(candidate); lockPath = candidate;
         await checkUnchanged(info!.document);
         await checkInstallation(info!);
-        const text = withoutEntry(info!), owned = Object.keys(object(info!.marker?.files) ?? {});
+        const text = withoutEntry(info!), owned = Object.entries(object(info!.marker?.files) ?? {});
         await options.beforeConfigCommit?.();
         await commitConfig(info!.document, text);
-        // The entry is gone and OpenCode has been told by the rename; its files are Scope's own, unedited, and now unused.
-        for (const name of owned) await unlink(join(info!.addon, name)).catch(error => { if (error.code !== 'ENOENT') throw error; });
+        // The entry is gone and OpenCode has been told by the rename. Each file is read once more: one edited since the checks above stays.
+        for (const [name, digest] of owned) {
+          const path = join(info!.addon, name), file = await readFile(path);
+          if (file && hash(file.text) === digest) await unlink(path).catch(error => { if (error.code !== 'ENOENT') throw error; });
+        }
         await unlink(join(info!.addon, OWNER)).catch(error => { if (error.code !== 'ENOENT') throw error; });
         await rmdir(info!.addon).catch(error => { if (error.code !== 'ENOTEMPTY' && error.code !== 'ENOENT') throw error; });
         return outcome = 'removed';

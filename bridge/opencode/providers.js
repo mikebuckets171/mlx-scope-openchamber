@@ -34,12 +34,13 @@ const waitFor = (promise, ms) => {
 
 /**
  * Which providers are Splash, read from OpenCode when a request arrives. OpenCode loads configured providers after its
- * plugins start (a plugin sees only its own at setup), so the list is read lazily and kept for `ttlMs`. Only the very
- * first lookup waits for it, and only up to `firstWaitMs`; every later one answers from the last read while a fresh one
- * runs behind it. A failed read changes nothing and is retried after `retryMs`. A lookup never throws.
+ * plugins start (a plugin sees only its own at setup), so the list is read lazily and kept for `ttlMs`. Requests that
+ * arrive during the very first read share one wait of at most `firstWaitMs`; every other lookup answers at once from the
+ * last read while a fresh one runs behind it, even if the list never answers. A failed read changes nothing and is
+ * retried after `retryMs`. A lookup never throws.
  */
 export function createSplashLookup({ list, now = Date.now, ttlMs = 30_000, retryMs = 5_000, firstWaitMs = 750 }) {
-  let snapshot = null, flight = null, attemptedAt = -Infinity;
+  let snapshot = null, flight = null, attemptedAt = -Infinity, firstWait = null;
   const refresh = () => flight ??= (async () => {
     attemptedAt = now();
     try {
@@ -52,10 +53,8 @@ export function createSplashLookup({ list, now = Date.now, ttlMs = 30_000, retry
   return async providerID => {
     if (typeof providerID !== 'string' || !PROVIDER_ID.test(providerID)) return null;
     // A provider the last read did not list may have just been added; look again, but never more often than retryMs.
-    if (now() - attemptedAt >= retryMs && (!snapshot || now() - snapshot.at >= ttlMs || !snapshot.byId.has(providerID))) {
-      const pending = refresh();
-      if (!snapshot) await waitFor(pending, firstWaitMs);
-    }
+    if (now() - attemptedAt >= retryMs && (!snapshot || now() - snapshot.at >= ttlMs || !snapshot.byId.has(providerID))) void refresh();
+    if (!snapshot && flight) await (firstWait ??= waitFor(flight, firstWaitMs));
     return snapshot?.byId.get(providerID) ?? null;
   };
 }
