@@ -15,6 +15,8 @@ export interface CompletionV2 {
   basis: Basis;                              // per the contract §4 runtime table
   promptTokens?: number; cachedTokens?: number; outputTokens?: number;
   ttftMs?: number; prefillMs?: number; decodeTps?: number; prefillTps?: number;
+  /** 5.5: draft tokens a speculative decoder proposed for this reply and how many the model kept; whole single replies only. */
+  draftedTokens?: number; acceptedTokens?: number;
   overlapped: boolean;                       // another request was active at any sample in its span
   aggregateOf?: number;                      // > 1 when one counter step covered several requests
   verdict?: { attr: Verdict; reason?: WithholdReason; at: number };
@@ -59,9 +61,10 @@ export const parseCompletionV2 = (value: unknown): CompletionV2 | null => {
   const item = obj(value), seq = count(item?.seq), finishedAt = at(item?.finishedAt), kind = basis(item?.basis), overlapped = bool(item?.overlapped);
   if (!item || !seq || finishedAt === null || !kind || overlapped === null) return null;
   const startedAt = at(item.startedAt), aggregate = count(item.aggregateOf);
+  const drafted = count(item.draftedTokens), accepted = count(item.acceptedTokens), draft = drafted && accepted !== null && accepted <= drafted;
   return defined({
     seq, finishedAt, startedAt: startedAt !== null && startedAt <= finishedAt ? startedAt : null, model: modelLabel(item.model), basis: kind,
-    ...completionFields(item), overlapped,
+    ...completionFields(item), draftedTokens: draft ? drafted : undefined, acceptedTokens: draft ? accepted! : undefined, overlapped,
     aggregateOf: aggregate !== null && aggregate > 1 ? aggregate : undefined, verdict: verdict(item.verdict), host: completionHost(item.host),
   });
 };

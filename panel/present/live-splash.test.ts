@@ -160,3 +160,28 @@ test('Splash displays the actual observed interval and keeps prompt processing s
   expect(presentLive(scope(body)).hero?.body).toMatchObject({ kind: 'word', unit: 'Reading prompt · waiting for update' });
   expect(session(body).phase).toBe('Reading prompt');
 });
+
+test('5.5: Splash memory room and draft acceptance appear among the engine readings, in Splash\'s own words', () => {
+  const body = snapshot(s => {
+    s.runtime.memory.room = { limitBytes: 40_802_189_312, headroomBytes: 3_221_225_472, claimsBytes: 4_724_464_025,
+      kvActiveBytes: 6_570_000_000, kvAllocatedBytes: 7_080_000_000, spilledRequests: 2 };
+    s.runtime.server.admission = { waitingMemory: 1, waitingConcurrency: 0, oldestWaitMs: 18_400 };
+    s.runtime.server.speculative = { draftedTokens: 4_000, acceptedTokens: 2_840, acceptanceFraction: 0.71, windowMs: 600_000 };
+    s.capabilities['server.memory.room'] = { scope: 'server', basis: 'reported' };
+    s.capabilities['server.admission'] = { scope: 'server', basis: 'reported' };
+    s.capabilities['server.speculative'] = { scope: 'server', basis: 'derived' };
+  });
+  const cards = presentServer(body, MOCK_NOW).cards, room = cards.find(card => card.key === 'room'), spec = cards.find(card => card.key === 'spec');
+  expect(room).toMatchObject({ title: 'Memory room', right: 'Splash · from server' });
+  const text = JSON.stringify(room);
+  for (const fact of ['Free in its budget', '3.0 GiB', 'of 38.0 GiB', 'KV cache in use', '6.1 GiB', 'Waiting for memory', '1 request', '4.4 GiB asked for', 'Moved to the SSD', '2 requests'])
+    expect(text).toContain(fact);
+  expect(room!.tip!.paras.join(' ')).toContain('Not macOS memory');
+  expect(room!.blocks).toContainEqual({ kind: 'meter', fraction: expect.closeTo(0.921, 3) });
+  expect(spec).toMatchObject({ title: 'Draft token reuse', right: 'last 10 min' });
+  expect(spec!.tip!.paras.join(' ')).toContain('Across all Splash requests');
+  expect(JSON.stringify(spec)).toContain('71%');
+  // Nothing reported, nothing drawn.
+  expect(presentServer(snapshot(), MOCK_NOW).cards.map(card => card.key)).not.toContain('room');
+  expect(serverMarkup(presentServer(body, MOCK_NOW), new Set()).markup).toContain('Memory room');
+});

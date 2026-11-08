@@ -25,11 +25,15 @@ export const SPLASH_RATE_GAP_MS = 5_000;
 export const SPLASH_RATE_MIN_WINDOW_MS = 2_000;
 export const SPLASH_RATE_MIN_SAMPLES = 3;
 
+/** The window for recent draft acceptance, as llama-server's: long enough to span several replies. */
+export const SPLASH_SPECULATIVE_WINDOW_MS = 600_000;
+
 const CAPABILITIES: readonly CapabilityDescriptor[] = [
   { key: 'request.prefillProgress', basis: 'reported' },
   { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' }, { key: 'server.rates', basis: 'derived' },
   { key: 'server.latency', basis: 'reported' }, { key: 'server.memory.metal', basis: 'reported' },
   { key: 'server.catalog', basis: 'reported' }, { key: 'server.completions', basis: 'derived' },
+  { key: 'server.admission', basis: 'reported' }, { key: 'server.memory.room', basis: 'reported' }, { key: 'server.speculative', basis: 'derived' },
 ];
 const MODALITIES = ['text', 'image', 'audio', 'pdf'] as const;
 type Modality = typeof MODALITIES[number];
@@ -117,10 +121,25 @@ const histograms = (item: Json): RuntimeV2['server']['histograms'] => {
   const metrics = obj(item.metrics), ttftMs = quantiles(metrics?.ttft_ms), itlMs = quantiles(metrics?.itl_ms);
   return ttftMs || itlMs ? defined({ ttftMs, itlMs }) : undefined;
 };
+/** Requests Splash holds before they start (1.6 `admission`): for memory, for a concurrency slot, and the oldest wait. */
+const admission = (item: Json): RuntimeV2['server']['admission'] => {
+  const gate = obj(item.admission), memory = count(gate?.waiting_memory), concurrency = count(gate?.waiting_concurrency), oldest = nonneg(gate?.oldest_wait_ms);
+  if (!fresh(item) || memory === null || concurrency === null) return undefined;
+  return defined({ waitingMemory: memory, waitingConcurrency: concurrency, oldestWaitMs: memory + concurrency > 0 && oldest !== null ? oldest : undefined });
+};
+/** Splash's own memory plan (1.6 `memory_governor`, `kv`, `kv_spill`): budget, room left, waiting claims, KV bytes, SSD spills. */
+const room = (item: Json): RuntimeV2['memory']['room'] => {
+  if (!fresh(item)) return undefined;
+  const result = defined({ limitBytes: opt(count(field(item, 'memory_governor.limit_bytes'))), headroomBytes: opt(count(field(item, 'memory_governor.headroom_bytes'))),
+    claimsWaiting: opt(count(field(item, 'memory_governor.claims.waiting'))), claimsBytes: opt(count(field(item, 'memory_governor.claims.bytes'))),
+    kvActiveBytes: opt(count(field(item, 'kv.active_bytes'))), kvAllocatedBytes: opt(count(field(item, 'kv.allocated_bytes'))),
+    kvReclaimableBytes: opt(count(field(item, 'kv.reclaimable_bytes'))), spilledRequests: opt(count(field(item, 'kv_spill.requests.converted'))) });
+  return Object.keys(result).length ? result : undefined;
+};
 /** Splash's own Metal allocation. Never process memory: the engine is a child process (SPIKES S9). */
 const memory = (item: Json): RuntimeV2['memory'] => {
   const actual = obj(item.memory_actual), current = count(actual?.current_bytes), peak = count(actual?.peak_bytes);
-  return defined({ metalBytes: opt(current), metalPeakBytes: peak !== null && (current === null || peak >= current) ? peak : undefined });
+  return defined({ metalBytes: opt(current), metalPeakBytes: peak !== null && (current === null || peak >= current) ? peak : undefined, room: room(item) });
 };
 const catalog = (item: Json): CatalogV2[] => {
   const name = modelLabel(field(item, 'instance.model'));
@@ -183,6 +202,29 @@ export class SplashRates {
   reset(): void { this.decode.reset(); this.prompt.reset(); }
 }
 
+/**
+ * Recent draft acceptance across all Splash requests (DFlash): the counter Δ over up to ten minutes of reads, as
+ * llama-server's. A new engine, a counter that runs backwards or a clock step starts the window over.
+ */
+export class SplashSpeculative {
+  private samples: Array<{ key: string; drafted: number; accepted: number; at: number }> = [];
+
+  observe(body: unknown, monotonicAt: number): RuntimeV2['server']['speculative'] {
+    const item = splashBody(body), metrics = obj(item?.metrics);
+    const drafted = count(metrics?.drafted_tokens), accepted = count(metrics?.accepted_draft_tokens);
+    if (!item || !fresh(item) || drafted === null || accepted === null || nonneg(monotonicAt) === null) return undefined;
+    const current = { key: generationKey(item), drafted, accepted, at: monotonicAt }, last = this.samples.at(-1);
+    if (last && (last.key !== current.key || monotonicAt <= last.at || drafted < last.drafted || accepted < last.accepted)) this.samples = [];
+    this.samples.push(current);
+    this.samples = this.samples.filter(sample => monotonicAt - sample.at <= SPLASH_SPECULATIVE_WINDOW_MS);
+    const first = this.samples[0]!, proposed = drafted - first.drafted, kept = accepted - first.accepted, windowMs = monotonicAt - first.at;
+    return proposed > 0 && kept >= 0 && kept <= proposed && windowMs > 0
+      ? { draftedTokens: proposed, acceptedTokens: kept, acceptanceFraction: Math.round(kept / proposed * 1e6) / 1e6, windowMs } : undefined;
+  }
+
+  reset(): void { this.samples = []; }
+}
+
 const emptyRuntime = (at: number): RuntimeV2 => ({ sampledAt: at, phase: 'unknown', request: null, server: { active: null, queued: null },
   memory: {}, residency: [], slots: [], catalog: [], engines: [] });
 
@@ -192,7 +234,7 @@ export const splashReading = (body: unknown, at: number): Omit<AdapterReadingV2,
   if (!item) return { at, status, capabilities: {}, runtime: emptyRuntime(at), identity: {} };
   const live = activity(item);
   const runtime: RuntimeV2 = { sampledAt: at, phase: live.phase, request: null,
-    server: defined({ active: live.active, queued: live.queued, averages: averages(item), histograms: histograms(item) }),
+    server: defined({ active: live.active, queued: live.queued, averages: averages(item), histograms: histograms(item), admission: admission(item) }),
     memory: memory(item), residency: [], slots: [], catalog: catalog(item), engines: [] };
   const filled = new Set(requiredCapabilities({ runtime }));
   return { at, status, runtime, identity: {}, generationKey: generationKey(item),
@@ -203,6 +245,8 @@ interface Counters {
   engine: unknown; busy: number; queued: number | null; model: string | null;
   totals: { submitted: number; completed: number; failed: number; cancelled: number; ttftCount: number | null; ttftSum: number | null;
             prefillTokens: number | null; prefillMs: number | null; decodeTokens: number | null; decodeMs: number | null };
+  /** Kept apart from `totals`: a draft counter that moves oddly drops the draft figures, never the reply. */
+  draft: { drafted: number | null; accepted: number | null };
 }
 const counters = (body: unknown): Counters | null => {
   const item = splashBody(body), total = item ? busy(item) : null;
@@ -213,7 +257,8 @@ const counters = (body: unknown): Counters | null => {
     totals: { submitted: count(requests.submitted)!, completed: count(requests.completed)!, failed: count(requests.failed)!,
       cancelled: count(requests.cancelled) ?? 0, ttftCount: count(ttftLatency(item, 'count')), ttftSum: nonneg(ttftLatency(item, 'sum')),
       prefillTokens: count(metrics?.prefill_input_tokens), prefillMs: nonneg(metrics?.prefill_wall_ms),
-      decodeTokens: count(metrics?.decode_output_tokens), decodeMs: nonneg(metrics?.decode_wall_ms) } };
+      decodeTokens: count(metrics?.decode_output_tokens), decodeMs: nonneg(metrics?.decode_wall_ms) },
+    draft: { drafted: count(metrics?.drafted_tokens), accepted: count(metrics?.accepted_draft_tokens) } };
 };
 /** Δ of one counter, or null when either read lacks it. */
 type Deltas = { [K in keyof Counters['totals']]: number | null };
@@ -249,7 +294,16 @@ export const splashCompletion = (before: unknown, after: unknown, at: number): C
     prefillTps: whole ? rate(delta.prefillTokens, delta.prefillMs) : undefined,
     decodeTps: whole ? rate(delta.decodeTokens, delta.decodeMs) : undefined,
     // Kept output tokens from Splash's own decode counter (draft candidates excluded), only for a whole single request.
-    outputTokens: whole && delta.decodeTokens ? delta.decodeTokens : undefined });
+    outputTokens: whole && delta.decodeTokens ? delta.decodeTokens : undefined,
+    // The draft model's proposals and the main model's kept share, for the same whole single request.
+    ...whole ? draftDelta(a, b) : {} });
+};
+/** Drafted and accepted Δ, only when both counters moved forward consistently. */
+const draftDelta = (a: Counters, b: Counters): { draftedTokens: number; acceptedTokens: number } | Record<string, never> => {
+  const { drafted: d0, accepted: a0 } = a.draft, { drafted: d1, accepted: a1 } = b.draft;
+  if (d0 === null || a0 === null || d1 === null || a1 === null) return {};
+  const drafted = d1 - d0, accepted = a1 - a0;
+  return drafted > 0 && accepted >= 0 && accepted <= drafted ? { draftedTokens: drafted, acceptedTokens: accepted } : {};
 };
 
 /**
@@ -282,6 +336,7 @@ class SplashAdapter implements AdapterV2 {
   private held: { reading: AdapterReadingV2; until: number } | null = null;
   private readonly completions = new SplashCompletions();
   private readonly rates = new SplashRates();
+  private readonly speculative = new SplashSpeculative();
   /** The newest prompt Splash reported for the one request being read; it gives that reply its prompt counts. */
   private lastPrompt: PromptObservation | null = null;
   private readSequence = 0;
@@ -303,6 +358,11 @@ class SplashAdapter implements AdapterV2 {
     if (rates) {
       reading.runtime.server.rates = rates;
       reading.capabilities['server.rates'] = { scope: 'server', basis: 'derived' };
+    }
+    const speculative = this.speculative.observe(body, monotonicAt);
+    if (speculative) {
+      reading.runtime.server.speculative = speculative;
+      reading.capabilities['server.speculative'] = { scope: 'server', basis: 'derived' };
     }
     const item = splashBody(body), scheduler = obj(item?.scheduler), nativeModel = field(item, 'instance.model');
     const started = nonneg(field(item, 'instance.started_at')), startedAtMs = started === null ? undefined : started * 1000;
@@ -344,7 +404,7 @@ class SplashAdapter implements AdapterV2 {
     return splashBody((await this.context.get('/status')).body) !== null;
   }
 
-  dispose(): void { this.readSequence += 1; this.held = null; this.lastPrompt = null; this.completions.reset(); this.rates.reset(); this.progress.reset(this.context.now()); }
+  dispose(): void { this.readSequence += 1; this.held = null; this.lastPrompt = null; this.completions.reset(); this.rates.reset(); this.speculative.reset(); this.progress.reset(this.context.now()); }
 
   private hold(): AdapterReadingV2 | null {
     const left = this.held ? this.held.until - this.context.monotonic() : 0;

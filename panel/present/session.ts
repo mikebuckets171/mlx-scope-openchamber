@@ -165,6 +165,12 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
       age = ago(chat.observedAtMs, input.now);
     }
   }
+  // 5.5: a reply the engine holds before it starts says why, and for how long while it is the only one waiting. Only this
+  // chat's own waiting state claims a cause; a busy chat without the companion's phase, or a cloud chat, never does.
+  const gate = usable ? snapshot.runtime.server.admission : undefined;
+  const waitReason = gate && chat?.phase === 'waiting' && !readingPrompt && input.chatActivity === 'busy'
+    ? gate.waitingMemory > 0 ? 'Waiting for memory' : gate.waitingConcurrency > 0 ? 'Waiting for another chat' : null : null;
+  if (waitReason) phase = `${waitReason}${gate!.waitingMemory + gate!.waitingConcurrency === 1 && gate!.oldestWaitMs !== undefined ? ` · ${elapsedText(gate!.oldestWaitMs)}` : ''}`;
   // A completed value is intentionally a last result, never promoted back into the live speed.
   const last = input.last, cancelled = !engine && (input.window?.outcome === 'failure' || chat?.phase === 'cancelled');
   const lastMatches = engine || !input.sessionModel || sameModel(input.sessionModel, last?.completion.model ?? null);

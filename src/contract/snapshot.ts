@@ -85,14 +85,25 @@ export interface RuntimeV2 {
     speculative?: { draftedTokens: number; acceptedTokens: number; acceptanceFraction: number; windowMs: number };
     rates?: { promptTps?: number; decodeTps?: number; windowMs: number;
               promptWindowMs?: number };    // independent prompt interval; windowMs is decode's when both are present
+    /** 5.5: requests the runtime holds before they start (Splash `admission`), and how long the oldest has waited. */
+    admission?: { waitingMemory: number; waitingConcurrency: number; oldestWaitMs?: number };
   };
   memory: { processBytes?: number; modelBytes?: number; metalBytes?: number; metalPeakBytes?: number; ceilingBytes?: number;
-            guard?: MemoryGuard };           // §12.4: the oMLX process memory guard, not macOS pressure
+            guard?: MemoryGuard;             // §12.4: the oMLX process memory guard, not macOS pressure
+            room?: MemoryRoomV2 };
   residency: ResidencyV2[];                  // ≤ 12
   residencyCount?: number;                   // 2a amendment: models the runtime reports, when it can count them (can exceed 12)
   slots: SlotV2[];                           // ≤ 16, llama-server numeric allowlist
   catalog: CatalogV2[];                      // ≤ 12
   engines: EngineV2[];                       // ≤ 8
+}
+/**
+ * 5.5: the runtime's own memory plan (Splash `memory_governor`, `kv`, `kv_spill`): its budget, the room left, claims waiting
+ * for memory, KV cache bytes, and how many requests it moved to the SSD since it started. Never macOS memory.
+ */
+export interface MemoryRoomV2 {
+  limitBytes?: number; headroomBytes?: number; claimsWaiting?: number; claimsBytes?: number;
+  kvActiveBytes?: number; kvAllocatedBytes?: number; kvReclaimableBytes?: number; spilledRequests?: number;
 }
 /** oMLX's memory guard tier (`memory_pressure.pressure_level`): `hard` pauses admission. Present only while the guard runs. */
 export const MEMORY_GUARDS = ['ok', 'soft', 'hard'] as const;
@@ -146,9 +157,10 @@ export const HONESTY: ReadonlyArray<readonly [string, CapabilityKey]> = [
   }),
   ...capabilityFields('runtime.server.', 'server.', {
     requests: 'active queued', averages: 'averages', latency: 'histograms', cache: 'cache', speculative: 'speculative', rates: 'rates',
+    admission: 'admission',
   }),
   ...capabilityFields('runtime.memory.', 'server.memory.', {
-    process: 'processBytes guard', model: 'modelBytes', metal: 'metalBytes metalPeakBytes', ceiling: 'ceilingBytes',
+    process: 'processBytes guard', model: 'modelBytes', metal: 'metalBytes metalPeakBytes', ceiling: 'ceilingBytes', room: 'room',
   }),
   ...capabilityFields('runtime.', 'server.', { residency: 'residency residencyCount', slots: 'slots', catalog: 'catalog', engines: 'engines' }),
   ['completions.items', 'server.completions'],
@@ -259,14 +271,23 @@ const server = (value: unknown): RuntimeV2['server'] => {
       ? { draftedTokens: drafted, acceptedTokens: accepted, acceptanceFraction: acceptance, windowMs: specWindow } : undefined,
     rates: rateWindow !== null ? defined({ promptTps: num(rates!.promptTps), decodeTps: num(rates!.decodeTps), windowMs: rateWindow,
       promptWindowMs: num(rates!.promptWindowMs) }) : undefined,
+    admission: admissionOf(item.admission),
   });
 };
+/** Both waiting counts or nothing; the oldest wait only while something waits. */
+const admissionOf = (value: unknown): RuntimeV2['server']['admission'] => {
+  const item = obj(value), memory = count(item?.waitingMemory), concurrency = count(item?.waitingConcurrency), oldest = nonneg(item?.oldestWaitMs);
+  if (memory === null || concurrency === null) return undefined;
+  return defined({ waitingMemory: memory, waitingConcurrency: concurrency, oldestWaitMs: memory + concurrency > 0 && oldest !== null ? oldest : undefined });
+};
+const roomFields = optionalFields({ limitBytes: count, headroomBytes: count, claimsWaiting: count, claimsBytes: count,
+  kvActiveBytes: count, kvAllocatedBytes: count, kvReclaimableBytes: count, spilledRequests: count });
 const memory = (value: unknown): RuntimeV2['memory'] => {
-  const item = obj(value) ?? {}, metal = count(item.metalBytes), peak = count(item.metalPeakBytes);
+  const item = obj(value) ?? {}, metal = count(item.metalBytes), peak = count(item.metalPeakBytes), room = obj(item.room);
   return defined({ processBytes: int(item.processBytes), modelBytes: int(item.modelBytes), metalBytes: opt(metal),
     // A peak below the current allocation is not a peak.
     metalPeakBytes: peak !== null && (metal === null || peak >= metal) ? peak : undefined, ceilingBytes: int(item.ceilingBytes),
-    guard: opt(oneOf(MEMORY_GUARDS)(item.guard)) });
+    guard: opt(oneOf(MEMORY_GUARDS)(item.guard)), room: room ? nonEmpty(roomFields(room)) : undefined });
 };
 const runtime = (value: unknown): RuntimeV2 | null => {
   const item = obj(value);

@@ -7,8 +7,8 @@ import { unitViolations } from '../../src/contract/units.ts';
 import type { AdapterContextV2, AdapterReadingV2, CompletionDraft, RuntimeReply } from '../core/adapter-v2.ts';
 import { HttpFailure } from '../http.ts';
 import {
-  isSplash11, SPLASH_GAP_MS, SPLASH_RATE_GAP_MS, SPLASH_RECOVERING_CACHE_MS, SplashCompletions, SplashRates,
-  createSplashAdapter, splashCompletion, splashDescriptor, splashReading, splashStatus,
+  isSplash11, SPLASH_GAP_MS, SPLASH_RATE_GAP_MS, SPLASH_RECOVERING_CACHE_MS, SPLASH_SPECULATIVE_WINDOW_MS, SplashCompletions, SplashRates,
+  SplashSpeculative, createSplashAdapter, splashCompletion, splashDescriptor, splashReading, splashStatus,
 } from './splash.ts';
 
 type Json = Record<string, any>;
@@ -295,8 +295,8 @@ describe('readings over every fixture', () => {
     expectClean(name, reading);
     expectRoundTrip(name, snapshotOf(reading));
     expect(reading.runtime.request).toBeNull();
-    // Splash's Metal allocation is its own figure, never process or model memory.
-    expect(Object.keys(reading.runtime.memory).every(key => key === 'metalBytes' || key === 'metalPeakBytes')).toBe(true);
+    // Splash's Metal allocation and its own memory plan, never process or model memory.
+    expect(Object.keys(reading.runtime.memory).every(key => key === 'metalBytes' || key === 'metalPeakBytes' || key === 'room')).toBe(true);
   });
 
   test('stale and recovering bodies keep their totals but derive no activity', () => {
@@ -318,13 +318,16 @@ describe('readings over every fixture', () => {
     expect(reading.runtime).toEqual({ sampledAt: AT, phase: 'idle', request: null,
       server: { active: 0, queued: 0, averages: { decodeTps: 57.702_158_2, prefillTps: 513.801_740_6, requestsTotal: 53, failedTotal: 0 },
         histograms: { ttftMs: { p50: 1_720.490_612, p95: 65_083.542_81, n: 54, window: 'native-last-4096' },
-          itlMs: { p50: 18.080_874_12, p95: 31.095_577_05, n: 4_096, window: 'native-last-4096' } } },
-      memory: { metalBytes: 19_498_131_456, metalPeakBytes: 20_010_885_120 }, residency: [], slots: [],
+          itlMs: { p50: 18.080_874_12, p95: 31.095_577_05, n: 4_096, window: 'native-last-4096' } },
+        admission: { waitingMemory: 0, waitingConcurrency: 0 } },
+      memory: { metalBytes: 19_498_131_456, metalPeakBytes: 20_010_885_120, room: { limitBytes: 38_654_705_664, headroomBytes: 18_843_344_896 } },
+      residency: [], slots: [],
       catalog: [{ name: MODEL, format: 'splash', loaded: true, contextWindowTokens: 131_072, vision: false, inputModalities: ['text'] }], engines: [] });
     expect(reading.capabilities).toEqual({
       'server.requests': { scope: 'server', basis: 'derived' }, 'server.averages': { scope: 'server', basis: 'reported' },
       'server.latency': { scope: 'server', basis: 'reported' }, 'server.memory.metal': { scope: 'server', basis: 'reported' },
-      'server.catalog': { scope: 'server', basis: 'reported' }, 'server.completions': { scope: 'server', basis: 'derived' } });
+      'server.catalog': { scope: 'server', basis: 'reported' }, 'server.completions': { scope: 'server', basis: 'derived' },
+      'server.admission': { scope: 'server', basis: 'reported' }, 'server.memory.room': { scope: 'server', basis: 'reported' } });
     expect(reading.identity).toEqual({});
     expect(reading.generationKey).toMatch(/^[0-9a-f]{8}$/);
   });
@@ -358,7 +361,7 @@ describe('readings over every fixture', () => {
   test('a peak below the current allocation is not a peak', () => {
     const body = clone(IDLE);
     body.memory_actual.peak_bytes = body.memory_actual.current_bytes - 1;
-    expect(splashReading(body, AT).runtime.memory).toEqual({ metalBytes: 19_498_131_456 });
+    expect(splashReading(body, AT).runtime.memory).toEqual({ metalBytes: 19_498_131_456, room: { limitBytes: 38_654_705_664, headroomBytes: 18_843_344_896 } });
   });
 
   test('the generation key follows the process, the engine and the model, and never carries them', () => {
@@ -402,8 +405,12 @@ describe('completions: the Δ = 1 rule (SPIKES S7)', () => {
   test('Δ=1 fixture pair: one derived per-request TTFT of 412.5 ms, with its own prefill and decode', () => {
     const draft = splashCompletion(status('delta1-before'), status('delta1-after'), AT);
     expect(draft).toEqual({ finishedAt: AT, startedAt: null, model: MODEL, basis: 'derived', overlapped: false, ttftMs: 412.5,
-      prefillMs: 870.708, prefillTps: 514.524, decodeTps: 54.054, outputTokens: 211 });
+      prefillMs: 870.708, prefillTps: 514.524, decodeTps: 54.054, outputTokens: 211, draftedTokens: 693, acceptedTokens: 112 });
     expectRoundTrip('delta1', snapshotOf(splashReading(status('delta1-after'), AT), [draft!]));
+    // Draft counters that run backwards drop only the draft figures, never the reply.
+    const backwards = status('delta1-after'); backwards.metrics.accepted_draft_tokens = 0;
+    expect(splashCompletion(status('delta1-before'), backwards, AT)).toMatchObject({ outputTokens: 211, ttftMs: 412.5 });
+    expect(splashCompletion(status('delta1-before'), backwards, AT)).not.toHaveProperty('draftedTokens');
   });
 
   test('Splash 1.2 renamed latency.ttft to latency.http_ttft (status schema 6): the Δ=1 pair still derives 412.5 ms', () => {
@@ -414,7 +421,7 @@ describe('completions: the Δ = 1 rule (SPIKES S7)', () => {
     };
     const draft = splashCompletion(renamed('delta1-before'), renamed('delta1-after'), AT);
     expect(draft).toEqual({ finishedAt: AT, startedAt: null, model: MODEL, basis: 'derived', overlapped: false, ttftMs: 412.5,
-      prefillMs: 870.708, prefillTps: 514.524, decodeTps: 54.054, outputTokens: 211 });
+      prefillMs: 870.708, prefillTps: 514.524, decodeTps: 54.054, outputTokens: 211, draftedTokens: 693, acceptedTokens: 112 });
     // Without either histogram there is still a completion, but no TTFT is invented.
     const bare = (name: string) => { const body = status(name); delete body.latency; return body; };
     expect(splashCompletion(bare('delta1-before'), bare('delta1-after'), AT)?.ttftMs).toBeUndefined();
@@ -425,7 +432,7 @@ describe('completions: the Δ = 1 rule (SPIKES S7)', () => {
     expect(done.latency.ttft).toBeUndefined();
     const draft = splashCompletion(before, done, AT);
     expect(draft).toEqual({ finishedAt: AT, startedAt: null, model: MODEL, basis: 'derived', overlapped: false, ttftMs: 207.117,
-      prefillMs: 125.708, prefillTps: 167.053, decodeTps: 29.017, outputTokens: 115 });
+      prefillMs: 125.708, prefillTps: 167.053, decodeTps: 29.017, outputTokens: 115, draftedTokens: 350, acceptedTokens: 64 });
     expectRoundTrip('1.2.0 delta1', snapshotOf(splashReading(done, AT), [draft!]));
     // Mid-reply, the first token is counted but the request has not finished: no completion yet.
     expect(splashCompletion(before, status('decoding', '1.2.0'), AT)).toBeNull();
@@ -696,7 +703,8 @@ describe('the descriptor', () => {
       { key: 'request.prefillProgress', basis: 'reported' },
       { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' }, { key: 'server.rates', basis: 'derived' },
       { key: 'server.latency', basis: 'reported' },
-      { key: 'server.memory.metal', basis: 'reported' }, { key: 'server.catalog', basis: 'reported' }, { key: 'server.completions', basis: 'derived' }]);
+      { key: 'server.memory.metal', basis: 'reported' }, { key: 'server.catalog', basis: 'reported' }, { key: 'server.completions', basis: 'derived' },
+      { key: 'server.admission', basis: 'reported' }, { key: 'server.memory.room', basis: 'reported' }, { key: 'server.speculative', basis: 'derived' }]);
   });
 });
 
@@ -733,5 +741,60 @@ describe('reply counts for Splash baselines and prompt reuse', () => {
     const [reply] = (await adapter.read(READ)).completions;
     expect(reply).toMatchObject({ outputTokens: 120 });
     expect(reply!.promptTokens).toBeUndefined(); expect(reply!.cachedTokens).toBeUndefined();
+  });
+});
+
+describe('5.5: why a request waits, Splash memory room and draft acceptance', () => {
+  const waiting = (memory: number, concurrency: number, oldest: number) => {
+    const body = status('decoding');
+    body.admission = { waiting_memory: memory, waiting_concurrency: concurrency, held_behind_refusal: 0, restoring: 0, suspended: 0, oldest_wait_ms: oldest };
+    return body;
+  };
+
+  test('admission names memory and concurrency waits and the oldest wait, only while something waits', () => {
+    expect(splashReading(waiting(1, 0, 18_400), AT).runtime.server.admission).toEqual({ waitingMemory: 1, waitingConcurrency: 0, oldestWaitMs: 18_400 });
+    expect(splashReading(waiting(0, 2, 3_000), AT).runtime.server.admission).toEqual({ waitingMemory: 0, waitingConcurrency: 2, oldestWaitMs: 3_000 });
+    expect(splashReading(waiting(0, 0, 0), AT).runtime.server.admission).toEqual({ waitingMemory: 0, waitingConcurrency: 0 });
+    // A count Splash didn't report is not zero, and a stale copy says nothing about waits now.
+    const partial = waiting(1, 0, 10); delete partial.admission.waiting_concurrency;
+    expect(splashReading(partial, AT).runtime.server.admission).toBeUndefined();
+    expect(splashReading(partial, AT).capabilities['server.admission']).toBeUndefined();
+    for (const variant of ['recovering', 'status-stale']) expect(splashReading(status(variant), AT).runtime.server.admission).toBeUndefined();
+    expectRoundTrip('waiting', snapshotOf(splashReading(waiting(1, 0, 18_400), AT)));
+  });
+
+  test('memory room reads Splash\'s own budget, waiting claims, KV bytes and SSD spills', () => {
+    const body = status('decoding');
+    body.memory_governor = { ...body.memory_governor, limit_bytes: 40_802_189_312, headroom_bytes: 3_221_225_472, claims: { waiting: 1, bytes: 4_724_464_025 } };
+    body.kv = { ...body.kv, active_bytes: 6_570_000_000, allocated_bytes: 7_080_000_000, reclaimable_bytes: 512_000_000 };
+    body.kv_spill = { requests: { converted: 2 } };
+    expect(splashReading(body, AT).runtime.memory.room).toEqual({ limitBytes: 40_802_189_312, headroomBytes: 3_221_225_472, claimsWaiting: 1,
+      claimsBytes: 4_724_464_025, kvActiveBytes: 6_570_000_000, kvAllocatedBytes: 7_080_000_000, kvReclaimableBytes: 512_000_000, spilledRequests: 2 });
+    expect(splashReading(body, AT).capabilities['server.memory.room']).toEqual({ scope: 'server', basis: 'reported' });
+    expect(splashReading(status('recovering'), AT).runtime.memory.room).toBeUndefined();
+    expectRoundTrip('room', snapshotOf(splashReading(body, AT)));
+  });
+
+  test('draft acceptance spans up to ten minutes of reads and starts over on a new engine or a counter that runs back', () => {
+    const at = (drafted: number, accepted: number, restarts = 0) => {
+      const body = status('decoding');
+      body.metrics = { ...body.metrics, drafted_tokens: drafted, accepted_draft_tokens: accepted };
+      body.transport = { ...body.transport, restarts };
+      return body;
+    };
+    const window = new SplashSpeculative();
+    expect(window.observe(at(1_000, 600), 0)).toBeUndefined();
+    expect(window.observe(at(1_400, 880), 60_000)).toEqual({ draftedTokens: 400, acceptedTokens: 280, acceptanceFraction: 0.7, windowMs: 60_000 });
+    // Older reads fall out of the window.
+    expect(window.observe(at(2_000, 1_200), SPLASH_SPECULATIVE_WINDOW_MS + 30_000)).toEqual({ draftedTokens: 600, acceptedTokens: 320,
+      acceptanceFraction: 0.533_333, windowMs: SPLASH_SPECULATIVE_WINDOW_MS - 30_000 });
+    // A replacement engine and a counter that runs backwards both start over.
+    expect(window.observe(at(2_100, 1_250, 1), SPLASH_SPECULATIVE_WINDOW_MS + 31_000)).toBeUndefined();
+    expect(window.observe(at(50, 10, 1), SPLASH_SPECULATIVE_WINDOW_MS + 32_000)).toBeUndefined();
+    expect(window.observe(at(150, 60, 1), SPLASH_SPECULATIVE_WINDOW_MS + 33_000)).toMatchObject({ draftedTokens: 100, acceptedTokens: 50 });
+    // Stale copies and bodies without draft counters add nothing.
+    expect(window.observe(status('recovering'), SPLASH_SPECULATIVE_WINDOW_MS + 34_000)).toBeUndefined();
+    const plain = status('decoding'); delete plain.metrics.drafted_tokens;
+    expect(new SplashSpeculative().observe(plain, 0)).toBeUndefined();
   });
 });
