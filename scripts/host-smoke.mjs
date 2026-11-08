@@ -22,6 +22,7 @@ const pkg = JSON.parse(await readFile(join(repo, 'package.json'), 'utf8'));
 const helperVersion = JSON.parse(await readFile(join(repo, 'bridge/opencode/package.json'), 'utf8')).version;
 const zip = resolve(repo, value('--zip') ?? `dist/${pkg.name}-${pkg.version}.zip`);
 const migrate = flag('--migrate') ? value('--migrate') : null;
+if (flag('--migrate') && (!migrate || migrate.startsWith('--'))) throw new Error('--migrate needs the tag of the Scope 5 release to start from, for example --migrate v5.4.0.');
 const APP = `${process.env.OPENCHAMBER_APP ?? '/Applications/OpenChamber.app'}/Contents`;
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const checks = [];

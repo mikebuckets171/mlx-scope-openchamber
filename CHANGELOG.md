@@ -39,6 +39,17 @@ Also in 6.0.0, from the 5.5 work that was never published:
 - `/usr/bin/top` is added to the service's approved executable list for the bounded app-memory sample. Review the
   updated local-service permission in OpenChamber when updating.
 
+Checked on macOS before publication: type checking, the privacy scan (697 files), 1,869 Bun tests, 91 helper tests, 15 ComfyUI
+helper tests, reproducible bundles (the same bytes under Bun 1.4.2 and 1.4.4) and package verification; the 32-case `@smoke`
+browser set on Chromium and WebKit; the native OpenCode 2.2.6 protocol checks (HTTP and WebSocket delivery, Splash prompt progress,
+compaction, a synthetic remote provider) with the helper loaded the way OpenChamber 2.7 loads an extension's plugin; and a real
+OpenChamber 2.7.0 (the desktop app's own server, in a throwaway profile) where the ZIP installs, the approval lists **Add a plugin to
+OpenCode**, the helper loads, Connections says it is ready, the panel, its tabs and the full page open, and a Scope 5.4.0 helper is
+retired and replaced without a restart. An independent read of the change by a second reviewer found and fixed six findings before
+release. **Not checked:** a real Splash reply (no model was run, so prompt progress and chat speed on live Splash are unobserved),
+how soon an already-loaded helper reloads after a Scope update, an OpenCode that OpenChamber does not start, and the full browser
+suite and pixel goldens, which the lighter release process no longer runs by default.
+
 ## 5.4.0
 
 - **The speed no longer blinks out mid-reply.** After every prompt read and tool call, Scope needs 2–3 s of fresh

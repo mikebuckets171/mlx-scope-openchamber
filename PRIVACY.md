@@ -50,10 +50,11 @@ For chat delivery estimates, the companion subscribes to qualified OpenCode plug
 visible Scope view requests them. Text and observable reasoning deltas are counted transiently in memory; their
 content is never written, logged, or sent to Scope. Tool payloads, title generation, compaction, and ambiguous usage
 accounting are excluded. Calibration keeps at most ten comparable character/token totals in memory, never content.
-Cloud speed tracking is disabled in 3.1. Cloud views do not request chat observations. Primary transport metadata is
-used to match a watched local session and model; unrelated requests are ignored. The URL, query parameters, headers
+Cloud chats are tracked since 3.2, for their own selected chat only: a cloud reading is delivery observed through OpenCode,
+never engine throughput. Primary transport metadata is used to match a watched session and model; unrelated requests are ignored. The URL, query parameters, headers
 and request body are never persisted by chat delivery monitoring. WebSocket frames and headers are not inspected. The
-existing Splash prompt-progress observer remains restricted to its configured loopback endpoint.
+Splash prompt-progress observer is restricted to the loopback `/v1` endpoint of a provider named Splash (or the one a hand-added helper
+is configured with).
 
 Private `~/.cache/mlx-scope/chat-telemetry/` files contain bounded counters, timing, freshness, protocol versions and
 SHA-256 matching identifiers. Session, provider, model and endpoint matching hashes are deterministic and can correlate
