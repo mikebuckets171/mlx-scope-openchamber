@@ -1,4 +1,4 @@
-import { openServerDetails } from './standard-ui.ts';
+import { openDetails, openServerDetails } from './standard-ui.ts';
 import type { HostTheme, HostThemeTokens } from '@openchamber/sdk';
 import { expect, test, type Frame, type FrameLocator, type Page } from '@playwright/test';
 import { inspect } from './ui-checks.ts';
@@ -168,7 +168,7 @@ for (const [name, palette] of [['violet', VIOLET], ['paper', PAPER]] as const) {
       expect(await frame.evaluate(inspect, false), `${name} Server @ ${width}`).toEqual([]);
       await toHistory(frame);
       expect(await frame.evaluate(inspect, false), `${name} History @ ${width}`).toEqual([]);
-      await frame.locator('.history-storage > summary').click();
+      await openDetails(frame.locator('.history-storage'));
       await expect(frame.getByRole('checkbox', { name: 'Label replies to this chat automatically' })).toBeVisible();
       expect(await frame.evaluate(inspect, false), `${name} History storage @ ${width}`).toEqual([]);
     }
