@@ -1,6 +1,25 @@
 # Changelog
 
-## 5.5.0
+## 6.0.0
+
+- **Chat speed comes with the extension.** The helper that estimates a chat's delivery speed and reads Splash's prompt
+  progress no longer needs a click. OpenChamber adds it to the OpenCode it runs while MLX Scope is on and takes it away
+  when you pause or remove the extension. **Connections → Enable chat speed** and **Update chat speed** are gone, and Scope no
+  longer edits your OpenCode settings. When you update, OpenChamber asks you to approve **Add a plugin to OpenCode**: the
+  helper runs inside OpenCode with your access like any plugin; it reads chat events and Splash's prompt-progress stream
+  and writes only to the same private cache folder as before. Its telemetry format is unchanged (helper 3.7.0).
+- **Splash is found for you.** When a request arrives, the helper reads OpenCode's own provider list and treats a
+  provider as Splash by the name rule Scope already used, only on a loopback `/v1` address. No provider or address is
+  configured, and the provider's key is never used or kept. A helper added by hand with a provider and address keeps working
+  as before.
+- **Scope 5's copy is retired once.** If you used **Enable chat speed** in Scope 5, Scope removes its entry from your OpenCode
+  settings and its files from `addons/` when they are exactly as Scope left them and no reply is running. Both copies
+  carry the same plugin id, so OpenCode keeps using the older one until then and loads the new one in its place without a
+  restart. An edited copy, or an OpenCode that OpenChamber does not start, is left alone, and Connections says why.
+- **Needs OpenChamber 2.7.0 or newer** (it was 2.4.0), for the plugin delivery above. Scope 5.4.0 remains the release for
+  OpenChamber 2.4 to 2.6.
+
+Also in 6.0.0, from the 5.5 work that was never published:
 
 - **Why the reply is waiting.** Splash's own memory and concurrency admission waits appear in the Session widget and as
   engine-wide History rows. The Engine room shows Splash's reported memory budget, whether another chat can start,
@@ -16,9 +35,6 @@
   local extension storage; chat titles appear only in the open Engine room and are not saved or shared.
 - `/usr/bin/top` is added to the service's approved executable list for the bounded app-memory sample. Review the
   updated local-service permission in OpenChamber when updating.
-
-Local verification and its limits: [5.5.0 verification](docs/receipts/5.5.0-verification.md). Publication still requires
-the maintainer's approval.
 
 ## 5.4.0
 

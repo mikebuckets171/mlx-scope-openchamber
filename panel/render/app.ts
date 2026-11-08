@@ -175,7 +175,8 @@ export class ScopeApp {
     const status = this.#p.companion();
     if (s.measurementScope === 'engine' || s.snapshot?.chat || s.paused || s.frame || !s.fresh) return '';
     if (status?.state === 'ready') return s.chatIsLocal === false ? html`<p class="coverage-note">Chat speed is ready. Your next streamed reply will show its estimated delivery speed.</p>` : '';
-    if (status?.state === 'pending') return html`<div class="setup-hint"><p>${status.message}</p>${actionButton('chat-setup', 'View setup')}</div>`;
+    // 'manual' is a Scope 5 helper left in OpenCode that 6.0 would not remove; its message says what to do.
+    if (status?.state === 'pending' || status?.state === 'manual') return html`<div class="setup-hint"><p>${status.message}</p>${actionButton('chat-setup', 'View setup')}</div>`;
     if (s.chatIsLocal !== false && s.snapshot?.runtime.request?.decodeTps != null) return '';
     // A cloud chat has no engine reading to fall back on: without the helper, say why there is no estimate.
     return html`<div class="setup-hint" data-arrive><div><h3>${s.chatIsLocal === false ? 'See this chat’s delivery speed' : 'Track speed for this chat'}</h3><p>${status?.state === 'incompatible' ? status.message : 'Optional chat tracking adds labeled delivery estimates for local and cloud models.'}</p></div>${actionButton('chat-setup', status?.canEnable ? 'Set up chat speed' : 'Chat speed setup')}</div>`;

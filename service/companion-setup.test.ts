@@ -1,445 +1,203 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse } from 'jsonc-parser/lib/esm/main.js';
-import { COMPANION_FILES, COMPANION_ID, createCompanionSetup, type CompanionProbe, type CompanionSetupOptions } from './companion-setup.ts';
+import { COMPANION_ID, createCompanionSetup, type CompanionProbe, type CompanionSetupOptions } from './companion-setup.ts';
 import { version as companionVersion } from '../bridge/opencode/package.json';
-import { featureSupport } from '../bridge/opencode/compatibility.js';
 
 const homes: string[] = [];
 afterEach(async () => { for (const home of homes.splice(0)) await rm(home, { recursive: true, force: true }); });
-async function fixture(text?: string, extra: Partial<CompanionSetupOptions> = {}) {
-  const home = await realpath(await mkdtemp(join(tmpdir(), 'mlx-scope-setup-'))); homes.push(home);
-  const root = join(home, '.config', 'opencode'), bundle = join(home, 'bundle'), config = join(root, 'opencode.json');
-  const addon = join(root, 'addons', COMPANION_ID);
-  await mkdir(root, { recursive: true }); await mkdir(bundle);
-  for (const name of COMPANION_FILES) await writeFile(join(bundle, name), name === 'package.json' ? JSON.stringify({ name: COMPANION_ID, version: companionVersion, type: 'module' }) : `// bundled ${name}\n`);
-  if (text !== undefined) await writeFile(config, text, { mode: 0o600 });
-  const options = { home, env: {}, bundleDirectory: bundle, ...extra };
-  return { home, root, bundle, config, addon, options, setup: createCompanionSetup(options) };
-}
-const receipt = (at: number, extra: Partial<CompanionProbe> = {}): CompanionProbe => ({ companionVersion, protocol: 'opencode-2.0.25', runtimeVersion: '2.0.25', supported: true, loadedAtMs: at, ...extra });
+const sha = (text: string): string => createHash('sha256').update(text).digest('hex');
+// The nine files Scope 5's guided setup copied into OpenCode's own configuration folder, with its owner marker.
+const LEGACY = ['package.json', 'README.md', 'index.js', 'store.js', 'stream.js', 'chat.js', 'demand.js', 'chat-store.js', 'compatibility.js'];
+const REVISION = 'a'.repeat(64);
 
-describe('explicit companion setup', () => {
-  it('status creates no files; enable installs the bundled package and a scoped entry', async () => {
+async function fixture(extra: Partial<CompanionSetupOptions> = {}) {
+  const home = await realpath(await mkdtemp(join(tmpdir(), 'mlx-scope-setup-'))); homes.push(home);
+  const root = join(home, '.config', 'opencode'), config = join(root, 'opencode.json'), addon = join(root, 'addons', COMPANION_ID);
+  await mkdir(root, { recursive: true });
+  const options = { home, env: {}, ...extra };
+  const entry = (extraOptions = {}) => JSON.stringify({ package: addon, options: { providerID: 'splash', baseURL: 'http://127.0.0.1:18181/v1', scopeRevision: REVISION, ...extraOptions } });
+  /** What `Enable chat speed` used to leave behind. */
+  const installLegacy = async (names: string[] = LEGACY, directory = addon) => {
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    const files: Record<string, string> = {};
+    for (const name of names) {
+      const text = name === 'package.json' ? JSON.stringify({ name: COMPANION_ID, version: '3.6.0', type: 'module' }) : `// legacy ${name}\n`;
+      await writeFile(join(directory, name), text, { mode: 0o600 }); files[name] = sha(text);
+    }
+    await writeFile(join(directory, '.mlx-scope-owner.json'), JSON.stringify({ schemaVersion: 1, owner: COMPANION_ID, installedAtMs: 1, files }), { mode: 0o600 });
+  };
+  const retired = async () => (await readdir(join(root, 'addons')).catch(() => [])).length === 0;
+  return { home, root, config, addon, options, entry, installLegacy, retired, setup: createCompanionSetup(options) };
+}
+const receipt = (at: number, extra: Partial<CompanionProbe> = {}): CompanionProbe => ({ companionVersion, protocol: 'opencode-2.0.25', runtimeVersion: '2.2.6', supported: true, loadedAtMs: at, ...extra });
+
+describe('the chat-speed helper that comes with the extension', () => {
+  it('reports what the helper says and creates nothing', async () => {
     const f = await fixture();
-    expect((await f.setup.status()).state).toBe('disabled');
+    expect(await f.setup.status()).toMatchObject({ state: 'pending', configured: false, managed: false, canEnable: false, canDisable: false, live: false,
+      message: expect.stringContaining('this extension’s helper') });
     expect(await readdir(f.root)).toEqual([]);
-    expect((await f.setup.enable()).state).toBe('pending');
-    expect(parse(await readFile(f.config, 'utf8')).plugins).toEqual([{ package: f.addon, options: { promptProgress: false, scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/) } }]);
-    expect((await stat(f.addon)).mode & 0o777).toBe(0o700);
-    for (const name of COMPANION_FILES) expect((await stat(join(f.addon, name))).mode & 0o777).toBe(0o600);
-    expect((await f.setup.status()).managed).toBe(true);
+    const at = Date.now();
+    const ready = (extra: Partial<CompanionProbe> = {}) => createCompanionSetup({ ...f.options, now: () => at, probe: async () => receipt(at - 1_000, extra) });
+    expect(await ready().status()).toMatchObject({ state: 'ready', configured: true, live: false, companionVersion, runtimeVersion: '2.2.6',
+      message: 'Chat tracking is ready for your next reply.', compatibility: { activity: 'awaiting-demand' } });
+    expect(await ready({ updatedAtMs: at, expiresAtMs: at + 15_000 }).status()).toMatchObject({ state: 'ready', live: true, compatibility: { activity: 'listening' } });
+    expect(await ready({ runtimeVersion: '2.0.24' }).status()).toMatchObject({ state: 'incompatible', configured: false });
+    expect(await ready({ supported: false }).status()).toMatchObject({ state: 'error', message: expect.stringContaining('hooks are unavailable') });
   });
 
-  it('preserves JSONC comments, other plugins, existing companion options and idempotent config bytes', async () => {
-    const f = await fixture();
+  it('knows an older helper from Scope 5 is the one loaded, and says it will be replaced', async () => {
+    const f = await fixture(); await f.installLegacy(); await writeFile(f.config, `{"plugins":[${f.entry()}]}`);
+    const at = Date.now();
+    const setup = createCompanionSetup({ ...f.options, now: () => at, idle: async () => false, probe: async () => receipt(at - 1_000, { companionVersion: '3.6.0' }) });
+    expect(await setup.status()).toMatchObject({ state: 'pending', managed: true, configured: false, message: expect.stringContaining('older chat-speed helper from MLX Scope 5 is still loaded') });
+  });
+});
+
+describe('retiring the helper Scope 5 installed', () => {
+  it('removes its entry and files, keeping comments, other plugins and every other setting', async () => {
+    const f = await fixture(); await f.installLegacy();
     const original = `{
   // Keep this private configuration comment.
   "plugins": [
     "another-plugin", // keep its entry
-    {"package": ${JSON.stringify(f.addon)}, "options": {"providerID":"custom-splash",/* keep these options */"baseURL":"http://localhost:9876/v1","custom":true}},
+    ${f.entry()}, /* keep this note */
+    "-opencode.browser"
   ],
   "theme": "unchanged",
 }\n`;
     await writeFile(f.config, original);
-    await f.setup.enable();
-    const installed = await readFile(f.config, 'utf8');
-    expect(installed).toContain('// Keep this private configuration comment.');
-    expect(installed).toContain('// keep its entry');
-    expect(installed).toContain('/* keep these options */');
-    expect(parse(installed).plugins).toEqual(['another-plugin', { package: f.addon, options: {
-      providerID: 'custom-splash', baseURL: 'http://localhost:9876/v1', custom: true, scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/),
-    } }]);
-    await f.setup.enable();
-    expect(await readFile(f.config, 'utf8')).toBe(installed);
-    expect((await f.setup.disable()).state).toBe('disabled');
-    const disabled = await readFile(f.config, 'utf8');
-    expect(disabled).toContain('// Keep this private configuration comment.');
-    expect(disabled).toContain('// keep its entry');
-    expect(parse(disabled)).toEqual({ plugins: ['another-plugin'], theme: 'unchanged' });
-    expect(await readdir(join(f.root, 'addons'))).toEqual([]);
-    expect((await f.setup.disable()).state).toBe('disabled');
+    expect(await f.setup.retire()).toBe('removed');
+    const changed = await readFile(f.config, 'utf8');
+    expect(changed).toContain('// Keep this private configuration comment.'); expect(changed).toContain('// keep its entry'); expect(changed).toContain('/* keep this note */');
+    expect(parse(changed)).toEqual({ plugins: ['another-plugin', '-opencode.browser'], theme: 'unchanged' });
+    expect(await f.retired()).toBe(true);
+    expect(await f.setup.retire()).toBe('none');
+    expect(await readFile(f.config, 'utf8')).toBe(changed);
+    expect(await f.setup.status()).toMatchObject({ state: 'pending', managed: false, message: expect.stringContaining('this extension’s helper') });
   });
 
-  it('uses existing JSONC and only configures discovered standalone Splash prompt progress', async () => {
-    const f = await fixture();
-    const config = join(f.root, 'opencode.jsonc');
-    await writeFile(config, '{\n// Keep provider settings\n"providers":{"splish":{"settings":{"baseURL":"http://localhost:8111/v1"}}},"plugins":["other"],\n}\n');
-    await f.setup.enable();
-    const changed = await readFile(config, 'utf8');
-    expect(changed).toContain('// Keep provider settings');
-    expect(parse(changed).plugins).toEqual(['other', { package: f.addon, options: { providerID: 'splish', baseURL: 'http://127.0.0.1:8111/v1', scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/) } }]);
-    expect(await readdir(f.root)).not.toContain('opencode.json');
+  it('keeps compact plugin lists valid whichever position the entry held', async () => {
+    for (const lists of [(e: string) => `["first"/* keep A */,${e}]`, (e: string) => `[${e}/* keep B */, "last"]`, (e: string) => `[/* keep C */${e}]`, (e: string) => `["a",${e},"b"]`]) {
+      const f = await fixture(); await f.installLegacy();
+      const before = lists(f.entry()), text = `{"plugins":${before},"setting":true}`;
+      await writeFile(f.config, text);
+      expect(await f.setup.retire()).toBe('removed');
+      const after = await readFile(f.config, 'utf8');
+      expect(parse(after).plugins).toEqual(parse(before).filter((value: unknown) => typeof value === 'string'));
+      expect(parse(after).setting).toBe(true);
+      for (const comment of before.match(/\/\*.*?\*\//g) ?? []) expect(after).toContain(comment);
+    }
   });
 
-  it('honors the explicit global configuration root', async () => {
-    const f = await fixture();
-    const root = join(f.home, 'custom-opencode');
-    const setup = createCompanionSetup({ ...f.options, env: { OPENCODE_CONFIG_DIR: root } });
-    await setup.enable();
-    expect(parse(await readFile(join(root, 'opencode.json'), 'utf8')).plugins[0].package).toBe(join(root, 'addons', COMPANION_ID));
-    expect(await readdir(f.root)).toEqual([]);
+  it('uses opencode.jsonc when that is where the entry lives, and honors the explicit configuration folder', async () => {
+    const f = await fixture(); await f.installLegacy();
+    const jsonc = join(f.root, 'opencode.jsonc');
+    await writeFile(jsonc, `{\n// provider notes\n"plugins":["x", ${f.entry()}],\n}\n`);
+    expect(await f.setup.retire()).toBe('removed');
+    expect(parse(await readFile(jsonc, 'utf8')).plugins).toEqual(['x']); expect(await readFile(jsonc, 'utf8')).toContain('// provider notes');
+    const g = await fixture(), custom = join(g.home, 'custom-opencode'), addon = join(custom, 'addons', COMPANION_ID);
+    await g.installLegacy(LEGACY, addon);
+    await writeFile(join(custom, 'opencode.json'), `{"plugins":[${JSON.stringify({ package: addon, options: { scopeRevision: REVISION } })}]}`);
+    const other = createCompanionSetup({ ...g.options, env: { OPENCODE_CONFIG_DIR: custom } });
+    expect(await other.retire()).toBe('removed');
+    expect(parse(await readFile(join(custom, 'opencode.json'), 'utf8')).plugins).toEqual([]); expect(await readdir(join(custom, 'addons'))).toEqual([]);
+    expect(await readdir(g.root)).toEqual([]);
   });
 
-  it('honors provider overlays and never enables progress for an overridden remote endpoint', async () => {
-    for (const overlay of [
-      { provider: { splish: { options: { baseURL: 'https://remote.example/v1' } } } },
-      { providers: { splish: { settings: { baseURL: 'https://remote.example/v1' } } } },
+  it('waits while a reply is running, then acts; a check that fails counts as running', async () => {
+    const f = await fixture(); await f.installLegacy(); const text = `{"plugins":[${f.entry()}]}`; await writeFile(f.config, text);
+    let idle = false, asked = 0;
+    const setup = createCompanionSetup({ ...f.options, idle: async () => { asked++; return idle; } });
+    expect(await setup.retire()).toBe('waiting'); expect(await readFile(f.config, 'utf8')).toBe(text); expect(await readdir(f.addon)).toHaveLength(LEGACY.length + 1);
+    const failing = createCompanionSetup({ ...f.options, idle: async () => { throw new Error('unreadable'); } });
+    expect(await failing.retire()).toBe('waiting'); expect(await readFile(f.config, 'utf8')).toBe(text);
+    idle = true; expect(await setup.retire()).toBe('removed'); expect(asked).toBe(2);
+    expect(parse(await readFile(f.config, 'utf8')).plugins).toEqual([]);
+  });
+
+  it('leaves an edited or enlarged installation exactly as it is', async () => {
+    for (const change of [
+      async (f: Awaited<ReturnType<typeof fixture>>) => writeFile(join(f.addon, 'index.js'), '// the owner changed this\n'),
+      async (f: Awaited<ReturnType<typeof fixture>>) => writeFile(join(f.addon, 'notes.txt'), 'mine'),
+      async (f: Awaited<ReturnType<typeof fixture>>) => rm(join(f.addon, 'stream.js')),
     ]) {
-      const f = await fixture(JSON.stringify({ provider: { splish: { options: { baseURL: 'http://localhost:8000/v1' } } } }));
-      const path = join(f.root, 'opencode.jsonc'); await writeFile(path, JSON.stringify(overlay));
-      await f.setup.enable();
-      expect(parse(await readFile(path, 'utf8')).plugins[0].options).toEqual({ promptProgress: false, scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/) });
+      const f = await fixture(); await f.installLegacy(); const text = `{"plugins":[${f.entry()}]}`; await writeFile(f.config, text);
+      await change(f); const names = (await readdir(f.addon)).sort();
+      expect(await f.setup.retire()).toBe('manual');
+      expect(await readFile(f.config, 'utf8')).toBe(text); expect((await readdir(f.addon)).sort()).toEqual(names);
+      expect(await f.setup.status()).toMatchObject({ state: 'manual', managed: true, message: expect.stringContaining('files were edited') });
     }
   });
 
-  it('preserves compact plugin comments while appending and removing the managed entry', async () => {
-    for (const plugins of ['["first"/* keep A */]', '["first", /* keep B */]', '[/* keep C */]']) {
-      const f = await fixture(`{"plugins":${plugins},"setting":true}`);
-      expect((await f.setup.enable()).state).toBe('pending');
-      const installed = await readFile(f.config, 'utf8');
-      expect(installed).toContain(plugins.match(/\/\*.*?\*\//)![0]);
-      expect(parse(installed).plugins.at(-1).package).toBe(f.addon);
-      expect((await f.setup.disable()).state).toBe('disabled');
-      expect(parse(await readFile(f.config, 'utf8')).plugins).toEqual(parse(plugins));
+  it('never follows a marker that names a path outside its own folder', async () => {
+    const f = await fixture(); await f.installLegacy();
+    const outside = join(f.home, 'outside.txt'); await writeFile(outside, 'keep');
+    await writeFile(join(f.addon, '.mlx-scope-owner.json'), JSON.stringify({ schemaVersion: 1, owner: COMPANION_ID, installedAtMs: 1, files: { '../../../../outside.txt': sha('keep') } }));
+    const text = `{"plugins":[${f.entry()}]}`; await writeFile(f.config, text);
+    expect(await f.setup.retire()).toBe('manual'); expect(await readFile(outside, 'utf8')).toBe('keep'); expect(await readFile(f.config, 'utf8')).toBe(text);
+  });
+
+  it('does not act where OpenChamber does not configure OpenCode', async () => {
+    const environments = [(root: string) => ({ OPENCODE_CONFIG: join(root, 'own.json') }), () => ({ OPENCODE_HOST: 'http://127.0.0.1:4096' }), () => ({ OPENCODE_SKIP_START: 'true' })];
+    for (const environment of environments) {
+      const f = await fixture(); await f.installLegacy(); const text = `{"plugins":[${f.entry()}]}`; await writeFile(f.config, text);
+      const setup = createCompanionSetup({ ...f.options, env: environment(f.root) });
+      expect(await setup.retire()).toBe('blocked'); expect(await readFile(f.config, 'utf8')).toBe(text); expect(await readdir(f.addon)).toHaveLength(LEGACY.length + 1);
+      expect(await setup.status()).toMatchObject({ state: 'manual', message: expect.stringContaining('does not configure') });
     }
+    // A configuration file outside OpenCode's own folder is not read at all.
+    const outside = await fixture({ env: { OPENCODE_CONFIG: '/anywhere/opencode.json' } }); await outside.installLegacy(); await writeFile(outside.config, `{"plugins":[${outside.entry()}]}`);
+    expect(await outside.setup.retire()).toBe('none'); expect(await readdir(outside.addon)).toHaveLength(LEGACY.length + 1);
   });
 
-  it('refuses edited managed source and an active setup lock without replacing either', async () => {
-    const f = await fixture('{}'); await f.setup.enable();
-    await writeFile(join(f.addon, 'index.js'), '// user customization');
-    expect((await f.setup.enable()).message).toContain('edited after installation');
-    expect(await readFile(join(f.addon, 'index.js'), 'utf8')).toBe('// user customization');
-    const g = await fixture('{}'), lock = join(g.root, '.mlx-scope-setup.lock');
-    const locked = JSON.stringify({ owner: COMPANION_ID, pid: process.pid }); await writeFile(lock, locked);
-    expect((await g.setup.enable()).message).toContain('setup is in progress');
-    expect(await readFile(lock, 'utf8')).toBe(locked);
-    expect(await readFile(g.config, 'utf8')).toBe('{}');
+  it('leaves a helper someone set up by hand alone: no owner marker, a different location, or an inline configuration', async () => {
+    const manual = await fixture(); await manual.installLegacy(); await rm(join(manual.addon, '.mlx-scope-owner.json'));
+    const text = `{"plugins":[${manual.entry()}]}`; await writeFile(manual.config, text);
+    expect(await manual.setup.retire()).toBe('none'); expect(await readFile(manual.config, 'utf8')).toBe(text); expect(await readdir(manual.addon)).toHaveLength(LEGACY.length);
+    const elsewhere = await fixture(); await elsewhere.installLegacy(); await writeFile(elsewhere.config, `{"plugins":[{"package":"/somewhere/else/${COMPANION_ID}"}]}`);
+    expect(await elsewhere.setup.retire()).toBe('none'); expect(await readdir(elsewhere.addon)).toHaveLength(LEGACY.length + 1);
+    const inline = await fixture({ env: { OPENCODE_CONFIG_CONTENT: '{}' } }); await inline.installLegacy(); await writeFile(inline.config, `{"plugins":[${inline.entry()}]}`);
+    expect(await inline.setup.retire()).toBe('none'); expect(await readdir(inline.addon)).toHaveLength(LEGACY.length + 1);
   });
 
-  it('preserves unrelated files through upgrade and removal; modified managed files survive', async () => {
-    const f = await fixture('{}'); await f.setup.enable();
-    await writeFile(join(f.addon, 'notes.txt'), 'My unrelated notes');
-    await f.setup.enable();
-    await writeFile(join(f.addon, 'README.md'), 'My changes');
-    await f.setup.disable();
-    expect(await readFile(join(f.addon, 'notes.txt'), 'utf8')).toBe('My unrelated notes');
-    expect(await readFile(join(f.addon, 'README.md'), 'utf8')).toBe('My changes');
-    expect((await readdir(f.addon)).sort()).toEqual(['README.md', 'notes.txt']);
+  it('does not follow a linked configuration folder', async () => {
+    const f = await fixture(); const real = join(f.home, 'real-opencode'); await mkdir(real, { recursive: true });
+    await rm(f.root, { recursive: true }); await symlink(real, f.root);
+    await writeFile(join(real, 'opencode.json'), `{"plugins":[${f.entry()}]}`);
+    expect(await f.setup.retire()).toBe('none'); expect(await readFile(join(real, 'opencode.json'), 'utf8')).toContain(COMPANION_ID);
   });
 
-  it('adopts the known legacy companion and retains its provider options', async () => {
-    const f = await fixture(); await mkdir(f.addon, { recursive: true });
-    await writeFile(join(f.addon, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '1.0.0' }));
-    await writeFile(join(f.addon, 'index.js'), '// old package');
-    const config = JSON.stringify({ plugins: [{ package: f.addon, options: { providerID: 'splish', baseURL: 'http://localhost:8000/v1' } }] });
-    await writeFile(f.config, config);
-    expect((await f.setup.enable()).managed).toBe(true);
-    expect(parse(await readFile(f.config, 'utf8')).plugins[0]).toEqual({ package: f.addon,
-      options: { providerID: 'splish', baseURL: 'http://localhost:8000/v1', scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/) } });
-    expect(await readFile(join(f.addon, 'index.js'), 'utf8')).toBe('// bundled index.js\n');
-  });
-
-  it('disables an unowned legacy entry without deleting its installation', async () => {
-    const f = await fixture(); await mkdir(f.addon, { recursive: true });
-    await writeFile(join(f.addon, 'package.json'), JSON.stringify({ name: COMPANION_ID }));
-    await writeFile(f.config, JSON.stringify({ plugins: [f.addon] }));
-    expect((await f.setup.disable()).state).toBe('disabled');
-    expect(await readFile(join(f.addon, 'package.json'), 'utf8')).toContain(COMPANION_ID);
-  });
-
-  it('changes only the owned config revision when bundled files change and stays byte-stable otherwise', async () => {
-    const f = await fixture('{"plugins":["other"],"setting":{"untouched":true}}');
-    await f.setup.enable();
-    const before = parse(await readFile(f.config, 'utf8'));
-    await writeFile(join(f.bundle, 'index.js'), '// updated helper\n');
-    await f.setup.enable();
-    const updated = await readFile(f.config, 'utf8'), after = parse(updated);
-    expect(after.plugins[1].options.scopeRevision).not.toBe(before.plugins[1].options.scopeRevision);
-    expect({ ...after.plugins[1].options, scopeRevision: undefined }).toEqual({ ...before.plugins[1].options, scopeRevision: undefined });
-    expect(after.plugins[0]).toBe('other'); expect(after.setting).toEqual(before.setting);
-    await f.setup.enable(); expect(await readFile(f.config, 'utf8')).toBe(updated);
-  });
-
-  it('upgrades a string entry without changing its configured package path or adjacent comments', async () => {
-    const f = await fixture();
-    await writeFile(f.config, `{"plugins":["other",/* keep */${JSON.stringify(f.addon)}]}`);
-    await f.setup.enable();
-    const installed = await readFile(f.config, 'utf8');
-    expect(installed).toContain('/* keep */');
-    expect(parse(installed).plugins).toEqual(['other', { package: f.addon, options: { scopeRevision: expect.stringMatching(/^[a-f0-9]{64}$/) } }]);
-  });
-
-  it('preserves invalid existing options and leaves installation untouched', async () => {
-    const f = await fixture();
-    const config = JSON.stringify({ plugins: [{ package: f.addon, options: 'user-value' }] });
-    await writeFile(f.config, config);
-    expect((await f.setup.enable()).state).toBe('manual');
-    expect(await readFile(f.config, 'utf8')).toBe(config);
-    expect(await readdir(f.root)).toEqual(['opencode.json']);
-  });
-
-  it('rolls back installed files on a failed config commit', async () => {
-    const f = await fixture('{"plugins":["other"]}'); await f.setup.enable();
-    const oldConfig = await readFile(f.config, 'utf8'), oldEntry = await readFile(join(f.addon, 'index.js'), 'utf8');
-    await writeFile(join(f.bundle, 'index.js'), '// new package');
-    const setup = createCompanionSetup({ ...f.options, beforeConfigCommit: async () => { throw new Error('simulated failure'); } });
-    expect(await setup.enable()).toMatchObject({ state: 'error' });
-    expect(await readFile(f.config, 'utf8')).toBe(oldConfig);
-    expect(await readFile(join(f.addon, 'index.js'), 'utf8')).toBe(oldEntry);
-    expect((await readdir(join(f.root, 'addons')))).toEqual([COMPANION_ID]);
-    expect((await readdir(f.addon)).sort()).toEqual([...COMPANION_FILES, '.mlx-scope-owner.json'].sort());
-    expect((await f.setup.status()).managed).toBe(true);
-    expect((await f.setup.enable()).state).toBe('pending');
-    expect(await readFile(join(f.addon, 'index.js'), 'utf8')).toBe('// new package');
+  it('refuses while another setup holds the lock, or when the configuration changes underneath it', async () => {
+    const f = await fixture(); await f.installLegacy(); const text = `{"plugins":[${f.entry()}]}`; await writeFile(f.config, text);
+    await writeFile(join(f.root, '.mlx-scope-setup.lock'), JSON.stringify({ owner: COMPANION_ID, pid: process.pid }));
+    expect(await f.setup.retire()).toBe('waiting'); expect(await readFile(f.config, 'utf8')).toBe(text);
+    await rm(join(f.root, '.mlx-scope-setup.lock'));
+    const racing = createCompanionSetup({ ...f.options, beforeConfigCommit: async () => { await writeFile(f.config, `${text}\n`); } });
+    expect(await racing.retire()).toBe('waiting'); expect(await readFile(f.config, 'utf8')).toBe(`${text}\n`); expect(await readdir(f.addon)).toHaveLength(LEGACY.length + 1);
     expect(await readdir(f.root)).not.toContain('.mlx-scope-setup.lock');
+    expect(await f.setup.retire()).toBe('removed');
   });
 
-  it('preserves a competing config edit and rolls back a new addon', async () => {
-    const f = await fixture('{"plugins":["other"]}');
-    const newer = '{"plugins":["other","new-user-plugin"]}';
-    const setup = createCompanionSetup({ ...f.options, beforeConfigCommit: () => writeFile(f.config, newer) });
-    expect((await setup.enable()).message).toContain('changed during setup');
-    expect(await readFile(f.config, 'utf8')).toBe(newer);
-    expect(await readdir(join(f.root, 'addons'))).toEqual([]);
-  });
-
-  it('refuses malformed config, duplicate entries and a separately installed companion', async () => {
-    const f = await fixture('{broken');
-    expect((await f.setup.enable()).state).toBe('manual');
-    expect(await readFile(f.config, 'utf8')).toBe('{broken');
-    await writeFile(f.config, JSON.stringify({ plugins: [f.addon, { package: f.addon }] }));
-    expect((await f.setup.enable()).message).toContain('Several companion entries');
-    await writeFile(f.config, JSON.stringify({ plugins: [join(f.home, 'another', COMPANION_ID)] }));
-    expect((await f.setup.enable()).message).toContain('another location');
-  });
-
-  it('refuses symlinks without changing their targets', async () => {
-    const f = await fixture(), privateFile = join(f.home, 'private.json');
-    await writeFile(privateFile, '{"private":true}'); await symlink(privateFile, f.config);
-    expect((await f.setup.enable()).canEnable).toBe(false);
-    expect(await readFile(privateFile, 'utf8')).toBe('{"private":true}');
-  });
-
-  it('refuses inline, relative and out-of-root overrides without creating installation files', async () => {
-    const f = await fixture('{}');
-    for (const env of [{ OPENCODE_CONFIG_CONTENT: '{}' }, { OPENCODE_CONFIG_DIR: 'relative' }, { OPENCODE_CONFIG: join(f.home, 'other.json') }]) {
-      expect((await createCompanionSetup({ ...f.options, env }).enable()).state).toBe('manual');
-    }
-    expect(await readdir(f.root)).toEqual(['opencode.json']);
-  });
-
-  it('qualifies startup metadata without claiming it is a live connection', async () => {
-    const at = 10_000, f = await fixture('{}', { now: () => at });
-    await f.setup.enable();
-    let probe = receipt(at);
-    const setup = createCompanionSetup({ ...f.options, now: () => at + 100, probe: async () => probe });
-    expect(await setup.status()).toMatchObject({ state: 'ready', live: false, runtimeVersion: '2.0.25', message: 'Chat tracking is ready for your next reply.' });
-    probe = receipt(at, { updatedAtMs: at, expiresAtMs: at + 15_000 });
-    expect((await setup.status()).live).toBe(true);
-    probe = receipt(at, { companionVersion: '3.0.0', updatedAtMs: at, expiresAtMs: at + 15_000 });
-    expect(await setup.status()).toMatchObject({ state: 'pending', live: false,
-      message: 'Installed · waiting for OpenCode to load the updated tracking helper. Your current work can continue.' });
-    await writeFile(join(f.addon, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.0.0' }));
-    expect(await setup.status()).toMatchObject({ state: 'pending', live: false,
-      message: 'Update chat speed to install the current tracking helper.' });
-    probe = receipt(at, { runtimeVersion: '3.0.0', supported: false, protocol: 'unsupported' });
-    const before = await readFile(f.config, 'utf8');
-    expect(await setup.enable()).toMatchObject({ state: 'incompatible', canEnable: false, canDisable: true });
-    expect(await readFile(f.config, 'utf8')).toBe(before);
-  });
-
-  it('separates feature qualification, loaded revision and demanded activity without changing configuration', async () => {
-    const at = 20_000, f = await fixture('{}', { now: () => at });
-    await f.setup.enable();
-    const features = featureSupport('2.0.25');
-    features['http-delivery'].available = true;
-    features['websocket-delivery'] = { support: 'unavailable', available: false };
-    let probe = receipt(at, { features });
-    const setup = createCompanionSetup({ ...f.options, now: () => at + 100, probe: async () => probe });
-    const config = await readFile(f.config, 'utf8');
-    expect(await setup.status()).toMatchObject({ state: 'ready', live: false,
-      compatibility: { profile: 'opencode-2.0.25-v1', mode: 'qualified', activity: 'awaiting-demand', features } });
-    probe = receipt(at, { features, updatedAtMs: at, expiresAtMs: at + 15_000 });
-    expect((await setup.status()).compatibility?.activity).toBe('listening');
-    probe = receipt(at, { features, supported: false });
-    expect(await setup.status()).toMatchObject({ state: 'error', live: false, compatibility: { activity: 'unavailable' } });
-    probe = receipt(at, { runtimeVersion: '2.0.33', features: featureSupport('2.0.33') });
-    expect(await setup.status()).toMatchObject({ state: 'ready', compatibility: { profile: null, mode: 'self-checked' } });
-    probe = receipt(at, { runtimeVersion: '3.0.0', protocol: 'unsupported', supported: false });
-    expect(await setup.status()).toMatchObject({ state: 'incompatible', message: expect.stringContaining('2.0.25 or a later OpenCode 2 release'),
-      compatibility: { profile: null, mode: 'unsupported', features: { 'prompt-progress': { support: 'unqualified', available: false } } } });
-    probe = receipt(at, { runtimeVersion: '2.1.1-compaction.1', features: featureSupport('2.1.1-compaction.1') });
-    expect(await setup.status()).toMatchObject({ state: 'ready', runtimeVersion: '2.1.1-compaction.1',
-      compatibility: { profile: 'opencode-2.1.1-compaction.1-v1', mode: 'qualified' } });
-    expect(await readFile(f.config, 'utf8')).toBe(config);
-  });
-
-  for (const runtimeVersion of ['2.0.27', '2.0.28', '2.0.29', '2.0.32']) it(`updates a helper that predates qualified ${runtimeVersion} without trusting its unsupported telemetry`, async () => {
-    let at = 30_000; const f = await fixture('{"plugins":["other-plugin"]}', { now: () => at });
-    await writeFile(join(f.bundle, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.2.0' }));
-    await f.setup.enable();
-    await writeFile(join(f.bundle, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: companionVersion }));
-    let probe = receipt(at, { runtimeVersion, companionVersion: '3.2.0', protocol: 'unsupported', supported: false });
-    const setup = createCompanionSetup({ ...f.options, now: () => at, probe: async () => probe });
-    expect(await setup.status()).toMatchObject({ state: 'pending', live: false, canEnable: true,
-      message: 'Update chat speed to install the current tracking helper.', compatibility: { profile: `opencode-${runtimeVersion}-v1` } });
-    at += 100;
-    expect(await setup.enable()).toMatchObject({ state: 'pending', live: false });
-    expect(parse(await readFile(f.config, 'utf8')).plugins[0]).toBe('other-plugin');
-    at += 100; probe = receipt(at, { runtimeVersion, features: featureSupport(runtimeVersion) });
-    expect(await setup.status()).toMatchObject({ state: 'ready', live: false, compatibility: { profile: `opencode-${runtimeVersion}-v1` } });
-  });
-
-  it('replaces each changed file by rename in the same directory; unchanged files and no-op updates stay untouched', async () => {
-    const f = await fixture('{}'); await f.setup.enable();
-    const names = [...COMPANION_FILES, '.mlx-scope-owner.json'];
-    const inodes = async () => Object.fromEntries(await Promise.all(['.', ...names].map(async name => [name, (await stat(join(f.addon, name))).ino])));
-    const before = await inodes(), config = await readFile(f.config, 'utf8');
-    await f.setup.enable();
-    expect(await inodes()).toEqual(before); expect(await readFile(f.config, 'utf8')).toBe(config);
-    await writeFile(join(f.bundle, 'chat.js'), '// updated tracker\n');
-    await f.setup.enable();
-    const after = await inodes();
-    // OpenCode 2.0.25 observes a rename over a loaded file; the directory itself is never swapped.
-    expect(after['.']).toBe(before['.']);
-    expect(after['chat.js']).not.toBe(before['chat.js']);
-    expect(after['.mlx-scope-owner.json']).not.toBe(before['.mlx-scope-owner.json']);
-    for (const name of COMPANION_FILES.filter(name => name !== 'chat.js')) expect(after[name]).toBe(before[name]);
-    expect(await readFile(join(f.addon, 'chat.js'), 'utf8')).toBe('// updated tracker\n');
-    expect((await stat(join(f.addon, 'chat.js'))).mode & 0o777).toBe(0o600);
-    expect((await readdir(f.addon)).sort()).toEqual(names.sort());
-  });
-
-  it('finishes an interrupted update of the same bundle instead of reporting a user edit', async () => {
-    const f = await fixture('{}'); await f.setup.enable();
-    await writeFile(join(f.bundle, 'chat.js'), '// updated tracker\n');
-    // The rename landed but the marker did not: the file already holds the bundled bytes.
-    await writeFile(join(f.addon, 'chat.js'), '// updated tracker\n');
-    expect((await f.setup.enable()).state).toBe('pending');
-    await writeFile(join(f.bundle, 'chat.js'), '// a later tracker\n');
-    expect((await f.setup.enable()).state).toBe('pending');
-    expect(await readFile(join(f.addon, 'chat.js'), 'utf8')).toBe('// a later tracker\n');
-  });
-
-  it('offers the guided update when bundled bytes change at the same package version', async () => {
-    let at = 10_000; const f = await fixture('{}', { now: () => at });
-    await f.setup.enable(); at += 100;
-    let probe = receipt(at);
-    const setup = createCompanionSetup({ ...f.options, now: () => at, probe: async () => probe });
-    expect((await setup.status()).state).toBe('ready');
-    await writeFile(join(f.bundle, 'demand.js'), '// same version, new bytes\n');
-    expect(await setup.status()).toMatchObject({ state: 'pending', configured: true, canEnable: true,
-      message: 'Update chat speed to install the current tracking helper.' });
-    at += 100;
-    expect(await setup.enable()).toMatchObject({ state: 'pending',
-      message: 'Installed · waiting for OpenCode to load the updated tracking helper. Your current work can continue.' });
-    at += 100; probe = receipt(at);
-    expect((await setup.status()).state).toBe('ready');
-  });
-
-  it('serializes enable clicks and never duplicates the entry', async () => {
-    const f = await fixture('{}');
-    const results = await Promise.all([f.setup.enable(), f.setup.enable(), f.setup.enable()]);
-    expect(results.every(result => result.state === 'pending')).toBe(true);
-    expect(parse(await readFile(f.config, 'utf8')).plugins).toHaveLength(1);
-  });
-});
-
-describe('startup update of a Scope-managed helper', () => {
-  /** An installation from an earlier bundle, loaded on a runtime the earlier helper refused. */
-  async function installedEarlier(runtimeVersion = '2.2.0') {
-    let at = 40_000; const f = await fixture('{"plugins":["other-plugin"]}', { now: () => at });
-    await writeFile(join(f.bundle, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.5.0' }));
-    await writeFile(join(f.bundle, 'compatibility.js'), '// earlier rule\n');
-    await f.setup.enable();
-    await writeFile(join(f.bundle, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: companionVersion }));
-    await writeFile(join(f.bundle, 'compatibility.js'), '// current rule\n');
-    let probe: CompanionProbe = receipt(at, { runtimeVersion, companionVersion: '3.5.0', protocol: 'unsupported', supported: false });
-    const setup = createCompanionSetup({ ...f.options, now: () => at, probe: async () => probe });
-    return { f, setup, tick: () => { at += 100; return at; }, load: (value: CompanionProbe) => { probe = value; } };
-  }
-
-  it('replaces an earlier bundle once, by the guarded rename, and says it did', async () => {
-    const { f, setup, tick, load } = await installedEarlier();
-    const config = await readFile(f.config, 'utf8');
-    tick();
-    expect(await setup.update()).toBe(true);
-    expect(await readFile(join(f.addon, 'compatibility.js'), 'utf8')).toBe('// current rule\n');
-    expect(JSON.parse(await readFile(join(f.addon, 'package.json'), 'utf8')).version).toBe(companionVersion);
-    // Only the managed entry's revision changes; the other plugin stays where it was.
-    const plugins = parse(await readFile(f.config, 'utf8')).plugins;
-    expect(plugins[0]).toBe('other-plugin');
-    expect(plugins[1].options.scopeRevision).not.toBe(parse(config).plugins[1].options.scopeRevision);
-    expect(await setup.status()).toMatchObject({ state: 'pending', message: expect.stringContaining('Updated automatically') });
-    // Once per service run: a later bundle change waits for the guided path.
-    await writeFile(join(f.bundle, 'chat.js'), '// later tracker\n');
-    expect(await setup.update()).toBe(true);
-    expect(await readFile(join(f.addon, 'chat.js'), 'utf8')).not.toBe('// later tracker\n');
-    tick(); load(receipt(tick(), { runtimeVersion: '2.2.0', features: featureSupport('2.2.0') }));
-    await writeFile(join(f.bundle, 'chat.js'), '// bundled chat.js\n');
-    expect((await setup.status()).state).toBe('ready');
-  });
-
-  it('leaves edited, disabled, manual and current installations and refused runtimes untouched', async () => {
-    const edited = await installedEarlier();
-    await writeFile(join(edited.f.addon, 'index.js'), '// user customization');
-    expect(await edited.setup.update()).toBe(false);
-    expect(await readFile(join(edited.f.addon, 'index.js'), 'utf8')).toBe('// user customization');
-    expect(await readFile(join(edited.f.addon, 'compatibility.js'), 'utf8')).toBe('// earlier rule\n');
-
-    const refused = await installedEarlier('3.0.0'), before = await readFile(refused.f.config, 'utf8');
-    expect(await refused.setup.update()).toBe(false);
-    expect(await readFile(join(refused.f.addon, 'compatibility.js'), 'utf8')).toBe('// earlier rule\n');
-    expect(await readFile(refused.f.config, 'utf8')).toBe(before);
-
-    const disabled = await installedEarlier();
-    await disabled.setup.disable();
-    expect(await disabled.setup.update()).toBe(false);
-    expect(await readdir(join(disabled.f.root, 'addons'))).toEqual([]);
-
-    const manual = await fixture(JSON.stringify({ plugins: [] }));
-    await mkdir(manual.addon, { recursive: true });
-    await writeFile(join(manual.addon, 'package.json'), JSON.stringify({ name: COMPANION_ID, version: '3.5.0' }));
-    await writeFile(manual.config, JSON.stringify({ plugins: [manual.addon] }));
-    expect(await manual.setup.update()).toBe(false);
-    expect(await readdir(manual.addon)).toEqual(['package.json']);
-
-    const current = await fixture('{}'); await current.setup.enable();
-    const inode = (await stat(join(current.addon, 'chat.js'))).ino, config = await readFile(current.config, 'utf8');
-    expect(await createCompanionSetup(current.options).update()).toBe(false);
-    expect((await stat(join(current.addon, 'chat.js'))).ino).toBe(inode);
-    expect(await readFile(current.config, 'utf8')).toBe(config);
-
-    const none = await fixture();
-    expect(await none.setup.update()).toBe(false);
-    expect(await readdir(none.root)).toEqual([]);
-  });
-
-  it('never re-enables a helper disabled ahead of the automatic update', async () => {
-    const { f, setup } = await installedEarlier();
-    const disabling = setup.disable(), updating = setup.update();
-    await disabling;
-    expect(await updating).toBe(false);
-    expect(parse(await readFile(f.config, 'utf8')).plugins).toEqual(['other-plugin']);
-    expect(await readdir(join(f.root, 'addons'))).toEqual([]);
-  });
-
-  it('rolls back a config conflict and does not retry a failed automatic update', async () => {
-    const { f } = await installedEarlier();
-    let attempts = 0;
-    const newer = '{"plugins":["user-change"]}';
-    const setup = createCompanionSetup({ ...f.options, beforeConfigCommit: async () => {
-      attempts++;
-      await writeFile(f.config, newer);
-    } });
-    expect(await setup.update()).toBe(false);
-    expect(attempts).toBe(1);
-    expect(await readFile(f.config, 'utf8')).toBe(newer);
-    expect(await readFile(join(f.addon, 'compatibility.js'), 'utf8')).toBe('// earlier rule\n');
-    expect(await setup.update()).toBe(false);
-    expect(attempts).toBe(1);
+  it('runs once for concurrent calls, and a removal that waited is tried again as a view polls, no faster than every 30 seconds', async () => {
+    const f = await fixture(); await f.installLegacy(); await writeFile(f.config, `{"plugins":[${f.entry()}]}`);
+    const [first, second] = await Promise.all([f.setup.retire(), f.setup.retire()]);
+    expect([first, second].sort()).toEqual(['none', 'removed']);
+    const g = await fixture(); await g.installLegacy(); const text = `{"plugins":[${g.entry()}]}`; await writeFile(g.config, text);
+    let at = 1_000_000, asked = 0, idle = false;
+    const setup = createCompanionSetup({ ...g.options, now: () => at, idle: async () => { asked++; return idle; } });
+    const settle = () => new Promise(resolve => setTimeout(resolve, 20));
+    setup.retry(); await settle(); expect(asked).toBe(0);                     // nothing has waited yet: polling does nothing
+    await setup.status(); await setup.status(); await settle(); expect(asked).toBe(0);   // and reading status never acts
+    expect(await setup.retire()).toBe('waiting'); expect(asked).toBe(1);
+    setup.retry(); setup.retry(); await settle(); expect(asked).toBe(1);        // too soon
+    at += 30_000; setup.retry(); await settle(); expect(asked).toBe(2);         // a poll after 30 s tries again, still busy
+    idle = true; at += 30_000; setup.retry(); await settle(); expect(asked).toBe(3);
+    expect(parse(await readFile(g.config, 'utf8')).plugins).toEqual([]); expect(await g.retired()).toBe(true);
+    at += 60_000; setup.retry(); await settle(); expect(asked).toBe(3);         // done: polling does nothing more
   });
 });

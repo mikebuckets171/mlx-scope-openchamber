@@ -57,10 +57,10 @@ export class ChatTelemetry {
       return info.isDirectory() && info.uid === process.getuid?.() && (info.mode & 0o077) === 0;
     } catch { return false; }
   }
-  private async json(name: string): Promise<Record<string, any> | null> {
+  private async json(name: string, directory = this.directory): Promise<Record<string, any> | null> {
     let handle;
     try {
-      handle = await open(join(this.directory, name), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+      handle = await open(join(directory, name), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
       const info = await handle.stat();
       if (!info.isFile() || info.size > MAX_BYTES || info.uid !== process.getuid?.() || (info.mode & 0o077) !== 0) return null;
       const bytes = Buffer.alloc(MAX_BYTES + 1), { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
@@ -133,6 +133,31 @@ export class ChatTelemetry {
     } catch { return null; }
     // Multiple writers for the same target are ambiguous, never aggregate their rates.
     return found.length === 1 ? parseChatMeasurement(found[0], this.now()) : null;
+  }
+  /**
+   * Whether no reply is being tracked or read at this moment: no helper has an unexpired observation in its chat
+   * telemetry or its Splash prompt-progress files. The helper removes a file the moment it has nothing to report, and an
+   * observation expires on its own after 15 seconds, so a crashed helper cannot hold this at "busy". A folder that is
+   * missing means a helper never ran; one that cannot be read safely or holds too many files is not provably quiet.
+   */
+  async idle(): Promise<boolean> {
+    const at = this.now();
+    for (const directory of [this.directory, join(dirname(this.directory), 'prompt-progress')]) {
+      const names: string[] = [];
+      try {
+        const info = await lstat(directory);
+        if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== process.getuid?.() || (info.mode & 0o077) !== 0) return false;
+        for await (const file of await opendir(directory)) {
+          if (!file.isFile() || !file.name.endsWith('.json') || !UUID.test(file.name.slice(0, -5))) continue;
+          if (names.push(file.name) > 256) return false;
+        }
+      } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; return false; }
+      for (const name of names) {
+        const value = await this.json(name, directory);
+        if (value && Array.isArray(value.entries) && value.entries.length > 0 && Number.isSafeInteger(value.expiresAtMs) && value.expiresAtMs > at) return false;
+      }
+    }
+    return true;
   }
   async dispose(): Promise<void> {
     this.frames.clear(); await this.queue;

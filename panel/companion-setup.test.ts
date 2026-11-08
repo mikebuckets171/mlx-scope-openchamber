@@ -12,14 +12,15 @@ describe('companion setup surface', () => {
     expect(parseCompanionSetup({ ...valid, state: 'unknown' })).toBeNull();
     expect(parseCompanionSetup({ ...valid, message: 'a'.repeat(1001) })).toBeNull();
   });
-  it('explains the optional setup and hides mutations until status is validated', () => {
+  it('says where the helper comes from and offers only a status check, never a switch', () => {
     const markup = companionSetupMarkup();
     expect(markup).toContain('local and cloud chats');
     expect(markup).toContain('observable reasoning on your computer');
     expect(markup).toContain('never saves chat content');
-    expect(markup).toContain('OpenCode plugins');
-    expect(markup).toContain('data-companion-action="enable" hidden');
-    expect(markup).toContain('data-companion-action="disable" hidden');
+    expect(markup).toContain('comes with MLX Scope');
+    expect(markup).toContain('never edits your OpenCode settings');
+    expect(markup).toContain('data-companion-action="check"');
+    expect(markup).not.toMatch(/data-companion-action="(enable|disable)"|Enable chat speed|Disable and remove|Update chat speed/);
     expect(markup).toContain('role="status"');
   });
   it('keeps legacy status usable and discards malformed optional compatibility metadata', () => {

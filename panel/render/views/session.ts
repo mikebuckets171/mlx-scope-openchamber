@@ -36,7 +36,7 @@ const nextSessionMarkup = (view: SessionSectionView, actionError: string | null,
   const label = measurement ? measurementLabel(measurement) : '';
   const rows = actionError ? [{ key: 'error', text: actionError, detail: actionError, severity: 'warning' as const }, ...view.exceptions].slice(0, 2)
     : view.exceptions.length ? view.exceptions
-      : !measurement && !view.resting ? [{ key: 'empty', text: view.speeds.source === 'Chat delivery' ? 'Chat speed is not on for this chat' : 'No measurement available', detail: view.speeds.source === 'Chat delivery' ? 'Open Connections → Chat speed → Enable to measure this chat’s delivery.' : '', severity: 'info' as const }] : [];
+      : !measurement && !view.resting ? [{ key: 'empty', text: view.speeds.source === 'Chat delivery' ? 'Chat speed is not on for this chat' : 'No measurement available', detail: view.speeds.source === 'Chat delivery' ? 'Open Connections → Chat speed to see whether this chat can be measured.' : '', severity: 'info' as const }] : [];
   const unit = measurement?.kind === 'speed' ? 'tokens/s' : measurement?.unit;
   const readingText = measurement ? readoutText(measurement) : '';
   const arrow = html`<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>`;

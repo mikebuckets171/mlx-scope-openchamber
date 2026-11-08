@@ -87,7 +87,7 @@ whose provider is local. The frame's pure `panel/present/insights.ts` decides wh
 minutes without one, the service removes its chat demand and exits; OpenChamber starts it again on the next request.
 The measurement harness can shorten the delay through `MLX_SCOPE_IDLE_EXIT_MS` (never below 5 s).
 
-## Chat measurements and guided setup
+## Chat measurements and the helper
 
 `This chat` resolves the open chat's provider and model from the public host session event. Switching either clears
 observations and invalidates in-flight replies. `Engine` retains explicit connection selection. The existing
@@ -107,9 +107,11 @@ There is no autonomous service polling loop. Hidden views send no requests; comp
 expires. The demand watcher itself checks only the private file: once per second while demanded, every five seconds
 otherwise.
 
-The optional setup route reads compatibility on GET and changes managed local files only on explicit authenticated
-POST Enable/Disable. JSONC edits preserve comments and unrelated plugins; writes are atomic with rollback. It never
-restarts the host or inference. The 3.0 chat setup preserved runtime command permissions; the media adapters added in
+The helper arrives with the extension (OpenChamber 2.7's `opencodePlugin`), so no route installs or updates it. The setup route
+reads the helper's status on GET and changes nothing. The one thing the service still writes outside its own memory is a single
+removal at startup, retried while a view polls: the entry and unedited files that Scope 5's guided setup added to OpenCode's
+settings, when OpenChamber configures that OpenCode and no reply is running. JSONC edits preserve comments and unrelated plugins;
+writes are atomic. It never restarts the host or inference. The 3.0 chat setup preserved runtime command permissions; the media adapters added in
 3.1 briefly extended the command list with a local-video cancellation path, and 5.2 returned it to the ten fixed
 probes. Bundle ceilings cover media adapters and setup; the CPU/RSS and hidden-view budgets are unchanged.
 

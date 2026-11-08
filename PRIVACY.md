@@ -10,10 +10,9 @@ The service reads the configuration and credential sources listed in [Configurat
 referenced credential files and environment variables. It never reads OpenChamber's own settings file. Credentials and
 raw API responses stay service-side. The views receive allowlisted measurements, bounded model labels, and connection
 choices. They do not receive prompts, completions, credentials, LLM request identifiers or process IDs. Media views additionally receive bounded backend job IDs and hashed ownership matching identifiers. Absolute model
-paths are reduced to names before display. Monitoring does not rewrite configuration. The optional companion setup
-changes OpenCode configuration only after an explicit Enable or Disable action, preserving other plugins and comments,
-and, once enabled, when an updated Scope brings its own unedited helper up to date (only the managed entry's
-`scopeRevision` changes). The names a provider's OpenCode `models` entries give their IDs (at most 32, 80 characters
+paths are reduced to names before display. Monitoring does not rewrite configuration. The only change Scope makes to OpenCode's own configuration is removing, once,
+the entry that Scope 5's **Enable chat speed** added (preserving other plugins and comments), and only when that copy's files
+are unedited and no reply is running. The names a provider's OpenCode `models` entries give their IDs (at most 32, 80 characters
 each) reach the views as display labels; they are never stored.
 
 **Bionic and LM Studio server log.** For LM Studio, the service follows LM Studio's server log with
@@ -32,7 +31,8 @@ history.
 
 ## Optional OpenCode companion
 
-The companion is installed separately in OpenCode. It parses the existing streaming request body in memory to add
+From Scope 6 the extension delivers the companion: OpenChamber lists its folder in the configuration it manages for the OpenCode it runs,
+and removes it when the extension is paused or removed. Nothing is written to your own OpenCode settings. It parses the existing streaming request body in memory to add
 Splash's `return_progress` option and observes the response as OpenCode reads it. It does not submit a prompt or change
 the selected model. Prompt progress remains a separate measurement from chat delivery speed.
 
@@ -62,10 +62,10 @@ companion stops event sampling and telemetry writes when demand expires. Live me
 A startup heartbeat proves the plugin was loaded, not that it is currently active. An expired crash file conveys no
 current reading. Only allowlisted measurement fields reach the view; matching hashes do not.
 
-Guided setup installs bundled companion files into `~/.config/opencode/addons/mlx-scope-prompt-progress` and edits
-OpenCode's plugin entry. After a Scope update, the service repeats that update once for a helper it installed, unless
-its files were edited or setup was disabled. It never restarts OpenCode or an active inference session. Disable removes the managed entry
-and unchanged owned files; altered files are preserved. Manual installations stay under your control.
+The companion finds Splash from OpenCode's provider list when a request arrives. It uses only a provider's id, name and base
+URL, and ignores everything else in that list, including any key; nothing from the list is stored or sent. It never restarts
+OpenCode or an active inference session. A copy installed by Scope 5 is removed once by the service when its files are unedited
+and no reply is running; an edited or manually installed copy stays under your control.
 
 Chat delivery estimates are transient: they are not added to engine charts, reply baselines or history.
 Existing records retain their original measurement basis. See [Measurements](docs/METRICS.md).

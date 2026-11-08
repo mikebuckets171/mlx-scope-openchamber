@@ -39,34 +39,7 @@ for (const legacy of [false, true]) test(`companion compatibility disclosure kee
   expect(await detail.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
 });
 
-test('a qualified newer runtime can update an older helper without presenting unsupported telemetry as ready', async ({ page }) => {
-  await page.goto('/v2?surface=page&state=decode&chat=local');
-  await page.evaluate(() => {
-    const original = window.ScopeMediaFixtures.respond.bind(window.ScopeMediaFixtures);
-    let loaded = false;
-    window.ScopeMediaFixtures.respond = message => {
-      const response = original(message);
-      if (message.payload.path !== '/v2/companion/setup' || !response) return response;
-      if (message.payload.method === 'POST') loaded = true;
-      return { ...response, body: JSON.stringify({ ...JSON.parse(response.body),
-        state: loaded ? 'ready' : 'pending', configured: true, canEnable: !loaded, live: false,
-        runtimeVersion: '2.0.27', companionVersion: loaded ? '3.3.0' : '3.2.0',
-        protocol: loaded ? 'opencode-2.0.25' : 'unsupported',
-        message: loaded ? 'Chat tracking is ready for your next reply.' : 'Update chat speed to install the current tracking helper.' }) };
-    };
-  });
-  const frame = page.frameLocator('iframe');
-  await frame.getByRole('button', { name: 'Connections', exact: true }).click();
-  const setup = frame.locator('#companion-setup');
-  await expect(setup.locator('[data-companion-status]')).toContainText('Update chat speed');
-  await setup.getByRole('button', { name: 'Update chat speed', exact: true }).click();
-  await expect(setup.locator('[data-companion-status]')).toContainText('ready for your next reply');
-  await setup.locator('.setup-versions > summary').click();
-  await expect(setup.locator('[data-companion-version]')).toContainText('OpenCode 2.0.27 · Companion 3.3.0');
-  await expect(setup.getByRole('button', { name: 'Update chat speed', exact: true })).toBeHidden();
-});
-
-test('automatic helper updates say they are waiting for load and qualify 2.2 only after it loads', async ({ page }) => {
+test('an older helper from Scope 5 is named as such, then the extension’s helper takes over with no button to press', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('/v2?surface=page&state=decode&chat=local');
   await page.evaluate(() => {
     const original = window.ScopeMediaFixtures.respond.bind(window.ScopeMediaFixtures);
@@ -75,25 +48,29 @@ test('automatic helper updates say they are waiting for load and qualify 2.2 onl
       if (message.payload.path !== '/v2/companion/setup' || !response) return response;
       const loaded = window.previewHelperLoaded === true;
       const features = Object.fromEntries(['http-delivery', 'websocket-delivery', 'prompt-progress', 'managed-reload']
-        .map(id => [id, { support: 'compatible', available: loaded, check: { state: 'waiting' } }]));
+        .map(id => [id, { support: 'compatible', available: true, check: { state: loaded ? 'passed' : 'waiting' } }]));
       return { ...response, body: JSON.stringify({ ...JSON.parse(response.body),
-        state: loaded ? 'ready' : 'pending', configured: true, managed: true, canEnable: !loaded, live: false,
-        runtimeVersion: '2.2.0', companionVersion: loaded ? '3.6.0' : '3.5.0', protocol: loaded ? 'opencode-2.0.25' : 'unsupported',
-        compatibility: { profile: 'opencode-2.2.0-v1', mode: 'qualified', activity: loaded ? 'awaiting-demand' : 'not-loaded', features },
-        message: loaded ? 'Chat tracking is ready for your next reply.' : 'Updated automatically · waiting for OpenCode to load the new tracking helper. Your current work can continue.' }) };
+        state: loaded ? 'ready' : 'pending', configured: loaded, managed: !loaded, canEnable: false, canDisable: false, live: false,
+        runtimeVersion: '2.2.6', companionVersion: loaded ? '3.7.0' : '3.6.0', protocol: 'opencode-2.0.25',
+        compatibility: { profile: null, mode: 'self-checked', activity: 'awaiting-demand', features },
+        message: loaded ? 'Chat tracking is ready for your next reply.'
+          : 'An older chat-speed helper from MLX Scope 5 is still loaded. MLX Scope switches to the one that comes with this release when no reply is running; your current work can continue.' }) };
     };
   });
   const frame = page.frameLocator('iframe');
   await frame.getByRole('button', { name: 'Connections', exact: true }).click();
   const setup = frame.locator('#companion-setup');
-  await expect(setup.locator('[data-companion-status]')).toContainText('Updated automatically');
+  await expect(setup.locator('[data-companion-status]')).toContainText('older chat-speed helper from MLX Scope 5');
   await expect(setup.locator('[data-companion-status]')).not.toContainText('ready for your next reply');
+  // Nothing to enable, update or remove here: the helper comes with the extension.
+  await expect(setup.getByRole('button', { name: /enable|update|disable/i })).toHaveCount(0);
   await page.evaluate(() => { window.previewHelperLoaded = true; });
   await setup.getByRole('button', { name: 'Check status', exact: true }).click();
   await expect(setup.locator('[data-companion-status]')).toContainText('ready for your next reply');
   await setup.locator('.setup-versions > summary').click();
-  await expect(setup.locator('[data-companion-version]')).toContainText('OpenCode 2.2.0 · Companion 3.6.0');
-  await expect(setup.locator('[data-companion-compatibility]')).toContainText('OpenCode 2.2.0 · qualified');
+  await expect(setup.locator('[data-companion-version]')).toContainText('OpenCode 2.2.6 · Companion 3.7.0');
+  await expect(setup.locator('[data-companion-compatibility]')).toContainText('OpenCode 2.2.6 · self-checked, not yet qualified');
+  await expect(setup.locator('.setup-versions')).toContainText('comes with MLX Scope');
   expect(await page.evaluate(() => window.previewAuxiliaryRequests.filter((item: { path: string; method: string }) =>
     item.path === '/v2/companion/setup' && item.method !== 'GET').length)).toBe(0);
 });

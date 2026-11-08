@@ -53,40 +53,32 @@ export function companionCompatibilityMarkup(value: CompanionSetupStatus): strin
 export const companionSetupMarkup = (): string => html`<div class="companion-setup" data-companion-setup>
   ${paragraph('Estimates local and cloud chats’ delivery speed from text and observable reasoning on your computer. Scope never saves chat content.')}
   <p class="insight-note" data-companion-status role="status">Checking chat speed…</p>
-  <div class="insight-actions"><button type="button" class="btn" data-companion-action="enable" hidden>Enable chat speed</button><button type="button" class="btn quiet" data-companion-action="disable" hidden>Disable and remove</button><button type="button" class="btn quiet" data-companion-action="check">Check status</button></div>
-  <details class="setup-versions"><summary>Compatibility &amp; privacy</summary>${paragraph('Enable installs a companion through OpenCode plugins. Other plugins and provider settings are kept; no active chat is restarted.')}<p class="insight-note" data-companion-version hidden></p><div data-companion-compatibility hidden></div></details>
+  <div class="insight-actions"><button type="button" class="btn quiet" data-companion-action="check">Check status</button></div>
+  <details class="setup-versions"><summary>Compatibility &amp; privacy</summary>${paragraph('The helper comes with MLX Scope: OpenChamber adds it to the OpenCode it runs, and takes it away when you pause or remove the extension. It never edits your OpenCode settings, and no active chat is restarted.')}<p class="insight-note" data-companion-version hidden></p><div data-companion-compatibility hidden></div></details>
 </div>`.markup;
 
-/** Mount only in the expanded setup disclosure. No polling or writes occur until an explicit action. */
+/** Mount only in the expanded setup disclosure. Status is read when the disclosure opens or on request; nothing is written. */
 export function mountCompanionSetup(root: HTMLElement, host: Pick<HostClient, 'serviceRequest'>, changed: (status: CompanionSetupStatus | null) => void = () => {}) {
   root.innerHTML = companionSetupMarkup();
   const status = root.querySelector<HTMLElement>('[data-companion-status]')!;
   const version = root.querySelector<HTMLElement>('[data-companion-version]')!;
   const compatibility = root.querySelector<HTMLElement>('[data-companion-compatibility]')!;
-  const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-companion-action]'));
+  const check = root.querySelector<HTMLButtonElement>('[data-companion-action="check"]')!;
   let disposed = false, pending = false, latest: CompanionSetupStatus | null = null;
-  const activation = new SetupRefresh(() => request('check'));
+  const activation = new SetupRefresh(() => request());
   const paint = (): void => {
-    for (const button of buttons) {
-      const action = button.dataset.companionAction;
-      button.disabled = pending;
-      button.hidden = action === 'enable' ? !latest?.canEnable || latest.state === 'ready'
-        : action === 'disable' ? !latest?.canDisable : false;
-      if (action === 'enable') button.textContent = latest?.configured ? 'Update chat speed' : 'Enable chat speed';
-      if (action === 'disable') button.textContent = latest?.managed ? 'Disable and remove' : 'Disable companion';
-    }
+    check.disabled = pending;
     if (!pending && latest) status.textContent = latest.message;
     const parts = [latest?.runtimeVersion ? `OpenCode ${latest.runtimeVersion}` : '', latest?.companionVersion ? `Companion ${latest.companionVersion}` : ''].filter(Boolean);
     version.textContent = parts.join(' · '); version.hidden = parts.length === 0;
     compatibility.hidden = !latest; compatibility.innerHTML = latest ? companionCompatibilityMarkup(latest) : '';
   };
-  const request = async (action: 'enable' | 'disable' | 'check'): Promise<void> => {
+  const request = async (): Promise<void> => {
     if (disposed || pending) return;
     pending = true;
-    status.textContent = action === 'enable' ? 'Enabling chat speed…' : action === 'disable' ? 'Disabling chat speed…' : 'Checking chat speed…'; paint();
+    status.textContent = 'Checking chat speed…'; paint();
     try {
-      const response = await host.serviceRequest({ method: action === 'check' ? 'GET' : 'POST', path: PATH,
-        ...action === 'check' ? {} : { body: JSON.stringify({ action }) } });
+      const response = await host.serviceRequest({ method: 'GET', path: PATH });
       if (disposed) return;
       if (response.status !== 200) { latest = null; status.textContent = unavailableForServiceResponse(response.status).message; return; }
       const value = response.status === 200 ? parseCompanionSetup(JSON.parse(response.body)) : null;
@@ -100,10 +92,8 @@ export function mountCompanionSetup(root: HTMLElement, host: Pick<HostClient, 's
   };
   const click = (event: MouseEvent): void => {
     const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-companion-action]') : null;
-    if (!target || !root.contains(target)) return;
-    const action = target.dataset.companionAction;
-    if (action === 'check' || action === 'enable' && latest?.canEnable || action === 'disable' && latest?.canDisable) void request(action as 'check' | 'enable' | 'disable');
+    if (target && root.contains(target)) void request();
   };
   root.addEventListener('click', click);
-  return { setVisible: (visible: boolean) => activation.setVisible(visible), get status() { return latest; }, refresh: () => request('check'), dispose: () => { disposed = true; activation.dispose(); root.removeEventListener('click', click); } };
+  return { setVisible: (visible: boolean) => activation.setVisible(visible), get status() { return latest; }, refresh: () => request(), dispose: () => { disposed = true; activation.dispose(); root.removeEventListener('click', click); } };
 }

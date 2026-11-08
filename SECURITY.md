@@ -28,8 +28,7 @@ command the user can. The list is MLX Scope's promise, enforced by its own code 
 releases you trust.
 
 **Local service routes**
-- Monitoring routes answer `GET` only. `/v2/companion/setup` additionally accepts an authenticated, bounded JSON
-  `POST` with exactly one `enable` or `disable` action. `/v2/media/setup` accepts strict allowlisted configuration/helper actions; `/v2/media/cancel` accepts only a source ID and job ID. Reading setup status never changes configuration.
+- Monitoring routes answer `GET` only, and so does `/v2/companion/setup`, which reports the chat-speed helper's status. `/v2/media/setup` accepts strict allowlisted configuration/helper actions; `/v2/media/cancel` accepts only a source ID and job ID. Reading setup status never changes configuration.
 - Every route, including health, requires OpenChamber's service token, compared in constant time.
 - Responses are `no-store` and stay under OpenChamber's 256,000-character response limit.
 - The retired 1.x route `/snapshot` answers `410 contract_mismatch`, so a mismatched view and service fail visibly
@@ -76,9 +75,9 @@ summaries are accepted only from the runtime's own lifecycle lines, so generated
   titles, paths, keys and prompt text never reach these paths.
 - Sharing requires a user action. Draft sharing appends and cannot send.
 - Only one visible view writes history storage. The service writes a private, expiring chat-demand file while watched;
-  explicit companion setup can install owned plugin files and update the plugin configuration. At service startup,
-  a Scope update can replace its configured, unchanged owned helper and update only that entry's revision; disabled,
-  edited or unowned installations are left alone. Status reads never perform that update.
+  the only change the service makes to OpenCode's own settings is to remove, once, the entry and unedited files that Scope 5's
+  guided setup added, when OpenChamber configures that OpenCode and no reply is running; edited, manual or foreign installations
+  are left alone. Status reads never perform it, and nothing installs or updates the helper any more: the extension delivers it.
 
 Automated checks cover these contracts: unit and fixture tests, privacy canaries across every share path, a
 committed-file scrub, the package checks, and browser tests. They are not an independent security audit or a guarantee
