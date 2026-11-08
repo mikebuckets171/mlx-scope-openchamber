@@ -61,9 +61,13 @@ power estimate. OpenAI-compatible inference does not imply equivalent monitoring
   last speed stays, dimmed with its age, as in the sidebar; and the previous completed average stays below a live
   reading, dimmed and labelled. Completed results retain their own available output, duration and
   first-token facts; chat step timing stays distinct. **Measurement details** groups deeper engine readings, request
-  details, the last reply and a compact **Engine server** strip; engine charts never mix in chat estimates. **Live**, **History** and **Connections** remain
-  directly accessible. **Run details** opens current observations and their basis. History reply/turn **Details** opens the same inspector, with eligible reply comparisons and explicit observation gaps.
-  History retains recent replies, trends, insights, alerts, and storage. Resizing preserves your selected destination.
+  details, the last reply and a compact **Engine server** strip; engine charts never mix in chat estimates. **Live**,
+  **Engine room**, **History** and **Connections** remain directly accessible. Engine room shows Splash's reported memory
+  budget, room for another chat, memory-holding apps, and live request lanes; lane titles are shown only while open and
+  are never saved or shared. **Run details** opens current observations and their basis. History reply/turn **Details**
+  opens the same inspector, with eligible reply comparisons and explicit observation gaps. History retains recent replies,
+  trends, insights, alerts, storage and an advisory **Trial verdict** for detected or manually started Splash changes.
+  Resizing preserves your selected destination.
   Open the rail from the Session action or the full page from **Extension pages**. Compact mode uses the same quiet
   sidebar presentation.
 
@@ -94,10 +98,12 @@ Splash's normal status readings provide speed but do not provide the current pro
 With it installed, **Prompt progress** shows the portion read, including tokens reused from cache. Both the Session
 section and the full view show the percentage. It clears when the response starts, stops, or becomes uncertain.
 
-The companion is bundled and does not activate automatically. Open **Connections → Enable chat speed** for detected
-compatibility and a deliberate setup action, or follow the [manual setup](bridge/opencode/README.md). Setup preserves
-existing plugins and JSONC comments and provides **Disable and remove**. It never restarts an active inference session.
-Once enabled, a Scope update brings the helper up to date by itself (see [Compatibility](docs/COMPATIBILITY.md)).
+The companion comes with the extension: OpenChamber 2.7 adds it to the OpenCode it runs while MLX Scope is on and takes it
+away when you pause or remove Scope, so there is nothing to enable and nothing of yours is edited. **Connections → Chat
+speed** shows whether it is loaded and what it can do. It finds Splash from OpenCode's own provider list and never uses
+or keeps a provider key. For an OpenCode that OpenChamber does not start, follow the [manual setup](bridge/opencode/README.md).
+If you used **Enable chat speed** in Scope 5, Scope 6 retires that older copy once, when its files are unedited and no reply
+is being measured (see [Compatibility](docs/COMPATIBILITY.md)).
 Chat delivery estimates are qualified on OpenCode **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32, 2.2.0 and 2.1.1-compaction.1**.
 Every other OpenCode 2 release from 2.0.25 is **self-checked**: the companion confirms each hook and event shape it
 relies on and pauses only the feature whose check fails, with the reason in Connections. A self-check cannot detect a
@@ -134,6 +140,11 @@ storage on this computer: times, token counts, speeds, the model name and the la
 content. See [Privacy](PRIVACY.md) for exactly what is stored.
 - **History → Storage** has a usage bar, **Keep N days** (30 by default, 90 at most), **Pause recording** and
   **Clear…**, which asks for confirmation.
+- During a reported Splash memory wait—or with full details open when Splash reports no room for growth—the three largest
+  app footprints can appear with that wait in local History. The **Trial verdict** card
+  watches for a Splash model, context or memory-plan change, compares observed waits, overlapping decode batches and
+  long solo replies with an earlier History stretch or local baseline notes, and reports **Keep**, **Revert** or **Not
+  enough data**. It is advisory: Scope never changes Splash settings. No observed overlap is not a pass.
 - The first recording shows "Recording reply history locally · Open Scope to manage".
 - History feeds "vs usual" baselines, always shown with their sample count and only from 5 similar replies, and a
   "Slower than usual" flag when the middle of the last 3 replies is 15 % slower (25 % for first-token time). The
@@ -169,7 +180,7 @@ Each reading says where it comes from:
 
 ## Install
 
-Scope 5.1 requires **OpenChamber 2.4.0 or newer** and is built against SDK 2.5.0. Keep **Scope 5.0.0** on OpenChamber 2.3.x and **Scope 4.0.1** on older hosts. See [Compatibility](docs/COMPATIBILITY.md) for the exact evidence and upgrade requirements. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
+Scope 6.0.0 requires **OpenChamber 2.7.0 or newer** and is built against SDK 2.7.0. Keep **Scope 5.4.0** on OpenChamber 2.4 to 2.6, **Scope 5.0.0** on 2.3.x and **Scope 4.0.1** on older hosts. See [Compatibility](docs/COMPATIBILITY.md) for the exact evidence and upgrade requirements. Runtimes must run on the same computer as the OpenChamber server; Mac diagnostics require macOS.
 
 1. In OpenChamber, open **Settings → Extensions** and add this repository's `release` branch by its Git URL:
    `https://github.com/mikebuckets171/mlx-scope-openchamber#release`. The `release` branch holds exactly the published
@@ -183,30 +194,32 @@ Git install. If you switch an existing ZIP install to Git, first copy
 `~/.config/openchamber/guest-storage/mlx-scope.json` somewhere outside `~/.config/openchamber/extensions/`, then put it
 back after installing and before opening Scope.
 
-Scope discovers supported existing connections. Native readings start immediately when available. **Connections** shows what is connected and gives one action for additional tracking: **Enable chat speed** or **Enable detailed media progress**. Installation and readiness are separate; a helper waiting for its owning application to start is labelled accordingly. Scope never restarts an application or generates test work.
+Scope discovers supported existing connections. Native readings start immediately when available. **Connections** shows what is connected, whether the chat-speed helper is loaded, and offers one action for additional tracking: **Enable detailed media progress**. Installation and readiness are separate; a helper waiting for its owning application to start is labelled accordingly. Scope never restarts an application or generates test work.
 
 The column shows chat and engine readings, then **Media** while local image/video jobs are active or recently finished. **History** retains existing observations. In the compact Session section, this chat’s media job comes first, with a count of other jobs. A ring shows the measured progress of the named phase and the percentage is written beside it; an older reading says **Last reported** and stays still. A finished job shows the time its source reported, such as **Finished 9:38 PM** — Scope never estimates when a render will end. Renders from Draw Things' command-line tool appear with their phase and step count, without setup. [Media support and setup](docs/MEDIA.md) explains supported sources and progress units.
 
 Use Connections → Advanced only when automatic discovery cannot identify a custom installation. Existing provider credentials stay in their owning configuration. Enterprise deployments may require the administrator to allowlist this repository.
 
-Git updates preserve existing preferences and observations. **Scope 5.1 asks for approval once** because it declares fewer permissions: `sessions` only, without `shells`, the `/scope` command or a background page. **Other work** in the **⋯** menu beside Compact starts disabled; approving the update does not enable it, and Live then shows one count line with no chat titles. These host readings remain separate from engine measurements. The service executable permissions are unchanged. After updating, choose **Connections → Update chat speed** once to load companion 3.5.0; later OpenCode 2.0 and 2.1 updates need no Scope action. If extension/service versions differ after an update, reload the extension in Settings → Extensions; generation backends remain independent.
+Git updates preserve existing preferences and observations. Scope 6.0.0 asks you to approve two additions in OpenChamber: **Add a plugin to OpenCode** (the chat-speed helper) and `/usr/bin/top` in the service's executable list, which lets it name memory-holding apps during Splash memory waits. The extension's `sessions` capability remains limited to live activity; it does not enable **Other work** or persist chat titles. Later OpenCode 2 updates need no Scope action. If extension/service versions differ after an update, reload the extension in Settings → Extensions; generation backends remain independent.
 
 ### What Scope asks you to approve and why
 
 | Entry | What Scope runs | Why |
 |---|---|---|
-| Local service (`service/main.js`) | Runs under your account while a Scope view needs readings | Reads local runtime APIs on loopback and runs the commands below. Keeps runtime readings in memory, writes bounded private chat-demand metadata, and changes companion files/configuration only after Enable or Disable |
+| Local service (`service/main.js`) | Runs under your account while a Scope view needs readings | Reads local runtime APIs on loopback and runs the commands below. Keeps runtime readings in memory and writes bounded private chat-demand metadata. Its only change to your OpenCode settings is removing the entry Scope 5 added, once, if it is unedited and no reply is being measured |
 | `/usr/bin/vm_stat` | `vm_stat` | Memory page counts: used, wired and compressed memory (as in 1.x) |
 | `/usr/sbin/sysctl` | `sysctl -i vm.swapusage kern.memorystatus_vm_pressure_level iogpu.wired_limit_mb` | Swap, the kernel's memory pressure level and the GPU wired-memory limit (1.x read swap only) |
 | `/usr/sbin/ioreg` | `ioreg -r -d 1 -w 0 -c IOAccelerator` | GPU busy and GPU memory, as the graphics driver reports them |
 | `/usr/bin/notifyutil` | `notifyutil -g com.apple.system.thermalpressurelevel` | macOS thermal pressure level |
 | `/usr/sbin/lsof` | `lsof -nP -iTCP:<port> -sTCP:LISTEN -t` | Finds the process listening on the oMLX port. oMLX only |
 | `/usr/bin/footprint` | `footprint -p <pid>` | That oMLX process's memory footprint, where oMLX's model memory lives. The process ID never leaves the service |
+| `/usr/bin/top` | `top -l 1 -o mem -n 30 -stats pid,command,mem` | Samples the largest app footprints during a reported Splash memory wait, or when the full details view is open and reported host headroom is exhausted. Names and process IDs stay local; no `footprint --all` or `sudo` is used |
 | `~/.lmstudio/bin/lms` | `lms log stream -s server --json --port <port>`, `lms ps --json --port <port>`, `lms runtime ls --port <port>` | Live request activity, loaded instances and engine versions for Bionic and LM Studio. It runs only after LM Studio has answered, and never starts LM Studio or Bionic |
 | `~/.cache/lm-studio/bin/lms` | The same three commands | The same, for LM Studio's older install location |
 | `/opt/homebrew/bin/macmon` | `macmon pipe -i 1000` | Optional chip power estimate, only if you installed macmon with Homebrew. Scope never installs it |
 | `/usr/local/bin/macmon` | The same | The same, for a macmon installed under `/usr/local` |
 
+- **Add a plugin to OpenCode (`opencodePlugin`):** the chat-speed helper in `bridge/opencode`. OpenChamber lists the folder in the configuration it manages for the OpenCode it runs, so the plugin loads and unloads with the extension and nothing is written to your own `opencode.json`. It runs inside OpenCode with that process's access: it observes chat events and Splash's prompt-progress stream, and writes only bounded records to a private cache folder under `~/.cache/mlx-scope`. It keeps no prompt, reply, provider key or file content: it parses a Splash request only to add Splash's `return_progress` flag, and records only counts, timings, the Splash provider's id and hashed identifiers.
 - **Optional host capability:** `sessions` for current-project running/waiting chats and host-reported subagents. It is disabled initially and subscribes only while Live is visible. Scope never sends a prompt through it. Per-chat measurement labels still use the existing open-chat observations.
 - **Never used:** `sudo`, `osascript`, `powermetrics` or `pmset`.
 - Each command runs by absolute path, without a shell, and only with the arguments shown; a test checks the argument

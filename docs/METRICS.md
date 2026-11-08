@@ -282,7 +282,7 @@ counted under **Kept from earlier versions** in History → Storage, and removed
 The optional OpenCode companion reads Splash's supported `prompt_progress` stream messages from existing replies.
 `processed / total` is whole-prompt completion, including the `cache` portion; it is separate from prefill speed and
 cache reuse. The companion enables `return_progress: true` on eligible streaming requests without changing the route
-or starting another request. See [companion setup](../bridge/opencode/README.md).
+or starting another request. See [companion](../bridge/opencode/README.md).
 
 Scope publishes a percentage only with a fresh ready Splash status, one active request reading its prompt, and one
 matching primary response record for the configured provider, endpoint and model. Other response kinds participate

@@ -1,6 +1,6 @@
 # Optional OpenCode companion
 
-The 3.6 companion observes demand-gated HTTP and WebSocket chat delivery on **every OpenCode 2 release from 2.0.25**, for local and cloud
+The 3.7 companion observes demand-gated HTTP and WebSocket chat delivery on **every OpenCode 2 release from 2.0.25**, for local and cloud
 chats alike, and retains the existing Splash prompt-progress observer. A reviewed local build such as `2.1.1-compaction.1` is accepted by its exact
 identifier; other OpenCode versions (2.0.24 and earlier, OpenCode 3 and later, any unreviewed suffix) disable chat
 estimates while native runtime monitoring remains available. The plugin ID remains `mlx-scope-prompt-progress` to
@@ -39,22 +39,34 @@ Chat delivery estimates support proven loopback providers, including oMLX, using
 OpenCode event protocol. They measure delivery through OpenCode, including network buffering, rather than native engine
 throughput. It adds no inference requests.
 
-Add this directory to OpenCode's existing `plugins` list; keep the other entries:
+**Delivery.** From MLX Scope 6, the extension delivers this folder itself: OpenChamber 2.7 lists it in the configuration it
+manages for the OpenCode it runs, with no options, and removes it when the extension is paused or removed. The helper finds
+Splash from OpenCode's own provider list as requests arrive (OpenCode loads configured providers after its plugins start, so it
+cannot at startup). A provider counts as Splash by the name rule the service uses (`service/core/hints.ts`; a test keeps the two
+together), and only at a loopback `/v1` address. It uses each provider's id, name and base URL, and never its key.
+
+For an OpenCode that OpenChamber does not start (or when `OPENCODE_CONFIG` is set in OpenChamber's environment), use the
+extension card's **Add to global config** in OpenChamber, or add this directory to OpenCode's `plugins` list yourself and keep
+the other entries:
 
 ```json
 {
   "package": "/absolute/path/to/mlx-scope/bridge/opencode",
   "options": {
-    "providerID": "splish",
-    "baseURL": "http://127.0.0.1:8000/v1"
+    "providerID": "splash",
+    "baseURL": "http://127.0.0.1:18181/v1"
   }
 }
 ```
 
-Use the absolute path to the extracted companion directory and the provider name/base URL already configured for
-Splash. OpenCode 2.0.22 can activate it when configuration changes without restarting the server; this was verified
-while an existing response continued. Check OpenCode's plugin list for **mlx-scope-prompt-progress** before starting a
-new reply. On other versions, follow that version's normal plugin reload steps when no reply is running. The default scope is provider `splish` at `http://127.0.0.1:8000/v1`. The object plugin form can set `options.providerID` and `options.baseURL`; the endpoint must be loopback. Existing active requests cannot acquire progress retroactively. Installation/reload is intentionally separate from running the tests.
+`options` are optional. Without them the helper finds Splash itself; with `providerID` and `baseURL` it uses exactly those (the
+endpoint must be loopback), and `promptProgress: false` turns Splash prompt progress off. An OpenCode that offers no provider list
+falls back to provider `splish` at `http://127.0.0.1:8000/v1`. OpenCode reloads its plugin list when its configuration file is
+replaced, without a restart; an existing active request cannot acquire progress retroactively.
+
+Two copies of this plugin never run together: OpenCode loads only the first plugin of an id and skips the rest, and its global
+configuration comes before OpenChamber's managed one. That is why a copy added by hand, or by Scope 5's **Enable chat speed**, keeps
+working untouched until it is removed, and why Scope 6 removes the one it installed (once, when unedited and no reply is being measured).
 
 The plugin uses the supported `session.hook('http.request')` and `session.hook('http.response')` APIs. The bundled OpenCode inspected on 2026-10-07 also routes AI SDK fetches through this hook chain; older OpenCode versions may only support the native provider path. No global fetch override is used. See [OpenCode plugin documentation](https://opencode.ai/v2/docs/build/plugins/#native-http).
 

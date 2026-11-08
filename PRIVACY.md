@@ -10,10 +10,9 @@ The service reads the configuration and credential sources listed in [Configurat
 referenced credential files and environment variables. It never reads OpenChamber's own settings file. Credentials and
 raw API responses stay service-side. The views receive allowlisted measurements, bounded model labels, and connection
 choices. They do not receive prompts, completions, credentials, LLM request identifiers or process IDs. Media views additionally receive bounded backend job IDs and hashed ownership matching identifiers. Absolute model
-paths are reduced to names before display. Monitoring does not rewrite configuration. The optional companion setup
-changes OpenCode configuration only after an explicit Enable or Disable action, preserving other plugins and comments,
-and, once enabled, when an updated Scope brings its own unedited helper up to date (only the managed entry's
-`scopeRevision` changes). The names a provider's OpenCode `models` entries give their IDs (at most 32, 80 characters
+paths are reduced to names before display. Monitoring does not rewrite configuration. The only change Scope makes to OpenCode's own configuration is removing, once,
+the entry that Scope 5's **Enable chat speed** added (preserving other plugins and comments), and only when that copy's files
+are unedited and no reply is being measured. The names a provider's OpenCode `models` entries give their IDs (at most 32, 80 characters
 each) reach the views as display labels; they are never stored.
 
 **Bionic and LM Studio server log.** For LM Studio, the service follows LM Studio's server log with
@@ -32,7 +31,8 @@ history.
 
 ## Optional OpenCode companion
 
-The companion is installed separately in OpenCode. It parses the existing streaming request body in memory to add
+From Scope 6 the extension delivers the companion: OpenChamber lists its folder in the configuration it manages for the OpenCode it runs,
+and removes it when the extension is paused or removed. Nothing is written to your own OpenCode settings. It parses the existing streaming request body in memory to add
 Splash's `return_progress` option and observes the response as OpenCode reads it. It does not submit a prompt or change
 the selected model. Prompt progress remains a separate measurement from chat delivery speed.
 
@@ -50,10 +50,11 @@ For chat delivery estimates, the companion subscribes to qualified OpenCode plug
 visible Scope view requests them. Text and observable reasoning deltas are counted transiently in memory; their
 content is never written, logged, or sent to Scope. Tool payloads, title generation, compaction, and ambiguous usage
 accounting are excluded. Calibration keeps at most ten comparable character/token totals in memory, never content.
-Cloud speed tracking is disabled in 3.1. Cloud views do not request chat observations. Primary transport metadata is
-used to match a watched local session and model; unrelated requests are ignored. The URL, query parameters, headers
+Cloud chats are tracked since 3.2, for their own selected chat only: a cloud reading is delivery observed through OpenCode,
+never engine throughput. Primary transport metadata is used to match a watched session and model; unrelated requests are ignored. The URL, query parameters, headers
 and request body are never persisted by chat delivery monitoring. WebSocket frames and headers are not inspected. The
-existing Splash prompt-progress observer remains restricted to its configured loopback endpoint.
+Splash prompt-progress observer is restricted to the loopback `/v1` endpoint of a provider named Splash (or the one a hand-added helper
+is configured with).
 
 Private `~/.cache/mlx-scope/chat-telemetry/` files contain bounded counters, timing, freshness, protocol versions and
 SHA-256 matching identifiers. Session, provider, model and endpoint matching hashes are deterministic and can correlate
@@ -62,10 +63,11 @@ companion stops event sampling and telemetry writes when demand expires. Live me
 A startup heartbeat proves the plugin was loaded, not that it is currently active. An expired crash file conveys no
 current reading. Only allowlisted measurement fields reach the view; matching hashes do not.
 
-Guided setup installs bundled companion files into `~/.config/opencode/addons/mlx-scope-prompt-progress` and edits
-OpenCode's plugin entry. After a Scope update, the service repeats that update once for a helper it installed, unless
-its files were edited or setup was disabled. It never restarts OpenCode or an active inference session. Disable removes the managed entry
-and unchanged owned files; altered files are preserved. Manual installations stay under your control.
+The companion finds Splash from OpenCode's provider list when a request arrives. It uses only a provider's id, name and base
+URL, and ignores everything else in that list, including any key. Nothing from the list is sent anywhere; of a Splash provider, only
+its id and a hash of its address reach the progress records above. It never restarts
+OpenCode or an active inference session. A copy installed by Scope 5 is removed once by the service when its files are unedited
+and no reply is being measured; an edited or manually installed copy stays under your control.
 
 Chat delivery estimates are transient: they are not added to engine charts, reply baselines or history.
 Existing records retain their original measurement basis. See [Measurements](docs/METRICS.md).
@@ -97,6 +99,15 @@ OpenChamber's data folder and is verified in Stage 12.
 A turn record adds the step count, total output, first-step time to first token, a token-weighted decode speed and time
 spent waiting.
 
+**Splash side records.** For a wait of at least one second, History may keep its type and duration plus the top three app
+names and reported memory footprints from the local `top` sample. The sample is read only during a reported Splash
+memory wait, or when the full details view is open and reported host headroom is exhausted. App names are local data:
+Clear deletes them with the wait, retention stops showing
+expired rows and evicts their chunks when eligible, and no share path exports them. Trial side records keep the observed
+Splash model reference, expert and total-memory caps, context window, whether a boundary was started manually, and
+ten-minute deltas of single- and multi-request decode batches. These readings stay in local History; they do not change
+Splash. User-entered trial baseline notes are device-local preferences.
+
 **Never stored:** chat, session or project IDs; chat titles; project names or folders; prompt or response text; request
 IDs; file paths; credentials. The per-chat tag the service uses to mark turns is not stored either.
 
@@ -117,8 +128,12 @@ most every 5 minutes, at 50 pending replies, or when the view is hidden. Nothing
 - A usage bar shows the space used. History is capped at 1,280 KiB; when it is full, the oldest replies are removed first.
 - The first recording shows "Recording reply history locally · Open Scope to manage".
 
-**Other saved data.** View preferences and the selected provider ID and runtime (never a URL or key). A storage failure
-is reported without claiming the write succeeded and does not stop monitoring.
+**Other saved data.** View preferences, user-entered trial baseline notes, and the selected provider ID and runtime
+(never a URL or key). A storage failure is reported without claiming the write succeeded and does not stop monitoring.
+
+**Live Engine room titles.** OpenChamber session titles can appear beside active lanes in the Engine room while that
+view is open. They are not written to History or preferences and are not included in any share path. No session ID is
+stored with the trial or wait records.
 
 **Data from earlier versions.** Captures saved by Scope 2.0–5.0 and 1.6 saved observations are left untouched, so
 rolling back still shows them. Scope 5.1 no longer reads or creates them; **History → Storage** counts them under
@@ -144,7 +159,7 @@ keeps it. Backups keep their own copies.
 ## Sharing
 
 **Copy stats**, **Add to chat draft** and **Copy baseline summary** are explicit actions. One sanitizer builds every
-shared text: it excludes model names, paths, request identifiers, credentials and conversation content. Draft sharing
+shared text: it excludes model names, app names, session titles and IDs, paths, request identifiers, credentials and conversation content. Draft sharing
 appends text, preserves existing text, and never sends a message. If you later send that draft, its provider receives
 the report under that provider's policies.
 

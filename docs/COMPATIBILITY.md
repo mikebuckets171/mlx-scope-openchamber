@@ -23,13 +23,14 @@ A locally built runtime reports a suffixed version such as `2.1.1-compaction.1`.
 changed, so only reviewed identifiers are accepted: an unreviewed suffix stays unsupported, exactly as a different
 major release does.
 
-**Helper updates install themselves.** When a Scope update ships a new companion, the service brings the helper it
-installed up to date once when it starts, by the same guarded file replacement **Connections → Update chat speed**
-performs: changed files are renamed over their targets so OpenCode reloads them without a restart, and only the managed
-entry's `scopeRevision` changes in OpenCode's configuration. It acts only on a Scope-managed, configured, unedited
-installation and a runtime the new bundle accepts; a disabled, manual, edited or foreign installation, an
-`OPENCODE_CONFIG_CONTENT` configuration or a plugin list overridden by a later file is left for the guided path, and
-**Update chat speed** remains available for those. Connections says **Updated automatically** until OpenCode loads it.
+**Delivery (6.0).** The extension delivers the helper (OpenChamber 2.7's `opencodePlugin`), so there is no install or update step
+and Scope no longer edits OpenCode's settings, apart from one removal. A copy that Scope 5's guided setup added keeps working until Scope 6's service
+retires it once, when its files are unedited and no reply is being measured. Both copies
+share one plugin id and OpenCode loads only the first it finds, global configuration before OpenChamber's, so they never run
+together; removing the older entry lets the extension's copy load in its place without a restart (checked natively on OpenCode
+2.2.6). Until it does, Connections says an older helper is still loaded. An edited copy is left alone and named. An installed
+service is not given OpenChamber's environment and cannot see how OpenCode was started, so an OpenCode that OpenChamber does not
+start loses the older copy too and needs **Add to global config** on the extension's card to get the new one.
 
 A 5.3 service accepts any 3.x companion writer of the same telemetry major version, and a 5.2 service with a 3.6.0
 companion behaves as 5.2 did. When no Scope view has asked for chat telemetry, the companion's demand watcher backs off
@@ -74,7 +75,7 @@ features from activity: not loaded, awaiting demand, listening, or unavailable. 
 activity; it does not prove output or transport semantics. Malformed optional metadata does not discard an otherwise
 valid legacy setup response. Installed fingerprints, loaded companion metadata and current liveness remain distinct.
 
-Scope 4 and 5.0 required companion **3.3.0** for chat delivery and rejected a different companion package version even when the wire schema matched; native engine monitoring remained independent during that gap. Scope 5.1.2's companion **3.5.0** added the OpenCode 2.1 line and 5.3's **3.6.0** accepts every OpenCode 2 release; neither changes a wire field.
+Scope 4 and 5.0 required companion **3.3.0** for chat delivery and rejected a different companion package version even when the wire schema matched; native engine monitoring remained independent during that gap. Scope 5.1.2's companion **3.5.0** added the OpenCode 2.1 line, 5.3's **3.6.0** accepts every OpenCode 2 release, and 6.0's **3.7.0** finds Splash from OpenCode's provider list; none changes a wire field.
 
 The runtime profile and the loaded helper's protocol are checked separately. An older helper reporting `unsupported`
 on a now-qualified runtime can be updated; its telemetry is still rejected until the current helper is loaded.
@@ -189,8 +190,10 @@ Real-model performance qualification remains a separate check.
 
 ## Host
 
-MLX Scope 5.1 requires **OpenChamber 2.4.0 or newer** (`engines.openchamber` `>=2.4.0`) and pins
-[SDK 2.4.0](https://github.com/openchamber/openchamber/blob/v2.4.0/packages/sdk/API.md), retaining manifest API 1. Scope 5.0.0 remains the release for OpenChamber 2.3.3–2.3.x and Scope 4.0.1 for 2.0.4–2.3.2.
+MLX Scope 6.0.0 requires **OpenChamber 2.7.0 or newer** (`engines.openchamber` `>=2.7.0`) and pins
+[SDK 2.7.0](https://github.com/openchamber/openchamber/blob/v2.7.0/packages/sdk/API.md), retaining manifest API 1. 2.7 is where an
+extension can ship an OpenCode plugin (`contributes.opencodePlugin`), which is how the chat-speed helper now arrives. Scope 5.4.0
+remains the release for OpenChamber 2.4 to 2.6, Scope 5.0.0 for OpenChamber 2.3.3–2.3.x and Scope 4.0.1 for 2.0.4–2.3.2.
 It uses the panel, the full page, a Work Status section (`statusSection`, OpenChamber 2.0.1+) whose Watch and Pause
 controls are drawn in the host's section header (`setStatusControls`, SDK 2.4), the session-menu action, badges,
 toasts, host-managed storage and a local service. The `/scope` command and its background entry were removed in 5.1.
@@ -220,8 +223,7 @@ OpenChamber 1.24.x–2.0.3 users install the `legacy/1.6.x` line (security and c
 Chat estimates are qualified on **OpenCode 2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32, 2.1.1-compaction.1 and 2.2.0** and self-checked on every other OpenCode 2 release from 2.0.25, for local and cloud chats alike, retaining the same wire protocol. An
 isolated servers with synthetic streaming providers exercise waiting, generation, completion, calibration and
 hidden shutdown over both transports. Unsupported versions disable estimates while runtime adapters continue to
-operate. Guided setup distinguishes installed/pending from a fresh loaded companion and supports native v2 and legacy
-local provider configuration.
+operate.
 
 **Cloud is supported since 3.2.** OpenCode 2.0.25's built-in `openai` provider defaults to WebSocket transport, so the
 companion observes the qualified `experimental.ws.handshake` hook and matches the declared provider origin as a remote
@@ -237,10 +239,6 @@ shutdown with telemetry writes stopped. The remote HTTP variant is `node bridge/
 /absolute/path/to/opencode --remote`. On 2.0.27 the WebSocket smoke also interrupts a fixture step after observing live
 speed, verifies speed clears and rejects a completed-step average. The earlier 2.0.25 cancellation attempt produced no
 readable delivery state and retains its original unit-only coverage; a new result does not retroactively qualify it.
-
-Managed updates preserve JSONC comments, unrelated options and plugins. The reproducible developer check is
-`node bridge/opencode/protocol-hot-reload-smoke.mjs /absolute/path/to/opencode /absolute/path/to/previous/companion`;
-it uses an isolated server and verifies that a synthetic response completes during an update without duplication or restart.
 
 `node bridge/opencode/protocol-compaction-smoke.mjs /absolute/path/to/opencode` covers the 2.1 compaction contract
 against the same isolated fixture: two measured steps, a manual compaction that publishes no chat measurement, the
