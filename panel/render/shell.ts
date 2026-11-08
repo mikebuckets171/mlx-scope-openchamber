@@ -26,13 +26,14 @@ export const shellMarkup = (): Raw => html`<main class="scope" id="scope" aria-l
     <div class="status-pill" id="status-pill"><span class="connection-dot" aria-hidden="true"></span><span class="phase sr-only" id="phase">Connecting</span><span class="status-sep sr-only" id="status-sep" aria-hidden="true">·</span><span class="conn" id="connection" role="status">Local server</span></div>
     <div class="monitor-controls"><button class="btn quiet connections-trigger" id="connection-change" type="button" aria-expanded="false" aria-controls="connection-setup">Connections</button><button class="icon-btn" id="pause" type="button" aria-pressed="false" aria-label="Pause monitoring">${ICON.pause}</button>${menu}</div>
   </header>
-  <nav class="next-nav" aria-label="Scope views">${actionButton('show-live', 'Live', html` aria-current="page"`)}${actionButton('open-history', 'History')}<button type="button" class="btn quiet" data-action="connection" aria-expanded="false" aria-controls="connection-setup">Connections</button></nav>
+  <nav class="next-nav" aria-label="Scope views">${actionButton('show-live', 'Live', html` aria-current="page"`)}${actionButton('open-engine', 'Engine room')}${actionButton('open-history', 'History')}<button type="button" class="btn quiet" data-action="connection" aria-expanded="false" aria-controls="connection-setup">Connections</button></nav>
   ${raw(connectionsMarkup)}
   <button id="connection-configure" type="button" hidden>Connection…</button><p id="action-status" class="action-status" role="status" hidden></p><div id="frame-card"></div>
   <div id="panels">
     <div class="column" id="panel-live" aria-label="This chat, engine and media" hidden><div class="view" id="view-live"></div><section class="column-block" id="view-media" aria-label="Media" hidden></section>
       <section id="scope-awareness" class="scope-awareness" aria-label="Session activity" hidden></section>
-      <nav class="column-foot" id="column-foot" aria-label="More from Scope">${actionButton('open-history', 'History')}</nav></div>
+      <nav class="column-foot" id="column-foot" aria-label="More from Scope">${actionButton('open-engine', 'Engine room')}${actionButton('open-history', 'History')}</nav></div>
+    <section class="view secondary-view" id="panel-engine" aria-labelledby="engine-title" hidden>${secondaryHeading('engine', 'Engine room', 'Back', 'back-live')}<div class="view" id="view-engine"></div></section>
     <section class="view secondary-view" id="panel-history" aria-labelledby="history-title" hidden>${secondaryHeading('history', 'History', 'Back', 'back-live')}<div class="view" id="view-history"></div></section>
   </div>
   <div id="media-glance"></div>

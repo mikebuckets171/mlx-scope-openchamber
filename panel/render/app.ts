@@ -13,6 +13,7 @@ import { HistoryClient } from '../data/history.ts';
 import type { PrefsV2 } from '../preferences.ts';
 import { FRAME_TITLE, NO_FRESH, NO_FRESH_DETAIL } from '../present/copy.ts';
 import { frameCard, presentHeader } from '../present/header.ts';
+import { presentEngine } from '../present/engine.ts';
 import { presentLive } from '../present/live.ts';
 import type { Callout } from '../present/parts.ts';
 import { chatOnlyView, modelOf, type ScopeInput } from '../present/scope.ts';
@@ -21,6 +22,7 @@ import type { Pipeline } from '../state/pipeline.ts';
 import type { ScopeState } from '../state/scope-state.ts';
 import { html, morph } from './html.ts';
 import { frameCardMarkup, renderHeader } from './shell.ts';
+import { engineMarkup } from './views/engine.ts';
 import { liveMarkup } from './views/live.ts';
 import { historyView } from './views/history.ts';
 import { mountSafely } from './views/registry.ts';
@@ -114,11 +116,12 @@ export class ScopeApp {
     morph(mediaGlance, card || column ? '' : mediaGlanceMarkup(this.#mediaJobs, this.#p.session()?.id ?? null, s.now, false));
     const chatOnly = chatOnlyView(s);
     // Server rows live inside the measurement hub; only a reader who opened the hub pays for the extra reads.
-    const serverVisible = state.tab === 'live' && !compact && !card && !chatOnly && open.has('measurement-details');
+    // 5.5: the Engine room reads the same server detail (and, while the engine is short of room, the apps holding memory).
+    const serverVisible = !compact && !card && !chatOnly && (state.tab === 'live' && open.has('measurement-details') || state.tab === 'engine');
     if (serverVisible && !state.serverDetailsVisible) void this.onRefreshNeeded();
     state.serverDetailsVisible = serverVisible;
     renderHeader(this.#shell, presentHeader(s));
-    const currentAction = this.#connections.isOpen ? 'connection' : state.tab === 'history' ? 'open-history' : 'show-live';
+    const currentAction = this.#connections.isOpen ? 'connection' : state.tab === 'history' ? 'open-history' : state.tab === 'engine' ? 'open-engine' : 'show-live';
     if (currentAction !== this.#navigationAction) {
       this.#navigationAction = currentAction;
       for (const button of Array.from(this.#shell.querySelectorAll<HTMLElement>('.next-nav [data-action]'))) {
@@ -152,6 +155,7 @@ export class ScopeApp {
     if (live.hero) state.kept = live.hero.instrument.kept;
     this.#node('panel-live').hidden = active !== 'live';
     this.#node('panel-history').hidden = active !== 'history';
+    this.#node('panel-engine').hidden = active !== 'engine';
     // These stateless views are rebuilt from the snapshot; remove hidden copies of their shared disclosure ids.
     if (active !== 'live') morph(this.#node('view-live'), '');
     const mediaBlock = this.#node('view-media'), media = this.#mediaJobs, sessionId = this.#p.session()?.id ?? null;
@@ -164,6 +168,7 @@ export class ScopeApp {
       morph(this.#node('view-live'), s.snapshot || s.frame ? html`${liveMarkup(live, open)}${this.#chatSetupHint(s)}` : html`<p class="empty" id="waiting">Waiting for the first reading.</p>`);
     }
     if (active === 'history') this.#view('history', this.#node('view-history'), s.snapshot);
+    morph(this.#node('view-engine'), active === 'engine' ? engineMarkup(presentEngine(s)) : '');
     this.#syncMotion(s);
   }
   #chatSetupHint(s: ScopeInput) {
@@ -255,7 +260,7 @@ export class ScopeApp {
   };
   #act(action: string, trigger?: HTMLElement): void {
     const { pipeline, state, connections } = this.#p;
-    if ((action === 'show-live' || action === 'open-history') && connections.isOpen) this.#node('connection-close').click();
+    if ((action === 'show-live' || action === 'open-history' || action === 'open-engine') && connections.isOpen) this.#node('connection-close').click();
     if (action === 'show-live') { this.#select('live', false); this.render(); return; }
     if (action === 'open-media') {
       this.#select('live', false);
@@ -272,6 +277,7 @@ export class ScopeApp {
     }
     if (action === 'open-history') { this.#historyReturn = 'open-history'; this.#views.get('history')?.handle.inspect?.(false); this.#select('history', true); return; }
     if (action === 'chat-setup') { connections.openSetup(trigger); this.#node('companion-title').focus({ preventScroll: true }); this.#node('companion-title').scrollIntoView({ block: 'nearest' }); return; }
+    if (action === 'open-engine') { this.#select('engine', true); return; }
     if (action === 'back-live') { this.#select('live', true); return; }
     if (action === 'connection') connections.openSetup(trigger);
     else if (action === 'switch') { const detected = state.snapshot?.status.params.detected; if (typeof detected === 'string') connections.switchRuntime(detected as never); }
