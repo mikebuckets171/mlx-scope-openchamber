@@ -4,7 +4,7 @@ import type { TrendV2, TrendWindowMs } from '../../../src/contract/trend.ts';
 import type { UsageRange, UsageV2 } from '../../../src/contract/usage.ts';
 import { HistoryClient, type HistoryResult } from '../../data/history.ts';
 import { buildBaselines, type Baselines } from '../../history/baselines.ts';
-import { KEYS, rowIdentity, type LedgerRow, type ReplyRow } from '../../history/ledger-schema.ts';
+import { KEYS, rowIdentity, type DraftRow, type LedgerRow, type ReplyRow, type SideRow } from '../../history/ledger-schema.ts';
 import { Ledger, RETENTION_DAYS } from '../../history/ledger.ts';
 import { RegressionTracker, type RegressionFlag } from '../../history/regress.ts';
 import { baselineSummary } from '../../history/summary.ts';
@@ -21,7 +21,7 @@ import type { MountView, ViewContext, ViewHandle } from './types.ts';
 
 /** What the view reads and changes. The shell should pass the frame's one Ledger, so unflushed rows show too. */
 export interface HistoryDeps {
-  ledger: Pick<Ledger, 'state' | 'read' | 'models' | 'accounting' | 'setRetention' | 'setPaused' | 'clear'> & { readonly issue?: string | null };
+  ledger: Pick<Ledger, 'state' | 'read' | 'models' | 'accounting' | 'setRetention' | 'setPaused' | 'clear'> & Partial<Pick<Ledger, 'readSide'>> & { readonly issue?: string | null };
   client: Pick<HistoryClient, 'trend' | 'usage'>;
   retentionDays(): number;                   // pref.v2
   paused(): boolean;                         // pref.v2: shown until this frame's ledger runs, which then decides
@@ -119,6 +119,7 @@ const storageSection = (view: NonNullable<HistoryView['storage']>, tips: Tips, p
 class HistoryViewHandle implements ViewHandle {
   #snapshot: SnapshotV2 | null = null;
   #rows: LedgerRow[] = [];
+  #side: SideRow[] = [];
   #models: readonly string[] = [];
   #baselines: Baselines = new Map();
   readonly #regressions = new RegressionTracker();
@@ -235,10 +236,10 @@ class HistoryViewHandle implements ViewHandle {
     this.#busy.read = true; this.#readAt = this.#context.now();
     const reads = this.#reads;
     try {
-      const [rows, models] = await Promise.all([this.#deps.ledger.read(), this.#deps.ledger.models()]);
+      const [rows, side, models] = await Promise.all([this.#deps.ledger.read(), this.#deps.ledger.readSide?.() ?? [], this.#deps.ledger.models()]);
       if (this.#disposed || reads !== this.#reads) return;
       const now = this.#context.now();
-      this.#rows = rows; this.#models = models;
+      this.#rows = rows; this.#side = side; this.#models = models;
       const replies = rows.filter((row): row is ReplyRow => row[0] === 'r');
       this.#baselines = buildBaselines(replies, now);
       this.#regressions.update(replies, this.#baselines, now);
@@ -281,7 +282,7 @@ class HistoryViewHandle implements ViewHandle {
       this.#confirm = false; this.#focus = 'clear'; this.#reads += 1;
       try {
         await this.#deps.ledger.clear();
-        this.#rows = []; this.#baselines = new Map(); this.#regressions.clear(); this.#deps.cleared?.();
+        this.#rows = []; this.#side = []; this.#baselines = new Map(); this.#regressions.clear(); this.#deps.cleared?.();
         this.#status.storage = 'Reply history and baselines cleared.';
       } catch { this.#status.storage = 'Couldn’t clear the history. Nothing was confirmed removed.'; }
       this.#readAt = -Infinity;
@@ -297,7 +298,7 @@ class HistoryViewHandle implements ViewHandle {
       usage: s?.capabilities['server.usage'] ? this.#usage : null, storage: this.#deps.ledger.accounting(), paused: this.#paused, retentionDays: this.#retention,
       alertLog: s?.alertLog ?? [], runtimeName: runtime ? connectionName(runtime, { engine: s!.connection.engine ?? null, host: s!.connection.host ?? null }) : undefined,
       model: s?.runtime.request?.model ?? s?.runtime.residency[0]?.model ?? null, modelNames: s?.connection.modelNames, modelProvider: s?.connection.id, windowMs: this.#windowMs, usageRange: this.#usageRange, trendError: this.#trendError,
-      confirmClear: this.#confirm, listLimit: this.#listLimit, recording: this.#deps.ledger.state === 'backoff' ? 'backoff' : 'recording',
+      confirmClear: this.#confirm, listLimit: this.#listLimit, recording: this.#deps.ledger.state === 'backoff' ? 'backoff' : 'recording', side: this.#side,
       ...this.#deps.text ? { text: this.#deps.text } : {},
     });
   }
@@ -309,6 +310,7 @@ class HistoryViewHandle implements ViewHandle {
       trendFigure(view.trend, page), tip('trend', 'Trend', view.trend.tip), page ? 'insight-section history-trend' : 'insight-section');
     const replies = section('Recent replies', view.header, view.repliesEmpty ? el('p', { class: 'empty' }, view.repliesEmpty) : [
         box('counts', view.counts.map(text => el('span', { class: 'chip' }, text))),
+        ...view.waits.map(wait => el('p', { class: 'coverage-note history-waits', title: wait.detail }, wait.text)),
         el('ol', { class: 'ledger' }, view.entries.map(entryRow)),
         view.more ? box('actions', el('span', { class: 'insight-note', style: 'margin:0' }, view.more),
           view.showMore ? button(view.showMore, 'more', { className: 'btn quiet' }) : null) : null], tip('replies', 'Replies', view.repliesTip),
@@ -371,7 +373,8 @@ class HistoryViewHandle implements ViewHandle {
     const row = this.#rows.find(row => row[0] !== 'g' && rowIdentity(row) === key);
     const refs = row?.[0] === 'r' ? comparableRuns(row, this.#rows) : null;
     const reference = refs?.find(row => row[17] === this.#reference);
-    renderRun(this.#detailRoot, current ? presentCurrentRun(current) : row && row[0] !== 'g' ? presentRecordedRun(row, this.#models, this.#context.now(), this.#snapshot?.connection.modelNames, this.#snapshot?.connection.id)
+    renderRun(this.#detailRoot, current ? presentCurrentRun(current) : row && row[0] !== 'g' ? presentRecordedRun(row, this.#models, this.#context.now(), this.#snapshot?.connection.modelNames, this.#snapshot?.connection.id,
+      row[0] === 'r' ? this.#side.find((side): side is DraftRow => side[0] === 'd' && side[2] === row[17]) ?? null : null)
       : { title: 'Run details', identity: '', facts: [], notes: ['This observation is unavailable. It may have expired or been cleared.'] },
       refs?.map((row, index) => ({ key: row[17], label: `${index + 1}. ${clock(row[1] * 1000, this.#context.now())}${row[11] === null ? '' : ` · ${row[11] / 10} tok/s`}` })) ?? null,
       this.#reference, row?.[0] === 'r' && reference ? compareRuns(row, reference) : [], focus);

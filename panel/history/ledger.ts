@@ -6,9 +6,9 @@ import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { Accounting, entryBytes, isLedgerKey, jsonBytes, type LedgerAccounting } from './accounting.ts';
 import { BASELINE_WINDOW_MS, BASELINE_WRITE_EVERY_MS as BASELINE_WRITE_MS, baselineStore as toBaselineStore, buildBaselines, parseBaselineStore, sameBaselines, type Baselines } from './baselines.ts';
 import {
-  assertHistoryVersion, HistoryVersionError, CHUNK_KEY, CHUNK_MAX_CHARS, CHUNK_TARGET_CHARS, chunkKey, KEYS, LEDGER_SCHEMA, MAX_CURSORS, MAX_MODELS, parseChunk, parseCursors, parseMeta,
+  assertHistoryVersion, HistoryVersionError, CHUNK_KEY, CHUNK_MAX_CHARS, CHUNK_TARGET_CHARS, chunkKey, draftRow, isLedgerRow, KEYS, LEDGER_SCHEMA, MAX_CURSORS, MAX_MODELS, parseChunk, parseCursors, parseMeta,
   parseModels, parsePref, rand4, replyRow, retentionDays, rowIdentity, rowTimeS, toSeconds, verdictAttr,
-  type ChunkV2, type LedgerAttr, type LedgerCursor, type LedgerMeta, type LedgerRow, type ReplyRow, type TurnRow,
+  type ChunkV2, type LedgerAttr, type LedgerCursor, type LedgerMeta, type LedgerRow, type ReplyRow, type SideRow, type StoredRow, type TurnRow, type WaitRow,
 } from './ledger-schema.ts';
 import { PrefStore } from './prefs.ts';
 
@@ -41,13 +41,13 @@ export interface LedgerUsage {
 }
 
 interface ChunkInfo { key: string; oldestS: number; newestS: number; replies: number }
-interface Pending { row: LedgerRow; connection: string | null; cursor: LedgerCursor | null }
-interface OpenChunk { key: string; rows: LedgerRow[]; verified: boolean }
+interface Pending { row: StoredRow; connection: string | null; cursor: LedgerCursor | null }
+interface OpenChunk { key: string; rows: StoredRow[]; verified: boolean }
 type Entries = Array<[string, unknown]>;
 
 const isChunkKey = (key: string): boolean => CHUNK_KEY.test(key);
-const chunkValue = (rows: readonly LedgerRow[], cursors: ReadonlyMap<string, LedgerCursor>): ChunkV2 => ({ v: LEDGER_SCHEMA, c: Object.fromEntries(cursors), r: [...rows] });
-const infoOf = (key: string, rows: readonly LedgerRow[]): ChunkInfo => ({ key, oldestS: Math.min(...rows.map(row => row[1])),
+const chunkValue = (rows: readonly StoredRow[], cursors: ReadonlyMap<string, LedgerCursor>): ChunkV2 => ({ v: LEDGER_SCHEMA, c: Object.fromEntries(cursors), r: [...rows] });
+const infoOf = (key: string, rows: readonly StoredRow[]): ChunkInfo => ({ key, oldestS: Math.min(...rows.map(row => row[1])),
   newestS: Math.max(...rows.map(rowTimeS)), replies: rows.filter(row => row[0] === 'r').length });
 const newer = (a: LedgerCursor, b: LedgerCursor): boolean => a[2] > b[2] || a[2] === b[2] && a[1] > b[1];
 /** Newest `MAX_CURSORS` connections by read time: a namespace never grows with connections that went away. */
@@ -149,6 +149,9 @@ export class Ledger {
       cursor = [instance, Math.max(cursor[1], item.seq), Math.max(cursor[2], finishedS)];
       if (this.#paused || item.finishedAt < this.#clearedAt) continue;
       this.#push(replyRow(item, instance, rt, this.modelRef(item.model), attr), connection, cursor);
+      // 5.5: its draft counts go beside it, under the same cursor, so the two are stored or re-read together.
+      const draft = draftRow(item, instance);
+      if (draft) this.#push(draft, connection, cursor);
     }
     if (gapFrom !== null && nowS > gapFrom) this.#push(['g', gapFrom, nowS], connection, cursor);
     // ≤ 64 items per response: a short page means everything up to the ring's cursor was delivered.
@@ -167,6 +170,16 @@ export class Ledger {
         reply[14] = row[1]; this.#relabeled = true;
       }
     }
+    const index = this.#pending.findIndex(entry => rowIdentity(entry.row) === identity);
+    if (index >= 0) { this.#pending[index]!.row = row; return; }
+    const stored = this.#open?.rows.findIndex(item => rowIdentity(item) === identity) ?? -1;
+    if (stored >= 0) { this.#open!.rows[stored] = row; this.#relabeled = true; return; }
+    this.#push(row, null, null);
+  }
+  /** 5.5: a wait the engine reported (leader only, like turns); a later reading of the same wait replaces the earlier one. */
+  appendWait(row: WaitRow): void {
+    if (this.#stateValue === 'stopped' || this.#paused || row[1] * 1000 < this.#clearedAt) return;
+    const identity = rowIdentity(row);
     const index = this.#pending.findIndex(entry => rowIdentity(entry.row) === identity);
     if (index >= 0) { this.#pending[index]!.row = row; return; }
     const stored = this.#open?.rows.findIndex(item => rowIdentity(item) === identity) ?? -1;
@@ -210,16 +223,21 @@ export class Ledger {
     return this.#flushing;
   }
 
-  /** All rows in [fromS, toS], oldest first; reads chunk by chunk. Rows past retention are left out. */
-  async read(fromS = 0, toS = Infinity): Promise<LedgerRow[]> {
+  /** All reply, turn and gap rows in [fromS, toS], oldest first; reads chunk by chunk. Rows past retention are left out. */
+  async read(fromS = 0, toS = Infinity): Promise<LedgerRow[]> { return (await this.#read(fromS, toS)).filter(isLedgerRow); }
+  /** 5.5: the waits and draft counts stored beside them, on the same terms. */
+  async readSide(fromS = 0, toS = Infinity): Promise<SideRow[]> {
+    return (await this.#read(fromS, toS)).filter((row): row is SideRow => !isLedgerRow(row));
+  }
+  async #read(fromS: number, toS: number): Promise<StoredRow[]> {
     const running = this.#stateValue !== 'stopped', storage = this.#options.storage;
     const retention = running ? this.#retention : parsePref(await storage.get(KEYS.pref)).retentionDays;
     const clearedAt = running ? this.#clearedAt : parseMeta(await storage.get(KEYS.meta))?.clearedAt ?? 0;
     const floorS = Math.max(fromS, toSeconds(this.#options.now()) - retention * dayS, Math.floor(clearedAt / 1000));
     const keys = running ? [...this.#chunks.values()].filter(chunk => chunk.newestS >= floorS && chunk.oldestS <= toS).map(chunk => chunk.key)
       : (await storage.keys()).filter(isChunkKey);
-    const rows = new Map<string, LedgerRow>();
-    const take = (row: LedgerRow): void => { const time = rowTimeS(row); if (time >= floorS && time <= toS) rows.set(rowIdentity(row), row); };
+    const rows = new Map<string, StoredRow>();
+    const take = (row: StoredRow): void => { const time = rowTimeS(row); if (time >= floorS && time <= toS) rows.set(rowIdentity(row), row); };
     for (const key of keys) for (const row of parseChunk(await storage.get(key))?.r ?? []) take(row);
     if (running) { for (const row of this.#open?.rows ?? []) take(row); for (const { row } of this.#pending) take(row); }
     return [...rows.values()].sort((a, b) => rowTimeS(a) - rowTimeS(b) || a[1] - b[1]);
@@ -356,7 +374,7 @@ export class Ledger {
     row[13] = attr;
     this.#relabeled = true;
   }
-  #push(row: LedgerRow, connection: string | null, cursor: LedgerCursor | null): void {
+  #push(row: StoredRow, connection: string | null, cursor: LedgerCursor | null): void {
     this.#pending.push({ row, connection, cursor: cursor && [...cursor] });
     if (row[0] === 'r') this.#mutable.set(row[17], row);
   }
@@ -377,8 +395,8 @@ export class Ledger {
     this.#modelList = []; this.#modelIndex.clear(); this.#modelsDirty = false;
     // Rows recorded after the clear keep their model: re-number them against the fresh dictionary.
     for (const { row } of this.#pending) {
-      if (row[0] === 'g') continue;
-      const index = row[0] === 'r' ? 3 : 4, ref = row[index] as number | null;
+      if (row[0] === 'g' || row[0] === 'd') continue;
+      const index = row[0] === 'r' ? 3 : row[0] === 'w' ? 5 : 4, ref = row[index] as number | null;
       (row as unknown[])[index] = ref === null ? null : this.modelRef(names[ref] ?? null);
       if (row[0] === 'r') this.#mutable.set(row[17], row);
     }

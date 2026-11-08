@@ -9,8 +9,9 @@ import type { FrameSessionState, TurnWindow } from '../attribution/sessions.ts';
 import type { TurnSummary } from '../attribution/turn.ts';
 import { baselineKey, replyMetric, type Baselines } from '../history/baselines.ts';
 import { REGRESSION, RegressionTracker, vsUsual, type RegressionFlag, type VsUsual } from '../history/regress.ts';
-import { cofactorBits, KEYS, parseModels, replyRow, turnRowOf, type LedgerAttr, type ReplyRow } from '../history/ledger-schema.ts';
+import { cofactorBits, KEYS, parseModels, replyRow, turnRowOf, waitRow, type LedgerAttr, type ReplyRow } from '../history/ledger-schema.ts';
 import { Ledger, LedgerRecorder } from '../history/ledger.ts';
+import { WaitWatch } from '../history/waits.ts';
 import { RT } from '../present/copy.ts';
 import { SERVER_WIDE } from '../present/scope.ts';
 import type { ScopeState } from './scope-state.ts';
@@ -44,6 +45,7 @@ export class Pipeline {
   #sent: number | undefined;
   #visible = true;
   #turnKey = '';
+  readonly #waits = new WaitWatch();
   readonly #regressions = new RegressionTracker();
   #replies: Array<{ completion: CompletionV2; instance: string; rt: RuntimeKind }> = [];
   #stored: readonly ReplyRow[] = [];
@@ -100,6 +102,9 @@ export class Pipeline {
     try {
       await this.#recorder.observe(snapshot, this.#o.now(), this.#sent);
       this.#recordTurn(snapshot);
+      // 5.5: an engine wait that just ended becomes one `w` row (leader only, like turns).
+      const wait = this.#waits.observe(snapshot);
+      if (wait) this.ledger.appendWait(waitRow(wait.startedAt, wait.waitMs, wait.kind, wait.rt, this.ledger.modelRef(wait.model)));
       if (this.#recorder.recording) this.ledgerModels = await this.ledger.models();
     } catch { /* Storage trouble never stops monitoring; the ledger backs off on its own. */ }
   }

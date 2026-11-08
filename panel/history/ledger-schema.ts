@@ -41,6 +41,18 @@ export type TurnRow = ['t', startedS: number, endedS: number, rt: RuntimeKind, m
 /** `g`: the ring moved past the persisted cursor (restart or overflow); history between is not observed. */
 export type GapRow = ['g', fromS: number, toS: number];
 export type LedgerRow = ReplyRow | TurnRow | GapRow;
+/** 5.5 `w`: the engine held a request before it started, for memory or for a concurrency slot. Engine-wide, never per chat. */
+export type WaitRow = ['w', startedS: number, waitMs: number, kind: WaitKind, rt: RuntimeKind, modelRef: number | null];
+export type WaitKind = 'memory' | 'concurrency';
+/** 5.5 `d`: a reply's draft tokens and how many the main model kept, linked to its `r` row by the reply's id. */
+export type DraftRow = ['d', finishedS: number, reply: string, drafted: number, accepted: number];
+/**
+ * Rows stored beside the reply ledger in the same chunks, with no schema change: a 5.4 or older reader drops them as
+ * unknown and keeps every other row. Readers of replies, turns and gaps never see them (`Ledger.read`).
+ */
+export type SideRow = WaitRow | DraftRow;
+export type StoredRow = LedgerRow | SideRow;
+export const isLedgerRow = (row: StoredRow): row is LedgerRow => row[0] === 'r' || row[0] === 't' || row[0] === 'g';
 export interface LedgerMeta {
   schema: typeof LEDGER_SCHEMA; migratedAt: number | null; accounting: { bytes: number; keys: number };
   /** Set by Clear: completions that finished before it are never recorded again, whichever frame leads later. */
@@ -99,15 +111,28 @@ export const parseRow = (value: unknown): LedgerRow | null => {
   const fromS = seconds(value[1]), toS = seconds(value[2]);
   return value[0] === 'g' && value.length === 3 && fromS !== null && toS !== null && fromS <= toS ? ['g', fromS, toS] : null;
 };
-/** The time a row sorts and expires by: a reply's finish, a turn's end, a gap's end. */
-export const rowTimeS = (row: LedgerRow): number => row[0] === 'r' ? row[1] : row[2];
-export const rowIdentity = (row: LedgerRow): string => row[0] === 'r' ? row[17] : row[0] === 't' ? `t.${row[3]}.${row[1]}` : `g.${row[1]}.${row[2]}`;
+const waitKind = oneOf(['memory', 'concurrency'] as const);
+const WAIT: Field[] = [[seconds, false], [count, false], [waitKind, false], [runtimeKind, false], [count, true]];
+const DRAFT: Field[] = [[seconds, false], [id, false], [count, false], [count, false]];
+/** A stored side row, validated like the others; a draft must have proposed something and kept no more than that. */
+export const parseSideRow = (value: unknown): SideRow | null => {
+  if (!Array.isArray(value)) return null;
+  if (value[0] === 'w') return tuple(value, WAIT) as WaitRow | null;
+  if (value[0] !== 'd') return null;
+  const row = tuple(value, DRAFT) as DraftRow | null;
+  return row && row[3] > 0 && row[4] <= row[3] ? row : null;
+};
+export const parseStoredRow = (value: unknown): StoredRow | null => parseRow(value) ?? parseSideRow(value);
+/** The time a row sorts and expires by: a reply's finish, a turn's end, a gap's end, a wait's start, a draft's reply. */
+export const rowTimeS = (row: StoredRow): number => row[0] === 'r' || row[0] === 'w' || row[0] === 'd' ? row[1] : row[2];
+export const rowIdentity = (row: StoredRow): string => row[0] === 'r' ? row[17] : row[0] === 't' ? `t.${row[3]}.${row[1]}`
+  : row[0] === 'w' ? `w.${row[3]}.${row[1]}` : row[0] === 'd' ? `d.${row[2]}` : `g.${row[1]}.${row[2]}`;
 
 /** Where the ledger stopped reading one connection's completion ring: `[instance, seq, finishedS]`. */
 export type LedgerCursor = [instance: string, seq: number, atS: number];
 export const MAX_CURSORS = 8;
 /** One chunk value. `c` is the persisted cursor (the ack): the service ring holds everything after it. */
-export interface ChunkV2 { v: typeof LEDGER_SCHEMA; c: Record<string, LedgerCursor>; r: LedgerRow[] }
+export interface ChunkV2 { v: typeof LEDGER_SCHEMA; c: Record<string, LedgerCursor>; r: StoredRow[] }
 const cursor = (value: unknown): LedgerCursor | null => {
   if (!Array.isArray(value) || value.length !== 3 || typeof value[0] !== 'string' || !HEX8.test(value[0])) return null;
   const seq = count(value[1]), atS = seconds(value[2]);
@@ -124,8 +149,8 @@ export const parseCursors = (value: unknown): Map<string, LedgerCursor> => {
 export const parseChunk = (value: unknown): ChunkV2 | null => {
   const item = obj(value);
   if (!item || item.v !== LEDGER_SCHEMA || !Array.isArray(item.r)) return null;
-  const rows: LedgerRow[] = [];
-  for (const raw of item.r) { const row = parseRow(raw); if (row) rows.push(row); }
+  const rows: StoredRow[] = [];
+  for (const raw of item.r) { const row = parseStoredRow(raw); if (row) rows.push(row); }
   return { v: LEDGER_SCHEMA, c: Object.fromEntries(parseCursors(item.c)), r: rows };
 };
 export const parseModels = (value: unknown): string[] =>
@@ -188,6 +213,12 @@ export const replyRow = (completion: CompletionV2, instance: string, rt: Runtime
     prompt ?? null, cached ?? null, output ?? null, whole(completion.ttftMs), x10(completion.prefillTps), x10(completion.decodeTps),
     completion.basis, attr, null, cofactorBits(completion), x10(completion.host.energyJ), `${instance}.${completion.seq}`];
 };
+/** A completion's draft counts as a side row, or null when it reported none. */
+export const draftRow = (completion: CompletionV2, instance: string): DraftRow | null =>
+  completion.draftedTokens && completion.acceptedTokens != null && completion.acceptedTokens <= completion.draftedTokens
+    ? ['d', toSeconds(completion.finishedAt), `${instance}.${completion.seq}`, completion.draftedTokens, completion.acceptedTokens] : null;
+export const waitRow = (startedAt: number, waitMs: number, kind: WaitKind, rt: RuntimeKind, modelRef: number | null): WaitRow =>
+  ['w', toSeconds(startedAt), Math.max(0, Math.round(waitMs)), kind, rt, modelRef];
 export interface TurnInput {
   startedAt: number; endedAt: number; rt: RuntimeKind; modelRef: number | null; steps: number; outputTokens: number;
   firstTtftMs: number | null; decodeTps: number | null; waitMs: number | null; attr: LedgerAttr; cofactors: CofactorBits;
