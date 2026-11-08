@@ -1,7 +1,7 @@
 # contract-mismatch · /v2?state=contract-mismatch
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Needs restart

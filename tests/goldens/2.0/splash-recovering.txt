@@ -1,7 +1,7 @@
 # splash-recovering · /v2?state=splash-recovering
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Recovering
@@ -33,7 +33,7 @@ live #action-status (hidden):
 live [callout-live]: Warning: Splash is recoveringsince 14:03Splash is restarting after a problem. Scope checks again every 30 seconds. Splash saved an error report; Scope does not share it.
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="reconnecting" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Recovering

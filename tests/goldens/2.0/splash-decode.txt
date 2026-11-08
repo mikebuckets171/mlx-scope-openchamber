@@ -1,7 +1,7 @@
 # splash-decode · /v2?state=splash-decode
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -38,7 +38,7 @@ live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
 live #action-status (hidden): 
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -92,7 +92,7 @@ live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
 live #action-status (hidden): 
 
 ## live · 320 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -129,7 +129,7 @@ live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
 live #action-status (hidden): 
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating

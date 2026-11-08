@@ -1,7 +1,7 @@
 # admin-unauthorized · /v2?state=admin-unauthorized
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -34,7 +34,7 @@ live #action-status (hidden):
 live [callout-live]: Notice: oMLX admin login refusedOnly server totals are available. Individual speeds, reply history and usage are unavailable.Connection…
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating

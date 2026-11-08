@@ -1,7 +1,7 @@
 # idle · /v2?state=idle
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Idle
@@ -33,7 +33,7 @@ live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
 live #action-status (hidden): 
 
 ## server · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="idle" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Idle

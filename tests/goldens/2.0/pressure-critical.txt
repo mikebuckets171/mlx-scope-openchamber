@@ -1,7 +1,7 @@
 # pressure-critical · /v2?state=pressure-critical
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -39,7 +39,7 @@ live #action-status (hidden):
 live [callout-live]: Critical: macOS memory pressure: criticalsince 14:03Reported by macOS · replies may slow until memory frees up1 more alertNotice: Swap grew 3.6 GiB in 5 minsince 14:02Within one continuous stretch of readings
 
 ## live · 320 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
