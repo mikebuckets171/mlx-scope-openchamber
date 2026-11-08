@@ -1,7 +1,7 @@
 import type { RuntimeKind } from '../../src/contract/runtime.ts';
 import type { SnapshotV2 } from '../../src/contract/snapshot.ts';
 import { modelOf } from '../present/scope.ts';
-import type { WaitKind } from './ledger-schema.ts';
+import { WAIT_APPS_MAX, type WaitApps, type WaitKind } from './ledger-schema.ts';
 
 // Owner: ledger. 5.5: engine waits for History, seen by the leading frame from each poll's `admission` (contract
 // `server.admission`). Engine-wide, never per chat: a wait while another chat runs is exactly the case to keep.
@@ -11,7 +11,13 @@ export const MIN_WAIT_MS = 1_000;
 /** The oldest wait dropping this far below the one being followed means that request started and a newer one waits. */
 const NEWER_WAITER_MS = 1_500;
 
-export interface EngineWait { kind: WaitKind; startedAt: number; waitMs: number; rt: RuntimeKind; model: string | null }
+export interface EngineWait { kind: WaitKind; startedAt: number; waitMs: number; rt: RuntimeKind; model: string | null; apps: WaitApps }
+
+/** The apps this snapshot reports, biggest first, as a wait keeps them (only while the service read them). */
+const appsOf = (snapshot: SnapshotV2): WaitApps | null => {
+  const items = snapshot.capabilities['host.apps'] ? snapshot.host?.apps?.items : undefined;
+  return items?.length ? items.slice(0, WAIT_APPS_MAX).map(app => [app.name, app.bytes]) : null;
+};
 
 /**
  * One wait from the first reading that showed it until a reading where nothing waits. Its start comes from the engine's
@@ -34,10 +40,12 @@ export class WaitWatch {
     if (open && waited >= open.waitMs - NEWER_WAITER_MS) {
       open.waitMs = Math.max(open.waitMs, waited);
       if (kind === 'memory') open.kind = 'memory';
+      // The latest read during the wait: what held the memory while this request waited for it.
+      open.apps = appsOf(snapshot) ?? open.apps;
       return null;
     }
     // The first sight of a wait, or a newer request now the oldest waiter: the one followed so far has ended.
-    this.#open = { kind, startedAt: at - waited, waitMs: waited, rt, model: modelOf(snapshot), connection };
+    this.#open = { kind, startedAt: at - waited, waitMs: waited, rt, model: modelOf(snapshot), connection, apps: appsOf(snapshot) ?? [] };
     return open ? this.#kept(open) : null;
   }
 
@@ -45,6 +53,7 @@ export class WaitWatch {
 
   #kept(wait: EngineWait & { connection: string }): EngineWait | null {
     const { connection: _connection, ...kept } = wait;
-    return kept.waitMs >= MIN_WAIT_MS ? kept : null;
+    // Apps belong to memory waits only: a concurrency wait is not about memory.
+    return kept.waitMs >= MIN_WAIT_MS ? { ...kept, apps: kept.kind === 'memory' ? kept.apps : [] } : null;
   }
 }

@@ -251,8 +251,14 @@ const presentWaits = (side: readonly SideRow[]): HistoryView['waits'] => (['memo
   const waits = side.filter((row): row is WaitRow => row[0] === 'w' && row[3] === kind).map(row => row[2]).sort((a, b) => a - b);
   if (!waits.length) return [];
   const what = kind === 'memory' ? 'for memory' : 'for another request';
-  return [{ text: `Waited ${what} ${int(waits.length)}× · median ${dur(quantile(waits, 0.5))} · p90 ${dur(quantile(waits, 0.9))} · longest ${dur(waits.at(-1)!)}`,
-    detail: `How long the engine held a request ${what} before it started, while Scope was open: engine-wide, measured from its once-a-second readings to about a second.` }];
+  const line = { text: `Waited ${what} ${int(waits.length)}× · median ${dur(quantile(waits, 0.5))} · p90 ${dur(quantile(waits, 0.9))} · longest ${dur(waits.at(-1)!)}`,
+    detail: `How long the engine held a request ${what} before it started, while Scope was open: engine-wide, measured from its once-a-second readings to about a second.` };
+  // 5.5 Memory thief: which app held the most memory during those waits, as Scope read it then.
+  const biggest = new Map<string, number>();
+  for (const row of side) if (row[0] === 'w' && row[3] === 'memory' && row[6][0]) biggest.set(row[6][0][0], (biggest.get(row[6][0][0]) ?? 0) + 1);
+  const top = [...biggest].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3);
+  return kind === 'memory' && top.length ? [line, { text: `Biggest app during memory waits: ${top.map(([name, n]) => `${name} ${int(n)}×`).join(' · ')}`,
+    detail: 'The app holding the most memory on this Mac while each wait lasted (physical footprint, read during the wait). App names stay on this Mac.' }] : [line];
 });
 export const presentHistory = (input: HistoryInput): HistoryView => {
   const text = input.text ?? HISTORY_TEXT, rt = input.runtimeName ?? 'the server';

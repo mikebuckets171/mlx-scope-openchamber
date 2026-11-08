@@ -552,7 +552,7 @@ test('side rows: a reply\'s draft counts and an engine wait are stored, survive 
   ring.add(time.state.now - 2_000, { draftedTokens: 4_000, acceptedTokens: 2_840 });
   ring.add(time.state.now - 1_000);
   poll(ledger, ring);
-  ledger.appendWait(['w', Math.floor((time.state.now - 30_000) / 1000), 18_400, 'memory', 'lmstudio', ledger.modelRef('fixture-model')]);
+  ledger.appendWait(['w', Math.floor((time.state.now - 30_000) / 1000), 18_400, 'memory', 'lmstudio', ledger.modelRef('fixture-model'), [['Exampleapps', 2_418_016_256]]]);
   await ledger.flush('hidden');
   const stored = chunks(storage).flatMap(([, value]) => parseChunk(value)!.r);
   expect(stored.map(row => row[0]).sort()).toEqual(['d', 'r', 'r', 'w']);
@@ -563,10 +563,11 @@ test('side rows: a reply\'s draft counts and an engine wait are stored, survive 
   // A later flush rewrites the open chunk and keeps them; the same wait read again replaces itself.
   time.state.now += 60_000; ring.add(time.state.now);
   poll(ledger, ring);
-  ledger.appendWait(['w', Math.floor((time.state.now - 90_000) / 1000), 19_000, 'memory', 'lmstudio', 0]);
+  ledger.appendWait(['w', Math.floor((time.state.now - 90_000) / 1000), 19_000, 'memory', 'lmstudio', 0, [['Exampleapps', 2_500_000_000], ['node', 1_160_000_000]]]);
   await ledger.flush('hidden');
   const rewritten = chunks(storage).flatMap(([, value]) => parseChunk(value)!.r);
-  expect(rewritten.filter(row => row[0] === 'w')).toEqual([['w', Math.floor((T0 - 30_000) / 1000), 19_000, 'memory', 'lmstudio', 0]]);
+  expect(rewritten.filter(row => row[0] === 'w')).toEqual([['w', Math.floor((T0 - 30_000) / 1000), 19_000, 'memory', 'lmstudio', 0,
+    [['Exampleapps', 2_500_000_000], ['node', 1_160_000_000]]]]);
   expect(rewritten.filter(row => row[0] === 'd')).toHaveLength(1);
   expect(ids(storage)).toEqual([`${INSTANCE}.1`, `${INSTANCE}.2`, `${INSTANCE}.3`]);
   // A new leader loads them back; Clear removes them with everything else.
@@ -581,14 +582,17 @@ test('side rows: unknown to a reply-only reader, malformed ones dropped, and pau
   const { storage, time, ledger } = setup(), ring = new FakeRing();
   await ledger.start();
   ledger.setPaused(true);
-  ledger.appendWait(['w', Math.floor(T0 / 1000), 5_000, 'concurrency', 'lmstudio', null]);
+  ledger.appendWait(['w', Math.floor(T0 / 1000), 5_000, 'concurrency', 'lmstudio', null, []]);
   ring.add(time.state.now, { draftedTokens: 10, acceptedTokens: 4 });
   poll(ledger, ring);
   expect(ledger.pendingRows).toBe(0);
   ledger.setPaused(false);
   // A chunk an older Scope could have written beside one this Scope wrote: malformed side rows are skipped, never the replies.
-  const chunk = parseChunk({ v: 2, c: {}, r: [['w', 1, 5_000, 'memory', 'lmstudio', null], ['w', 1, 5_000, 'swap', 'lmstudio', null],
+  const chunk = parseChunk({ v: 2, c: {}, r: [['w', 1, 5_000, 'memory', 'lmstudio', null, [['Exampleapps', 2_418_016_256]]], ['w', 1, 5_000, 'swap', 'lmstudio', null, []],
+    ['w', 2, 5_000, 'memory', 'lmstudio', null, [['x', -1]]], ['w', 3, 5_000, 'memory', 'lmstudio', null, [['a', 1], ['b', 1], ['c', 1], ['d', 1]]],
+    ['w', 4, 5_000, 'memory', 'lmstudio', null],
     ['d', 1, `${INSTANCE}.9`, 0, 0], ['d', 1, `${INSTANCE}.9`, 10, 11], ['d', 1, 'not-an-id', 10, 4]] })!;
-  expect(chunk.r).toEqual([['w', 1, 5_000, 'memory', 'lmstudio', null]]);
+  // A bad app list, more than three apps, or none at all (a row shape no released Scope wrote) drops the row.
+  expect(chunk.r).toEqual([['w', 1, 5_000, 'memory', 'lmstudio', null, [['Exampleapps', 2_418_016_256]]]]);
   void storage; void time;
 });

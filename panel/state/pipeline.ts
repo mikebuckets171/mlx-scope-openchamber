@@ -104,7 +104,7 @@ export class Pipeline {
       this.#recordTurn(snapshot);
       // 5.5: an engine wait that just ended becomes one `w` row (leader only, like turns).
       const wait = this.#waits.observe(snapshot);
-      if (wait) this.ledger.appendWait(waitRow(wait.startedAt, wait.waitMs, wait.kind, wait.rt, this.ledger.modelRef(wait.model)));
+      if (wait) this.ledger.appendWait(waitRow(wait.startedAt, wait.waitMs, wait.kind, wait.rt, this.ledger.modelRef(wait.model), wait.apps));
       if (this.#recorder.recording) this.ledgerModels = await this.ledger.models();
     } catch { /* Storage trouble never stops monitoring; the ledger backs off on its own. */ }
   }

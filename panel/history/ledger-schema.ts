@@ -42,7 +42,10 @@ export type TurnRow = ['t', startedS: number, endedS: number, rt: RuntimeKind, m
 export type GapRow = ['g', fromS: number, toS: number];
 export type LedgerRow = ReplyRow | TurnRow | GapRow;
 /** 5.5 `w`: the engine held a request before it started, for memory or for a concurrency slot. Engine-wide, never per chat. */
-export type WaitRow = ['w', startedS: number, waitMs: number, kind: WaitKind, rt: RuntimeKind, modelRef: number | null];
+export type WaitRow = ['w', startedS: number, waitMs: number, kind: WaitKind, rt: RuntimeKind, modelRef: number | null, apps: WaitApps];
+/** 5.5 Memory thief: the apps holding the most memory during a memory wait, biggest first (≤ 3; names stay on this Mac). */
+export type WaitApps = Array<[name: string, bytes: number]>;
+export const WAIT_APPS_MAX = 3;
 export type WaitKind = 'memory' | 'concurrency';
 /** 5.5 `d`: a reply's draft tokens and how many the main model kept, linked to its `r` row by the reply's id. */
 export type DraftRow = ['d', finishedS: number, reply: string, drafted: number, accepted: number];
@@ -112,7 +115,10 @@ export const parseRow = (value: unknown): LedgerRow | null => {
   return value[0] === 'g' && value.length === 3 && fromS !== null && toS !== null && fromS <= toS ? ['g', fromS, toS] : null;
 };
 const waitKind = oneOf(['memory', 'concurrency'] as const);
-const WAIT: Field[] = [[seconds, false], [count, false], [waitKind, false], [runtimeKind, false], [count, true]];
+const APP_NAME = /^[^\u0000-\u001f\u007f]{1,48}$/;
+const waitApps = (value: unknown): WaitApps | null => Array.isArray(value) && value.length <= WAIT_APPS_MAX && value.every(app => Array.isArray(app)
+  && app.length === 2 && typeof app[0] === 'string' && APP_NAME.test(app[0]) && count(app[1]) !== null) ? value as WaitApps : null;
+const WAIT: Field[] = [[seconds, false], [count, false], [waitKind, false], [runtimeKind, false], [count, true], [waitApps, false]];
 const DRAFT: Field[] = [[seconds, false], [id, false], [count, false], [count, false]];
 /** A stored side row, validated like the others; a draft must have proposed something and kept no more than that. */
 export const parseSideRow = (value: unknown): SideRow | null => {
@@ -217,8 +223,8 @@ export const replyRow = (completion: CompletionV2, instance: string, rt: Runtime
 export const draftRow = (completion: CompletionV2, instance: string): DraftRow | null =>
   completion.draftedTokens && completion.acceptedTokens != null && completion.acceptedTokens <= completion.draftedTokens
     ? ['d', toSeconds(completion.finishedAt), `${instance}.${completion.seq}`, completion.draftedTokens, completion.acceptedTokens] : null;
-export const waitRow = (startedAt: number, waitMs: number, kind: WaitKind, rt: RuntimeKind, modelRef: number | null): WaitRow =>
-  ['w', toSeconds(startedAt), Math.max(0, Math.round(waitMs)), kind, rt, modelRef];
+export const waitRow = (startedAt: number, waitMs: number, kind: WaitKind, rt: RuntimeKind, modelRef: number | null, apps: WaitApps = []): WaitRow =>
+  ['w', toSeconds(startedAt), Math.max(0, Math.round(waitMs)), kind, rt, modelRef, apps.slice(0, WAIT_APPS_MAX).map(([name, bytes]) => [name, bytes])];
 export interface TurnInput {
   startedAt: number; endedAt: number; rt: RuntimeKind; modelRef: number | null; steps: number; outputTokens: number;
   firstTtftMs: number | null; decodeTps: number | null; waitMs: number | null; attr: LedgerAttr; cofactors: CofactorBits;

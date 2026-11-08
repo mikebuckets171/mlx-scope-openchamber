@@ -171,6 +171,9 @@ export const presentSessionSection = (input: SessionSectionInput): SessionSectio
   const waitReason = gate && chat?.phase === 'waiting' && !readingPrompt && input.chatActivity === 'busy'
     ? gate.waitingMemory > 0 ? 'Waiting for memory' : gate.waitingConcurrency > 0 ? 'Waiting for another chat' : null : null;
   if (waitReason) phase = `${waitReason}${gate!.waitingMemory + gate!.waitingConcurrency === 1 && gate!.oldestWaitMs !== undefined ? ` · ${elapsedText(gate!.oldestWaitMs)}` : ''}`;
+  // 5.5 Memory thief: a memory wait also names the app holding the most memory on this Mac (read only during such waits).
+  const thief = waitReason === 'Waiting for memory' && snapshot?.capabilities['host.apps'] ? snapshot.host?.apps?.items[0] : undefined;
+  if (thief) phase = `${phase} · ${thief.name} ${size(thief.bytes).replace(' ', ' ')}`;
   // A completed value is intentionally a last result, never promoted back into the live speed.
   const last = input.last, cancelled = !engine && (input.window?.outcome === 'failure' || chat?.phase === 'cancelled');
   const lastMatches = engine || !input.sessionModel || sameModel(input.sessionModel, last?.completion.model ?? null);

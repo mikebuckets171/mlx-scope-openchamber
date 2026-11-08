@@ -185,3 +185,30 @@ test('5.5: Splash memory room and draft acceptance appear among the engine readi
   expect(presentServer(snapshot(), MOCK_NOW).cards.map(card => card.key)).not.toContain('room');
   expect(serverMarkup(presentServer(body, MOCK_NOW), new Set()).markup).toContain('Memory room');
 });
+
+test('5.5 Memory thief: the room says whether another chat could start, and the apps holding the most memory follow it', () => {
+  const body = snapshot(s => {
+    s.runtime.memory.room = { limitBytes: 40_802_189_312, headroomBytes: 3_251_042_736, hostSpareBytes: 3_027_517_440, hostSpareReserveBytes: 3_607_772_525,
+      hostHeadroomBytes: 0, deniedReservations: 152 };
+    s.capabilities['server.memory.room'] = { scope: 'server', basis: 'reported' };
+    s.host!.apps = { sampledAt: MOCK_NOW - 5_000, sinceAt: MOCK_NOW - 600_000, items: [{ name: 'Exampleapps', bytes: 2_418_016_256, grewBytes: 1_073_741_824 },
+      { name: 'opencode', bytes: 1_413_480_448 }] };
+    s.capabilities['host.apps'] = { scope: 'host', basis: 'reported' };
+  });
+  const cards = presentServer(body, MOCK_NOW).cards, room = cards.find(card => card.key === 'room')!, apps = cards.find(card => card.key === 'apps')!;
+  expect(JSON.stringify(room)).toContain('Room for another chat');
+  expect(JSON.stringify(room)).toContain('Closed');
+  expect(JSON.stringify(room)).toContain('0.5 GiB short of the 3.4 GiB it keeps spare');
+  expect(cards.findIndex(card => card.key === 'apps')).toBe(cards.findIndex(card => card.key === 'room') + 1);
+  expect(apps).toMatchObject({ title: 'Holding the most memory' });
+  expect(JSON.stringify(apps)).toContain('Exampleapps');
+  expect(JSON.stringify(apps)).toMatch(/\+1\.0 GiB since /);
+  expect(apps.tip!.paras.join(' ')).toContain('Names stay on this Mac');
+  // Open: the room above the reserve; no apps capability, no apps line.
+  const open = snapshot(s => {
+    s.runtime.memory.room = { hostSpareBytes: 5_000_000_000, hostSpareReserveBytes: 3_607_772_525, hostHeadroomBytes: 1_392_227_475 };
+    s.capabilities['server.memory.room'] = { scope: 'server', basis: 'reported' };
+  });
+  expect(JSON.stringify(presentServer(open, MOCK_NOW).cards.find(card => card.key === 'room'))).toContain('1.3 GiB above the 3.4 GiB it keeps spare');
+  expect(presentServer(open, MOCK_NOW).cards.map(card => card.key)).not.toContain('apps');
+});

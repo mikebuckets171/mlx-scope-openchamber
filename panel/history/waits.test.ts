@@ -17,7 +17,7 @@ test('one wait: dated by the engine\'s own clock, as long as the longest wait se
   expect(watch.observe(at(10, 1, 0, 6_000))).toBeNull();
   expect(watch.observe(at(11, 1, 0, 7_000))).toBeNull();
   expect(watch.observe(at(29, 1, 0, 25_000))).toBeNull();
-  expect(watch.observe(at(30, 0))).toEqual({ kind: 'memory', startedAt: MOCK_NOW + 4_000, waitMs: 25_000, rt: 'splash', model: expect.anything() });
+  expect(watch.observe(at(30, 0))).toEqual({ kind: 'memory', startedAt: MOCK_NOW + 4_000, waitMs: 25_000, rt: 'splash', model: expect.anything(), apps: [] });
   expect(watch.observe(at(31, 0))).toBeNull();
 });
 
@@ -44,4 +44,18 @@ test('back-to-back waiters, concurrency waits, short waits, other connections an
   watch.observe(at(50, 1, 0, 3_000));
   expect(watch.observe(at(51, 0, 0, undefined, body => { body.status = { state: 'recovering', reason: 'recovering', params: {} }; }))).toBeNull();
   expect(watch.observe(at(52, 0))).toMatchObject({ waitMs: 3_000 });
+});
+
+test('5.5 Memory thief: a memory wait keeps the apps read during it, the latest read winning; a concurrency wait keeps none', () => {
+  const apps = (items: Array<[string, number]>) => (body: Record<string, any>) => {
+    body.host.apps = { sampledAt: body.serverNow, items: items.map(([name, bytes]) => ({ name, bytes })) };
+    body.capabilities['host.apps'] = { scope: 'host', basis: 'reported' };
+  };
+  const watch = new WaitWatch();
+  watch.observe(at(0, 1, 0, 2_000, apps([['Exampleapps', 2_000], ['node', 1_000]])));
+  watch.observe(at(1, 1, 0, 3_000));
+  watch.observe(at(2, 1, 0, 4_000, apps([['Sample Editor', 3_000], ['Exampleapps', 2_100], ['node', 1_000], ['Viewer', 900]])));
+  expect(watch.observe(at(3, 0))!.apps).toEqual([['Sample Editor', 3_000], ['Exampleapps', 2_100], ['node', 1_000]]);
+  watch.observe(at(10, 0, 1, 3_000, apps([['Exampleapps', 2_000]])));
+  expect(watch.observe(at(14, 0))).toMatchObject({ kind: 'concurrency', apps: [] });
 });

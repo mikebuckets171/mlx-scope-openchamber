@@ -753,3 +753,20 @@ test('a reply the engine holds before it starts says why, and for how long while
   expect(held(1, 0).measurement).toMatchObject({ kind: 'elapsed', label: 'This chat · elapsed' });
   expect(sessionMarkup(held(1, 0)).markup).toContain('Waiting for memory · 18 s');
 });
+
+test('5.5 Memory thief: a memory wait in the sidebar also names the app holding the most memory', () => {
+  const window = { tag: 't', startedAt: MOCK_NOW - 30_000, endedAt: null, outcome: null } as const;
+  const held = (memory: number, apps: boolean) => presentSessionSection(inputOf('splash-decode', { window, chatActivity: 'busy' }, body => {
+    body.chat = chatSample({ phase: 'waiting', tokensPerSecond: undefined });
+    body.runtime.server.admission = { waitingMemory: memory, waitingConcurrency: memory ? 0 : 1, oldestWaitMs: 18_400 };
+    body.capabilities['server.admission'] = { scope: 'server', basis: 'reported' };
+    if (apps) {
+      body.host.apps = { sampledAt: MOCK_NOW, items: [{ name: 'Exampleapps', bytes: 2_418_016_256 }] };
+      body.capabilities['host.apps'] = { scope: 'host', basis: 'reported' };
+    }
+  }));
+  expect(held(1, true).phase).toBe('Waiting for memory · 18 s · Exampleapps 2.3 GiB');
+  expect(held(1, false).phase).toBe('Waiting for memory · 18 s');
+  // A concurrency wait is not about memory: no app.
+  expect(held(0, true).phase).toBe('Waiting for another chat · 18 s');
+});
