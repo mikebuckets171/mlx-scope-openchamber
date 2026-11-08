@@ -4,13 +4,13 @@ import { readFileSync } from 'node:fs';
 import { PassThrough } from 'node:stream';
 import { Glob } from 'bun';
 import { allowed, createExec, createStreamSpawn, EXEC_PATHS, footprintArgv, ioregArgv, LMS_HOME_PATHS, lmsArgv, lsofDrawThingsArgv, lsofListenArgv,
-  MACMON_PATHS, macmonArgv, notifyutilArgv, sysctlArgv, vmStatArgv, type Argv, type StreamChild } from './argv.ts';
+  MACMON_PATHS, macmonArgv, notifyutilArgv, sysctlArgv, topArgv, vmStatArgv, type Argv, type StreamChild } from './argv.ts';
 
 const HOME = '/Users/someone';
 const INFO = `${HOME}/.lmstudio/.internal/http-server.json`;
 const LMS = `${HOME}/.lmstudio/bin/lms`;
 const every = (): Argv[] => [vmStatArgv(), sysctlArgv(), ioregArgv(), notifyutilArgv(), lsofDrawThingsArgv(), lsofListenArgv(8001)!, lsofListenArgv(1)!,
-  lsofListenArgv(65_535)!, footprintArgv(4242)!, footprintArgv(2)!, ...MACMON_PATHS.map(path => macmonArgv(path)!),
+  lsofListenArgv(65_535)!, footprintArgv(4242)!, footprintArgv(2)!, topArgv(), ...MACMON_PATHS.map(path => macmonArgv(path)!),
   ...LMS_HOME_PATHS.flatMap(relative => (['ps', 'runtime-ls', 'log-stream'] as const).map(command => lmsArgv(`${HOME}/${relative}`, command, 41_343, INFO)!))];
 
 test('the builders produce the G1 argv exactly: absolute paths, fixed flags, validated port and PID', () => {
@@ -29,7 +29,9 @@ test('the builders produce the G1 argv exactly: absolute paths, fixed flags, val
   expect(lmsArgv('lms', 'ps', 41_343, INFO)).toBeNull();
   expect(lmsArgv(LMS, 'ps', 41_343, 'http-server.json')).toBeNull();
   for (const argv of every()) expect(argv.file.startsWith('/')).toBe(true);
-  expect(Object.values(EXEC_PATHS).length + LMS_HOME_PATHS.length + MACMON_PATHS.length).toBe(10);   // the G1 freeze
+  // The G1 freeze's 10 entries plus 5.5's top, which reads one sample of PID, name and memory and nothing else.
+  expect(Object.values(EXEC_PATHS).length + LMS_HOME_PATHS.length + MACMON_PATHS.length).toBe(11);
+  expect(topArgv()).toEqual({ file: '/usr/bin/top', args: ['-l', '1', '-o', 'mem', '-n', '30', '-stats', 'pid,command,mem'], timeoutMs: 3_000, maxBytes: 65_536 });
 });
 
 test('allowed accepts exactly what the builders produce', () => {

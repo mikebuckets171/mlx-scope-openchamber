@@ -5,8 +5,10 @@ import { TREND_WINDOWS_MS, type TrendV2, type TrendWindowMs } from '../../src/co
 import { USAGE_RANGES, type UsageRange, type UsageV2 } from '../../src/contract/usage.ts';
 import type { LedgerAccounting } from '../history/accounting.ts';
 import { baselineFor, type BaselineKey, type Baselines } from '../history/baselines.ts';
-import { rowIdentity, type GapRow, type LedgerAttr, type LedgerRow, type ReplyRow, type SizeBucket, type TurnRow } from '../history/ledger-schema.ts';
+import { DEFAULT_TRIAL_NOTES, rowIdentity, type GapRow, type LedgerAttr, type LedgerRow, type ReplyRow, type SideRow, type SizeBucket,
+  type TrialBaselineNotes, type TurnRow, type WaitRow } from '../history/ledger-schema.ts';
 import type { RegressionFlag } from '../history/regress.ts';
+import { presentTrial, type TrialCard } from './trials.ts';
 import { SIZE_LABELS } from '../history/summary.ts';
 import { trendGaps, trendGeometry, type TrendGeometry } from '../render/trend-chart.ts';
 import { alertCopy, SEVERITY_WORD, withheldWhy } from './copy.ts';
@@ -48,6 +50,11 @@ export interface HistoryInput {
   listLimit?: number;                        // entries shown; "Show more" raises it
   ceiling?: number;                          // the page shares one y-scale between Live and the trend
   text?: HistoryText;
+  side?: readonly SideRow[];                 // 5.5: engine waits and draft counts stored beside the replies
+  trialNotes?: TrialBaselineNotes;
+  trialPaused?: boolean;
+  trialCanStart?: boolean;
+  trialBaselineIndex?: number | null;
 }
 export interface AttrChip { attr: 'inferred' | 'armed' | 'server'; text: string; reason: string | null }
 export type HistoryEntry =
@@ -78,6 +85,8 @@ export interface HistoryView {
   alertLog: Array<{ at: string; text: string; iso: string; severity: Severity; severityWord: string; duration: string }>;
   // ui-history additions
   counts: string[];                          // "41 last observed", "1 gap"
+  /** 5.5: how long the engine held requests before they started, over the stored days ("median 12 s · p90 40 s"). */
+  waits: Array<{ text: string; detail: string }>;
   entries: HistoryEntry[];                   // turns, replies and gaps, newest first
   more: string | null;
   showMore: string | null;
@@ -85,6 +94,7 @@ export interface HistoryView {
   repliesTip: string[];
   trend: TrendCard;
   baseline: BaselineCard;
+  trial: TrialCard;
   alertLogEmpty: string | null;
 }
 
@@ -241,6 +251,22 @@ const presentStorage = (input: HistoryInput, replies: number, oldestS: number | 
   };
 };
 
+/** Nearest-rank quantile of an ascending list. */
+const quantile = (sorted: readonly number[], p: number): number => sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(p * sorted.length) - 1))]!;
+/** 5.5: one line per kind of engine wait: how many, and their median, p90 and longest (the numbers a memory trial is judged by). */
+const presentWaits = (side: readonly SideRow[]): HistoryView['waits'] => (['memory', 'concurrency'] as const).flatMap(kind => {
+  const waits = side.filter((row): row is WaitRow => row[0] === 'w' && row[3] === kind).map(row => row[2]).sort((a, b) => a - b);
+  if (!waits.length) return [];
+  const what = kind === 'memory' ? 'for memory' : 'for another request';
+  const line = { text: `Waited ${what} ${int(waits.length)}× · median ${dur(quantile(waits, 0.5))} · p90 ${dur(quantile(waits, 0.9))} · longest ${dur(waits.at(-1)!)}`,
+    detail: `How long the engine held a request ${what} before it started, while Scope was open: engine-wide, measured from its once-a-second readings to about a second.` };
+  // 5.5 Memory thief: which app held the most memory during those waits, as Scope read it then.
+  const biggest = new Map<string, number>();
+  for (const row of side) if (row[0] === 'w' && row[3] === 'memory' && row[6][0]) biggest.set(row[6][0][0], (biggest.get(row[6][0][0]) ?? 0) + 1);
+  const top = [...biggest].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3);
+  return kind === 'memory' && top.length ? [line, { text: `Biggest app during memory waits: ${top.map(([name, n]) => `${name} ${int(n)}×`).join(' · ')}`,
+    detail: 'The app holding the most memory on this Mac while each wait lasted (physical footprint, read during the wait). App names stay on this Mac.' }] : [line];
+});
 export const presentHistory = (input: HistoryInput): HistoryView => {
   const text = input.text ?? HISTORY_TEXT, rt = input.runtimeName ?? 'the server';
   const replies = input.rows.filter((row): row is ReplyRow => row[0] === 'r');
@@ -256,6 +282,7 @@ export const presentHistory = (input: HistoryInput): HistoryView => {
   return {
     header: HISTORY_HEADER, basisCounts,
     counts: [...basisCounts.map(entry => `${int(entry.n)} ${entry.basis}`), ...gaps ? [plural(gaps, 'gap')] : []],
+    waits: presentWaits(input.side ?? []),
     entries,
     more: sorted.length > limit ? `Showing the newest ${int(limit)} of ${int(sorted.length)} entries` : null,
     showMore: sorted.length > limit ? `Show ${int(Math.min(HISTORY_LIST_STEP, sorted.length - limit))} more` : null,
@@ -265,6 +292,9 @@ export const presentHistory = (input: HistoryInput): HistoryView => {
       ...replies.some(row => row[12] === 'last-observed') ? ['When the server doesn’t report finished replies, rows use Scope’s last reading from the request.'] : []],
     trend: presentTrend(input, rt),
     baseline: presentBaseline(input, replies),
+    trial: presentTrial({ now: input.now, rows: replies, side: input.side ?? [], models: input.models, notes: input.trialNotes ?? DEFAULT_TRIAL_NOTES,
+      paused: input.trialPaused ?? input.paused, canStart: input.trialCanStart ?? false, baselineIndex: input.trialBaselineIndex,
+      modelNames: input.modelNames, modelProvider: input.modelProvider }),
     usage: presentUsage(input.usage, input),
     storage: presentStorage(input, replies.length, oldest),
     alertLog: input.alertLog.map(entry => ({ at: clock(entry.since, input.now), iso: iso(entry.since), text: text.alert(entry.id, typeof entry.params.model === 'string' ? { ...entry.params, model: modelDisplayName(entry.params.model, input.modelNames, input.modelProvider) } : entry.params), severity: entry.severity,

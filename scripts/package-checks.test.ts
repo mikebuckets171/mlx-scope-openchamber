@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseManifestJson } from '@openchamber/sdk/schemas';
 import {
-  BUNDLE_CEILINGS, cspOf, EXEC_G1, execMatch, guestLeaks, manifestProblems, PANEL_CSP, rootBlock, serviceLeaks, spawnPaths, tokenDeclarations,
+  BUNDLE_CEILINGS, cspOf, EXEC_G1, execMatch, guestLeaks, helperProblems, manifestProblems, PANEL_CSP, rootBlock, serviceLeaks, spawnPaths, tokenDeclarations,
 } from './package-checks.ts';
 
 const root = join(import.meta.dir, '..');
@@ -11,29 +11,31 @@ const read = (file: string): string => readFileSync(join(root, file), 'utf8');
 const pkg = JSON.parse(read('package.json'));
 
 describe('the Next manifest with the approved awareness grants', () => {
-  test('parses with SDK 2.5.0 and matches the frozen set exactly', () => {
+  test('parses with SDK 2.7.0 and matches the frozen set exactly', () => {
     const parsed = parseManifestJson(read('package.json'));
     expect(parsed.ok).toBe(true);
     expect(manifestProblems(pkg)).toEqual([]);
-    expect(pkg.dependencies['@openchamber/sdk']).toBe('2.5.0');
+    expect(pkg.dependencies['@openchamber/sdk']).toBe('2.7.0');
   });
   test('any drift is named: a capability, a missing exec entry, a different floor, a command or a second SDK', () => {
     const changed = structuredClone(pkg);
     changed.openchamber.contributes.capabilities = ['sessions', 'shells'];
     changed.openchamber.contributes.service.permissions.exec = EXEC_G1.slice(1);
     changed.openchamber.engines.openchamber = '>=2.3.3';
+    delete changed.openchamber.contributes.opencodePlugin;
     changed.openchamber.contributes.commands = [{ name: 'scope' }];
     changed.openchamber.contributes.background = { entry: 'background/index.html' };
     changed.dependencies['@openchamber/sdk-background'] = 'npm:@openchamber/sdk@2.0.4';
     delete changed.openchamber.contributes.statusSection;
     expect(manifestProblems(changed)).toEqual([
-      'engines.openchamber must be ">=2.4.0"',
+      'engines.openchamber must be ">=2.7.0"',
       'contributes.capabilities must be exactly sessions',
       'only one OpenChamber SDK may be a dependency',
       'contributes.statusSection must be {"entry":"panel/index.html","title":"MLX Scope","height":72}',
       'contributes.background must be absent: 5.1 has no background entry',
       'contributes.commands must be absent: 5.1 has no slash command',
-      'service exec must be exactly the 10 G1 entries, in order',
+      'contributes.opencodePlugin must be "bridge/opencode": the chat-speed helper is delivered with the extension',
+      'service exec must be exactly the 11 G1 entries, in order',
     ]);
   });
   test('ships no background entry, and ships the extracted tokens', () => {
@@ -41,6 +43,24 @@ describe('the Next manifest with the approved awareness grants', () => {
     expect(pkg.files).toContain('ui/tokens.css');
     expect(pkg.scripts.build).not.toContain('background');
     expect(pkg.scripts.test).not.toContain('background');
+  });
+});
+
+describe('the chat-speed helper OpenChamber adds to OpenCode', () => {
+  const shipped = pkg.files as string[];
+  const sources = Object.fromEntries(shipped.filter(file => file.startsWith('bridge/opencode/') && /\.(js|json)$/.test(file)).map(file => [file, read(file)]));
+  test('every file it imports ships with it, and it imports nothing it could not find in its own folder', () => {
+    expect(helperProblems(shipped, sources)).toEqual([]);
+    expect(Object.keys(sources)).toContain('bridge/opencode/providers.js');
+  });
+  test('a module that is not shipped, a package import and an import from outside the folder are each named', () => {
+    const files = { ...sources, 'bridge/opencode/index.js': `${sources['bridge/opencode/index.js']}\nimport './extra.js';\nimport 'left-pad';\nconst x = await import('../service/x.js');` };
+    const named = helperProblems(shipped, files);
+    expect(named).toContain('bridge/opencode/index.js imports ./extra.js, which the package does not ship');
+    expect(named).toContain('bridge/opencode/index.js imports left-pad: the helper may import only its own files and node: modules');
+    expect(named).toContain('bridge/opencode/index.js imports ../service/x.js: the helper may import only its own files and node: modules');
+    expect(helperProblems(shipped.filter(file => file !== 'bridge/opencode/providers.js'), sources)).toEqual(['bridge/opencode/index.js imports ./providers.js, which the package does not ship']);
+    expect(helperProblems(shipped, { ...sources, 'bridge/opencode/package.json': '{"name":"other"}' })[0]).toContain('must name mlx-scope-prompt-progress');
   });
 });
 
@@ -67,8 +87,8 @@ describe('two-way exec match', () => {
 });
 
 describe('bundles and pages', () => {
-  test('the guest and service ceilings stay fixed', () => {
-    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 270_000, 'service/main.js': 268_000 });
+  test('the guest and service ceilings retain measured headroom', () => {
+    expect(BUNDLE_CEILINGS).toEqual({ 'panel/main.js': 295_000, 'service/main.js': 268_000 });
   });
   test('the panel page declares exactly the approved CSP', () => {
     expect(cspOf(read('panel/index.html'))).toBe(PANEL_CSP);

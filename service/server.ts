@@ -28,7 +28,7 @@ export type Sources = {
   /** Resolve selected-chat locality from configuration only, before any runtime/host collection. */
   chatDestination?: (query: SnapshotQuery) => Promise<'local' | 'remote'>;
   chat?: (query: SnapshotQuery, reading: RuntimeReading) => Promise<ChatMeasurement | null>;
-  companionSetup?: { status(): Promise<CompanionSetupStatus>; enable(): Promise<CompanionSetupStatus>; disable(): Promise<CompanionSetupStatus> };
+  companionSetup?: { status(): Promise<CompanionSetupStatus> };
   media?: { readonly enabled?: boolean; snapshot(): Promise<MediaSnapshotV1>; cancel(sourceId: string, jobId: string): Promise<MediaCancelResultV1>; runningNow?(): boolean | null };
   mediaSetup?: { status(): Promise<MediaSetupStatus>; action(input: unknown): Promise<MediaSetupStatus> };
   read: (selection?: ReadSelection, request?: ReadRequest) => Promise<RuntimeReading>;
@@ -118,11 +118,18 @@ export const chatOnlyReading = (provider: string, at: number): RuntimeReading =>
  * measurement details open (the one demand signal macmon needs), and the oMLX loopback port only while oMLX itself
  * answered on it, so lsof and footprint never read whatever else holds that port.
  */
-export const hostContextOf = (tier: HostContext['tier'], { status, runtime, meta }: RuntimeReading, detail = false, frame?: string): HostContext => ({
-  tier, active: busy(runtime), generating: busy(runtime) && runtime.phase !== 'queued' && (status.state === 'ready' || status.state === 'degraded'),
-  detail, ...(frame ? { frame } : {}), generation: meta.connection.generation,
-  omlxPort: meta.connection.runtime === 'omlx' && (status.state === 'ready' || status.state === 'degraded') ? meta.port ?? null : null,
-});
+export const hostContextOf = (tier: HostContext['tier'], { status, runtime, meta }: RuntimeReading, detail = false, frame?: string): HostContext => {
+  const answering = status.state === 'ready' || status.state === 'degraded';
+  // 5.5 Memory thief: apps are read while a request waits for memory, or while the runtime has no room to grow and this
+  // frame has its details open; never just because the room is short with nobody looking.
+  const waiting = (runtime.server.admission?.waitingMemory ?? 0) > 0, short = runtime.memory.room?.hostHeadroomBytes === 0;
+  return {
+    tier, active: busy(runtime), generating: busy(runtime) && runtime.phase !== 'queued' && answering,
+    detail, ...(frame ? { frame } : {}), generation: meta.connection.generation,
+    omlxPort: meta.connection.runtime === 'omlx' && answering ? meta.port ?? null : null,
+    ...answering && (waiting || short && tier === 'full' && detail) ? { apps: true } : {},
+  };
+};
 
 /** Exact authenticated route allowlist. Writes require an explicit setup or scoped cancellation POST. */
 export const createScopeServer = (token: string, sources: Sources, options: ServerOptions = {}): http.Server => {
@@ -191,16 +198,9 @@ export const createScopeServer = (token: string, sources: Sources, options: Serv
         json(response, 200, await sources.media.cancel(sourceId, jobId)); return;
       }
       if (url.pathname === '/v2/companion/setup' && sources.companionSetup) {
-        if (request.method === 'GET') { json(response, 200, await sources.companionSetup.status()); return; }
-        if (request.method !== 'POST') { json(response, 405, { error: 'method_not_allowed' }); return; }
-        if (request.headers['content-type']?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') { json(response, 415, { error: 'unsupported_media_type' }); return; }
-        let body = '', oversized = false;
-        for await (const chunk of request) { if (body.length + chunk.length > 1_024) { oversized = true; break; } body += chunk; }
-        if (oversized) { json(response, 413, { error: 'body_too_large' }); return; }
-        let input: unknown; try { input = JSON.parse(body); } catch { json(response, 400, { error: 'bad_request' }); return; }
-        const action = input && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).length === 1 ? (input as { action?: unknown }).action : null;
-        if (action !== 'enable' && action !== 'disable') { json(response, 400, { error: 'bad_request' }); return; }
-        json(response, 200, await sources.companionSetup[action]()); return;
+        // Read-only since 6.0: the chat-speed helper arrives with the extension, so there is nothing to switch here.
+        if (request.method !== 'GET') { json(response, 405, { error: 'method_not_allowed' }); return; }
+        json(response, 200, await sources.companionSetup.status()); return;
       }
       if (request.method !== 'GET') { json(response, 405, { error: 'method_not_allowed' }); return; }
       if (url.pathname === ROUTES.health) { json(response, 200, healthBody(service.version)); return; }

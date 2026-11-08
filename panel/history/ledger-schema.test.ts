@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import type { CompletionV2 } from '../../src/contract/completion.ts';
 import {
-  chunkKey, chunkStartS, cofactorBits, COFACTOR, DEFAULT_PREF, ledgerAttr, parseChunk, parseMeta, parsePref, parseRow, replyRow,
-  sizeBucket, turnRowOf, verdictAttr, type ReplyRow, type TurnRow,
+  batchRow, chunkKey, chunkStartS, cofactorBits, COFACTOR, DEFAULT_PREF, ledgerAttr, parseChunk, parseMeta, parsePref, parseRow, parseSideRow, replyRow,
+  sizeBucket, turnRowOf, trialChangeRow, verdictAttr, type ReplyRow, type TrialChangeRow, type TurnRow,
 } from './ledger-schema.ts';
 
 const AT = 1_790_690_700_000;
@@ -71,6 +71,20 @@ test('turn rows keep only host co-factors and whole seconds', () => {
     decodeTps: 38.14, waitMs: 37_000, attr: 'inferred', cofactors: 31 })).toEqual(['t', 1_790_690_700, 1_790_690_812, 'lmstudio', 2, 3, 3_104, 520, 381, 37_000, 'inferred', 7]);
 });
 
+test('5.5 trial changes and decode batches are validated side rows without changing the reply schema', () => {
+  const change: TrialChangeRow = trialChangeRow(AT, 22_500_000_000, 38_000_000_000, 393_216, 2, false);
+  const batches = batchRow(AT, 120, 2);
+  expect(parseSideRow(change)).toEqual(change);
+  expect(parseSideRow(batches)).toEqual(batches);
+  expect(parseRow(change)).toBeNull();
+  expect(parseSideRow(['c', 1, null, null, null, null, true])).toEqual(['c', 1, null, null, null, null, true]);
+  expect(parseSideRow(['c', 1, -1, null, null, null, false])).toBeNull();
+  expect(parseSideRow(['c', 1, null, null, null, null, 'manual'])).toBeNull();
+  expect(parseSideRow(['k', 1, 4, -1])).toBeNull();
+  expect(parseSideRow(['k', 1, 4, 3, 2])).toBeNull();
+  expect(parseChunk({ v: 2, c: {}, r: [change, batches] })?.r).toEqual([change, batches]);
+});
+
 test('chunk keys: base-36 start second and four random hex digits', () => {
   const key = chunkKey(1_790_690_700.9, 'a1b2');
   expect(key).toBe(`ledger.v2.c.${(1_790_690_700).toString(36)}.a1b2`);
@@ -89,4 +103,8 @@ test('chunks, meta and pref parse defensively', () => {
   expect(parsePref(undefined)).toEqual(DEFAULT_PREF);
   expect(parsePref({ history: false, retentionDays: 365, toasts: 'loud', autoLabel: 'no', tipDismissed: true })).toEqual({ ...DEFAULT_PREF, history: false, retentionDays: 90, tipDismissed: true });
   expect(parsePref({ retentionDays: 0 }).retentionDays).toBe(1);
+  expect(parsePref({ trialNotes: { waitMedianMs: 20_000, waitP90Ms: null, multiChatFraction: 0.02, soloDecodeTps: 45 } }).trialNotes)
+    .toEqual({ waitMedianMs: 20_000, waitP90Ms: null, multiChatFraction: 0.02, soloDecodeTps: 45 });
+  expect(parsePref({ trialNotes: { multiChatFraction: 1.2, soloDecodeTps: -1 } }).trialNotes)
+    .toEqual({ ...DEFAULT_PREF.trialNotes, multiChatFraction: DEFAULT_PREF.trialNotes.multiChatFraction, soloDecodeTps: DEFAULT_PREF.trialNotes.soloDecodeTps });
 });

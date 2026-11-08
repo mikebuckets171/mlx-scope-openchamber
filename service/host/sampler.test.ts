@@ -17,6 +17,7 @@ const OUTPUT: Record<string, string> = {
   [EXEC_PATHS.vmStat]: fixture('vm_stat.normal.txt'), [EXEC_PATHS.sysctl]: fixture('sysctl.pressure-2.txt'),
   [EXEC_PATHS.ioreg]: fixture('ioreg.busy.txt'), [EXEC_PATHS.notifyutil]: fixture('notifyutil.level-2.txt'),
   [EXEC_PATHS.lsof]: fixture('lsof.listening.txt'), [EXEC_PATHS.footprint]: fixture('footprint.no-categories-bytes.txt'),
+  [EXEC_PATHS.top]: fixture('top.mem.txt'),
 };
 /** A quarter of every core busy between any two reads. */
 const cores = (read: number) => Array.from({ length: 4 }, () => ({ model: 'Apple M-series · fixture', speed: 0,
@@ -50,7 +51,7 @@ const byFile = (calls: Array<{ argv: Argv }>) => calls.reduce<Record<string, num
 
 test('the cadence table and budgets are the §4.4 / contract §8 numbers', () => {
   expect(PROBE_CADENCE).toEqual({ memory: [10_000, 10_000, 10_000], gpu: [15_000, 5_000, null], thermal: [60_000, 60_000, 60_000],
-    listener: [120_000, 120_000, null], footprint: [30_000, 10_000, null] });
+    listener: [120_000, 120_000, null], footprint: [30_000, 10_000, null], apps: [60_000, 60_000, 60_000] });
   expect(SPAWN_BUDGET_PER_MIN).toEqual({ idle: 24, active: 36, glance: 18 });
   expect(probeCadence('gpu', { tier: 'full', active: true })).toBe(5_000);
   expect(probeCadence('gpu', { tier: 'glance', active: true })).toBeNull();
@@ -91,7 +92,7 @@ test('capabilities are exactly the parts present, macmon power is the only estim
   // Every host field in the honesty map, and no more: a full host needs exactly the ten host keys.
   const full = parseHostV2(fullSnapshot().host)!;
   expect(hostCapabilities(full).map(({ key }) => key).sort()).toEqual(requiredCapabilities({ host: full }).sort());
-  expect(hostCapabilities(full)).toHaveLength(10);
+  expect(hostCapabilities(full)).toHaveLength(11);
   expect(hostCapabilities(null)).toEqual([]);
   expect(hostCapabilities({ sampledAt: EPOCH })).toEqual([]);
 });
@@ -310,4 +311,31 @@ test('macmon streams only while a full-tier view with the detail open is generat
   expect(children[1]!.signals).toEqual(['SIGTERM']);
   sampler.dispose();
   expect(await sampler.sample(context())).toMatchObject({ platform: 'macOS' });
+});
+
+test('5.5 Memory thief: apps only while asked, once a minute, growth from the first read, and no PID on the wire', async () => {
+  const r = rig();
+  // Not asked: no top, no apps part.
+  expect((await r.sampler.sample(context()))!.apps).toBeUndefined();
+  expect(r.calls.some(call => call.argv.file === EXEC_PATHS.top)).toBe(false);
+  // Asked: the first read is also the comparison, so nothing has grown yet.
+  const first = (await r.sampler.sample(context({ apps: true })))!.apps!;
+  expect(first.items.slice(0, 2)).toEqual([{ name: 'Exampleapps', bytes: 2306 * 2 ** 20 }, { name: 'opencode', bytes: 1348 * 2 ** 20 }]);
+  expect(first).not.toHaveProperty('sinceAt');
+  // Within the minute the reading is reused; after it, Exampleapps grew by 1 GiB and that growth is dated from the first read.
+  r.output[EXEC_PATHS.top] = r.output[EXEC_PATHS.top]!.replace('4242   Exampleapps Help 1379M', '4242   Exampleapps Help 2403M');
+  r.clock.t += 30_000;
+  await r.sampler.sample(context({ apps: true }));
+  expect(r.calls.filter(call => call.argv.file === EXEC_PATHS.top)).toHaveLength(1);
+  r.clock.t += 30_000;
+  const later = (await r.sampler.sample(context({ apps: true })))!.apps!;
+  expect(later.sinceAt).toBe(EPOCH);
+  expect(later.items[0]).toEqual({ name: 'Exampleapps', bytes: 3330 * 2 ** 20, grewBytes: 1024 * 2 ** 20 });
+  expect(later.items.find(app => app.name === 'node')).not.toHaveProperty('grewBytes');
+  expect(JSON.stringify(later)).not.toMatch(/4242|4243|splash/);
+  expect(parseHostV2(JSON.parse(JSON.stringify(later.items ? { sampledAt: EPOCH, apps: later } : {})))!.apps).toEqual(later);
+  // Nobody asks any more: the part and the comparison go; the next shortage starts its own.
+  expect((await r.sampler.sample(context()))!.apps).toBeUndefined();
+  r.clock.t += 60_000;
+  expect((await r.sampler.sample(context({ apps: true })))!.apps).not.toHaveProperty('sinceAt');
 });

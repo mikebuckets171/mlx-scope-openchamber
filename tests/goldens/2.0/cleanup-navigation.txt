@@ -1,7 +1,7 @@
 # Two primary destinations · 430 px
 
 ## live · 430 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -37,7 +37,7 @@ live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
 live #action-status (hidden): 
 
 ## history · 430 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -48,7 +48,9 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panels
 #panel-history {aria-labelledby="history-title"}: Back
 #history-title: History
-#view-history: 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 13:58 862 out · 47.3K in (39.9K cached) Details 13:57 1,318 out · 45.1K in (38.7K cached) Details 13:51 2,210 out · 38.2K in (30.1K cached) Details Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac
+#view-history: Waiting for a ready Splash model and its memory plan. Open a ready Splash model to start a trial manually. Start a trial here Baseline notes · stored on this Mac 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 13:58 862 out · 47.3K in (39.9K cached) Details 13:57 1,318 out · 45.1K in (38.7K cached) Details 13:51 2,210 out · 38.2K in (30.1K cached) Details Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac
+h2: Trial verdict
+span.chip.trial-verdict {data-verdict="watching"}: Watching for a change
 h2: Trend
 div.plot[role=img] {aria-label="Generation speed over the last 60 min: 6 turns, 21.5 to 27.6 tokens per second; not observed from 13:24 to 13:46."}: Not observed · Scope wasn’t open
 h2: Recent replies
@@ -76,7 +78,7 @@ live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
 live #action-status (hidden): 
 
 ## history storage · 430 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -87,7 +89,9 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panels
 #panel-history {aria-labelledby="history-title"}: Back
 #history-title: History
-#view-history: 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 13:58 862 out · 47.3K in (39.9K cached) Details 13:57 1,318 out · 45.1K in (38.7K cached) Details 13:51 2,210 out · 38.2K in (30.1K cached) Details Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac Stored on this Mac 5 KiB of 1.25 MiB · 42 replies · 14 days Keep Pause recording Clear… Label replies to this chat automatically
+#view-history: Waiting for a ready Splash model and its memory plan. Open a ready Splash model to start a trial manually. Start a trial here Baseline notes · stored on this Mac 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 13:58 862 out · 47.3K in (39.9K cached) Details 13:57 1,318 out · 45.1K in (38.7K cached) Details 13:51 2,210 out · 38.2K in (30.1K cached) Details Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac Stored on this Mac 5 KiB of 1.25 MiB · 42 replies · 14 days Keep Pause recording Clear… Label replies to this chat automatically
+h2: Trial verdict
+span.chip.trial-verdict {data-verdict="watching"}: Watching for a change
 h2: Trend
 div.plot[role=img] {aria-label="Generation speed over the last 60 min: 6 turns, 21.5 to 27.6 tokens per second; not observed from 13:24 to 13:46."}: Not observed · Scope wasn’t open
 h2: Recent replies
@@ -116,7 +120,7 @@ live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
 live #action-status (hidden): 
 
 ## live · 430 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -152,7 +156,7 @@ live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
 live #action-status (hidden): 
 
 ## history · 430 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -163,7 +167,9 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panels
 #panel-history {aria-labelledby="history-title"}: Back
 #history-title: History
-#view-history: 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 13:58 862 out · 47.3K in (39.9K cached) Details 13:57 1,318 out · 45.1K in (38.7K cached) Details 13:51 2,210 out · 38.2K in (30.1K cached) Details Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac
+#view-history: Waiting for a ready Splash model and its memory plan. Open a ready Splash model to start a trial manually. Start a trial here Baseline notes · stored on this Mac 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 13:58 862 out · 47.3K in (39.9K cached) Details 13:57 1,318 out · 45.1K in (38.7K cached) Details 13:51 2,210 out · 38.2K in (30.1K cached) Details Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac
+h2: Trial verdict
+span.chip.trial-verdict {data-verdict="watching"}: Watching for a change
 h2: Trend
 div.plot[role=img] {aria-label="Generation speed over the last 60 min: 6 turns, 21.5 to 27.6 tokens per second; not observed from 13:24 to 13:46."}: Not observed · Scope wasn’t open
 h2: Recent replies
@@ -191,7 +197,7 @@ live #connection-result (hidden): Check MLX Scope’s connection to OpenChamber.
 live #action-status (hidden): 
 
 ## history storage · 430 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="decode" data-stale="false" data-surface="page"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Generating
@@ -202,7 +208,9 @@ main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="fa
 #panels
 #panel-history {aria-labelledby="history-title"}: Back
 #history-title: History
-#view-history: 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 13:58 862 out · 47.3K in (39.9K cached) Details 13:57 1,318 out · 45.1K in (38.7K cached) Details 13:51 2,210 out · 38.2K in (30.1K cached) Details Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac Stored on this Mac 5 KiB of 1.25 MiB · 42 replies · 14 days Keep Pause recording Clear… Label replies to this chat automatically
+#view-history: Waiting for a ready Splash model and its memory plan. Open a ready Splash model to start a trial manually. Start a trial here Baseline notes · stored on this Mac 15 min 30 min 60 min Generation speed · from oMLX 30 tok/s −60 min Reply times from OpenChamber · all server activity now last reading · shaded min–max this chat’s turns not observed Recorded while Scope was open 14:04 Turn · 3 steps 3,284 out Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 14:04 1,104 out · 49.8K in (41.2K cached) Details 13:58 862 out · 47.3K in (39.9K cached) Details 13:57 1,318 out · 45.1K in (38.7K cached) Details 13:51 2,210 out · 38.2K in (30.1K cached) Details Showing the newest 6 of 44 entries Show 24 more Insights Baselines & usage Alert log 4 recorded History storage Stored on this Mac Stored on this Mac 5 KiB of 1.25 MiB · 42 replies · 14 days Keep Pause recording Clear… Label replies to this chat automatically
+h2: Trial verdict
+span.chip.trial-verdict {data-verdict="watching"}: Watching for a change
 h2: Trend
 div.plot[role=img] {aria-label="Generation speed over the last 60 min: 6 turns, 21.5 to 27.6 tokens per second; not observed from 13:24 to 13:46."}: Not observed · Scope wasn’t open
 h2: Recent replies

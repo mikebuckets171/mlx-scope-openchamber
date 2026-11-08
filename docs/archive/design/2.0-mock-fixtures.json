@@ -4108,6 +4108,146 @@
      }
     }
    }
+  },
+  "splash-room": {
+   "title": "Splash 1.6 engine room \u00b7 one request waits for memory (5.5)",
+   "snapshot": "splash-recovering",
+   "patch": {
+    "status": {
+     "state": "ready",
+     "reason": null,
+     "params": {},
+     "sinceAt": 1790690700000
+    },
+    "runtime": {
+     "sampledAt": 1790690700000,
+     "phase": "decode",
+     "server": {
+      "active": 1,
+      "queued": 1,
+      "rates": {
+       "decodeTps": 43.8,
+       "windowMs": 4000
+      },
+      "admission": {
+       "waitingMemory": 1,
+       "waitingConcurrency": 0,
+       "oldestWaitMs": 18000
+      },
+      "batches": {
+       "single": 19000,
+       "multi": 0
+      },
+      "speculative": {
+       "draftedTokens": 50000,
+       "acceptedTokens": 27000,
+       "acceptanceFraction": 0.54,
+       "windowMs": 600000
+      }
+     },
+     "memory": {
+      "room": {
+       "limitBytes": 40802189312,
+       "headroomBytes": 3502189312,
+       "hostSpareBytes": 2950000000,
+       "hostSpareReserveBytes": 3600000000,
+       "hostHeadroomBytes": 0,
+       "deniedReservations": 140,
+       "experts": {
+        "total": 24576,
+        "resident": 12800
+       },
+       "accounts": [
+        {
+         "name": "fixed",
+         "currentBytes": 8700000000,
+         "capBytes": 8700000000
+        },
+        {
+         "name": "kv",
+         "currentBytes": 4200000000,
+         "capBytes": 4200000000
+        },
+        {
+         "name": "states",
+         "currentBytes": 400000000,
+         "capBytes": 400000000
+        },
+        {
+         "name": "experts",
+         "currentBytes": 24000000000,
+         "capBytes": 24000000000
+        },
+        {
+         "name": "hot_kv",
+         "currentBytes": 0,
+         "capBytes": 400000000
+        }
+       ]
+      }
+     }
+    },
+    "alerts": [],
+    "nextPollMs": 1000,
+    "capabilities": {
+     "server.rates": {
+      "scope": "server",
+      "basis": "derived"
+     },
+     "server.memory.room": {
+      "scope": "server",
+      "basis": "reported"
+     },
+     "server.admission": {
+      "scope": "server",
+      "basis": "reported"
+     },
+     "server.batches": {
+      "scope": "server",
+      "basis": "reported"
+     },
+     "server.speculative": {
+      "scope": "server",
+      "basis": "derived"
+     },
+     "host.apps": {
+      "scope": "host",
+      "basis": "reported"
+     }
+    },
+    "host": {
+     "apps": {
+      "sampledAt": 1790690696000,
+      "sinceAt": 1790690100000,
+      "items": [
+       {
+        "name": "Exampleapps",
+        "bytes": 2400000000,
+        "grewBytes": 500000000
+       },
+       {
+        "name": "opencode",
+        "bytes": 1500000000
+       },
+       {
+        "name": "node",
+        "bytes": 1200000000
+       },
+       {
+        "name": "WindowServer",
+        "bytes": 1100000000
+       }
+      ]
+     }
+    }
+   },
+   "view": {
+    "attr": {
+     "label": "server",
+     "reason": "not-observed"
+    },
+    "lastAttr": null
+   }
   }
  },
  "trendFresh": {

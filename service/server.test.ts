@@ -9,7 +9,7 @@ import type { RuntimeConnectionConfig } from './config.ts';
 import type { HostContext } from './host/sampler.ts';
 import { ServiceHistory } from './history/history.ts';
 import { RuntimeClient, type ReadingMeta, type RuntimeReading } from './runtime-client.ts';
-import { createScopeServer, encode, type ServerOptions, type Sources } from './server.ts';
+import { createScopeServer, encode, hostContextOf, unread, type ServerOptions, type Sources } from './server.ts';
 
 const NOW = 1_790_690_700_000, INSTANCE = '5c1e0a7b';
 const servers: http.Server[] = [];
@@ -358,4 +358,24 @@ test('a chat sees only its own prompts\' reported counts; other chats and unsele
   expect((await snapshot(request, `/v2/snapshot?frame=11111111&surface=panel&chat=${other}&chatModel=${model}`)).promptCache).toBeUndefined();
   expect((await snapshot(request, '/v2/snapshot?frame=11111111&surface=panel')).promptCache).toBeUndefined();
   expect(JSON.stringify(own)).not.toContain('00000000-0000-4000-8000-000000000001');
+});
+
+test('5.5 Memory thief: the app list is asked for during a memory wait, or a short room with details open, never otherwise', () => {
+  const reading = (patch: (body: RuntimeReading) => void = () => {}): RuntimeReading => {
+    const body = structuredClone(unread(1_790_690_700_000));
+    body.status = { state: 'ready', reason: null, params: {} };
+    patch(body);
+    return body;
+  };
+  const waiting = reading(body => { body.runtime.server.admission = { waitingMemory: 1, waitingConcurrency: 0, oldestWaitMs: 4_000 }; });
+  const short = reading(body => { body.runtime.memory.room = { hostHeadroomBytes: 0, hostSpareBytes: 3_027_517_440, hostSpareReserveBytes: 3_607_772_525 }; });
+  expect(hostContextOf('glance', waiting).apps).toBe(true);
+  expect(hostContextOf('full', short, true).apps).toBe(true);
+  // Short of room but nobody looking at the details: no top read.
+  expect(hostContextOf('full', short).apps).toBeUndefined();
+  expect(hostContextOf('glance', short, true).apps).toBeUndefined();
+  expect(hostContextOf('full', reading(), true).apps).toBeUndefined();
+  // Nothing while the runtime itself is not answering.
+  expect(hostContextOf('glance', reading(body => { body.status = { state: 'recovering', reason: 'recovering', params: {} };
+    body.runtime.server.admission = { waitingMemory: 1, waitingConcurrency: 0 }; })).apps).toBeUndefined();
 });

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChatTelemetry, type ChatTarget, type RemoteChatTarget } from './chat-telemetry.ts';
@@ -162,4 +162,18 @@ test('writers are not scanned unless the helper heartbeat is live', async () => 
   // Demand is still renewed so a helper that starts now finds the watched chat.
   expect(JSON.parse(await readFile(join(f.directory, 'demand.json'), 'utf8')).watched).toEqual([target]);
   await telemetry.dispose();
+});
+
+test('idle means no helper has an unexpired observation in its chat telemetry or prompt-progress files', async () => {
+  const bare = await realpath(await mkdtemp(join(tmpdir(), 'scope-chat-bare-'))); homes.push(bare);
+  expect(await new ChatTelemetry(bare, () => at).idle()).toBe(true);            // a helper never ran
+  const f = await fixture(), telemetry = new ChatTelemetry(f.home, () => at);
+  expect(await telemetry.idle()).toBe(true);                                     // a heartbeat is liveness, not an observation
+  await f.write(f.body); expect(await telemetry.idle()).toBe(false);             // a chat reply is being tracked
+  await f.write({ ...f.body, expiresAtMs: at }); expect(await telemetry.idle()).toBe(true);   // it expired on its own
+  await f.write({ ...f.body, entries: [] }); expect(await telemetry.idle()).toBe(true);       // the writer has nothing to report
+  const progress = join(f.home, '.cache', 'mlx-scope', 'prompt-progress'); await mkdir(progress, { recursive: true, mode: 0o700 });
+  await writeFile(join(progress, `${writer}.json`), JSON.stringify({ schemaVersion: 1, expiresAtMs: at + 15_000, entries: [{ requestID: 'r' }] }), { mode: 0o600 });
+  expect(await telemetry.idle()).toBe(false);                                    // a Splash prompt is being read
+  await chmod(progress, 0o755); expect(await telemetry.idle()).toBe(false);       // a folder others can write to is not provably quiet
 });

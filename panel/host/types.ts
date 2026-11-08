@@ -8,7 +8,8 @@ export interface HostSessions { state: 'loading' | 'ready' | 'error'; sessions: 
 export type StatusControl = { kind: 'button'; id: string; label: string; disabled?: boolean } | { kind: 'select'; id: string; label: string; value: string; options: Array<{ value: string; label: string }>; disabled?: boolean };
 export interface PopoverRequest { id: string; anchor: { x: number; y: number; width: number; height: number }; width: number; height: number; side?: 'left' | 'right' | 'top' | 'bottom'; focus?: boolean; data: JsonValue }
 export interface HostReadyContext {
-  surface: 'panel' | 'page' | 'status' | 'dialog' | 'background' | 'file' | 'popover';
+  // `block` is the host's chat-block frame; Scope declares no block, so it only keeps the SDK union total.
+  surface: 'panel' | 'page' | 'status' | 'dialog' | 'background' | 'file' | 'popover' | 'block';
   theme: { mode: 'light' | 'dark'; tokens: Record<string, string> };
   session: SessionSnapshot | null;
   directory?: string | null;

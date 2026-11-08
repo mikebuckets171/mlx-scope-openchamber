@@ -1,6 +1,6 @@
 import type { Basis } from '../../src/contract/capabilities.ts';
 import { baselineKey, replyMetric, type BaselineMetric } from '../history/baselines.ts';
-import { COFACTOR, type LedgerRow, type ReplyRow, type TurnRow } from '../history/ledger-schema.ts';
+import { COFACTOR, type DraftRow, type LedgerRow, type ReplyRow, type TurnRow } from '../history/ledger-schema.ts';
 import { SIZE_LABELS } from '../history/summary.ts';
 import { RT } from './copy.ts';
 import { clock, delta, dur, int, kt, pct, tps } from './format.ts';
@@ -22,7 +22,7 @@ const fact = (facts: RunFact[], label: string, value: number | null | undefined,
 const rate = (n: number): string => `${tps(n / 10)} tok/s`;
 
 /** A stored row is a bounded observation, never a reconstructed phase timeline. */
-export const presentRecordedRun = (row: ReplyRow | TurnRow, models: readonly string[], now: number, names?: ModelNames, provider?: string): RunDetail => {
+export const presentRecordedRun = (row: ReplyRow | TurnRow, models: readonly string[], now: number, names?: ModelNames, provider?: string, draft?: DraftRow | null): RunDetail => {
   const reply = row[0] === 'r', rt = reply ? row[2] : row[3], ref = reply ? row[3] : row[4];
   const facts: RunFact[] = [], notes = ['Stage boundaries and complete observation coverage were not stored.'];
   const basis = reply ? row[12] : 'derived', bits = reply ? row[15] : row[11];
@@ -34,6 +34,8 @@ export const presentRecordedRun = (row: ReplyRow | TurnRow, models: readonly str
     fact(facts, 'Input', row[6], n => `${kt(n)} tokens`, basis);
     if (row[6] !== null && row[6] > 0 && row[7] !== null && row[7] <= row[6]) fact(facts, 'Input reused', row[7] / row[6], pct, 'derived');
     if (row[4] !== null) facts.push({ label: 'Context group', value: SIZE_LABELS[row[4]]!, basis: 'derived' });
+    // 5.5: the share of the draft model's tokens the main model kept for this reply (a whole single reply only).
+    if (draft && draft[2] === row[17]) fact(facts, 'Draft tokens kept', draft[4] / draft[3], kept => `${pct(kept)} (${int(draft[4])} of ${int(draft[3])})`, 'derived');
     if (basis === 'last-observed') notes.unshift('Last observed engine result; completion and final counts were not confirmed.');
   } else {
     fact(facts, 'Turn duration', (row[2] - row[1]) * 1000, dur, 'observed');

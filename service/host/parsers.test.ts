@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { IOREG_MAX_BYTES } from '../lib/argv.ts';
+import { groupApps, parseTop } from './apps.ts';
 import { parseFootprint, parseFootprintReport, parseLsofPids, sameProcess } from './footprint.ts';
 import { parseIoreg } from './gpu.ts';
 import { parseSysctl, parseVmStat } from './memory.ts';
@@ -18,6 +19,13 @@ const lines = (text: string): string[] => text.split('\n').filter(Boolean);
 
 /** fixture → what its parser must return. `ps.*` has no parser: `/bin/ps` is outside the G1 exec freeze. */
 const EXPECTED: Record<string, () => unknown> = {
+  // 5.5: top's rows reach the panel only as app names and bytes; the canary PIDs stay inside the service.
+  'top.mem.txt': () => {
+    expect(parseTop(read('top.mem.txt'))).toHaveLength(11);
+    const apps = groupApps(parseTop(read('top.mem.txt')), 8);
+    expect(apps[0]).toEqual({ name: 'Exampleapps', bytes: 2306 * MiB });
+    expect(JSON.stringify(apps)).not.toMatch(/4242|4243/);
+  },
   'vm_stat.normal.txt': () => expect(parseVmStat(read('vm_stat.normal.txt'))).toEqual({ wiredBytes: 20_561_526_784, compressedBytes: 5_120_983_040 }),
   'vm_stat.no-mte.txt': () => expect(parseVmStat(read('vm_stat.no-mte.txt'))).toEqual({ wiredBytes: 18_060_673_024, compressedBytes: 3_421_700_096 }),
   'vm_stat.pressure.txt': () => expect(parseVmStat(read('vm_stat.pressure.txt'))).toEqual({ wiredBytes: 36_239_835_136, compressedBytes: 8_162_689_024 }),

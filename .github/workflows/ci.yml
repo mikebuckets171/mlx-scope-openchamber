@@ -5,6 +5,8 @@ on:
     branches: [main, 'legacy/**']
   pull_request:
   workflow_call:
+  # Run by hand to get the full browser suite (the 600+ cases); every other run uses the @smoke set.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
@@ -97,7 +99,8 @@ jobs:
           shasum -a 256 panel/main.js panel/style.css service/main.js package.json bun.lock
           node --version
           bun --version
-      - run: bun run test:browser --project=${{ matrix.engine }} --workers=2
+      - name: Browser tests (the @smoke set; the full suite on a manual run)
+        run: bun run test:browser --project=${{ matrix.engine }} --workers=2 ${{ github.event_name != 'workflow_dispatch' && '--grep @smoke' || '' }}
       - name: Verify tracked bundles after browser tests
         if: always()
         run: git diff --exit-code -- panel/main.js panel/style.css service/main.js package.json bun.lock

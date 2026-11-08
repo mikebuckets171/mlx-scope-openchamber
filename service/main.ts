@@ -29,13 +29,13 @@ const exec = createExec(home);
 const client = new RuntimeClient({ exec });
 const host = new HostSampler({ exec, now: Date.now, home });
 const chat = new ChatTelemetry(home);
-const companionSetup = createCompanionSetup({ home, bundleDirectory: resolve(dirname(fileURLToPath(import.meta.url)), '../bridge/opencode'), probe: () => chat.probe() });
+const companionSetup = createCompanionSetup({ home, probe: () => chat.probe(), idle: () => chat.idle() });
 const media = new MediaService({ home, env: process.env, exec });
 const mediaSetup = createMediaSetup({ home, bundleDirectory: resolve(dirname(fileURLToPath(import.meta.url)), '../bridge/comfyui'), sources: () => media.configurations(), snapshot: () => media.snapshot(), invalidate: enabled => media.invalidate(enabled) });
 // Everything the service remembers lives in memory and is filled only by view-driven reads (P5).
 const history = new ServiceHistory(instance, { energy: (from, to) => host.energy(from, to) });
 const server = createScopeServer(token, {
-  read: (selection, request) => client.read(selection, request), host: context => host.sample(context), history,
+  read: (selection, request) => { companionSetup.retry(); return client.read(selection, request); }, host: context => host.sample(context), history,
   companionSetup,
   media,
   mediaSetup,
@@ -62,5 +62,6 @@ process.once('SIGTERM', stop);
 process.once('SIGINT', stop);
 process.once('exit', () => { client.dispose(); host.dispose(); });
 server.listen(port, '127.0.0.1');
-// An updated Scope brings the helper it installed up to date without waiting for Update chat speed.
-void companionSetup.update();
+// Scope 5 put its chat-speed helper into OpenCode's own settings. From 6.0 the extension delivers it, so that older
+// copy is removed once, when its files are unedited and no reply is running.
+void companionSetup.retire();

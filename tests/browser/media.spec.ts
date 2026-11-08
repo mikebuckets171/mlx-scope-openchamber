@@ -2,14 +2,16 @@ import { expect, test, type Page } from '@playwright/test';
 
 const auxiliary = (page: Page, path: string, method?: string) => page.evaluate(({ path, method }) => (window as any).previewAuxiliaryRequests.filter((request: any) => request.path === path && (!method || request.method === method)).length, { path, method });
 
-test('Connections explains detected capabilities and only installs a media helper after Enable', async ({ page }) => {
+test('Connections explains detected capabilities and only installs a media helper after Enable', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('/v2?surface=page&state=decode&chat=local&media=active');
   const frame = page.frameLocator('iframe');
   await expect.poll(() => auxiliary(page, '/v2/media/setup')).toBe(1);
   expect(await auxiliary(page, '/v2/media/setup', 'POST')).toBe(0);
   await frame.getByRole('button', { name: 'Connections', exact: true }).click();
   await expect(frame.getByRole('heading', { name: 'Chat speed', exact: true })).toBeVisible();
-  await expect(frame.getByRole('button', { name: 'Enable chat speed', exact: true })).toBeVisible();
+  // The chat-speed helper comes with the extension: Connections reports it and offers a status check, not a switch.
+  await expect(frame.getByRole('button', { name: 'Check status', exact: true })).toBeVisible();
+  await expect(frame.getByRole('button', { name: 'Enable chat speed' })).toHaveCount(0);
   await frame.getByRole('button', { name: 'Enable detailed media progress', exact: true }).click();
   await expect(frame.locator('#media-setup')).toContainText('activates next time ComfyUI starts');
   expect(await auxiliary(page, '/v2/media/setup', 'POST')).toBe(1);
@@ -17,7 +19,7 @@ test('Connections explains detected capabilities and only installs a media helpe
   await expect(frame.locator('#connection-setup')).toBeHidden();
 });
 
-test('Media identifies ownership and phase-local progress, then confirms exact-job cancellation', async ({ page }) => {
+test('Media identifies ownership and phase-local progress, then confirms exact-job cancellation', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('/v2?surface=page&state=decode&chat=local&media=active');
   const frame = page.frameLocator('iframe');
   await expect(frame.locator('#view-media')).toBeVisible();

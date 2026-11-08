@@ -32,7 +32,7 @@ const choose = async (page: Page, provider: string, runtime = '') => {
 const server = (frame: FrameLocator) => openServerDetails(frame);
 const live = async (frame: FrameLocator) => toColumn(frame);
 
-test('a chosen connection is stored without credentials, sent with each poll, and survives reload', async ({ page }) => {
+test('a chosen connection is stored without credentials, sent with each poll, and survives reload', { tag: '@smoke' }, async ({ page }) => {
   const frame = await open(page);
   await expect(frame.locator('#prefill-percent')).toHaveText('64%');
   await choose(page, 'studio');

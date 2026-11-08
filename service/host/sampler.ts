@@ -1,9 +1,10 @@
 import { cpus, freemem, platform as osPlatform, totalmem } from 'node:os';
 import { defined, label } from '../../src/contract/guards.ts';
-import type { HostV2, MacV2, Platform } from '../../src/contract/host.ts';
+import { HOST_APPS_MAX, type HostAppsV2, type HostV2, type MacV2, type Platform } from '../../src/contract/host.ts';
 import type { Tier } from '../core/adapter-v2.ts';
 import { LEASE_FRAMES, LEASE_TTL_MS } from '../core/lease.ts';
-import { createStreamSpawn, footprintArgv, ioregArgv, lsofListenArgv, notifyutilArgv, sysctlArgv, vmStatArgv, type Argv, type Exec, type StreamSpawn } from '../lib/argv.ts';
+import { createStreamSpawn, footprintArgv, ioregArgv, lsofListenArgv, notifyutilArgv, sysctlArgv, topArgv, vmStatArgv, type Argv, type Exec, type StreamSpawn } from '../lib/argv.ts';
+import { groupApps, parseTop } from './apps.ts';
 import { parseFootprintReport, parseLsofPids, sameProcess, type FootprintReport } from './footprint.ts';
 import { parseIoreg } from './gpu.ts';
 import { parseSysctl, parseVmStat } from './memory.ts';
@@ -17,18 +18,24 @@ import { parseNotifyutil } from './thermal.ts';
 export const PROBE_CADENCE = {
   memory: [10_000, 10_000, 10_000], gpu: [15_000, 5_000, null], thermal: [60_000, 60_000, 60_000],
   listener: [120_000, 120_000, null], footprint: [30_000, 10_000, null],
+  // 5.5: only while `HostContext.apps` asks (a memory wait, or a short room with details open); ~0.5 s CPU a read.
+  apps: [60_000, 60_000, 60_000],
 } as const;
 export const SPAWN_BUDGET_PER_MIN = { idle: 24, active: 36, glance: 18 } as const;
 export type Probe = keyof typeof PROBE_CADENCE;
 /** Children per probe read: memory is the vm_stat + sysctl pair. */
-const SPAWNS: Record<Probe, number> = { memory: 2, gpu: 1, thermal: 1, listener: 1, footprint: 1 };
+const SPAWNS: Record<Probe, number> = { memory: 2, gpu: 1, thermal: 1, listener: 1, footprint: 1, apps: 1 };
 /** A part outlives failed or skipped reads for this many of its longest cadence; after that it is a gap, not a stale value. */
 const TTL_CADENCES = 3;
 const BASE_CACHE_MS = 2_000, CPU_REPRIME_MS = 10_000, MACMON_RECHECK_MS = 300_000, BUDGET_WINDOW_MS = 60_000;
 
 /** What the sampler needs from the reading it rides along with. `omlxPort` enables lsof → footprint; `detail` is the
  * frame's own `detail=server` poll, the one signal it already sends when a view has the measurement details open. */
-export interface HostContext { tier: Tier; active: boolean; generating: boolean; detail: boolean; frame?: string; generation: number; omlxPort: number | null }
+export interface HostContext {
+  tier: Tier; active: boolean; generating: boolean; detail: boolean; frame?: string; generation: number; omlxPort: number | null;
+  /** 5.5 Memory thief: read the apps holding the most memory (the runtime is short of room and someone needs the answer). */
+  apps?: boolean;
+}
 export interface HostSamplerOptions {
   exec: Exec; now: () => number; platform?: string; home?: string;
   monotonic?: () => number;
@@ -70,7 +77,10 @@ export class HostSampler {
   private thermal: HostV2['thermal'];
   private process: HostV2['runtimeProcess'];
   private listener: Listener | null = null;
-  private readonly attempts: Record<Probe, number> = { memory: -Infinity, gpu: -Infinity, thermal: -Infinity, listener: -Infinity, footprint: -Infinity };
+  private apps: HostAppsV2 | undefined;
+  /** The first apps read since the room went short: what growth is measured from. Null while nobody asks. */
+  private appsBefore: { at: number; bytes: Map<string, number> } | null = null;
+  private readonly attempts: Record<Probe, number> = { memory: -Infinity, gpu: -Infinity, thermal: -Infinity, listener: -Infinity, footprint: -Infinity, apps: -Infinity };
   private readonly flights: Partial<Record<Probe, Promise<void>>> = {};
   /** Monotonic times of the children started in the last minute. */
   private spawns: number[] = [];
@@ -94,11 +104,12 @@ export class HostSampler {
     this.updatePower(context);
     // Started in priority order, so under a tight budget pressure and thermal outrank GPU and footprint.
     await Promise.all([this.run('memory', context, () => this.readMemory()), this.run('thermal', context, () => this.readThermal()),
-      this.run('gpu', context, () => this.readGpu()), this.readProcess(context)]);
+      this.run('gpu', context, () => this.readGpu()), this.readProcess(context), this.readApps(context)]);
     const now = this.options.now();
     return defined({ ...base, mac: this.fresh(this.mac, 'memory', now), gpu: this.fresh(this.gpu, 'gpu', now),
       thermal: this.fresh(this.thermal, 'thermal', now),
-      runtimeProcess: this.process?.port === context.omlxPort ? this.fresh(this.process, 'footprint', now) : undefined, power: this.power?.view(now) });
+      runtimeProcess: this.process?.port === context.omlxPort ? this.fresh(this.process, 'footprint', now) : undefined, power: this.power?.view(now),
+      apps: context.apps ? this.fresh(this.apps, 'apps', now) : undefined });
   }
 
   /** macmon estimate over [from, to] for CompletionV2.host.energyJ; null below 80% coverage or without macmon. */
@@ -206,6 +217,24 @@ export class HostSampler {
       if (!report || listener.identity && !sameProcess(listener.identity, report)) { this.listener = null; this.process = undefined; return; }
       listener.identity = { name: report.name, pid: report.pid, peakBytes: report.peakBytes };
       this.process = { sampledAt: this.options.now(), runtime: 'omlx', port, footprintBytes: report.footprintBytes };
+    });
+  }
+
+  /**
+   * 5.5 Memory thief: one `top` read a minute while asked, the first one kept as the comparison. When nobody asks any
+   * more, the readings and the comparison are dropped, so the next shortage measures growth from its own start.
+   */
+  private async readApps(context: HostContext): Promise<void> {
+    if (!context.apps) { this.appsBefore = null; this.apps = undefined; this.attempts.apps = -Infinity; return; }
+    await this.run('apps', context, async () => {
+      const rows = parseTop(await this.exec(topArgv()));
+      const all = groupApps(rows, Infinity), now = this.options.now();
+      if (!all.length) return;
+      const before = this.appsBefore ??= { at: now, bytes: new Map(all.map(app => [app.name, app.bytes])) };
+      this.apps = defined({ sampledAt: now, sinceAt: before.at < now ? before.at : undefined, items: all.slice(0, HOST_APPS_MAX).map(app => {
+        const grew = app.bytes - (before.bytes.get(app.name) ?? app.bytes);
+        return defined({ name: app.name, bytes: app.bytes, grewBytes: grew > 0 ? grew : undefined });
+      }) });
     });
   }
 

@@ -39,7 +39,8 @@ const REPORTS: ReadonlyArray<readonly [CapabilityKey, string]> = [['request.deco
   ['server.requests', 'request counts'], ['server.cache', 'cache'], ['server.memory.model', 'model memory'], ['server.memory.metal', 'GPU allocations'],
   ['server.averages', 'server averages'], ['server.latency', 'response timing'], ['server.slots', 'slots'], ['server.rates', 'speeds'],
   ['server.speculative', 'speculative decoding'], ['server.residency', 'loaded models'], ['server.engines', 'model software'], ['server.usage', 'usage history'],
-  ['server.completions', 'replies']];
+  ['server.completions', 'replies'], ['server.admission', 'waits'], ['server.memory.room', 'memory room'],
+  ['server.batches', 'decode batches']];
 const STATE_WORD: Record<SnapshotV2['status']['state'], string> = { ready: 'Ready', degraded: 'Limited', recovering: 'Recovering', failing: 'Not responding', detecting: 'Detecting', unconfigured: 'Not set up' };
 const RECORDED: Record<string, string> = { reported: 'From server', 'last-observed': 'Last reading', derived: 'Calculated', observed: 'Measured', estimate: 'Estimated' };
 
@@ -132,8 +133,45 @@ const ratesCard = (s: SnapshotV2): ServerCard | null => {
 const specCard = (s: SnapshotV2): ServerCard | null => {
   const sp = s.runtime.server.speculative;
   if (!sp) return null;
-  return card('spec', 'Draft token reuse', `last ${Math.max(1, Math.round(sp.windowMs / 60_000))} min`, ['Across all llama-server requests. Acceptance is the share of draft tokens kept by the main model.'], [values([labelled('Draft acceptance', v(pct(sp.acceptanceFraction), 'derived')),
+  return card('spec', 'Draft token reuse', `last ${Math.max(1, Math.round(sp.windowMs / 60_000))} min`, [`Across all ${rtName(s.connection)} requests. Acceptance is the share of draft tokens kept by the main model.`], [values([labelled('Draft acceptance', v(pct(sp.acceptanceFraction), 'derived')),
       labelled('Accepted', v(`${int(sp.acceptedTokens)} of ${int(sp.draftedTokens)}`))], 2), { kind: 'meter', fraction: sp.acceptanceFraction }]);
+};
+const requests = (n: number): string => n === 0 ? 'None' : `${int(n)} ${n === 1 ? 'request' : 'requests'}`;
+/** 5.5: the engine's own memory plan: room left in its budget, the KV cache, requests waiting for memory, SSD spills. */
+/**
+ * 5.5: whether the runtime could start another request's growth now. Splash grows only while the Mac keeps its spare
+ * reserve; `hostHeadroomBytes` 0 means it cannot.
+ */
+export const roomGate = (room: NonNullable<SnapshotV2['runtime']['memory']['room']>): { open: boolean; detail: string } | null => {
+  const spare = room.hostSpareBytes, reserve = room.hostSpareReserveBytes, gap = spare != null && reserve != null ? spare - reserve : null;
+  if (gap === null) return room.hostHeadroomBytes === 0 ? { open: false, detail: 'no room to grow on this Mac' } : null;
+  if (room.hostHeadroomBytes === 0 || gap <= 0) return { open: false, detail: gap < 0 ? `${size(-gap)} short of the ${size(reserve!)} it keeps spare` : 'no room to grow on this Mac' };
+  return { open: true, detail: `${size(gap)} above the ${size(reserve!)} it keeps spare` };
+};
+const roomCard = (s: SnapshotV2): ServerCard | null => {
+  const room = s.runtime.memory.room, waiting = s.runtime.server.admission?.waitingMemory ?? room?.claimsWaiting;
+  if (!room) return null;
+  const gate = roomGate(room);
+  const items = [...gate ? [labelled('Room for another chat', v(gate.open ? 'Open' : 'Closed'), gate.detail)] : [], ...readings([
+    ['Free in its budget', room.headroomBytes, size, room.limitBytes != null ? `of ${size(room.limitBytes)}` : undefined],
+    ['KV cache in use', room.kvActiveBytes, size, room.kvAllocatedBytes != null ? `of ${size(room.kvAllocatedBytes)} set aside` : undefined],
+    ['Waiting for memory', waiting, requests, waiting && room.claimsBytes ? `${size(room.claimsBytes)} asked for` : undefined],
+    ['Moved to the SSD', room.spilledRequests, requests, 'since the model started'],
+  ])];
+  if (!items.length) return null;
+  const used = room.limitBytes && room.headroomBytes != null ? Math.min(1, Math.max(0, 1 - room.headroomBytes / room.limitBytes)) : null;
+  return card('room', 'Memory room', `${rtName(s.connection)} · ${heldBySource(s) ? 'last reading' : 'from server'}`,
+    [`${rtName(s.connection)}’s own memory plan: the room left in its memory budget for new requests, its KV cache, requests waiting for memory, and requests it moved to the SSD. Not macOS memory.`],
+    [values(items, 2), ...used !== null ? [{ kind: 'meter' as const, fraction: used }] : []]);
+};
+export const APPS_HELP = 'Apps by physical footprint, as Activity Monitor shows it. Scope reads them only while a request waits for memory, or while the engine has no room to grow and these details are open, at most once a minute. Helper processes count toward their app; the engine itself is left out. Names stay on this Mac.';
+/** 5.5 Memory thief: the apps holding the most memory, and how much each grew since the room went short. */
+const appsCard = (s: SnapshotV2, now: number): ServerCard | null => {
+  const apps = s.capabilities['host.apps'] ? s.host?.apps : undefined;
+  if (!apps?.items.length) return null;
+  return card('apps', 'Holding the most memory', `This Mac · ${clock(apps.sampledAt, now)}`, [APPS_HELP], [{ kind: 'list', items: apps.items.slice(0, 5).map(app => ({
+    title: app.name, loaded: false, chips: [], meter: null,
+    reading: [size(app.bytes), ...app.grewBytes && apps.sinceAt !== undefined ? [`+${size(app.grewBytes)} since ${clock(apps.sinceAt, now)}`] : []] })) }]);
 };
 const enginesCard = (s: SnapshotV2): ServerCard | null => {
   const engines = s.runtime.engines;
@@ -152,7 +190,7 @@ const catalogCard = (s: SnapshotV2): ServerCard | null => {
 
 export const presentServer = (snapshot: SnapshotV2 | null, now: number, extra: readonly Callout[] = [], fresh = true): ServerView => {
   if (!snapshot) return { callouts: callouts(null, now, extra), cards: [] };
-  const cards = [runtimeCard(snapshot), slotsCard(snapshot), fresh || snapshot.connection.runtime !== 'splash' ? ratesCard(snapshot) : null, specCard(snapshot), latencyCard(snapshot), memoryCard(snapshot),
+  const cards = [runtimeCard(snapshot), slotsCard(snapshot), fresh || snapshot.connection.runtime !== 'splash' ? ratesCard(snapshot) : null, specCard(snapshot), latencyCard(snapshot), memoryCard(snapshot), roomCard(snapshot), appsCard(snapshot, now),
     cacheCard(snapshot), residencyCard(snapshot, now), enginesCard(snapshot), catalogCard(snapshot), sessionCard(snapshot, now)];
   return { callouts: callouts(snapshot, now, extra), cards: cards.filter((card): card is ServerCard => card !== null) };
 };

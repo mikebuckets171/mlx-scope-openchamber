@@ -85,15 +85,38 @@ export interface RuntimeV2 {
     speculative?: { draftedTokens: number; acceptedTokens: number; acceptanceFraction: number; windowMs: number };
     rates?: { promptTps?: number; decodeTps?: number; windowMs: number;
               promptWindowMs?: number };    // independent prompt interval; windowMs is decode's when both are present
+    /** 5.5: requests the runtime holds before they start (Splash `admission`), and how long the oldest has waited. */
+    admission?: { waitingMemory: number; waitingConcurrency: number; oldestWaitMs?: number };
+    /** 5.5: decode batches since the engine started, running one request or several at once (Splash `decode_batches_by_width`). */
+    batches?: { single: number; multi: number };
   };
   memory: { processBytes?: number; modelBytes?: number; metalBytes?: number; metalPeakBytes?: number; ceilingBytes?: number;
-            guard?: MemoryGuard };           // §12.4: the oMLX process memory guard, not macOS pressure
+            guard?: MemoryGuard;             // §12.4: the oMLX process memory guard, not macOS pressure
+            room?: MemoryRoomV2 };
   residency: ResidencyV2[];                  // ≤ 12
   residencyCount?: number;                   // 2a amendment: models the runtime reports, when it can count them (can exceed 12)
   slots: SlotV2[];                           // ≤ 16, llama-server numeric allowlist
   catalog: CatalogV2[];                      // ≤ 12
   engines: EngineV2[];                       // ≤ 8
 }
+/**
+ * 5.5: the runtime's own memory plan (Splash `memory_governor`, `kv`, `kv_spill`): its budget, the room left, claims waiting
+ * for memory, KV cache bytes, and how many requests it moved to the SSD since it started. Never macOS memory.
+ */
+export interface MemoryRoomV2 {
+  limitBytes?: number; headroomBytes?: number; claimsWaiting?: number; claimsBytes?: number;
+  kvActiveBytes?: number; kvAllocatedBytes?: number; kvReclaimableBytes?: number; spilledRequests?: number;
+  /**
+   * The Mac's side of the gate: spare memory now, the spare the runtime keeps before it grows, the room left above that
+   * (0 = no room to start another request's growth), and the reservations it refused since it started.
+   */
+  hostSpareBytes?: number; hostSpareReserveBytes?: number; hostHeadroomBytes?: number; deniedReservations?: number;
+  /** Its budget by account (experts, fixed runtime, KV cache, …), each at its current size and its cap; ≤ 12. */
+  accounts?: Array<{ name: string; currentBytes: number; capBytes: number }>;
+  /** Mixture-of-experts store: experts the model has, and how many sit in memory. */
+  experts?: { total: number; resident: number };
+}
+export const ROOM_ACCOUNTS_MAX = 12;
 /** oMLX's memory guard tier (`memory_pressure.pressure_level`): `hard` pauses admission. Present only while the guard runs. */
 export const MEMORY_GUARDS = ['ok', 'soft', 'hard'] as const;
 export type MemoryGuard = typeof MEMORY_GUARDS[number];
@@ -146,9 +169,10 @@ export const HONESTY: ReadonlyArray<readonly [string, CapabilityKey]> = [
   }),
   ...capabilityFields('runtime.server.', 'server.', {
     requests: 'active queued', averages: 'averages', latency: 'histograms', cache: 'cache', speculative: 'speculative', rates: 'rates',
+    admission: 'admission', batches: 'batches',
   }),
   ...capabilityFields('runtime.memory.', 'server.memory.', {
-    process: 'processBytes guard', model: 'modelBytes', metal: 'metalBytes metalPeakBytes', ceiling: 'ceilingBytes',
+    process: 'processBytes guard', model: 'modelBytes', metal: 'metalBytes metalPeakBytes', ceiling: 'ceilingBytes', room: 'room',
   }),
   ...capabilityFields('runtime.', 'server.', { residency: 'residency residencyCount', slots: 'slots', catalog: 'catalog', engines: 'engines' }),
   ['completions.items', 'server.completions'],
@@ -156,6 +180,7 @@ export const HONESTY: ReadonlyArray<readonly [string, CapabilityKey]> = [
     cpu: 'cpuFraction', memory: 'memUsedBytes memTotalBytes mac.wiredBytes mac.compressedBytes',
     swap: 'mac.swapUsedBytes mac.swapTotalBytes', pressure: 'mac.pressureLevel', wiredLimit: 'mac.wiredLimitBytes',
     gpuBusy: 'gpu.busyFraction', gpuMemory: 'gpu.allocBytes gpu.inUseBytes', thermal: 'thermal', footprint: 'runtimeProcess', power: 'power',
+    apps: 'apps',
   }),
 ];
 const valueAt = (root: unknown, path: string): unknown => path.split('.').reduce<unknown>((value, key) => obj(value)?.[key], root);
@@ -259,14 +284,44 @@ const server = (value: unknown): RuntimeV2['server'] => {
       ? { draftedTokens: drafted, acceptedTokens: accepted, acceptanceFraction: acceptance, windowMs: specWindow } : undefined,
     rates: rateWindow !== null ? defined({ promptTps: num(rates!.promptTps), decodeTps: num(rates!.decodeTps), windowMs: rateWindow,
       promptWindowMs: num(rates!.promptWindowMs) }) : undefined,
+    admission: admissionOf(item.admission),
+    batches: batchesOf(item.batches),
   });
 };
+const batchesOf = (value: unknown): RuntimeV2['server']['batches'] => {
+  const item = obj(value), single = count(item?.single), multi = count(item?.multi);
+  return single !== null && multi !== null ? { single, multi } : undefined;
+};
+/** Both waiting counts or nothing; the oldest wait only while something waits. */
+const admissionOf = (value: unknown): RuntimeV2['server']['admission'] => {
+  const item = obj(value), memory = count(item?.waitingMemory), concurrency = count(item?.waitingConcurrency), oldest = nonneg(item?.oldestWaitMs);
+  if (memory === null || concurrency === null) return undefined;
+  return defined({ waitingMemory: memory, waitingConcurrency: concurrency, oldestWaitMs: memory + concurrency > 0 && oldest !== null ? oldest : undefined });
+};
+const roomFields = optionalFields({ limitBytes: count, headroomBytes: count, claimsWaiting: count, claimsBytes: count,
+  kvActiveBytes: count, kvAllocatedBytes: count, kvReclaimableBytes: count, spilledRequests: count,
+  hostSpareBytes: count, hostSpareReserveBytes: count, hostHeadroomBytes: count, deniedReservations: count });
+const ACCOUNT_NAME = /^[a-z][a-z0-9_]{0,31}$/;
+/** Named accounts, each no larger than its cap; anything else is dropped whole. */
+const accountsOf = (value: unknown): MemoryRoomV2['accounts'] => {
+  const items = list(value, ROOM_ACCOUNTS_MAX, raw => {
+    const item = obj(raw), name = typeof item?.name === 'string' && ACCOUNT_NAME.test(item.name) ? item.name : null;
+    const current = count(item?.currentBytes), cap = count(item?.capBytes);
+    return name && current !== null && cap !== null && current <= cap ? { name, currentBytes: current, capBytes: cap } : null;
+  });
+  return items.length ? items : undefined;
+};
+const expertsOf = (value: unknown): MemoryRoomV2['experts'] => {
+  const item = obj(value), total = count(item?.total), resident = count(item?.resident);
+  return total && resident !== null && resident <= total ? { total, resident } : undefined;
+};
 const memory = (value: unknown): RuntimeV2['memory'] => {
-  const item = obj(value) ?? {}, metal = count(item.metalBytes), peak = count(item.metalPeakBytes);
+  const item = obj(value) ?? {}, metal = count(item.metalBytes), peak = count(item.metalPeakBytes), room = obj(item.room);
   return defined({ processBytes: int(item.processBytes), modelBytes: int(item.modelBytes), metalBytes: opt(metal),
     // A peak below the current allocation is not a peak.
     metalPeakBytes: peak !== null && (metal === null || peak >= metal) ? peak : undefined, ceilingBytes: int(item.ceilingBytes),
-    guard: opt(oneOf(MEMORY_GUARDS)(item.guard)) });
+    guard: opt(oneOf(MEMORY_GUARDS)(item.guard)),
+    room: room ? nonEmpty(defined({ ...roomFields(room), accounts: accountsOf(room.accounts), experts: expertsOf(room.experts) })) : undefined });
 };
 const runtime = (value: unknown): RuntimeV2 | null => {
   const item = obj(value);

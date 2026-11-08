@@ -14,7 +14,7 @@ availability and are not guaranteed.
 
 | Line | Hosts | Fixes |
 |---|---|---|
-| 5.1.x | OpenChamber 2.4.0 and newer | Security and correctness fixes ship on the current line |
+| 5.5.x | OpenChamber 2.4.0 and newer | Security and correctness fixes ship on the current line |
 | 5.0.x | OpenChamber 2.3.3 – 2.3.x | Security fixes only |
 | `legacy/1.6.x` | OpenChamber 1.24.x–2.0.3 | Security and correctness fixes only |
 | Anything older | — | None. Update, or pin the legacy line |
@@ -28,8 +28,7 @@ command the user can. The list is MLX Scope's promise, enforced by its own code 
 releases you trust.
 
 **Local service routes**
-- Monitoring routes answer `GET` only. `/v2/companion/setup` additionally accepts an authenticated, bounded JSON
-  `POST` with exactly one `enable` or `disable` action. `/v2/media/setup` accepts strict allowlisted configuration/helper actions; `/v2/media/cancel` accepts only a source ID and job ID. Reading setup status never changes configuration.
+- Monitoring routes answer `GET` only, and so does `/v2/companion/setup`, which reports the chat-speed helper's status. `/v2/media/setup` accepts strict allowlisted configuration/helper actions; `/v2/media/cancel` accepts only a source ID and job ID. Reading setup status never changes configuration.
 - Every route, including health, requires OpenChamber's service token, compared in constant time.
 - Responses are `no-store` and stay under OpenChamber's 256,000-character response limit.
 - The retired 1.x route `/snapshot` answers `410 contract_mismatch`, so a mismatched view and service fail visibly
@@ -38,9 +37,9 @@ releases you trust.
   echoed.
 
 **Commands**
-- The manifest declares exactly 11 executable paths, each by absolute path: `/usr/bin/vm_stat`, `/usr/sbin/sysctl`,
-  `/usr/sbin/ioreg`, `/usr/bin/notifyutil`, `/usr/sbin/lsof`, `/usr/bin/footprint`, `~/.lmstudio/bin/lms`,
-  `~/.cache/lm-studio/bin/lms`, `/opt/homebrew/bin/macmon` `/usr/local/bin/macmon`, and `~/.config/opencode/bin/local-video`. The README lists what each one
+- The manifest declares exactly 11 executable paths: `/usr/bin/vm_stat`, `/usr/sbin/sysctl`, `/usr/sbin/ioreg`,
+  `/usr/bin/notifyutil`, `/usr/sbin/lsof`, `/usr/bin/footprint`, `/usr/bin/top`, `~/.lmstudio/bin/lms`,
+  `~/.cache/lm-studio/bin/lms`, `/opt/homebrew/bin/macmon`, and `/usr/local/bin/macmon`. The README lists what each one
   runs and why.
 - Each binary has an argument allowlist in code, and a test enforces it. Ports and process IDs are validated before they
   reach an argument list. Commands run without a shell and with a small fixed environment: `LANG=C` and `LC_ALL=C`, and
@@ -49,7 +48,7 @@ releases you trust.
   names is declared.
 - **Never run:** `sudo`, `osascript`, `powermetrics` or `pmset`. `lms` never runs `load`, `unload`, `server start`, or a
   log stream that carries model input or output (`--source model`, `--stats`).
-- 3.1 adds `local-video cancel <validated-job-id>` only for an explicitly confirmed job in the standard queue. A permission-list change returns the extension to host approval. Scope requests no capabilities.
+- The extension declares the OpenChamber `sessions` capability for live session activity; it does not declare shell access or a broad project-reading capability.
 
 **Passive runtime reads and scoped controls**
 - Runtime URLs are restricted to explicit HTTP loopback origins. `localhost` is canonicalized without DNS; remote
@@ -76,9 +75,9 @@ summaries are accepted only from the runtime's own lifecycle lines, so generated
   titles, paths, keys and prompt text never reach these paths.
 - Sharing requires a user action. Draft sharing appends and cannot send.
 - Only one visible view writes history storage. The service writes a private, expiring chat-demand file while watched;
-  explicit companion setup can install owned plugin files and update the plugin configuration. At service startup,
-  a Scope update can replace its configured, unchanged owned helper and update only that entry's revision; disabled,
-  edited or unowned installations are left alone. Status reads never perform that update.
+  the only change the service makes to OpenCode's own settings is to remove, once, the entry and unedited files that Scope 5's
+  guided setup added, when no reply is being measured; edited, manual or foreign installations are left alone. An installed
+  service cannot see how OpenChamber started OpenCode, so this also applies to an OpenCode that OpenChamber does not start. Status reads never perform it, and nothing installs or updates the helper any more: the extension delivers it.
 
 Automated checks cover these contracts: unit and fixture tests, privacy canaries across every share path, a
 committed-file scrub, the package checks, and browser tests. They are not an independent security audit or a guarantee

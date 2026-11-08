@@ -9,8 +9,10 @@ import type { FrameSessionState, TurnWindow } from '../attribution/sessions.ts';
 import type { TurnSummary } from '../attribution/turn.ts';
 import { baselineKey, replyMetric, type Baselines } from '../history/baselines.ts';
 import { REGRESSION, RegressionTracker, vsUsual, type RegressionFlag, type VsUsual } from '../history/regress.ts';
-import { cofactorBits, KEYS, parseModels, replyRow, turnRowOf, type LedgerAttr, type ReplyRow } from '../history/ledger-schema.ts';
+import { cofactorBits, KEYS, parseModels, replyRow, turnRowOf, waitRow, type LedgerAttr, type ReplyRow } from '../history/ledger-schema.ts';
 import { Ledger, LedgerRecorder } from '../history/ledger.ts';
+import { TrialWatch, trialConfigOf } from '../history/trials.ts';
+import { WaitWatch } from '../history/waits.ts';
 import { RT } from '../present/copy.ts';
 import { SERVER_WIDE } from '../present/scope.ts';
 import type { ScopeState } from './scope-state.ts';
@@ -44,6 +46,8 @@ export class Pipeline {
   #sent: number | undefined;
   #visible = true;
   #turnKey = '';
+  readonly #waits = new WaitWatch();
+  readonly #trials = new TrialWatch();
   readonly #regressions = new RegressionTracker();
   #replies: Array<{ completion: CompletionV2; instance: string; rt: RuntimeKind }> = [];
   #stored: readonly ReplyRow[] = [];
@@ -52,6 +56,7 @@ export class Pipeline {
   ledgerModels: readonly string[] = [];
   #usual: { baselines: Baselines; models: readonly string[] } | null = null;
   #usualAt = -Infinity;
+  #lastSnapshot: SnapshotV2 | null = null;
   readonly #o: PipelineOptions;
   constructor(o: PipelineOptions) { this.#o = o;
     this.attribution = new Attribution({ host: o.host, now: o.now, auto: o.auto });
@@ -83,6 +88,7 @@ export class Pipeline {
   }
   /** After a 200: acknowledge what was sent, observe the body, then the leader's signals and ledger. */
   received(snapshot: SnapshotV2, fresh: readonly CompletionV2[], visible: boolean, cadenceMs = 0): void {
+    this.#lastSnapshot = snapshot;
     if (visible && this.#o.now() - this.#usualAt >= USUAL_EVERY_MS) void this.#readUsual();
     const rt = snapshot.connection.runtime;
     if (rt) for (const completion of fresh) this.#replies.push({ completion, instance: snapshot.completions.instance, rt });
@@ -100,6 +106,10 @@ export class Pipeline {
     try {
       await this.#recorder.observe(snapshot, this.#o.now(), this.#sent);
       this.#recordTurn(snapshot);
+      // 5.5: an engine wait that just ended becomes one `w` row (leader only, like turns).
+      const wait = this.#waits.observe(snapshot);
+      if (wait) this.ledger.appendWait(waitRow(wait.startedAt, wait.waitMs, wait.kind, wait.rt, this.ledger.modelRef(wait.model), wait.apps));
+      await this.#trials.observe(snapshot, this.ledger, this.#o.now());
       if (this.#recorder.recording) this.ledgerModels = await this.ledger.models();
     } catch { /* Storage trouble never stops monitoring; the ledger backs off on its own. */ }
   }
@@ -130,8 +140,11 @@ export class Pipeline {
   }
   /** History and baselines were cleared: nothing seen before counts any more. */
   historyCleared(): void {
-    this.#stored = []; this.#replies = []; this.#usual = null; this.#usualAt = -Infinity; this.#regressions.clear();
+    this.#stored = []; this.#replies = []; this.#usual = null; this.#usualAt = -Infinity; this.#regressions.clear(); this.#trials.reset();
   }
+  get canStartTrial(): boolean { return this.ledger.state !== 'paused' && this.ledger.state !== 'stopped'
+    && !this.#o.state.stale && trialConfigOf(this.#lastSnapshot) !== null; }
+  startTrial(): Promise<boolean> { return this.canStartTrial ? this.#trials.start(this.#lastSnapshot, this.ledger, this.#o.now()) : Promise.resolve(false); }
   #evaluate(): void {
     const now = this.#o.now(), usual = this.#usual;
     this.#evaluatedAt = now;

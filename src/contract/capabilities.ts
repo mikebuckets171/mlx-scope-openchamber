@@ -13,9 +13,9 @@ export const CAPABILITY_KEYS = [
   'server.requests', 'server.averages', 'server.latency', 'server.cache',
   'server.memory.process', 'server.memory.model', 'server.memory.metal', 'server.memory.ceiling',
   'server.residency', 'server.slots', 'server.rates', 'server.speculative', 'server.catalog', 'server.engines',
-  'server.usage', 'server.completions',
+  'server.usage', 'server.completions', 'server.admission', 'server.memory.room', 'server.batches',
   'host.cpu', 'host.memory', 'host.swap', 'host.pressure', 'host.wiredLimit',
-  'host.gpuBusy', 'host.gpuMemory', 'host.thermal', 'host.footprint', 'host.power',
+  'host.gpuBusy', 'host.gpuMemory', 'host.thermal', 'host.footprint', 'host.power', 'host.apps',
 ] as const;
 export type CapabilityKey = typeof CAPABILITY_KEYS[number];
 /** Absent key = not reportable on this connection. The panel shows nothing for it: no dash, no zero. */

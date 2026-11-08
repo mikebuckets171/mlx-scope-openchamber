@@ -3,13 +3,13 @@ import path from 'node:path';
 import type { Readable } from 'node:stream';
 import { readCommand } from '../native-command.ts';
 
-// Every exec Scope may run (G1 freeze, 10 entries): absolute paths, no shell, exact argv. Owner: svc-host.
+// Every exec Scope may run (the G1 freeze's 10 entries, plus 5.5's `top`): absolute paths, no shell, exact argv. Owner: svc-host.
 // native-command.ts stays byte-identical and passes only {LANG, LC_ALL}; `env` here is for lms, whose one-shot and
 // stream spawners live in the LM Studio adapter. `/bin/ps` is not in the freeze, so nothing here builds a ps argv.
 
 export const EXEC_PATHS = {
   vmStat: '/usr/bin/vm_stat', sysctl: '/usr/sbin/sysctl', ioreg: '/usr/sbin/ioreg', notifyutil: '/usr/bin/notifyutil',
-  lsof: '/usr/sbin/lsof', footprint: '/usr/bin/footprint',
+  lsof: '/usr/sbin/lsof', footprint: '/usr/bin/footprint', top: '/usr/bin/top',
 } as const;
 /** Under HOME; the manifest declares them as `~/…`. */
 export const LMS_HOME_PATHS = ['.lmstudio/bin/lms', '.cache/lm-studio/bin/lms'] as const;
@@ -49,6 +49,9 @@ export const lsofDrawThingsArgv = (): Argv => ({ file: EXEC_PATHS.lsof, args: ['
 /** Exact bytes (`-f bytes`): the formatted form rounds to whole GB. `--noCategories` skips the category table. */
 export const footprintArgv = (pid: number): Argv | null => processId(pid) === null ? null
   : { file: EXEC_PATHS.footprint, args: ['--noCategories', '-f', 'bytes', '-p', String(pid)], timeoutMs: 3_000, maxBytes: 64 * 1024 };
+
+/** 5.5 Memory thief: one sample of the 30 processes with the largest physical footprint (PID, name, memory). */
+export const topArgv = (): Argv => ({ file: EXEC_PATHS.top, args: ['-l', '1', '-o', 'mem', '-n', '30', '-stats', 'pid,command,mem'], timeoutMs: 3_000, maxBytes: 64 * 1024 });
 
 /** `lms` always carries the no-wake env and an explicit port (Stage H); without them lms can launch LM Studio. */
 export const lmsArgv = (lms: string, command: LmsCommand, port: number, serverInfoPath: string): Argv | null => {
@@ -100,6 +103,7 @@ export const allowed = (argv: Argv, home: string): boolean => {
     case EXEC_PATHS.notifyutil: return same(argv, notifyutilArgv());
     case EXEC_PATHS.lsof: return same(argv, lsofDrawThingsArgv()) || same(argv, lsofListenArgv(decimal(/^-iTCP:(\d+)$/.exec(args[1] ?? '')?.[1])));
     case EXEC_PATHS.footprint: return same(argv, footprintArgv(decimal(args.at(-1))));
+    case EXEC_PATHS.top: return same(argv, topArgv());
   }
   if ((MACMON_PATHS as readonly string[]).includes(file)) return same(argv, macmonArgv(file));
   const lms = path.isAbsolute(home) && LMS_HOME_PATHS.some(relative => path.join(home, relative) === file);

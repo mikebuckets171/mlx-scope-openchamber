@@ -4,7 +4,7 @@ import { chmodSync, lstatSync, mkdirSync, mkdtempSync, rmSync, utimesSync } from
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { BUNDLE_CEILINGS, cspOf, execMatch, GUEST_BUNDLES, guestLeaks, manifestProblems, PANEL_CSP, SDK_VERSION, serviceLeaks } from './package-checks.ts';
+import { BUNDLE_CEILINGS, cspOf, execMatch, GUEST_BUNDLES, guestLeaks, helperProblems, manifestProblems, PANEL_CSP, SDK_VERSION, serviceLeaks } from './package-checks.ts';
 const root = join(import.meta.dir, '..');
 // Every failed check is listed, not only the first, so one run shows the whole gap (e.g. exec entries not wired yet).
 const problems: string[] = [];
@@ -49,6 +49,10 @@ for (const file of GUEST_BUNDLES) {
 }
 // Every guest frame runs under the approved policy, which the host's guestFramePolicy already allows.
 check(cspOf(await text('panel/index.html')) === PANEL_CSP, 'panel/index.html must declare exactly the approved CSP.');
+// OpenCode loads the chat-speed helper from its own folder with nothing else reachable: every file it needs must ship.
+const helperSources: Record<string, string> = {};
+for (const entry of entries.filter(name => name.startsWith('bridge/opencode/') && /\.(js|json)$/.test(name))) helperSources[entry] = await text(entry);
+problems.push(...helperProblems(entries, helperSources));
 const service = await text('service/main.js');
 check(!serviceLeaks(service).length, `The service bundle reads OpenChamber settings or carries a home path: ${serviceLeaks(service).join(', ')}`);
 // The service reads only when a view asks (P5), and serves contract v2 with the 1.x route retired.

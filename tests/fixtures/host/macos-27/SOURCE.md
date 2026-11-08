@@ -13,7 +13,9 @@ files are synthesized from upstream source only: v0.8.2, plus v0.7.2 for the leg
 - Every number that describes the machine's activity has been replaced: counts, bytes, utilisation, watts, temperatures, dates
   and registry ids.
 - There are no paths, usernames, hostnames, model ids, keys or prompt text.
-- The only process name is the generic `python3` that an oMLX listener runs as.
+- The only process names are the generic `python3` that an oMLX listener runs as, and in `top.mem.txt` (5.5) generic app
+  names (`Exampleapps Help`, `Sample Editor`, `Viewer`, `Viewer Helper (G`) beside common system and tool names (`splash`, `opencode`, `node`,
+  `WindowServer`, `kernel_task`, `com.apple.WebKit`).
 - The live runs were used to learn byte layouts only. Where a live layout was kept, the "Provenance" line says so.
 
 ## Privacy canaries
@@ -195,3 +197,9 @@ size)". No alert of any kind is driven by them.
   `3.412 + 24.87 + 0.0` prints as `28.282001`.
 - The label is "Chip power (CPU+GPU+ANE, macmon estimate) · includes all apps · not wall power" (SPIKES S9). Scope never
   installs macmon.
+
+## `/usr/bin/top` (5.5)
+
+| File | stdout · exit | Variant |
+|---|---|---|
+| `top.mem.txt` | `top -l 1 -o mem -n 30 -stats pid,command,mem` · 0 | One sample, biggest physical footprint first. The header block and the `PID COMMAND MEM` layout (COMMAND cut to 16 characters, so `Helper (Renderer)` arrives as `Help` or `Helper (`) follow a live macOS 27.2 run; every number, the date and every app name are synthetic. PID `4242` is a canary: no PID may leave the service. |

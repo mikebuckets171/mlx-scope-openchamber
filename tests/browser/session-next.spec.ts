@@ -17,7 +17,7 @@ const load = async (page: Page, query = '') => {
 };
 
 for (const theme of ['dark', 'light']) for (const width of [300, 320, 430]) {
-  test(`Session instrument and full-view action fit ${width}px in ${theme}`, async ({ page }) => {
+  test(`Session instrument and full-view action fit ${width}px in ${theme}`, { tag: theme === 'dark' && width === 320 ? '@smoke' : [] }, async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => { if (['error', 'warning'].includes(message.type())) errors.push(message.text()); });

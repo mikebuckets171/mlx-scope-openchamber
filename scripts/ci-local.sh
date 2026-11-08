@@ -34,7 +34,12 @@ run() {
   { rc=0; "$@" 2>&1 || rc=$?; echo "$rc" > "$tmp/$step.rc"; } | tee "$tmp/$step.log"
   [ "$(cat "$tmp/$step.rc")" = 0 ] || failed=$step
 }
-browser_tests() { CI=1 PLAYWRIGHT_JSON_OUTPUT_FILE="$tmp/browser.json" bunx playwright test --reporter=list,json; }
+# The @smoke set, as hosted CI runs it; SCOPE_FULL=1 runs every case.
+browser_tests() {
+  if [ -n "${SCOPE_FULL:-}" ]; then CI=1 PLAYWRIGHT_JSON_OUTPUT_FILE="$tmp/browser.json" bunx playwright test --reporter=list,json
+  else CI=1 PLAYWRIGHT_JSON_OUTPUT_FILE="$tmp/browser.json" bunx playwright test --reporter=list,json --grep @smoke
+  fi
+}
 run install bun install --frozen-lockfile
 run check bun run check
 run bundles git diff --exit-code -- panel/main.js service/main.js
@@ -70,7 +75,7 @@ const receipt = {
   ...(env.FAILED ? { failedStep: env.FAILED } : {}),
   sha: env.SHA, bunVersion: env.BUN_VERSION, nodeVersion: process.versions.node, os: `macOS ${env.MACOS}`,
   steps: ['bun install --frozen-lockfile', 'bun run check', 'git diff --exit-code -- panel/main.js service/main.js',
-    'bunx playwright install chromium webkit', 'CI=1 bunx playwright test (chromium, webkit)'],
+    'bunx playwright install chromium webkit', process.env.SCOPE_FULL ? 'CI=1 bunx playwright test (chromium, webkit)' : 'CI=1 bunx playwright test --grep @smoke (chromium, webkit)'],
   unit, browser,
   bundles: { panel: digest('panel/main.js'), service: digest('service/main.js') },
   zip: existsSync(`dist/${env.ZIP}`) ? { name: env.ZIP, sha256: digest(`dist/${env.ZIP}`) } : null,

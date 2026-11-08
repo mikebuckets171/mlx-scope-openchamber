@@ -1,7 +1,7 @@
 process.env.TZ = 'UTC';
 import { describe, expect, test } from 'bun:test';
 import { buildBaselines } from '../history/baselines.ts';
-import type { ReplyRow } from '../history/ledger-schema.ts';
+import type { ReplyRow, SideRow, WaitRow } from '../history/ledger-schema.ts';
 import { evaluateRegression } from '../history/regress.ts';
 import { MOCK_TEXT } from '../testing/history-text.ts';
 import { MOCK_MODELS, MOCK_NOW, mockAccounting, mockLedgerRows, mockSnapshot, mockTrend, mockUsage } from '../testing/mock-history.ts';
@@ -158,4 +158,27 @@ describe('History presenter (plan §5.6, G2 mock)', () => {
     expect([2048, 421_888, 1_310_720].map(storageSize)).toEqual(['2 KiB', '412 KiB', '1.25 MiB']);
     expect(gap(0, 60_000)).toEqual(['g', 0, 60]);
   });
+});
+
+test('5.5: engine waits read as one line per kind, with the median, p90 and longest a trial is judged by', () => {
+  const at = Math.floor(NOW / 1000);
+  const wait = (startedS: number, ms: number, kind: WaitRow[3]): WaitRow => ['w', startedS, ms, kind, 'splash', 0, []];
+  const side: SideRow[] = [...[5_000, 12_000, 18_400, 40_000, 52_000].map((ms, i) => wait(at - 600 + i * 60, ms, 'memory')),
+    wait(at - 30, 3_000, 'concurrency'), ['d', at, '5c1e0a7b.1', 4_000, 2_840]];
+  const view = presentHistory(input({ side }));
+  expect(view.waits.map(wait => wait.text)).toEqual([
+    'Waited for memory 5× · median 18 s · p90 52 s · longest 52 s',
+    'Waited for another request 1× · median 3.0 s · p90 3.0 s · longest 3.0 s']);
+  expect(view.waits[0]!.detail).toContain('engine-wide');
+  expect(presentHistory(input()).waits).toEqual([]);
+});
+
+test('5.5 Memory thief: History names the app that was biggest during memory waits, most often first', () => {
+  const at = Math.floor(NOW / 1000);
+  const wait = (startedS: number, apps: Array<[string, number]>): WaitRow => ['w', startedS, 10_000, 'memory', 'splash', 0, apps];
+  const side: SideRow[] = [wait(at - 300, [['Exampleapps', 3e9], ['node', 1e9]]), wait(at - 200, [['Exampleapps', 3e9]]), wait(at - 100, [['Sample Editor', 4e9]]),
+    wait(at - 50, []), ['w', at - 20, 4_000, 'concurrency', 'splash', 0, []]];
+  const lines = presentHistory(input({ side })).waits.map(line => line.text);
+  expect(lines).toEqual(['Waited for memory 4× · median 10 s · p90 10 s · longest 10 s', 'Biggest app during memory waits: Exampleapps 2× · Sample Editor 1×',
+    'Waited for another request 1× · median 4.0 s · p90 4.0 s · longest 4.0 s']);
 });

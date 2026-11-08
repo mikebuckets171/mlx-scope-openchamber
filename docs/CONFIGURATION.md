@@ -1,12 +1,12 @@
 # Configuration
 
-Start with **This chat**: Scope follows the provider and model of the chat open in OpenChamber. Open **Connections** to see readiness, enable optional chat speed or media progress, or choose a connection for Whole engine monitoring. Native runtime measurements do not require the chat helper. Cloud speed tracking is available on qualified OpenCode runtimes; media monitoring remains available during cloud chats.
+Start with **This chat**: Scope follows the provider and model of the chat open in OpenChamber. Open **Connections** to see readiness, enable optional media progress, or choose a connection for Whole engine monitoring. Native runtime measurements do not require the chat helper. Cloud speed tracking is available on qualified OpenCode runtimes; media monitoring remains available during cloud chats.
 
 Helper installation never restarts OpenCode or a generation backend. “Installed” means files are present; “Ready” means the expected runtime helper answered or supplied its qualified load receipt. Media setup and custom local connections are described in [Media](MEDIA.md).
 
 MLX Scope uses your existing local runtime connection. Monitoring leaves your
-configuration unchanged. The optional **Enable chat speed** action in Connections installs
-its OpenCode plugin; it preserves existing plugins and provider settings.
+configuration unchanged. The chat-speed plugin comes with the extension (OpenChamber adds it to the OpenCode it runs), so
+Scope edits none of your OpenCode settings, apart from removing the entry Scope 5 added (see below).
 
 ## Getting connected
 
@@ -68,11 +68,10 @@ back after 30 seconds away, so a different server on the same port is found.
 
 ## Optional chat estimates
 
-Open **Connections**, then choose **Enable chat speed**. This deliberate action copies the bundled OpenCode plugin to
-`~/.config/opencode/addons/mlx-scope-prompt-progress` and adds one entry to the
-existing global `opencode.json` or `opencode.jsonc`. There is no download or
-package-manager command. Other plugins, provider settings, JSONC comments, and
-the existing companion's options are preserved.
+The chat-speed plugin is bundled in `bridge/opencode`. OpenChamber 2.7 adds it to the OpenCode it runs while MLX Scope is on
+(you approve **Add a plugin to OpenCode** once, with the extension's other permissions) and removes it when the extension is
+paused or removed. There is nothing to enable, download or configure. For an OpenCode OpenChamber does not start, see the
+[companion documentation](../bridge/opencode/README.md).
 
 Chat estimates are qualified for **OpenCode 2.0.25, 2.0.27, 2.0.28, 2.0.29,
 2.0.32, 2.1.1-compaction.1 and 2.2.0**; every other OpenCode 2 release from
@@ -84,30 +83,15 @@ average. Neither is presented as the engine's native decode timing. The
 companion subscribes while a visible Scope view requests chat measurements;
 after the last view stops, that request expires within 15 seconds.
 
-Connections checks activation while open. On an accepted OpenCode version, managed updates activate through its normal configuration watcher. Scope records a bundled-file revision on its own plugin entry; other plugin options and JSONC comments remain intact. If setup remains pending, it activates the next time OpenCode starts; leave active work running. Scope never restarts
-OpenCode for you. A startup receipt confirms that the supported companion loaded;
-only a fresh heartbeat confirms a current connection. Unsupported versions keep
+Connections checks the helper's status while open. A startup receipt confirms that the supported companion loaded; only a
+fresh heartbeat confirms a current connection. After a Scope update OpenCode may keep the earlier helper until its plugin list
+reloads or OpenCode restarts; the earlier helper keeps working and Scope never restarts OpenCode for you. Unsupported versions keep
 runtime measurements available and withhold chat estimates.
 
-An existing prompt-progress installation keeps its provider ID and endpoint.
-For a new installation, Scope configures Splash prompt progress only when it
-finds exactly one eligible loopback Splash provider; otherwise prompt progress
-stays off and chat estimates remain available. See the
-[companion documentation](../bridge/opencode/README.md) for manual options.
-
-**Disable and remove** removes Scope's plugin entry and unchanged files it
-installed. Edited and unrelated files survive. A manually installed legacy
-companion offers **Disable companion**, which removes only its configuration
-entry; enabling an update first adopts that known installation for managed
-removal. A failed configuration write restores the previous installation, and
-an intervening user edit is preserved.
-
-Guided setup honors an absolute `XDG_CONFIG_HOME` or `OPENCODE_CONFIG_DIR` when
-the extension service receives it. It does not resolve project configurations.
-Inline configuration, an `OPENCODE_CONFIG` outside the global directory,
-symlinked paths, duplicate entries, or a companion installed elsewhere require
-manual setup. This prevents changing a different configuration or installing
-another observer accidentally.
+Splash prompt progress needs no configuration: the helper finds a provider that is named Splash (by the same id and name rule
+Scope uses to recognise a connection) at a loopback `/v1` address. If Scope 5 added an entry to your OpenCode settings, Scope 6
+removes it and its `addons/mlx-scope-prompt-progress` files once, when they are unedited and no reply is being measured; both copies share
+one plugin id, so OpenCode uses the older one until then and loads the new one in its place without a restart.
 
 ## Discovery
 

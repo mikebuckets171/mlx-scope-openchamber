@@ -1,7 +1,7 @@
 # offline · /v2?state=offline
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="offline" data-stale="true" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="offline" data-stale="true" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Offline
@@ -33,7 +33,7 @@ live #action-status (hidden):
 live [callout-live]: Critical: oMLX stopped respondingsince 14:02Start oMLX on :8000. Scope retries automatically.Connection…
 
 ## live · 320 light panel
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="offline" data-stale="true" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="offline" data-stale="true" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Offline
@@ -65,7 +65,7 @@ live #action-status (hidden):
 live [callout-live]: Critical: oMLX stopped respondingsince 14:02Start oMLX on :8000. Scope retries automatically.Connection…
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-media-motion="true" data-paused="false" data-phase="offline" data-stale="true" data-surface="page"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="false" data-compact="false" data-layout="wide" data-media-motion="true" data-paused="false" data-phase="offline" data-stale="true" data-surface="page"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Offline

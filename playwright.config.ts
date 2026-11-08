@@ -19,7 +19,8 @@ export default defineConfig({
   use: { baseURL: origin, contextOptions: { reducedMotion: 'reduce' }, trace: 'retain-on-failure' },
   webServer: {
     command: 'bun tests/browser/server.ts', url: origin, env: { SCOPE_PREVIEW_PORT: String(port) },
-    reuseExistingServer: !process.env.CI, timeout: 15_000,
+    // A server left running by another checkout would silently serve that checkout's build, so reuse is opt-in.
+    reuseExistingServer: process.env.SCOPE_REUSE_PREVIEW === '1', timeout: 15_000,
   },
   projects: [{ name: 'chromium', testIgnore: GOLDENS, use: { browserName: 'chromium' } },
     { name: 'webkit', testIgnore: GOLDENS, use: { browserName: 'webkit' } },

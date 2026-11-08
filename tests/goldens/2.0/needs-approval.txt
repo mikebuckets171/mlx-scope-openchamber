@@ -1,7 +1,7 @@
 # needs-approval · /v2?state=needs-approval
 
 ## live · 320 dark panel
-main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="column" data-media-motion="true" data-paused="false" data-phase="detecting" data-stale="false" data-surface="panel"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Needs approval
@@ -20,7 +20,7 @@ live #action-status (hidden):
 live p.media-notice[role=status] (hidden): Allow MLX Scope’s local service in Settings → Extensions.
 
 ## live · 1160 dark page
-main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="wide" data-media-motion="true" data-paused="false" data-phase="detecting" data-stale="false" data-surface="page"}: Live History Connections
+main.scope {aria-labelledby="scope-title" data-approval="true" data-compact="false" data-layout="wide" data-media-motion="true" data-paused="false" data-phase="detecting" data-stale="false" data-surface="page"}: Live Engine room History Connections
 #scope-title: MLX Scope
 #status-pill
 #phase: Needs approval

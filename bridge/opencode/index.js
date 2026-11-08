@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createStore, key } from './store.js';
 import { observeStream } from './stream.js';
 import { acceptsRuntime, featureSupport } from './compatibility.js';
+import { createSplashLookup, splashOptions } from './providers.js';
 
 const sharedKey = revision => Symbol.for(`mlx-scope.prompt-progress.${COMPANION_VERSION}.${PROTOCOL}.${typeof revision === 'string' && /^[a-f0-9]{64}$/.test(revision) ? revision : 'unmanaged'}`);
 const PATHS = new Set(['/v1/chat/completions', '/v1/responses', '/v1/messages']);
@@ -11,15 +12,6 @@ const KINDS = new Set(['primary', 'compaction', 'title', 'generate']);
 const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
 // Splash requests that stop carrying OpenCode's session header can no longer be matched to a chat.
 const SESSION_HEADER_LIMIT = 3;
-
-function options(input = {}) {
-  const providerID = typeof input.providerID === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(input.providerID) ? input.providerID : 'splish';
-  const url = new URL(input.baseURL ?? 'http://127.0.0.1:8000/v1');
-  if (!['http:', 'https:'].includes(url.protocol) || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)
-    || url.username || url.password || url.search || url.hash || url.pathname.replace(/\/+$/, '') !== '/v1') throw new Error('MLX Scope progress requires a loopback Splash /v1 endpoint.');
-  const canonical = new URL(url.origin); if (canonical.hostname === 'localhost') canonical.hostname = '127.0.0.1';
-  return { providerID, origin: url.origin, endpointKey: key('endpoint', canonical.origin) };
-}
 
 function eligible(event, config) {
   if (event.model?.providerID !== config.providerID || !KINDS.has(event.kind)
@@ -69,14 +61,25 @@ export function makePlugin({ storeFactory = createStore, observerFactory = creat
     id: 'mlx-scope-prompt-progress',
     async setup(ctx) {
       const SHARED = sharedKey(ctx.options?.scopeRevision);
-      const active = new Map(), prepared = new WeakSet();
+      const active = new Map(), prepared = new WeakMap();
       const features = featureSupport(ctx.app?.version), accepted = acceptsRuntime(ctx.app?.version);
-      let config = null, missingHeaders = 0;
+      let config = null, lookup = null, missingHeaders = 0;
       if (accepted && ctx.options?.promptProgress !== false) {
-        try { config = options(ctx.options); }
-        catch {
-          features['prompt-progress'] = { support: 'unavailable', available: false, check: { state: 'failed', reason: 'options' } };
-          warn('MLX Scope prompt progress options are unavailable; chat observation remains available.');
+        // The extension loads this folder without options, so Splash is found from OpenCode's own provider list as
+        // requests arrive. A helper added by hand with a provider and address, or on an OpenCode without a provider
+        // list, keeps the earlier behavior: those options, or provider `splish` at 127.0.0.1:8000.
+        const named = ctx.options?.providerID !== undefined || ctx.options?.baseURL !== undefined;
+        if (!named && typeof ctx.provider?.list === 'function') {
+          lookup = createSplashLookup({ list: async () => {
+            const value = await ctx.provider.list();
+            return Array.isArray(value) ? value : Array.isArray(value?.data) ? value.data : [];
+          } });
+        } else {
+          try { config = splashOptions(ctx.options); }
+          catch {
+            features['prompt-progress'] = { support: 'unavailable', available: false, check: { state: 'failed', reason: 'options' } };
+            warn('MLX Scope prompt progress options are unavailable; chat observation remains available.');
+          }
         }
       }
       const holder = shared[SHARED] ??= { store: storeFactory({ warn }), refs: 0 };
@@ -133,29 +136,35 @@ export function makePlugin({ storeFactory = createStore, observerFactory = creat
             features[id] = holder.chat ? { support: 'unavailable', available: false, check: { state: 'failed', reason: 'events-missing' } }
               : { support: 'unavailable', available: false };
         }
-        if (config) {
+        if (config || lookup) {
+          // A named provider is hooked alone; otherwise every provider's request reaches the check below, which answers
+          // from the cached provider list and leaves anything that is not a loopback Splash exactly as it was.
+          const filter = config ? [{ providerID: config.providerID }] : [];
           await install('prompt-progress', async hook => {
           await hook('http.request', async event => {
             if (released || !features['prompt-progress'].available) return;
-            const proof = sessionHeader(event, config);
+            const target = config ?? await lookup(event.model?.providerID);
+            if (!target) return;
+            const proof = sessionHeader(event, target);
             if (proof === 'present') missingHeaders = 0;
             else if (proof === 'missing' && ++missingHeaders >= SESSION_HEADER_LIMIT) { progress('failed', 'session-header'); return; }
-            if (!eligible(event, config) || event.request.signal.aborted) return;
+            if (!eligible(event, target) || event.request.signal.aborted) return;
             const body = await jsonBody(event.request);
             if (!body || body.stream !== true || event.request.signal.aborted) return;
             const headers = new Headers(event.request.headers); headers.delete('content-length');
             event.request = new Request(event.request, { headers, body: JSON.stringify({ ...body, return_progress: true }) });
-            prepared.add(event.request);
-          }, { providerID: config.providerID });
+            prepared.set(event.request, target);
+          }, ...filter);
           await hook('http.response', event => {
             if (released) return;
-            if (!eligible(event, config) || !prepared.has(event.request)) return;
+            const target = prepared.get(event.request);
+            if (!target || !eligible(event, target)) return;
             const requestID = randomUUID();
-            const metadata = { requestID, sessionKey: key('session', event.sessionID), providerID: config.providerID,
-              endpointKey: config.endpointKey, modelKey: key('model', event.model.id), kind: event.kind };
+            const metadata = { requestID, sessionKey: key('session', event.sessionID), providerID: target.providerID,
+              endpointKey: target.endpointKey, modelKey: key('model', event.model.id), kind: event.kind };
             event.response = observeStream(event.response, { metadata, store: progressStore, signal: event.request.signal,
               onObserver: finish => active.set(requestID, finish), onClose: () => active.delete(requestID) });
-          }, { providerID: config.providerID });
+          }, ...filter);
           });
         }
         // An accepted watcher contract is not proof that this process activated a newly installed revision.

@@ -728,3 +728,45 @@ test('a held reading keeps the support line it was shown with', () => {
   expect(views[0]!.support?.text).toMatch(/^Engine · .+ tokens out$/);
   expect(views[1]).toMatchObject({ measurement: { label: 'Engine', text: '26.4', live: false, age: { text: '4 s ago' } }, support: views[0]!.support });
 });
+
+test('a reply the engine holds before it starts says why, and for how long while it is the only one waiting', () => {
+  const window = { tag: 't', startedAt: MOCK_NOW - 30_000, endedAt: null, outcome: null } as const;
+  const held = (memory: number, concurrency: number, extra: Partial<SessionSectionInput> = {}, phase = 'waiting') =>
+    presentSessionSection(inputOf('splash-decode', { window, chatActivity: 'busy', ...extra }, body => {
+      body.chat = chatSample({ phase, tokensPerSecond: phase === 'waiting' ? undefined : 19.2 });
+      body.runtime.server.admission = { waitingMemory: memory, waitingConcurrency: concurrency, oldestWaitMs: 18_400 };
+      body.capabilities['server.admission'] = { scope: 'server', basis: 'reported' };
+    }));
+  expect(held(1, 0).phase).toBe('Waiting for memory · 18 s');
+  expect(held(0, 1).phase).toBe('Waiting for another chat · 18 s');
+  // With two requests held, the oldest wait may be the other chat's: no time is claimed.
+  expect(held(1, 1).phase).toBe('Waiting for memory');
+  expect(held(2, 0).phase).toBe('Waiting for memory');
+  expect(held(0, 0).phase).toBe('Waiting');
+  // Only this chat's own waiting state claims a cause.
+  expect(held(1, 0, {}, 'generating').phase).toBe('Generating');
+  expect(held(1, 0, { chatIsLocal: false }).phase).not.toContain('memory');
+  expect(held(1, 0, { measurementScope: 'engine' }).phase).not.toContain('memory');
+  expect(held(1, 0, { chatActivity: 'idle' }).phase).not.toContain('memory');
+  expect(held(1, 0, { paused: true }).phase).toBe('Paused');
+  // The widget's reading still follows the 5.4 rules underneath: the reply's elapsed time while nothing was shown yet.
+  expect(held(1, 0).measurement).toMatchObject({ kind: 'elapsed', label: 'This chat · elapsed' });
+  expect(sessionMarkup(held(1, 0)).markup).toContain('Waiting for memory · 18 s');
+});
+
+test('5.5 Memory thief: a memory wait in the sidebar also names the app holding the most memory', () => {
+  const window = { tag: 't', startedAt: MOCK_NOW - 30_000, endedAt: null, outcome: null } as const;
+  const held = (memory: number, apps: boolean) => presentSessionSection(inputOf('splash-decode', { window, chatActivity: 'busy' }, body => {
+    body.chat = chatSample({ phase: 'waiting', tokensPerSecond: undefined });
+    body.runtime.server.admission = { waitingMemory: memory, waitingConcurrency: memory ? 0 : 1, oldestWaitMs: 18_400 };
+    body.capabilities['server.admission'] = { scope: 'server', basis: 'reported' };
+    if (apps) {
+      body.host.apps = { sampledAt: MOCK_NOW, items: [{ name: 'Exampleapps', bytes: 2_418_016_256 }] };
+      body.capabilities['host.apps'] = { scope: 'host', basis: 'reported' };
+    }
+  }));
+  expect(held(1, true).phase).toBe('Waiting for memory · 18 s · Exampleapps 2.3 GiB');
+  expect(held(1, false).phase).toBe('Waiting for memory · 18 s');
+  // A concurrency wait is not about memory: no app.
+  expect(held(0, true).phase).toBe('Waiting for another chat · 18 s');
+});

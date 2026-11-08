@@ -71,3 +71,13 @@ test('current detail reuses Now truth gates across states and never leaks local 
     expect(presentCurrentRun(input('decode', extra)).facts.some(fact => fact.scope === 'Engine')).toBe(false);
   }
 });
+
+test('5.5: a recorded reply shows the share of draft tokens the main model kept, only from its own draft row', () => {
+  const row = reply({ at: MOCK_NOW, decodeTps: 40, output: 300 });
+  const own = ['d', row[1], row[17], 4_000, 2_840] as const;
+  const view = presentRecordedRun(row, [], MOCK_NOW, undefined, undefined, [...own] as never);
+  expect(view.facts).toContainEqual({ label: 'Draft tokens kept', value: '71% (2,840 of 4,000)', basis: 'derived' });
+  const other = presentRecordedRun(row, [], MOCK_NOW, undefined, undefined, ['d', row[1], '5c1e0a7b.999', 4_000, 2_840] as never);
+  expect(other.facts.map(fact => fact.label)).not.toContain('Draft tokens kept');
+  expect(presentRecordedRun(row, [], MOCK_NOW).facts.map(fact => fact.label)).not.toContain('Draft tokens kept');
+});

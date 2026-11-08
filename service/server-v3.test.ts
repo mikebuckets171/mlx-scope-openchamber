@@ -13,9 +13,8 @@ const servers: http.Server[] = [];
 afterEach(async () => {
   await Promise.all(servers.splice(0).map(server => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); })));
 });
-const state = (enabled = false): CompanionSetupStatus => ({ state: enabled ? 'pending' : 'disabled',
-  message: enabled ? 'Companion configured.' : 'Enable the optional companion.', configured: enabled, managed: enabled,
-  canEnable: true, canDisable: enabled, runtimeVersion: null, companionVersion: null, protocol: null, live: false });
+const state = (): CompanionSetupStatus => ({ state: 'pending', message: 'Chat tracking starts when OpenChamber loads this extension’s helper into OpenCode.',
+  configured: false, managed: false, canEnable: false, canDisable: false, runtimeVersion: null, companionVersion: null, protocol: null, live: false });
 async function launch(sources: Sources, now: () => number = () => NOW) {
   const server = createScopeServer('test-v3-token', sources, { now, monotonic: () => 1_000, instance: '01234567', version: '3.0.0-test' });
   servers.push(server); await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -23,18 +22,12 @@ async function launch(sources: Sources, now: () => number = () => NOW) {
   return (path = PATH, init: RequestInit = {}) => fetch(base + path, { headers: AUTH, ...init });
 }
 async function fixture() {
-  const calls = { status: 0, enable: 0, disable: 0, read: 0 };
-  let enabled = false;
-  const request = await launch({ read: async () => { calls.read++; return unread(NOW); }, companionSetup: {
-    status: async () => { calls.status++; return state(enabled); },
-    enable: async () => { calls.enable++; enabled = true; return state(enabled); },
-    disable: async () => { calls.disable++; enabled = false; return state(enabled); },
-  } });
-  const post = (body: string, headers: HeadersInit = JSON_HEADERS) => request(PATH, { method: 'POST', headers, body });
-  return { request, post, calls };
+  const calls = { status: 0, read: 0 };
+  const request = await launch({ read: async () => { calls.read++; return unread(NOW); }, companionSetup: { status: async () => { calls.status++; return state(); } } });
+  return { request, calls };
 }
 
-test('companion GET reports status without mutating setup or reading the runtime', async () => {
+test('companion GET reports status without reading the runtime', async () => {
   const { request, calls } = await fixture();
   for (const path of [PATH, `${PATH}?action=enable`, `${PATH}?action=disable`]) {
     const response = await request(path);
@@ -43,69 +36,34 @@ test('companion GET reports status without mutating setup or reading the runtime
     expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
     expect(await response.json()).toEqual(state());
   }
-  expect(calls).toEqual({ status: 3, enable: 0, disable: 0, read: 0 });
+  expect(calls).toEqual({ status: 3, read: 0 });
 });
 
-test('only a deliberate authorized POST dispatches enable or disable', async () => {
-  const { post, request, calls } = await fixture();
-  expect(await (await post('{"action":"enable"}')).json()).toEqual(state(true));
-  expect(await (await request()).json()).toEqual(state(true));
-  const disabled = await post('{"action":"disable"}', { ...JSON_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
-  expect(disabled.status).toBe(200);
-  expect(await disabled.json()).toEqual(state());
-  expect(calls).toEqual({ status: 1, enable: 1, disable: 1, read: 0 });
+test('setup is read-only: every other method is refused before anything runs', async () => {
+  const { request, calls } = await fixture();
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
+    const response = await request(PATH, { method, headers: JSON_HEADERS, body: method === 'OPTIONS' ? undefined : '{"action":"enable"}' });
+    expect(response.status, method).toBe(405); expect(await response.json()).toEqual({ error: 'method_not_allowed' });
+  }
+  expect(calls).toEqual({ status: 0, read: 0 });
 });
 
-test('setup authorization is checked before reading status or dispatching mutations', async () => {
+test('setup authorization is checked before reading status', async () => {
   const { request, calls } = await fixture();
   for (const method of ['GET', 'POST']) for (const token of [null, 'Bearer wrong', 'Bearer test-v3-token-extra']) {
     const response = await request(PATH, { method, headers: { 'Content-Type': 'application/json', ...token ? { Authorization: token } : {} },
       ...method === 'POST' ? { body: '{"action":"enable"}' } : {} });
     expect(response.status).toBe(401); expect(await response.json()).toEqual({ error: 'unauthorized' });
   }
-  expect(calls).toEqual({ status: 0, enable: 0, disable: 0, read: 0 });
-});
-
-test('setup rejects other methods, malformed payloads and unknown fields without dispatch', async () => {
-  const { request, post, calls } = await fixture();
-  for (const method of ['PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
-    const response = await request(PATH, { method, headers: JSON_HEADERS, body: '{"action":"enable"}' });
-    expect(response.status).toBe(405); expect(await response.json()).toEqual({ error: 'method_not_allowed' });
-  }
-  for (const body of ['', '{', 'null', '[]', '"enable"', '{}', '{"action":true}', '{"action":"restart"}',
-    '{"action":"enable","path":"/private/elsewhere"}', '{"action":"disable","force":true}']) {
-    const response = await post(body);
-    expect(response.status, body).toBe(400); expect(await response.json()).toEqual({ error: 'bad_request' });
-  }
-  expect(calls).toEqual({ status: 0, enable: 0, disable: 0, read: 0 });
-});
-
-test('setup requires the JSON media type before dispatch', async () => {
-  const { post, calls } = await fixture();
-  for (const contentType of [null, 'text/plain', 'application/octet-stream', 'application/jsonp']) {
-    const response = await post('{"action":"enable"}', { ...AUTH, ...contentType ? { 'Content-Type': contentType } : {} });
-    expect(response.status, contentType ?? 'absent').toBe(415);
-    expect(await response.json()).toEqual({ error: 'unsupported_media_type' });
-  }
-  expect(calls).toEqual({ status: 0, enable: 0, disable: 0, read: 0 });
-});
-
-test('setup bounds the request body before dispatch', async () => {
-  const { post, calls } = await fixture();
-  const response = await post(' '.repeat(1_025));
-  expect(response.status).toBe(413); expect(await response.json()).toEqual({ error: 'body_too_large' });
-  expect(calls).toEqual({ status: 0, enable: 0, disable: 0, read: 0 });
+  expect(calls).toEqual({ status: 0, read: 0 });
 });
 
 test('setup errors are sanitized and do not affect the existing read routes', async () => {
   const request = await launch({ read: async () => unread(NOW), companionSetup: {
     status: async () => { throw new Error('private file /tmp/fixture-secret/config'); },
-    enable: async () => { throw new Error('private key'); }, disable: async () => state(),
   } });
-  for (const init of [{}, { method: 'POST', headers: JSON_HEADERS, body: '{"action":"enable"}' }]) {
-    const response = await request(PATH, init);
-    expect(response.status).toBe(503); expect(await response.json()).toEqual({ error: 'service_unavailable' });
-  }
+  const response = await request(PATH);
+  expect(response.status).toBe(503); expect(await response.json()).toEqual({ error: 'service_unavailable' });
   const health = await request('/health'); expect(await health.json()).toEqual({ ok: true, version: '3.0.0-test' });
   const snapshot = await request('/v2/snapshot'); expect(snapshot.status).toBe(200);
   expect(parseSnapshotV2(await snapshot.json())).not.toBeNull();

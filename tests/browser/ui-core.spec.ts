@@ -33,7 +33,7 @@ const errorsOf = (page: Page) => { const errors: string[] = []; page.on('pageerr
 
 test.describe.configure({ timeout: 240_000 });
 
-test('every mock state passes the mock\'s checks on Live and Server at 320 (dark), with every ⓘ open too', async ({ page }) => {
+test('every mock state passes the mock\'s checks on Live and Server at 320 (dark), with every ⓘ open too', { tag: '@smoke' }, async ({ page }) => {
   const errors = errorsOf(page);
   for (const state of STATES) {
     const frame = await load(page, `state=${state}`);
@@ -47,7 +47,7 @@ test('every mock state passes the mock\'s checks on Live and Server at 320 (dark
   expect(errors).toEqual([]);
 });
 
-test('every mock state passes the checks in light at 320, at 430, and on the 1,160 px page', async ({ page }) => {
+test('every mock state passes the checks in light at 320, at 430, and on the 1,160 px page', { tag: '@smoke' }, async ({ page }) => {
   const errors = errorsOf(page);
   for (const state of STATES) for (const [query, width] of [[`theme=light&state=${state}`, 320], [`state=${state}`, 430], [`surface=page&state=${state}`, 1160],
     [`surface=page&theme=light&state=${state}`, 1160]] as const) {

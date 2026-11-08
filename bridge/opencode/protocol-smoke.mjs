@@ -1,5 +1,6 @@
 // Optional qualification: node bridge/opencode/protocol-smoke.mjs /absolute/path/to/opencode [--remote]
-// Starts an isolated released OpenCode process and a synthetic loopback SSE provider. No real model is used.
+// Starts an isolated released OpenCode process and a synthetic loopback SSE provider named Splash. No real model is used.
+// The helper is loaded the way OpenChamber 2.7 loads an extension's plugin: as a bare folder with no options.
 import assert from 'node:assert/strict';
 import { candidateProfile as profileFor } from './qualified.js';
 import { execFileSync, spawn } from 'node:child_process';
@@ -78,11 +79,12 @@ try {
   const loopbackBase = `http://127.0.0.1:${fixture.address().port}/v1`;
   const providerBase = remote ? remoteBase : loopbackBase;
   await writeFile(join(base, 'config/opencode/opencode.json'), JSON.stringify({ update: 'disable', share: 'disabled', snapshots: false,
-    model: 'scopefixture/fixture', providers: { scopefixture: { package: '@opencode/ai/providers/openai-compatible',
+    model: 'splash/fixture', providers: { splash: { name: 'Splash', package: '@opencode/ai/providers/openai-compatible',
       settings: { baseURL: providerBase }, models: { fixture: { name: 'Protocol fixture',
         capabilities: { tools: false, input: ['text'], output: ['text'] }, limit: { context: 262144, output: 8192 } } } } },
-    plugins: [{ package: join(base, 'plugin'), options: remote ? { promptProgress: false }
-      : { providerID: 'scopefixture', baseURL: providerBase } }] }));
+    // As OpenChamber's managed configuration lists an extension's plugin: a bare folder, no options. The helper finds
+    // Splash itself from OpenCode's provider list (a remote address is never Splash, so no progress is requested).
+    plugins: [join(base, 'plugin')] }));
   const reservation = net.createServer(); await new Promise(resolve => reservation.listen(0, '127.0.0.1', resolve));
   const port = reservation.address().port; await new Promise(resolve => reservation.close(resolve));
   const env = { PATH: process.env.PATH, TMPDIR: process.env.TMPDIR, HOME: process.env.HOME,
@@ -108,13 +110,13 @@ try {
   await api('/api/plugin'); await pause(1500);
   const heartbeat = JSON.parse(await readFile(join(base, 'telemetry/heartbeat.json'), 'utf8'));
   assert.ok(heartbeat.supported); assert.equal(heartbeat.runtimeVersion, profile.runtimeVersion);
-  const { data: session } = await api('/api/session', { title: 'Scope protocol fixture', model: { providerID: 'scopefixture', id: 'fixture' } });
+  const { data: session } = await api('/api/session', { title: 'Scope protocol fixture', model: { providerID: 'splash', id: 'fixture' } });
   assert.ok(session.id);
   const summaries = [];
   for (let round = 0; round < 4; round++) {
     const started = Date.now();
     await atomicPrivateJSON(join(base, 'telemetry'), 'demand.json', { schemaVersion: 1, updatedAtMs: started, expiresAtMs: started + 15_000,
-      watched: [{ sessionKey: key('session', session.id), providerKey: key('provider', 'scopefixture'), modelKey: key('model', 'fixture'),
+      watched: [{ sessionKey: key('session', session.id), providerKey: key('provider', 'splash'), modelKey: key('model', 'fixture'),
         ...remote ? { destination: 'remote' } : {} }] });
     if (round === 0) await pause(1300);
     await api(`/api/session/${session.id}/prompt`, { text: 'Protocol fixture: no tools.' });
@@ -129,7 +131,7 @@ try {
         });
         for (const entry of document?.entries ?? []) if (entry.observedAtMs >= started) {
           assert.equal(entry.sessionKey, key('session', session.id));
-          assert.equal(entry.providerID, 'scopefixture');
+          assert.equal(entry.providerID, 'splash');
           assert.equal(entry.modelKey, key('model', 'fixture'));
           assert.equal(entry.endpointKey, key('endpoint', new URL(providerBase).origin));
           assert.equal(entry.total, 1000); assert.equal(entry.cache, 100);
@@ -143,7 +145,7 @@ try {
         catch (error) { if (error.code === 'ENOENT') continue; throw error; }
         for (const entry of document.entries ?? []) if (entry.measurement.observedAtMs >= started) {
             assert.equal(entry.sessionKey, key('session', session.id));
-            assert.equal(entry.providerKey, key('provider', 'scopefixture'));
+            assert.equal(entry.providerKey, key('provider', 'splash'));
             assert.equal(entry.modelKey, key('model', 'fixture'));
             assert.equal(entry.endpointKey, key('endpoint', new URL(providerBase).origin));
             assert.equal(entry.destination, remote ? 'remote' : undefined);

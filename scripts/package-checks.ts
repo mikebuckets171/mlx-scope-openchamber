@@ -1,8 +1,8 @@
 // Pure checks behind scripts/verify-package.ts (plan §6 and §8.1), unit-tested in package-checks.test.ts.
 
-/** Approved runtime probes only. */
+/** Approved runtime probes only. 5.5 adds `/usr/bin/top` for Memory thief (one read-only sample of PID, name and memory). */
 export const EXEC_G1 = [
-  '/usr/bin/vm_stat', '/usr/sbin/sysctl', '/usr/sbin/ioreg', '/usr/bin/notifyutil', '/usr/sbin/lsof', '/usr/bin/footprint',
+  '/usr/bin/vm_stat', '/usr/sbin/sysctl', '/usr/sbin/ioreg', '/usr/bin/notifyutil', '/usr/sbin/lsof', '/usr/bin/footprint', '/usr/bin/top',
   '~/.lmstudio/bin/lms', '~/.cache/lm-studio/bin/lms', '/opt/homebrew/bin/macmon', '/usr/local/bin/macmon',
 ] as const;
 /** Bytes, 1 KB = 1,000 (the stricter reading of plan §6). */
@@ -12,13 +12,17 @@ export const EXEC_G1 = [
 // 3.1 adds bounded media adapters, reversible helper setup, Media/Connections views and digit motion.
 // The measured candidate adds about 27 KB of guest code and 30 KB of service code, with no new dependencies.
 // Bundle size is a packaging ceiling, distinct from the unchanged CPU/RSS acceptance budgets.
-// 5.1 guards: the measured 5.1 bundles × 1.05 (panel 257,239 B, service 255,175 B). 5.0 shipped 288,193 B, 247,540 B and
-// a 24 KB background bundle; the service grew with Phosphene, prompt reuse and the OpenCode self-check.
-export const BUNDLE_CEILINGS = { 'panel/main.js': 270_000, 'service/main.js': 268_000 } as const;
+// 5.1 guards: measured bundles × 1.05. 5.5's trial feature brings the panel to 280,773 B; keep the same measured margin.
+// 5.0 shipped 288,193 B, 247,540 B and a 24 KB background bundle; the service grew with Phosphene, prompt reuse and the
+// OpenCode self-check.
+export const BUNDLE_CEILINGS = { 'panel/main.js': 295_000, 'service/main.js': 268_000 } as const;
 export const GUEST_BUNDLES = ['panel/main.js'] as const;
 export const STATUS_SECTION = { entry: 'panel/index.html', title: 'MLX Scope', height: 72 } as const;
-export const SDK_VERSION = '2.5.0';
-export const ENGINES_FLOOR = '>=2.4.0';
+export const SDK_VERSION = '2.7.0';
+/** 2.7 is where an extension can ship an OpenCode plugin, which is how the chat-speed helper now reaches OpenCode. */
+export const ENGINES_FLOOR = '>=2.7.0';
+/** The folder OpenChamber adds to the OpenCode it runs while the extension is on; it must stand alone (see helperProblems). */
+export const OPENCODE_PLUGIN = 'bridge/opencode';
 /** The exact policy every guest page declares: packaged scripts and styles only, no network, images, fonts or forms. */
 export const PANEL_CSP = "default-src 'none'; script-src 'self' data: http: https:; style-src 'self' data: http: https: 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; form-action 'none'";
 
@@ -41,9 +45,33 @@ export const manifestProblems = (pkg: unknown): string[] => {
   expect(contributes?.background === undefined, 'contributes.background must be absent: 5.1 has no background entry');
   expect(contributes?.commands === undefined, 'contributes.commands must be absent: 5.1 has no slash command');
   expect(contributes?.page === true, 'contributes.page must be true');
+  expect(contributes?.opencodePlugin === OPENCODE_PLUGIN, `contributes.opencodePlugin must be "${OPENCODE_PLUGIN}": the chat-speed helper is delivered with the extension`);
   expect(Array.isArray(contributes?.actions) && (contributes.actions as unknown[]).some(action =>
     obj(action)?.id === 'open-mlx-scope' && obj(action)?.where === 'session'), 'the open-mlx-scope session action must stay');
   expect(same(exec, EXEC_G1), `service exec must be exactly the ${EXEC_G1.length} G1 entries, in order`);
+  return problems;
+};
+
+/**
+ * OpenCode loads the helper with a bare import from its own folder, where nothing is installed and no other part of the
+ * package is reachable: a module it needs that is not shipped, or one outside the folder, fails to load with no message.
+ * `files` maps a package path to its source; `shipped` is the package's file list.
+ */
+export const helperProblems = (shipped: readonly string[], files: Record<string, string>): string[] => {
+  const folder = `${OPENCODE_PLUGIN}/`, problems: string[] = [];
+  const manifest = (() => { try { return JSON.parse(files[`${folder}package.json`] ?? ''); } catch { return null; } })();
+  if (!manifest || manifest.name !== 'mlx-scope-prompt-progress' || manifest.exports !== './index.js') problems.push(`${folder}package.json must name mlx-scope-prompt-progress and export ./index.js`);
+  if (!shipped.includes(`${folder}index.js`)) problems.push(`${folder}index.js is not shipped`);
+  for (const path of shipped.filter(entry => entry.startsWith(folder) && entry.endsWith('.js'))) {
+    // Comments may say "from 'x'"; a `//` after a colon is a URL, not a comment.
+    const code = (files[path] ?? '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    for (const match of code.matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g)) {
+      const target = match[1]!;
+      if (target.startsWith('node:')) continue;
+      if (!target.startsWith('./') || target.slice(2).includes('/')) { problems.push(`${path} imports ${target}: the helper may import only its own files and node: modules`); continue; }
+      if (!shipped.includes(`${folder}${target.slice(2)}`)) problems.push(`${path} imports ${target}, which the package does not ship`);
+    }
+  }
   return problems;
 };
 
