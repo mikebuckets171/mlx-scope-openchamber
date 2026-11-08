@@ -66,7 +66,7 @@ replaced, without a restart; an existing active request cannot acquire progress 
 
 Two copies of this plugin never run together: OpenCode loads only the first plugin of an id and skips the rest, and its global
 configuration comes before OpenChamber's managed one. That is why a copy added by hand, or by Scope 5's **Enable chat speed**, keeps
-working untouched until it is removed, and why Scope 6 removes the one it installed (once, when unedited and no reply is running).
+working untouched until it is removed, and why Scope 6 removes the one it installed (once, when unedited and no reply is being measured).
 
 The plugin uses the supported `session.hook('http.request')` and `session.hook('http.response')` APIs. The bundled OpenCode inspected on 2026-10-07 also routes AI SDK fetches through this hook chain; older OpenCode versions may only support the native provider path. No global fetch override is used. See [OpenCode plugin documentation](https://opencode.ai/v2/docs/build/plugins/#native-http).
 

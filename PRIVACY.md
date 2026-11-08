@@ -12,7 +12,7 @@ raw API responses stay service-side. The views receive allowlisted measurements,
 choices. They do not receive prompts, completions, credentials, LLM request identifiers or process IDs. Media views additionally receive bounded backend job IDs and hashed ownership matching identifiers. Absolute model
 paths are reduced to names before display. Monitoring does not rewrite configuration. The only change Scope makes to OpenCode's own configuration is removing, once,
 the entry that Scope 5's **Enable chat speed** added (preserving other plugins and comments), and only when that copy's files
-are unedited and no reply is running. The names a provider's OpenCode `models` entries give their IDs (at most 32, 80 characters
+are unedited and no reply is being measured. The names a provider's OpenCode `models` entries give their IDs (at most 32, 80 characters
 each) reach the views as display labels; they are never stored.
 
 **Bionic and LM Studio server log.** For LM Studio, the service follows LM Studio's server log with
@@ -63,9 +63,10 @@ A startup heartbeat proves the plugin was loaded, not that it is currently activ
 current reading. Only allowlisted measurement fields reach the view; matching hashes do not.
 
 The companion finds Splash from OpenCode's provider list when a request arrives. It uses only a provider's id, name and base
-URL, and ignores everything else in that list, including any key; nothing from the list is stored or sent. It never restarts
+URL, and ignores everything else in that list, including any key. Nothing from the list is sent anywhere; of a Splash provider, only
+its id and a hash of its address reach the progress records above. It never restarts
 OpenCode or an active inference session. A copy installed by Scope 5 is removed once by the service when its files are unedited
-and no reply is running; an edited or manually installed copy stays under your control.
+and no reply is being measured; an edited or manually installed copy stays under your control.
 
 Chat delivery estimates are transient: they are not added to engine charts, reply baselines or history.
 Existing records retain their original measurement basis. See [Measurements](docs/METRICS.md).

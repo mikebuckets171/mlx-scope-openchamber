@@ -24,12 +24,13 @@ changed, so only reviewed identifiers are accepted: an unreviewed suffix stays u
 major release does.
 
 **Delivery (6.0).** The extension delivers the helper (OpenChamber 2.7's `opencodePlugin`), so there is no install or update step
-and Scope no longer edits OpenCode's settings. A copy that Scope 5's guided setup added keeps working until Scope 6's service
-retires it once, when its files are unedited, OpenChamber configures the OpenCode that runs, and no reply is running. Both copies
+and Scope no longer edits OpenCode's settings, apart from one removal. A copy that Scope 5's guided setup added keeps working until Scope 6's service
+retires it once, when its files are unedited and no reply is being measured. Both copies
 share one plugin id and OpenCode loads only the first it finds, global configuration before OpenChamber's, so they never run
 together; removing the older entry lets the extension's copy load in its place without a restart (checked natively on OpenCode
-2.2.6). Until it does, Connections says an older helper is still loaded. An edited copy, or an OpenCode that OpenChamber does not
-start, is left alone and named.
+2.2.6). Until it does, Connections says an older helper is still loaded. An edited copy is left alone and named. An installed
+service is not given OpenChamber's environment and cannot see how OpenCode was started, so an OpenCode that OpenChamber does not
+start loses the older copy too and needs **Add to global config** on the extension's card to get the new one.
 
 A 5.3 service accepts any 3.x companion writer of the same telemetry major version, and a 5.2 service with a 3.6.0
 companion behaves as 5.2 did. When no Scope view has asked for chat telemetry, the companion's demand watcher backs off

@@ -76,8 +76,8 @@ summaries are accepted only from the runtime's own lifecycle lines, so generated
 - Sharing requires a user action. Draft sharing appends and cannot send.
 - Only one visible view writes history storage. The service writes a private, expiring chat-demand file while watched;
   the only change the service makes to OpenCode's own settings is to remove, once, the entry and unedited files that Scope 5's
-  guided setup added, when OpenChamber configures that OpenCode and no reply is running; edited, manual or foreign installations
-  are left alone. Status reads never perform it, and nothing installs or updates the helper any more: the extension delivers it.
+  guided setup added, when no reply is being measured; edited, manual or foreign installations are left alone. An installed
+  service cannot see how OpenChamber started OpenCode, so this also applies to an OpenCode that OpenChamber does not start. Status reads never perform it, and nothing installs or updates the helper any more: the extension delivers it.
 
 Automated checks cover these contracts: unit and fixture tests, privacy canaries across every share path, a
 committed-file scrub, the package checks, and browser tests. They are not an independent security audit or a guarantee

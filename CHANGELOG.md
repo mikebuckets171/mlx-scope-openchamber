@@ -4,8 +4,8 @@
 
 - **Chat speed comes with the extension.** The helper that estimates a chat's delivery speed and reads Splash's prompt
   progress no longer needs a click. OpenChamber adds it to the OpenCode it runs while MLX Scope is on and takes it away
-  when you pause or remove the extension. **Connections → Enable chat speed** and **Update chat speed** are gone, and Scope no
-  longer edits your OpenCode settings. When you update, OpenChamber asks you to approve **Add a plugin to OpenCode**: the
+  when you pause or remove the extension. **Connections → Enable chat speed** and **Update chat speed** are gone, and apart
+  from the one removal below, Scope no longer edits your OpenCode settings. When you update, OpenChamber asks you to approve **Add a plugin to OpenCode**: the
   helper runs inside OpenCode with your access like any plugin; it reads chat events and Splash's prompt-progress stream
   and writes only to the same private cache folder as before. Its telemetry format is unchanged (helper 3.7.0).
 - **Splash is found for you.** When a request arrives, the helper reads OpenCode's own provider list and treats a
@@ -13,9 +13,12 @@
   configured, and the provider's key is never used or kept. A helper added by hand with a provider and address keeps working
   as before.
 - **Scope 5's copy is retired once.** If you used **Enable chat speed** in Scope 5, Scope removes its entry from your OpenCode
-  settings and its files from `addons/` when they are exactly as Scope left them and no reply is running. Both copies
+  settings and its files from `addons/` when they are exactly as Scope left them and no reply is being measured. Both copies
   carry the same plugin id, so OpenCode keeps using the older one until then and loads the new one in its place without a
-  restart. An edited copy, or an OpenCode that OpenChamber does not start, is left alone, and Connections says why.
+  restart. An edited copy is left alone, and Connections says why. OpenChamber does not tell an extension's service how
+  OpenCode was started, so **if OpenChamber does not start your OpenCode** (`OPENCODE_HOST`, `OPENCODE_PORT`,
+  `OPENCODE_SKIP_START` or `OPENCODE_CONFIG` in its environment) the removal still happens and the new helper does not load
+  by itself: use **Add to global config** on the extension's card in Settings → Extensions.
 - **Needs OpenChamber 2.7.0 or newer** (it was 2.4.0), for the plugin delivery above. Scope 5.4.0 remains the release for
   OpenChamber 2.4 to 2.6.
 

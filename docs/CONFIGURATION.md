@@ -6,7 +6,7 @@ Helper installation never restarts OpenCode or a generation backend. “Installe
 
 MLX Scope uses your existing local runtime connection. Monitoring leaves your
 configuration unchanged. The chat-speed plugin comes with the extension (OpenChamber adds it to the OpenCode it runs), so
-Scope edits none of your OpenCode settings.
+Scope edits none of your OpenCode settings, apart from removing the entry Scope 5 added (see below).
 
 ## Getting connected
 
@@ -90,7 +90,7 @@ runtime measurements available and withhold chat estimates.
 
 Splash prompt progress needs no configuration: the helper finds a provider that is named Splash (by the same id and name rule
 Scope uses to recognise a connection) at a loopback `/v1` address. If Scope 5 added an entry to your OpenCode settings, Scope 6
-removes it and its `addons/mlx-scope-prompt-progress` files once, when they are unedited and no reply is running; both copies share
+removes it and its `addons/mlx-scope-prompt-progress` files once, when they are unedited and no reply is being measured; both copies share
 one plugin id, so OpenCode uses the older one until then and loads the new one in its place without a restart.
 
 ## Discovery

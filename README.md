@@ -103,7 +103,7 @@ away when you pause or remove Scope, so there is nothing to enable and nothing o
 speed** shows whether it is loaded and what it can do. It finds Splash from OpenCode's own provider list and never uses
 or keeps a provider key. For an OpenCode that OpenChamber does not start, follow the [manual setup](bridge/opencode/README.md).
 If you used **Enable chat speed** in Scope 5, Scope 6 retires that older copy once, when its files are unedited and no reply
-is running (see [Compatibility](docs/COMPATIBILITY.md)).
+is being measured (see [Compatibility](docs/COMPATIBILITY.md)).
 Chat delivery estimates are qualified on OpenCode **2.0.25, 2.0.27, 2.0.28, 2.0.29, 2.0.32, 2.2.0 and 2.1.1-compaction.1**.
 Every other OpenCode 2 release from 2.0.25 is **self-checked**: the companion confirms each hook and event shape it
 relies on and pauses only the feature whose check fails, with the reason in Connections. A self-check cannot detect a
@@ -206,7 +206,7 @@ Git updates preserve existing preferences and observations. Scope 6.0.0 asks you
 
 | Entry | What Scope runs | Why |
 |---|---|---|
-| Local service (`service/main.js`) | Runs under your account while a Scope view needs readings | Reads local runtime APIs on loopback and runs the commands below. Keeps runtime readings in memory and writes bounded private chat-demand metadata. Its only change to your OpenCode settings is removing the entry Scope 5 added, once, if it is unedited and no reply is running |
+| Local service (`service/main.js`) | Runs under your account while a Scope view needs readings | Reads local runtime APIs on loopback and runs the commands below. Keeps runtime readings in memory and writes bounded private chat-demand metadata. Its only change to your OpenCode settings is removing the entry Scope 5 added, once, if it is unedited and no reply is being measured |
 | `/usr/bin/vm_stat` | `vm_stat` | Memory page counts: used, wired and compressed memory (as in 1.x) |
 | `/usr/sbin/sysctl` | `sysctl -i vm.swapusage kern.memorystatus_vm_pressure_level iogpu.wired_limit_mb` | Swap, the kernel's memory pressure level and the GPU wired-memory limit (1.x read swap only) |
 | `/usr/sbin/ioreg` | `ioreg -r -d 1 -w 0 -c IOAccelerator` | GPU busy and GPU memory, as the graphics driver reports them |
@@ -219,7 +219,7 @@ Git updates preserve existing preferences and observations. Scope 6.0.0 asks you
 | `/opt/homebrew/bin/macmon` | `macmon pipe -i 1000` | Optional chip power estimate, only if you installed macmon with Homebrew. Scope never installs it |
 | `/usr/local/bin/macmon` | The same | The same, for a macmon installed under `/usr/local` |
 
-- **Add a plugin to OpenCode (`opencodePlugin`):** the chat-speed helper in `bridge/opencode`. OpenChamber lists the folder in the configuration it manages for the OpenCode it runs, so the plugin loads and unloads with the extension and nothing is written to your own `opencode.json`. It runs inside OpenCode with that process's access: it observes chat events and Splash's prompt-progress stream, and writes only bounded hashed records to a private cache folder under `~/.cache/mlx-scope`. It keeps no prompt, reply, provider key or file content: it parses a Splash request only to add Splash's `return_progress` flag, and records only counts and hashed identifiers.
+- **Add a plugin to OpenCode (`opencodePlugin`):** the chat-speed helper in `bridge/opencode`. OpenChamber lists the folder in the configuration it manages for the OpenCode it runs, so the plugin loads and unloads with the extension and nothing is written to your own `opencode.json`. It runs inside OpenCode with that process's access: it observes chat events and Splash's prompt-progress stream, and writes only bounded records to a private cache folder under `~/.cache/mlx-scope`. It keeps no prompt, reply, provider key or file content: it parses a Splash request only to add Splash's `return_progress` flag, and records only counts, timings, the Splash provider's id and hashed identifiers.
 - **Optional host capability:** `sessions` for current-project running/waiting chats and host-reported subagents. It is disabled initially and subscribes only while Live is visible. Scope never sends a prompt through it. Per-chat measurement labels still use the existing open-chat observations.
 - **Never used:** `sudo`, `osascript`, `powermetrics` or `pmset`.
 - Each command runs by absolute path, without a shell, and only with the arguments shown; a test checks the argument

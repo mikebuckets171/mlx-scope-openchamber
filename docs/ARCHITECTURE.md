@@ -110,7 +110,7 @@ otherwise.
 The helper arrives with the extension (OpenChamber 2.7's `opencodePlugin`), so no route installs or updates it. The setup route
 reads the helper's status on GET and changes nothing. The one thing the service still writes outside its own memory is a single
 removal at startup, retried while a view polls: the entry and unedited files that Scope 5's guided setup added to OpenCode's
-settings, when OpenChamber configures that OpenCode and no reply is running. JSONC edits preserve comments and unrelated plugins;
+settings, when no reply is being measured (an installed service cannot see how OpenChamber started OpenCode). JSONC edits preserve comments and unrelated plugins;
 writes are atomic. It never restarts the host or inference. The 3.0 chat setup preserved runtime command permissions; the media adapters added in
 3.1 briefly extended the command list with a local-video cancellation path, and 5.2 returned it to the ten fixed
 probes. Bundle ceilings cover media adapters and setup; the CPU/RSS and hidden-view budgets are unchanged.
