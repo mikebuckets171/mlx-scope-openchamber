@@ -2,7 +2,7 @@ import { capabilitiesOf, type CapabilityDescriptor } from '../../src/contract/ca
 import { count, defined, nonneg, obj, opt, type Json } from '../../src/contract/guards.ts';
 import { hash32 } from '../../src/contract/hash.ts';
 import type { ReasonParams } from '../../src/contract/reasons.ts';
-import { requiredCapabilities, type CatalogV2, type Phase, type Quantiles, type RuntimeV2, type StatusV2 } from '../../src/contract/snapshot.ts';
+import { requiredCapabilities, ROOM_ACCOUNTS_MAX, type CatalogV2, type Phase, type Quantiles, type RuntimeV2, type StatusV2 } from '../../src/contract/snapshot.ts';
 import type { AdapterContextV2, AdapterReadingV2, AdapterV2, CompletionDraft, DescriptorV2, PromptObservation } from '../core/adapter-v2.ts';
 import { HttpFailure } from '../http.ts';
 import { modelLabel, positive } from '../lib/parse.ts';
@@ -34,6 +34,7 @@ const CAPABILITIES: readonly CapabilityDescriptor[] = [
   { key: 'server.latency', basis: 'reported' }, { key: 'server.memory.metal', basis: 'reported' },
   { key: 'server.catalog', basis: 'reported' }, { key: 'server.completions', basis: 'derived' },
   { key: 'server.admission', basis: 'reported' }, { key: 'server.memory.room', basis: 'reported' }, { key: 'server.speculative', basis: 'derived' },
+  { key: 'server.batches', basis: 'reported' },
 ];
 const MODALITIES = ['text', 'image', 'audio', 'pdf'] as const;
 type Modality = typeof MODALITIES[number];
@@ -133,8 +134,38 @@ const room = (item: Json): RuntimeV2['memory']['room'] => {
   const result = defined({ limitBytes: opt(count(field(item, 'memory_governor.limit_bytes'))), headroomBytes: opt(count(field(item, 'memory_governor.headroom_bytes'))),
     claimsWaiting: opt(count(field(item, 'memory_governor.claims.waiting'))), claimsBytes: opt(count(field(item, 'memory_governor.claims.bytes'))),
     kvActiveBytes: opt(count(field(item, 'kv.active_bytes'))), kvAllocatedBytes: opt(count(field(item, 'kv.allocated_bytes'))),
-    kvReclaimableBytes: opt(count(field(item, 'kv.reclaimable_bytes'))), spilledRequests: opt(count(field(item, 'kv_spill.requests.converted'))) });
+    kvReclaimableBytes: opt(count(field(item, 'kv.reclaimable_bytes'))), spilledRequests: opt(count(field(item, 'kv_spill.requests.converted'))),
+    deniedReservations: opt(count(field(item, 'memory_governor.denied_reservations'))),
+    // The Mac's side of the gate, only while Splash says its host measurement is valid (1.6).
+    ...field(item, 'memory_governor.host_measurement_valid') === true ? {
+      hostSpareBytes: opt(count(field(item, 'memory_governor.host_spare_bytes'))),
+      hostSpareReserveBytes: opt(count(field(item, 'memory_governor.host_spare_reserve_bytes'))),
+      hostHeadroomBytes: opt(count(field(item, 'memory_governor.host_headroom_bytes'))) } : {},
+    accounts: accounts(field(item, 'memory_governor.accounts')), experts: experts(obj(item.streamed_experts)) });
   return Object.keys(result).length ? result : undefined;
+};
+/** Splash's budget accounts (fixed runtime, experts, KV, …) at their current size and cap. */
+const accounts = (value: unknown): NonNullable<RuntimeV2['memory']['room']>['accounts'] => {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.slice(0, ROOM_ACCOUNTS_MAX).flatMap(raw => {
+    const item = obj(raw), name = typeof item?.name === 'string' && /^[a-z][a-z0-9_]{0,31}$/.test(item.name) ? item.name : null;
+    const current = count(item?.current_bytes), cap = count(item?.cap_bytes);
+    return name && current !== null && cap !== null && current <= cap ? [{ name, currentBytes: current, capBytes: cap }] : [];
+  });
+  return items.length ? items : undefined;
+};
+/** The expert store: experts the model has and how many are in memory now. */
+const experts = (store: Json | null): NonNullable<RuntimeV2['memory']['room']>['experts'] => {
+  const total = count(store?.experts), resident = count(store?.resident);
+  return total && resident !== null && resident <= total ? { total, resident } : undefined;
+};
+/** Decode batches since the engine started: `b1` ran one request, `b2`… several at once (1.6). */
+const batches = (item: Json): RuntimeV2['server']['batches'] => {
+  const widths = obj(field(item, 'scheduler.decode_batches_by_width'));
+  if (!fresh(item) || !widths) return undefined;
+  const entries = Object.entries(widths), counts = entries.map(([key, value]) => /^b[1-9]\d?$/.test(key) ? count(value) : null);
+  if (!entries.length || counts.some(value => value === null) || count(widths.b1) === null) return undefined;
+  return { single: count(widths.b1)!, multi: entries.reduce((sum, [key], index) => key === 'b1' ? sum : sum + counts[index]!, 0) };
 };
 /** Splash's own Metal allocation. Never process memory: the engine is a child process (SPIKES S9). */
 const memory = (item: Json): RuntimeV2['memory'] => {
@@ -234,7 +265,8 @@ export const splashReading = (body: unknown, at: number): Omit<AdapterReadingV2,
   if (!item) return { at, status, capabilities: {}, runtime: emptyRuntime(at), identity: {} };
   const live = activity(item);
   const runtime: RuntimeV2 = { sampledAt: at, phase: live.phase, request: null,
-    server: defined({ active: live.active, queued: live.queued, averages: averages(item), histograms: histograms(item), admission: admission(item) }),
+    server: defined({ active: live.active, queued: live.queued, averages: averages(item), histograms: histograms(item), admission: admission(item),
+      batches: batches(item) }),
     memory: memory(item), residency: [], slots: [], catalog: catalog(item), engines: [] };
   const filled = new Set(requiredCapabilities({ runtime }));
   return { at, status, runtime, identity: {}, generationKey: generationKey(item),

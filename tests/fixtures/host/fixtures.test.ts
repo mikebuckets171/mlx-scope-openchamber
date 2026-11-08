@@ -10,7 +10,7 @@ const DIR = join(import.meta.dir, 'macos-27');
 const read = (name: string): string => readFileSync(join(DIR, name), 'utf8');
 const lines = (text: string): string[] => text.split('\n').slice(0, -1);   // every complete, newline-terminated line
 const FIXTURES = readdirSync(DIR).filter(name => name !== 'SOURCE.md').sort();
-const COMMANDS = ['vm_stat', 'sysctl', 'ioreg', 'notifyutil', 'lsof', 'footprint', 'ps', 'macmon-pipe'] as const;
+const COMMANDS = ['vm_stat', 'sysctl', 'ioreg', 'notifyutil', 'lsof', 'footprint', 'top', 'ps', 'macmon-pipe'] as const;
 const byCommand = (command: (typeof COMMANDS)[number]) => FIXTURES.filter(name => name.startsWith(`${command}.`));
 
 const PID_CANARY = 4242;
@@ -84,6 +84,7 @@ describe('privacy canaries are planted where intended', () => {
     'footprint.no-categories.txt': /^python3 \[4242\]: 64-bit/m,
     'footprint.no-categories-bytes.txt': /^python3 \[4242\]: 64-bit/m,
     'footprint.not-found.txt': /matching '4242'/,
+    'top.mem.txt': /^4242 {3}Exampleapps Help 1379M$/m,   // 5.5: and 4243 on the engine's own row
   };
   for (const [name, pattern] of Object.entries(PLANTED)) {
     test(name, () => expect(read(name)).toMatch(pattern));

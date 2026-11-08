@@ -1,0 +1,24 @@
+Processes: 500 total, 2 running, 498 sleeping, 4000 threads 
+2030/01/01 00:00:00
+Load Avg: 1.00, 1.00, 1.00 
+CPU usage: 10.00% user, 10.00% sys, 80.00% idle 
+SharedLibs: 400M resident, 80M data, 60M linkedit.
+MemRegions: 400000 total, 5000M resident, 180M private, 30G shared.
+PhysMem: 46G used (34G wired, 2000M compressor), 500M unused.
+VM: 280T vsize, 50G framework vsize, 1000(0) swapins, 2000(0) swapouts.
+Networks: packets: 1000/1G in, 1000/1G out.
+Disks: 1000/1T read, 1000/1G written.
+
+PID    COMMAND          MEM  
+4243   splash           31G  
+4242   Exampleapps Help 1379M
+1131   opencode         1348M
+4410   node             1107M
+412    WindowServer     1059M
+1626   Exampleapps Help 927M 
+5120   Sample Editor    812M 
+0      kernel_task      700M 
+6001   Viewer Helper (G 643M 
+6000   Viewer           402M 
+777    com.apple.WebKit 388M 
+901    tiny             12K  

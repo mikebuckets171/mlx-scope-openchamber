@@ -1,8 +1,8 @@
 // Pure checks behind scripts/verify-package.ts (plan §6 and §8.1), unit-tested in package-checks.test.ts.
 
-/** Approved runtime probes only. */
+/** Approved runtime probes only. 5.5 adds `/usr/bin/top` for Memory thief (one read-only sample of PID, name and memory). */
 export const EXEC_G1 = [
-  '/usr/bin/vm_stat', '/usr/sbin/sysctl', '/usr/sbin/ioreg', '/usr/bin/notifyutil', '/usr/sbin/lsof', '/usr/bin/footprint',
+  '/usr/bin/vm_stat', '/usr/sbin/sysctl', '/usr/sbin/ioreg', '/usr/bin/notifyutil', '/usr/sbin/lsof', '/usr/bin/footprint', '/usr/bin/top',
   '~/.lmstudio/bin/lms', '~/.cache/lm-studio/bin/lms', '/opt/homebrew/bin/macmon', '/usr/local/bin/macmon',
 ] as const;
 /** Bytes, 1 KB = 1,000 (the stricter reading of plan §6). */

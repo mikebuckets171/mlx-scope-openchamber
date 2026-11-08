@@ -319,15 +319,16 @@ describe('readings over every fixture', () => {
       server: { active: 0, queued: 0, averages: { decodeTps: 57.702_158_2, prefillTps: 513.801_740_6, requestsTotal: 53, failedTotal: 0 },
         histograms: { ttftMs: { p50: 1_720.490_612, p95: 65_083.542_81, n: 54, window: 'native-last-4096' },
           itlMs: { p50: 18.080_874_12, p95: 31.095_577_05, n: 4_096, window: 'native-last-4096' } },
-        admission: { waitingMemory: 0, waitingConcurrency: 0 } },
-      memory: { metalBytes: 19_498_131_456, metalPeakBytes: 20_010_885_120, room: { limitBytes: 38_654_705_664, headroomBytes: 18_843_344_896 } },
+        admission: { waitingMemory: 0, waitingConcurrency: 0 }, batches: { single: 9_701, multi: 0 } },
+      memory: { metalBytes: 19_498_131_456, metalPeakBytes: 20_010_885_120, room: { limitBytes: 38_654_705_664, headroomBytes: 18_843_344_896, deniedReservations: 0, hostHeadroomBytes: 29_309_796_352 } },
       residency: [], slots: [],
       catalog: [{ name: MODEL, format: 'splash', loaded: true, contextWindowTokens: 131_072, vision: false, inputModalities: ['text'] }], engines: [] });
     expect(reading.capabilities).toEqual({
       'server.requests': { scope: 'server', basis: 'derived' }, 'server.averages': { scope: 'server', basis: 'reported' },
       'server.latency': { scope: 'server', basis: 'reported' }, 'server.memory.metal': { scope: 'server', basis: 'reported' },
       'server.catalog': { scope: 'server', basis: 'reported' }, 'server.completions': { scope: 'server', basis: 'derived' },
-      'server.admission': { scope: 'server', basis: 'reported' }, 'server.memory.room': { scope: 'server', basis: 'reported' } });
+      'server.admission': { scope: 'server', basis: 'reported' }, 'server.memory.room': { scope: 'server', basis: 'reported' },
+      'server.batches': { scope: 'server', basis: 'reported' } });
     expect(reading.identity).toEqual({});
     expect(reading.generationKey).toMatch(/^[0-9a-f]{8}$/);
   });
@@ -361,7 +362,7 @@ describe('readings over every fixture', () => {
   test('a peak below the current allocation is not a peak', () => {
     const body = clone(IDLE);
     body.memory_actual.peak_bytes = body.memory_actual.current_bytes - 1;
-    expect(splashReading(body, AT).runtime.memory).toEqual({ metalBytes: 19_498_131_456, room: { limitBytes: 38_654_705_664, headroomBytes: 18_843_344_896 } });
+    expect(splashReading(body, AT).runtime.memory).toEqual({ metalBytes: 19_498_131_456, room: { limitBytes: 38_654_705_664, headroomBytes: 18_843_344_896, deniedReservations: 0, hostHeadroomBytes: 29_309_796_352 } });
   });
 
   test('the generation key follows the process, the engine and the model, and never carries them', () => {
@@ -704,7 +705,8 @@ describe('the descriptor', () => {
       { key: 'server.requests', basis: 'derived' }, { key: 'server.averages', basis: 'reported' }, { key: 'server.rates', basis: 'derived' },
       { key: 'server.latency', basis: 'reported' },
       { key: 'server.memory.metal', basis: 'reported' }, { key: 'server.catalog', basis: 'reported' }, { key: 'server.completions', basis: 'derived' },
-      { key: 'server.admission', basis: 'reported' }, { key: 'server.memory.room', basis: 'reported' }, { key: 'server.speculative', basis: 'derived' }]);
+      { key: 'server.admission', basis: 'reported' }, { key: 'server.memory.room', basis: 'reported' }, { key: 'server.speculative', basis: 'derived' },
+      { key: 'server.batches', basis: 'reported' }]);
   });
 });
 
@@ -769,7 +771,8 @@ describe('5.5: why a request waits, Splash memory room and draft acceptance', ()
     body.kv = { ...body.kv, active_bytes: 6_570_000_000, allocated_bytes: 7_080_000_000, reclaimable_bytes: 512_000_000 };
     body.kv_spill = { requests: { converted: 2 } };
     expect(splashReading(body, AT).runtime.memory.room).toEqual({ limitBytes: 40_802_189_312, headroomBytes: 3_221_225_472, claimsWaiting: 1,
-      claimsBytes: 4_724_464_025, kvActiveBytes: 6_570_000_000, kvAllocatedBytes: 7_080_000_000, kvReclaimableBytes: 512_000_000, spilledRequests: 2 });
+      claimsBytes: 4_724_464_025, kvActiveBytes: 6_570_000_000, kvAllocatedBytes: 7_080_000_000, kvReclaimableBytes: 512_000_000, spilledRequests: 2,
+      deniedReservations: 0, hostHeadroomBytes: 29_309_796_352 });
     expect(splashReading(body, AT).capabilities['server.memory.room']).toEqual({ scope: 'server', basis: 'reported' });
     expect(splashReading(status('recovering'), AT).runtime.memory.room).toBeUndefined();
     expectRoundTrip('room', snapshotOf(splashReading(body, AT)));
@@ -796,5 +799,47 @@ describe('5.5: why a request waits, Splash memory room and draft acceptance', ()
     expect(window.observe(status('recovering'), SPLASH_SPECULATIVE_WINDOW_MS + 34_000)).toBeUndefined();
     const plain = status('decoding'); delete plain.metrics.drafted_tokens;
     expect(new SplashSpeculative().observe(plain, 0)).toBeUndefined();
+  });
+});
+
+describe('5.5: the gate, the budget by account, the expert store and two-chat batches (Splash 1.6 /status)', () => {
+  // Shaped like the live 1.6.0 body read on Nov 7 (schema 8); the numbers are that evening's.
+  const v16 = () => {
+    const body = status('decoding');
+    body.memory_governor = { ...body.memory_governor, limit_bytes: 40_802_189_312, headroom_bytes: 3_251_042_736, denied_reservations: 152,
+      host_measurement_valid: true, host_spare_bytes: 3_027_517_440, host_spare_reserve_bytes: 3_607_772_525, host_headroom_bytes: 0,
+      accounts: [{ name: 'fixed', floor_bytes: 0, current_bytes: 8_763_769_664, cap_bytes: 8_763_769_664, grows: 0, shrinks: 0 },
+        { name: 'kv', floor_bytes: 0, current_bytes: 4_238_868_480, cap_bytes: 4_238_868_480, grows: 0, shrinks: 0 },
+        { name: 'experts', floor_bytes: 24_153_260_816, current_bytes: 24_153_260_816, cap_bytes: 24_153_260_816, grows: 0, shrinks: 0 }] };
+    body.streamed_experts = { cap_bytes: 24_153_260_816, floor_bytes: 24_153_260_816, experts: 24_576, resident: 12_889, chunks: 10 };
+    body.scheduler = { ...body.scheduler, decode_batches_by_width: { b1: 19_786, b2: 120, b3: 4, b4: 0 } };
+    return body;
+  };
+
+  test('the room carries the Mac\'s spare against Splash\'s reserve, the accounts and the expert store', () => {
+    const reading = splashReading(v16(), AT);
+    expect(reading.runtime.memory.room).toMatchObject({ hostSpareBytes: 3_027_517_440, hostSpareReserveBytes: 3_607_772_525, hostHeadroomBytes: 0,
+      deniedReservations: 152, experts: { total: 24_576, resident: 12_889 },
+      accounts: [{ name: 'fixed', currentBytes: 8_763_769_664, capBytes: 8_763_769_664 }, { name: 'kv', currentBytes: 4_238_868_480, capBytes: 4_238_868_480 },
+        { name: 'experts', currentBytes: 24_153_260_816, capBytes: 24_153_260_816 }] });
+    expect(reading.runtime.server.batches).toEqual({ single: 19_786, multi: 124 });
+    expectRoundTrip('v16', snapshotOf(reading));
+  });
+
+  test('no host figures without a valid host measurement; bad accounts, experts and widths are dropped', () => {
+    const body = v16();
+    body.memory_governor.host_measurement_valid = false;
+    body.memory_governor.accounts.push({ name: 'Bad Name', current_bytes: 1, cap_bytes: 2 }, { name: 'over', current_bytes: 3, cap_bytes: 2 });
+    body.streamed_experts.resident = 30_000;
+    const room = splashReading(body, AT).runtime.memory.room!;
+    expect(room).not.toHaveProperty('hostSpareBytes');
+    expect(room).not.toHaveProperty('hostHeadroomBytes');
+    expect(room.accounts!.map(account => account.name)).toEqual(['fixed', 'kv', 'experts']);
+    expect(room).not.toHaveProperty('experts');
+    body.scheduler.decode_batches_by_width = { b1: 10, b2: -1 };
+    expect(splashReading(body, AT).runtime.server.batches).toBeUndefined();
+    body.scheduler.decode_batches_by_width = { b2: 5 };
+    expect(splashReading(body, AT).runtime.server.batches).toBeUndefined();
+    expect(splashReading(status('recovering'), AT).runtime.server.batches).toBeUndefined();
   });
 });

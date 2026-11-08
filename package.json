@@ -64,6 +64,7 @@
             "/usr/bin/notifyutil",
             "/usr/sbin/lsof",
             "/usr/bin/footprint",
+            "/usr/bin/top",
             "~/.lmstudio/bin/lms",
             "~/.cache/lm-studio/bin/lms",
             "/opt/homebrew/bin/macmon",

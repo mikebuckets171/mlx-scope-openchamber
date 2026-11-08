@@ -118,11 +118,18 @@ export const chatOnlyReading = (provider: string, at: number): RuntimeReading =>
  * measurement details open (the one demand signal macmon needs), and the oMLX loopback port only while oMLX itself
  * answered on it, so lsof and footprint never read whatever else holds that port.
  */
-export const hostContextOf = (tier: HostContext['tier'], { status, runtime, meta }: RuntimeReading, detail = false, frame?: string): HostContext => ({
-  tier, active: busy(runtime), generating: busy(runtime) && runtime.phase !== 'queued' && (status.state === 'ready' || status.state === 'degraded'),
-  detail, ...(frame ? { frame } : {}), generation: meta.connection.generation,
-  omlxPort: meta.connection.runtime === 'omlx' && (status.state === 'ready' || status.state === 'degraded') ? meta.port ?? null : null,
-});
+export const hostContextOf = (tier: HostContext['tier'], { status, runtime, meta }: RuntimeReading, detail = false, frame?: string): HostContext => {
+  const answering = status.state === 'ready' || status.state === 'degraded';
+  // 5.5 Memory thief: apps are read while a request waits for memory, or while the runtime has no room to grow and this
+  // frame has its details open; never just because the room is short with nobody looking.
+  const waiting = (runtime.server.admission?.waitingMemory ?? 0) > 0, short = runtime.memory.room?.hostHeadroomBytes === 0;
+  return {
+    tier, active: busy(runtime), generating: busy(runtime) && runtime.phase !== 'queued' && answering,
+    detail, ...(frame ? { frame } : {}), generation: meta.connection.generation,
+    omlxPort: meta.connection.runtime === 'omlx' && answering ? meta.port ?? null : null,
+    ...answering && (waiting || short && tier === 'full' && detail) ? { apps: true } : {},
+  };
+};
 
 /** Exact authenticated route allowlist. Writes require an explicit setup or scoped cancellation POST. */
 export const createScopeServer = (token: string, sources: Sources, options: ServerOptions = {}): http.Server => {

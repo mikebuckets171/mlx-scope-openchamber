@@ -1,5 +1,5 @@
 import type { CapabilityDescriptor } from './capabilities.ts';
-import { at, count, defined, fraction, label, nonneg, obj, oneOf, opt, optionalFields } from './guards.ts';
+import { at, count, defined, fraction, label, list, nonneg, obj, oneOf, opt, optionalFields } from './guards.ts';
 
 export const PLATFORMS = ['macOS', 'Linux', 'Windows', 'Host'] as const;
 export type Platform = typeof PLATFORMS[number];
@@ -20,7 +20,19 @@ export interface HostV2 {
   thermal?: { sampledAt: number; level: ThermalLevel };    // notifyutil com.apple.system.thermalpressurelevel
   runtimeProcess?: { sampledAt: number; runtime: 'omlx'; port: number; footprintBytes: number };   // never a PID
   power?: PowerV2;
+  apps?: HostAppsV2;
 }
+/**
+ * 5.5: the apps holding the most memory (physical footprint, Activity Monitor's figure), read only while the runtime is
+ * short of room. Names stay on this Mac: shown live and kept beside waits in local History, never exported.
+ */
+export interface HostAppsV2 {
+  sampledAt: number;
+  /** When the comparison read was taken (the first read after the room went short); growth is measured from it. */
+  sinceAt?: number;
+  items: Array<{ name: string; bytes: number; grewBytes?: number }>;   // ≤ 8, biggest first; grewBytes > 0 only
+}
+export const HOST_APPS_MAX = 8;
 export interface MacV2 {
   sampledAt: number;
   pressureLevel?: PressureLevel;             // 2a amendment: optional until Stage 5 reads the kernel level
@@ -73,6 +85,14 @@ export const parseHostV2 = (value: unknown): HostV2 | null => {
         // macmon writes 0 when the SMC estimate is unavailable; zero is "not reported", not zero watts.
         sysW: sys ? sys : undefined, coverageFraction: coverage }) : null;
     }),
+    apps: part(item.apps, (apps, sampled): HostAppsV2 | null => {
+      const since = at(apps.sinceAt), items = list(apps.items, HOST_APPS_MAX, raw => {
+        const app = obj(raw), name = label(app?.name, 48), bytes = count(app?.bytes), grew = count(app?.grewBytes);
+        // Growth only: an app that shrank since the comparison read took no room.
+        return name && bytes !== null ? defined({ name, bytes, grewBytes: grew ? grew : undefined }) : null;
+      }).sort((a, b) => b.bytes - a.bytes);
+      return items.length ? defined({ sampledAt: sampled, sinceAt: since !== null && since <= sampled ? since : undefined, items }) : null;
+    }),
   });
 };
 
@@ -89,7 +109,7 @@ export const hostCapabilities = (host: HostV2 | null | undefined): CapabilityDes
     ['host.swap', has(mac?.swapUsedBytes, mac?.swapTotalBytes)], ['host.pressure', has(mac?.pressureLevel)],
     ['host.wiredLimit', has(mac?.wiredLimitBytes)], ['host.gpuBusy', has(gpu?.busyFraction)],
     ['host.gpuMemory', has(gpu?.allocBytes, gpu?.inUseBytes)], ['host.thermal', has(host.thermal)],
-    ['host.footprint', has(host.runtimeProcess)], ['host.power', has(host.power)],
+    ['host.footprint', has(host.runtimeProcess)], ['host.power', has(host.power)], ['host.apps', has(host.apps)],
   ];
   return present.filter(([, on]) => on).map(([key]) => ({ key, basis: key === 'host.power' ? 'estimate' : 'reported' }));
 };
