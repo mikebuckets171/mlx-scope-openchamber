@@ -207,13 +207,18 @@ describe('retiring the helper Scope 5 installed', () => {
     const g = await fixture(); await g.installLegacy(); const text = `{"plugins":[${g.entry()}]}`; await writeFile(g.config, text);
     let at = 1_000_000, asked = 0, idle = false;
     const setup = createCompanionSetup({ ...g.options, now: () => at, idle: async () => { asked++; return idle; } });
+    // `retry()` starts a removal and does not wait for it. What must happen is waited for until it shows (a fixed sleep lost that
+    // race on a slow hosted disk); what must not happen can only be given a moment and looked at.
     const settle = () => new Promise(resolve => setTimeout(resolve, 20));
+    const until = async (done: () => boolean) => { for (let waited = 0; waited < 3_000 && !done(); waited += 5) await new Promise(resolve => setTimeout(resolve, 5)); };
     setup.retry(); await settle(); expect(asked).toBe(0);                     // nothing has waited yet: polling does nothing
     await setup.status(); await setup.status(); await settle(); expect(asked).toBe(0);   // and reading status never acts
     expect(await setup.retire()).toBe('waiting'); expect(asked).toBe(1);
     setup.retry(); setup.retry(); await settle(); expect(asked).toBe(1);        // too soon
-    at += 30_000; setup.retry(); await settle(); expect(asked).toBe(2);         // a poll after 30 s tries again, still busy
-    idle = true; at += 30_000; setup.retry(); await settle(); expect(asked).toBe(3);
+    at += 30_000; setup.retry(); await until(() => asked === 2); expect(asked).toBe(2);   // a poll after 30 s tries again, still busy
+    idle = true; at += 30_000; setup.retry();
+    expect(await setup.retire()).toBe('none');                                // queues behind the removal retry() started, so that has finished
+    expect(asked).toBe(3);
     expect(parse(await readFile(g.config, 'utf8')).plugins).toEqual([]); expect(await g.retired()).toBe(true);
     at += 60_000; setup.retry(); await settle(); expect(asked).toBe(3);         // done: polling does nothing more
   });
