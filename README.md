@@ -2,6 +2,11 @@
 
 **Read-only monitoring for local model runtimes on Apple Silicon, right beside your OpenChamber chat.**
 
+> **A smaller successor exists.** [Gauge](https://github.com/mikebuckets171/openchamber-gauge) is a new extension for
+> the same job: the chat's speed, the prompt a local Splash chat is reading, a ComfyUI render and the Mac's memory, in
+> one Work Status section. MLX Scope stays at 6.0.0 and still works as it is; Gauge is the one to install if you want
+> the readings without the rest.
+
 MLX Scope shows how fast your chat is being delivered and what the model engine behind it is doing — generation speed,
 prompt progress, memory, and the Mac it runs on. It never sends inference, loads or unloads a model, or starts a
 runtime; it reads the status endpoints of the tools you already have.
